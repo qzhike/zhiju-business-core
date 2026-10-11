@@ -397,6 +397,12 @@ class BlockScanner {
       (sectionStack.at(-1)?.children ?? nodes).push(node);
     };
 
+    // A setext underline is only meaningful directly below a paragraph line at
+    // the same block level; the line immediately before a block start decides
+    // whether `-`/`=` runs are an underline or a thematic break.
+    let previousWasParagraph = false;
+    let previousBlockEnd = -1;
+
     let index = start;
     while (index < end) {
       this.#checkDeadline();
@@ -432,13 +438,24 @@ class BlockScanner {
         (parent?.children ?? nodes).push(node);
         sectionStack.push({ level, children: node.children });
         index += 1;
+        previousWasParagraph = false;
+        previousBlockEnd = index;
         continue;
       }
 
-      if (THEMATIC_PATTERN.test(content) && !isSetextContinuation(this.#lines, index, start)) {
+      if (SETEXT_PATTERN.test(content) && previousWasParagraph && previousBlockEnd === index) {
+        fail(
+          ARTIFACT_MARKDOWN_UNSUPPORTED,
+          `setext headings are not supported (line ${index + 1})`,
+        );
+      }
+
+      if (THEMATIC_PATTERN.test(content)) {
         this.#countUnit();
         attach({ kind: 'THEMATIC_BREAK', children: [] });
         index += 1;
+        previousWasParagraph = false;
+        previousBlockEnd = index;
         continue;
       }
 
@@ -447,6 +464,8 @@ class BlockScanner {
         this.#countAstUnits(list.node);
         attach(list.node);
         index = list.next;
+        previousWasParagraph = false;
+        previousBlockEnd = index;
         continue;
       }
 
@@ -454,6 +473,8 @@ class BlockScanner {
         const table = this.#scanTable(index, end);
         attach(table.node);
         index = table.next;
+        previousWasParagraph = false;
+        previousBlockEnd = index;
         continue;
       }
 
@@ -461,6 +482,8 @@ class BlockScanner {
       this.#countUnit();
       attach({ kind: 'PARAGRAPH', inline: paragraph.inline, children: [] });
       index = paragraph.next;
+      previousWasParagraph = true;
+      previousBlockEnd = index;
     }
 
     return nodes;
@@ -485,26 +508,26 @@ class BlockScanner {
         );
       }
       const content = line.slice(indent);
-      if (lines.length > 0) {
-        if (SETEXT_PATTERN.test(content) || THEMATIC_PATTERN.test(content)) {
-          fail(
-            ARTIFACT_MARKDOWN_UNSUPPORTED,
-            `setext headings and unseparated thematic breaks are not supported (line ${index + 1})`,
-          );
-        }
-        if (
-          HEADING_PATTERN.test(content) ||
-          LIST_PATTERN.test(content) ||
-          UNSUPPORTED_BLOCK.test(content) ||
-          (hasUnescapedPipe(content) && isSeparatorRow(this.#lines[index + 1] ?? ''))
-        ) {
-          break;
-        }
-      }
+      // A following block start (heading, thematic break, setext underline,
+      // list, table or unsupported block) ends this paragraph and is decided by
+      // the enclosing block scanner.
+      if (lines.length > 0 && this.#startsNewBlock(content, index)) break;
       lines.push(content);
       index += 1;
     }
     return { inline: joinParagraphLines(lines), next: index };
+  }
+
+  /** True when the line starts a new block rather than continuing a paragraph. */
+  #startsNewBlock(content: string, index: number): boolean {
+    return (
+      HEADING_PATTERN.test(content) ||
+      THEMATIC_PATTERN.test(content) ||
+      SETEXT_PATTERN.test(content) ||
+      LIST_PATTERN.test(content) ||
+      UNSUPPORTED_BLOCK.test(content) ||
+      (hasUnescapedPipe(content) && isSeparatorRow(this.#lines[index + 1] ?? ''))
+    );
   }
 
   #scanList(start: number, end: number, baseIndent: number): { node: AstNode; next: number } {
@@ -541,6 +564,9 @@ class BlockScanner {
       const marker = LIST_PATTERN.exec(content);
 
       if (marker !== null && indent === baseIndent) {
+        // `- - -` / `* * *` satisfy both the list and thematic-break grammar;
+        // the thematic break wins and terminates the list.
+        if (THEMATIC_PATTERN.test(content)) break;
         const markerToken = marker[1] ?? '';
         const ordered = /^\d/u.test(markerToken);
         const itemText = marker[2] ?? '';
@@ -571,6 +597,15 @@ class BlockScanner {
         current.children.push(nested.node);
         index = nested.next;
         continue;
+      }
+
+      // An indented setext underline would turn the item's paragraph into a
+      // setext heading, which this profile does not support.
+      if (SETEXT_PATTERN.test(content) && indent > baseIndent) {
+        fail(
+          ARTIFACT_MARKDOWN_UNSUPPORTED,
+          `setext headings are not supported (line ${index + 1})`,
+        );
       }
 
       // An indented continuation belongs to the current item; a heading,
@@ -656,12 +691,6 @@ class BlockScanner {
 
     return { node: { kind: 'TABLE', children: [], columns, rows }, next: index };
   }
-}
-
-function isSetextContinuation(lines: readonly string[], index: number, start: number): boolean {
-  if (index === start) return false;
-  const previous = lines[index - 1] ?? '';
-  return !isBlank(previous) && indentationOf(previous) < 4;
 }
 
 // --- inline scanning ------------------------------------------------------

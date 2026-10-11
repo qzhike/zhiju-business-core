@@ -1,5 +1,71 @@
 # PR #275 独立实现审查
 
+## 第二轮复审：修复 head `a2d40d4`
+
+- 复审日期：2026-10-11。
+- 当前角色与结论：`Reviewer / REQUEST_CHANGES`，新增 1 条阻塞发现 `R9 / P2`。
+- 已审 SHA：`a2d40d41175f371d01fe6599d463c7edd61e1676`。
+- Base SHA：`ec3bd6db7dec7294519ead17ad4a9cf69fb7b8af`。
+- 上轮已审 SHA：`6195c76ef00ce6933fba48eb99fda6553ec175e6`。
+- PR：<https://github.com/qzhike/zhiju-business-core/pull/275>；Issue：[#270](https://github.com/qzhike/zhiju-business-core/issues/270)。
+- 本轮已发表：[COMMENT review 5483589632](https://github.com/qzhike/zhiju-business-core/pull/275#pullrequestreview-5483589632)，2026-10-11 14:02:43 UTC；已读回 outcome、完整 body、state=COMMENTED 和精确 commit_id。发表前后远端 head 均未变。
+- R9 行内意见：[discussion_r4241851173](https://github.com/qzhike/zhiju-business-core/pull/275#discussion_r4241851173)；已独立读回 path、RIGHT line=664、body 和上述 commit_id。
+
+本轮针对最新修订独立读取 Issue、PR diff、受影响 ART / IG / Contracts、测试和精确修订 CI，并依据已批准 ART §13.2 与 Delta §3 重建预期。未用实现者的修复表或临时探针 PASS 作为批准依据。上轮报告的 8 条具体反例现已满足要求，但列表结束后的普通分隔线仍可被接受为正文文字，且错误语义的树仍通过 round-trip；不能以配置 CI 通过关闭这一契约缺陷。
+
+### 上轮发现复验
+
+| 发现    | 当前修订的独立核对与定向结果                                                                                                                                                                                                                         | 判定                                               |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| R1 / P1 | 有 sidecar 时必须提供 owning `identityBinding`；精确 Artifact、Project、candidate output、base、mapping、profile、document 和 raw hash 对账。合法绑定接纳；分别替换 Artifact/Project/output/raw、替换或漏掉 base/mapping、缺 owning binding 均拒绝。 | 原反例已修复                                       |
+| R2 / P1 | materialized sourceNodes/sourceColumns 与 sidecar 按 path/type/identity/parent/ordinal 及每表列覆盖逐项对账。分别错 parent/ordinal/type、同数量替换 path、缺列/异表列/额外列均拒绝。                                                                 | 原反例已修复                                       |
+| R3 / P2 | 两空格和反斜线 marker 行硬换行均保留为 LF + HARD_BREAK；无空行的后续 ATX 标题保留独立 SECTION。对应初次 tree 与 round-trip 均验证。                                                                                                                  | 原硬换行 / ATX 反例已修复；新的分隔线边界问题见 R9 |
+| R4 / P1 | `#scanTable` 在 materialization 前累计 TABLE、ROW、CELL，并执行统一 Unit / deadline 检查。原 20001 个两行小表输入仍仅 380019 bytes，现在返回 `ARTIFACT_MARKDOWN_LIMIT`。                                                                             | 原反例已修复                                       |
+| R5 / P2 | 公开 validator 精确检查 registered selector/version 和 Enterprise-only Scope；分别未知 objectId、未知 versionId、额外 projectId 均验证失败，renderer 同时拒绝；合法对照通过。                                                                        | 原反例已修复                                       |
+| R6 / P2 | header 必须是 childUnitIds 首行、真实 TABLE_ROW / HEADER 且持最低 row ordinal。合法图中将最后一行改为 header 的原反例在 validator 和 renderer 均拒绝。                                                                                               | 原反例已修复                                       |
+| R7 / P2 | 未转义删除线、task-list 显式 UNSUPPORTED；转义 tilde、checkbox literal 接纳并可 round-trip，未把无法配对的受支持 marker 提升为扩展语法。                                                                                                             | 原反例已修复                                       |
+| R8 / P2 | CODE span 内的 link/footnote/HTML/script 文字原样保留为 CODE；这些语法在 CODE 外仍按既有 UNSAFE / UNSUPPORTED 边界拒绝。                                                                                                                             | 原反例已修复                                       |
+
+本轮没有新增机器 Schema 字段或重新定义首轮 named Contract 的接受集。公开 validator 的 selector 与 TABLE 首行约束已按 owning 规定收紧，旧 profile、Set 语义与 request_render@1.0 未改。技术输入新增 `MarkdownIdentityBinding`：`artifactRef` 必填，`baseRevisionRef?` / `baselineMappingRef?` 可选；parse 有 sidecar 时条件必需，round-trip 必需，optional 的有无也逐项相等。这不宣称未来 TE 权威来源或真实业务接纳已经实现。R4 的确定性生成负例确实触发 Unit 预算，无需为同一反例额外检入重复文本。
+
+### R9 / P2：列表后的相邻分隔线被成功降为文字
+
+位置：`modules/artifact/src/business/markdown-document-service.ts:661`（`isSetextContinuation`），调用处 `:438`，新列表终止逻辑 `:597`。
+
+独立输入：
+
+```text
+- item
+***
+```
+
+预期第二个 Unit 为 `PARAGRAPH / blockKind:THEMATIC_BREAK`，省略 text。实际为 `PARAGRAPH / blockKind:TEXT / text:'***'`。列表的 `#startsBlock` 正确把该行交回外层，但 `isSetextContinuation` 仅检查前一行非空、缩进小于 4；即使前一行已属于 list，也让外层跳过分隔线分支。`***` 本身也不是 setext underline，不能据此作 setext 歧义处理。
+
+renderer 把错误的第二个 Unit 写成转义文字 `\*\*\*`，随后 parse/render 和 canonical Hash 校验仍成功。这证明初次解析已改变分隔线语义，往返一致不能补回它。加入一行空行的对照 `- item\n\n***\n` 则得到真实 THEMATIC_BREAK，render 为 `---`；Delta §3 明确普通分隔线属于支持集、纯空行排版不进入语义，ART §13.6 也声明分隔线正确终止列表。此处不需要扩展 grammar 或新规划。
+
+修复应按当前实际块上下文及真正 setext underline 判断，保留相邻普通分隔线；不能把已识别的支持结构落成成功的 literal 替代。增加直接检查初次 tree 的无空行列表→分隔线用例，与带空行、真实 setext 拒绝及 round-trip 对照成对验证。
+
+### 本轮验证及证据边界
+
+| 证据                        | 核对结果                                                                                                                                                                                                                                                  | 边界                                                                                                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact revision / repository | PR head 与本地 `a2d40d41175f371d01fe6599d463c7edd61e1676` 一致，base 未变，PR 为 OPEN / 非 Draft；本轮开始工作区干净。                                                                                                                                    | 当前分支已经包含原 Review.md；下面首轮“未提交”措辞只描述首轮发表时状态。                                                                                              |
+| 当前配置 CI                 | [run 38141950821](https://github.com/qzhike/zhiju-business-core/actions/runs/38141950821) 的 headSha 精确匹配；select/checks/persistence/verify 全部 SUCCESS。独立核对实际 Verify code、clean build prerequisites 与 Docker/PostgreSQL persistence 步骤。 | 覆盖 ready PR 要求的 full，复用当前证据，不重复本地 full；绿色 CI 不取代语义审查。                                                                                    |
+| 独立定向验证                | `node node_modules/vitest/vitest.mjs run tests/business/pr275-rereview-probe.test.ts --reporter=default --reporter=json --outputFile=/private/tmp/pr275-rereview-probe-results.json`；最终 1 file / 15 tests，14 PASS、1 FAIL，1.17 秒。                  | 上轮 8 条原反例和合法控制已通过；唯一 FAIL 为 R9 的 THEMATIC_BREAK 预期。失败前实际错误 tree 的 round-trip / Hash 相等检查已通过。该命令是语义诊断，未冒称配置 full。 |
+| 临时材料                    | 最终 probe 源在 `/private/tmp/pr275-rereview-probe.test.ts`，结果在 `/private/tmp/pr275-rereview-probe-results.json`。                                                                                                                                    | 临时源已从仓库移除；没有修改产品代码、原测试、Contract 或 owning Spec。                                                                                               |
+| 正式记录                    | 本轮仅更新 `.vibe/reviews/pr-275/Review.md`，保留首轮发现、证据与发表链接，并补入第二轮 review / R9 读回链接。                                                                                                                                            | 第二轮增量未 commit/push，不属于已审 head 或其 CI。                                                                                                                   |
+| Focused 文档检查            | 新 Review.md 的单文件 Prettier、Markdown fence/conflict 与工作区 `git diff --check HEAD` 均 PASS；语义反例使用 text fence，保持原始行和星号。                                                                                                             | 只覆盖本轮正式记录增量，不冒称该页已包含在 current head CI 或获得新的 full 证据。                                                                                     |
+
+### 本轮交付边界
+
+R9 为既有支持集内的实现缺陷，当前结论是 REQUEST_CHANGES。修复后应复审新 head 和对应门禁。Issue #270 要求的精确修订人类实现技术批准依然未提供；PR #269 的设计批准不替代它。未来 TE、候选封存、Head、Attempt/Binding/Representation、公开 Diff/下载、Host/Runner/OIDC/HTTP、Browser 与独立人工内容验收仍为本切片的 NOT IMPLEMENTED / NOT RUN。没有修复产品、commit、push 或 merge。
+
+已发表 COMMENT review 与 1 条 P2 行内意见，完整读回匹配本地准备的评论和精确 SHA；这不是 GitHub APPROVED / CHANGES_REQUESTED 事件。
+
+## 第一轮审查：历史记录 `6195c76`
+
+以下保留首轮原始判断与当时执行事实；当前修订的状态和发现以上方第二轮复审为准。首轮记录已随修复提交进入 `a2d40d4`，其原“未提交”表述不代表本轮开始时的工作区状态。
+
 - PR：<https://github.com/qzhike/zhiju-business-core/pull/275>
 - Issue：[#270](https://github.com/qzhike/zhiju-business-core/issues/270)，T2 闭口 Markdown canonicalization / round-trip 技术管线。
 - 审查日期：2026-10-11。

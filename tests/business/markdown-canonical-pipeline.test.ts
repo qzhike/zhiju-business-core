@@ -172,6 +172,7 @@ describe('focused standalone fixtures', () => {
     { file: 'unicode-placeholders.md', code: 'FIXTURE-UNICODE', kind: 'FILLED_RECORD' },
     { file: 'escaped-pipes.md', code: 'FIXTURE-ESCAPE', kind: 'FILLED_RECORD' },
     { file: 'list-breaks.md', code: 'FIXTURE-LIST', kind: 'FILLED_RECORD' },
+    { file: 'list-thematic-break.md', code: 'FIXTURE-LIST-BREAK', kind: 'FILLED_RECORD' },
     { file: 'escaped-literals.md', code: 'FIXTURE-LITERAL', kind: 'FILLED_RECORD' },
     { file: 'code-literals.md', code: 'FIXTURE-CODE', kind: 'FILLED_RECORD' },
   ];

@@ -634,6 +634,38 @@ describe('list line breaks and block boundaries', () => {
     );
     expect(breaks).toHaveLength(1);
   });
+
+  it('keeps an immediately adjacent thematic break as THEMATIC_BREAK', () => {
+    for (const marker of ['***', '---', '___', '- - -']) {
+      const parsed = parseText(`- item\n${marker}\n`);
+      const items = parsed.content.body.units.filter(
+        (unit) => markdownMetadata(unit).blockKind === 'LIST_ITEM',
+      );
+      expect(items).toHaveLength(1);
+      expect(unitText(defined(items[0], 'list item'))).toBe('item');
+      const kinds = parsed.content.body.units.map((unit) => markdownMetadata(unit).blockKind);
+      expect(kinds).toEqual(['LIST_ITEM', 'THEMATIC_BREAK']);
+      const breaks = parsed.content.body.units.filter(
+        (unit) => markdownMetadata(unit).blockKind === 'THEMATIC_BREAK',
+      );
+      expect(breaks).toHaveLength(1);
+      expect(unitText(defined(breaks[0], 'thematic break'))).toBeUndefined();
+    }
+  });
+
+  it('keeps a thematic break adjacent to a paragraph as THEMATIC_BREAK', () => {
+    const parsed = parseText('body\n***\n');
+    expect(parsed.content.body.units.map((unit) => markdownMetadata(unit).blockKind)).toEqual([
+      'TEXT',
+      'THEMATIC_BREAK',
+    ]);
+  });
+
+  it('rejects a setext underline that directly follows a paragraph or list item', () => {
+    expectCode(() => parseText('Title\n===\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+    expectCode(() => parseText('Title\n---\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+    expectCode(() => parseText('- item\n   ---\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+  });
 });
 
 describe('unsupported extensions', () => {
