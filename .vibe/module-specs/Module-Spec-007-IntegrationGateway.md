@@ -456,6 +456,6 @@ Markdown render由已提交RenderAttempt读取exact ART FROZEN Canonical，固�
 
 - 已实现 profile：`MARKDOWN_RENDERER_PROFILE`，`outputFormat: zhiju.markdown`、`rendererId: zhiju.renderer.markdown.canonical`、`rendererVersion: 1.0.0`、`mediaType: text/markdown; charset=utf-8`、`contentType: STRUCTURED_DOCUMENT`。当前未登记为注册 selector，也未接入任何 Attempt/Binding。
 - 已实现入口：`renderMarkdownDocument(content)` 与 `renderMarkdownInline(text, spans)`。输入必须是封闭 `artifact.markdown_document.schema@1.0` payload（先经 `validateMarkdownDocumentContent`），否则 `INTEGRATION_RENDER_INPUT_MISMATCH`；无法在 canonical Markdown 表达的输入（例如前导空白）返回 `INTEGRATION_MARKDOWN_RENDER_INVALID`，不静默降级。
-- 确定性契约：固定 LF 行尾、固定转义（``\ ` * | < > # = ~`` 与行首 marker）、固定列表 marker（ORDERED 用 `orderedMarker`，UNORDERED 用 `-`）、固定三连字符分隔行与单空格 cell padding；同一 canonical tree 两次渲染字节与 checksum 相同。
+- 确定性契约：固定 LF 行尾、固定转义（``\ ` * | < > # = ~`` 与行首 marker，以及会读回成链接/图片/脚注的 `[^`/`](`/`![` 序列和 checkbox 样式列表项）、固定列表 marker（ORDERED 用 `orderedMarker`，UNORDERED 用 `-`）、固定三连字符分隔行与单空格 cell padding；同一 canonical tree 两次渲染字节与 checksum 相同。
 - round-trip 边界：renderer 不解析、不校验身份；`parse(render(tree), authoritativeIdentityMap) = tree` 由 ART 的 `verifyMarkdownRoundTrip` 独立断言，任何差异拒整份文件。
 - 已执行证据：见 [Module-Test-007 已实现子用例](../module-tests/Module-Test-007-IntegrationGateway.md#已实现的-markdown-renderer-技术子用例270) 与 [Module-Test-004](../module-tests/Module-Test-004-Artifact.md#已实现的-markdown-技术子用例270)；真实 Host/Provider/object store/HTTP/browser/人工仍 `NOT RUN`。

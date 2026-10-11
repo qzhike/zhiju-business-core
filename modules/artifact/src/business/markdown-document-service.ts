@@ -68,6 +68,17 @@ export interface MarkdownSourceColumnFact {
   readonly ordinal: number;
 }
 
+/**
+ * The exact owning facts identities may be inherited from. Required with
+ * `identityMap`: a sidecar alone cannot prove which Artifact/Project/output/base
+ * or source mapping it belongs to.
+ */
+export interface MarkdownIdentityBinding {
+  readonly artifactRef: Common.ObjectRef;
+  readonly baseRevisionRef?: Common.ContentAddressedRef;
+  readonly baselineMappingRef?: Common.SnapshotRef;
+}
+
 export interface MarkdownParseRequest {
   /** Original raw bytes; never rewritten. */
   readonly bytes: Uint8Array;
@@ -79,6 +90,8 @@ export interface MarkdownParseRequest {
   readonly identityDerivation: MarkdownIdentityDerivation;
   /** Authoritative identity sidecar; only its identities are inherited. */
   readonly identityMap?: Artifact.MarkdownIdentityMap;
+  /** Required with `identityMap`; must match the sidecar exactly. */
+  readonly identityBinding?: MarkdownIdentityBinding;
   /** Skip the sidecar raw-byte binding when re-parsing derived render output. */
   readonly enforceRawBytesBinding?: boolean;
   readonly now?: () => number;
@@ -100,6 +113,7 @@ export interface MarkdownRoundTripRequest {
   readonly enterpriseId: string;
   readonly identityDerivation: MarkdownIdentityDerivation;
   readonly identityMap: Artifact.MarkdownIdentityMap;
+  readonly identityBinding: MarkdownIdentityBinding;
   /** Bytes produced by the deterministic renderer for `content`. */
   readonly renderedBytes: Uint8Array;
   readonly now?: () => number;
@@ -140,10 +154,9 @@ const HEADING_PATTERN = /^(#{1,6})[ \t]+(.*)$/u;
 const LIST_PATTERN = /^([-+*]|\d{1,9}[.)])[ \t]+(.*)$/u;
 const THEMATIC_PATTERN = /^(?:\*[ \t]*){3,}$|^(?:-[ \t]*){3,}$|^(?:_[ \t]*){3,}$/u;
 const SETEXT_PATTERN = /^(?:=+|-+)[ \t]*$/u;
-const BR_TOKEN = /^<br(\/>| \/>|>)/u;
 const SEPARATOR_CELL = /^:?-+:?$/u;
 const UNSUPPORTED_BLOCK = /^(?:```|~~~|>|<!--)/u;
-const LINK_OR_FOOTNOTE = /!\[|\]\(|\]\[|\[\^/u;
+const TASK_LIST_PATTERN = /^\[[ xX]\](?:[ \t]|$)/u;
 const ESCAPABLE = /[!-/:-@[-`{-~]/u;
 
 class MarkdownParseError extends ArtifactBusinessError {}
@@ -237,8 +250,10 @@ interface AstRow {
 
 interface AstNode {
   readonly kind: 'SECTION' | 'PARAGRAPH' | 'THEMATIC_BREAK' | 'LIST' | 'LIST_ITEM' | 'TABLE';
-  inline?: string;
   readonly level?: number;
+  inline?: string;
+  /** Raw source lines of a list item, joined after the list run is scanned. */
+  lines?: string[];
   readonly listKind?: 'ORDERED' | 'UNORDERED';
   readonly listOrdinal?: number;
   readonly listDepth?: number;
@@ -453,16 +468,6 @@ class BlockScanner {
 
   #countAstUnits(node: AstNode): void {
     if (node.kind === 'LIST_ITEM') this.#countUnit(node.listDepth);
-    if (node.kind === 'TABLE') {
-      this.#countUnit();
-      const columnCount = (node.columns ?? []).length;
-      const rowCount = (node.rows ?? []).length;
-      for (let row = 0; row < rowCount; row += 1) {
-        this.#countUnit();
-        for (let cell = 0; cell < columnCount; cell += 1) this.#countUnit();
-      }
-      return;
-    }
     for (const child of node.children) this.#countAstUnits(child);
   }
 
@@ -538,9 +543,16 @@ class BlockScanner {
       if (marker !== null && indent === baseIndent) {
         const markerToken = marker[1] ?? '';
         const ordered = /^\d/u.test(markerToken);
+        const itemText = marker[2] ?? '';
+        if (TASK_LIST_PATTERN.test(itemText)) {
+          fail(
+            ARTIFACT_MARKDOWN_UNSUPPORTED,
+            `unsupported task-list extension (line ${index + 1})`,
+          );
+        }
         items.push({
           kind: 'LIST_ITEM',
-          inline: marker[2] ?? '',
+          lines: [itemText],
           listKind: ordered ? 'ORDERED' : 'UNORDERED',
           listOrdinal: ordered ? Number.parseInt(markerToken.slice(0, -1), 10) : items.length + 1,
           listDepth,
@@ -561,18 +573,34 @@ class BlockScanner {
         continue;
       }
 
-      const continuation = this.#scanParagraph(index, end);
-      current.inline =
-        current.inline === undefined || current.inline.length === 0
-          ? continuation.inline
-          : `${current.inline} ${continuation.inline}`;
-      index = continuation.next;
+      // An indented continuation belongs to the current item; a heading,
+      // thematic break, table start or unsupported block terminates the list
+      // and is handled by the enclosing block scanner.
+      if (this.#startsBlock(content, index)) break;
+      const lines = current.lines ?? [];
+      lines.push(content);
+      current.lines = lines;
+      index += 1;
+    }
+
+    for (const item of items) {
+      item.inline = joinParagraphLines(item.lines ?? []);
     }
 
     return {
       node: { kind: 'LIST', children: items },
       next: index,
     };
+  }
+
+  /** True when the line starts a block the current list must not consume. */
+  #startsBlock(content: string, index: number): boolean {
+    return (
+      HEADING_PATTERN.test(content) ||
+      THEMATIC_PATTERN.test(content) ||
+      UNSUPPORTED_BLOCK.test(content) ||
+      (hasUnescapedPipe(content) && isSeparatorRow(this.#lines[index + 1] ?? ''))
+    );
   }
 
   #scanTable(start: number, end: number): { node: AstNode; next: number } {
@@ -620,6 +648,12 @@ class BlockScanner {
       index += 1;
     }
 
+    // Count the table, every row and every cell against the total Unit budget
+    // before materialization, like the paragraph and list paths do.
+    this.#countUnit();
+    const rowUnitCount = rows.reduce((total, row) => total + 1 + row.cells.length, 0);
+    for (let counted = 0; counted < rowUnitCount; counted += 1) this.#countUnit();
+
     return { node: { kind: 'TABLE', children: [], columns, rows }, next: index };
   }
 }
@@ -632,15 +666,11 @@ function isSetextContinuation(lines: readonly string[], index: number, start: nu
 
 // --- inline scanning ------------------------------------------------------
 
-function parseInline(source: string): { text: string; spans: Artifact.MarkdownInlineSpan[] } {
-  if (LINK_OR_FOOTNOTE.test(source)) {
-    if (source.includes('[^')) fail(ARTIFACT_MARKDOWN_UNSUPPORTED, 'footnotes are not supported');
-    fail(ARTIFACT_MARKDOWN_UNSAFE, 'Markdown links and images are not supported');
-  }
-  if (/javascript:/iu.test(source)) {
-    fail(ARTIFACT_MARKDOWN_UNSAFE, 'Markdown script URLs are not supported');
-  }
+/** Allowlisted pure hard-break tokens; every other HTML tag is unsafe. */
+const BR_TOKENS = ['<br />', '<br/>', '<br>'] as const;
+const SCRIPT_PREFIX = 'javascript:';
 
+function parseInline(source: string): { text: string; spans: Artifact.MarkdownInlineSpan[] } {
   const characters = Array.from(source);
   const out: string[] = [];
   const spans: Artifact.MarkdownInlineSpan[] = [];
@@ -650,10 +680,21 @@ function parseInline(source: string): { text: string; spans: Artifact.MarkdownIn
     for (const character of value) out.push(character);
   };
 
+  const matchesAt = (at: number, expected: string, ignoreCase = false): boolean => {
+    for (let offset = 0; offset < expected.length; offset += 1) {
+      const actual = characters[at + offset];
+      const wanted = expected[offset];
+      if (actual === undefined || wanted === undefined) return false;
+      if (ignoreCase ? actual.toLowerCase() !== wanted : actual !== wanted) return false;
+    }
+    return true;
+  };
+
   while (index < characters.length) {
     const character = characters[index];
     if (character === undefined) break;
 
+    // Escapes come first: an escaped punctuation is literal text, never a marker.
     if (character === '\\') {
       const next = characters[index + 1];
       if (next !== undefined && ESCAPABLE.test(next)) {
@@ -673,12 +714,30 @@ function parseInline(source: string): { text: string; spans: Artifact.MarkdownIn
       continue;
     }
 
+    // Dangerous and unsupported inline syntax is judged per position, outside
+    // CODE spans only, so inline code keeps its literal content (ART §13.2).
+    if (character === '!' && characters[index + 1] === '[') {
+      fail(ARTIFACT_MARKDOWN_UNSAFE, 'Markdown images are not supported');
+    }
+    if (character === ']' && (characters[index + 1] === '(' || characters[index + 1] === '[')) {
+      fail(ARTIFACT_MARKDOWN_UNSAFE, 'Markdown links are not supported');
+    }
+    if (character === '[' && characters[index + 1] === '^') {
+      fail(ARTIFACT_MARKDOWN_UNSUPPORTED, 'footnotes are not supported');
+    }
+    if (character === '~' && characters[index + 1] === '~') {
+      fail(ARTIFACT_MARKDOWN_UNSUPPORTED, 'the strikethrough extension is not supported');
+    }
+    if ((character === 'j' || character === 'J') && matchesAt(index, SCRIPT_PREFIX, true)) {
+      fail(ARTIFACT_MARKDOWN_UNSAFE, 'Markdown script URLs are not supported');
+    }
+
     if (character === '<') {
-      const token = BR_TOKEN.exec(characters.slice(index).join(''));
-      if (token === null) fail(ARTIFACT_MARKDOWN_UNSAFE, 'raw HTML is not supported');
+      const token = BR_TOKENS.find((candidate) => matchesAt(index, candidate));
+      if (token === undefined) fail(ARTIFACT_MARKDOWN_UNSAFE, 'raw HTML is not supported');
       spans.push({ start: out.length, end: out.length + 1, kind: 'HARD_BREAK' });
       out.push('\n');
-      index += token[0].length;
+      index += token.length;
       continue;
     }
 
@@ -1051,6 +1110,43 @@ function assertIdentityBinding(
 ): void {
   const map = request.identityMap;
   if (map === undefined) return;
+
+  // A sidecar alone cannot prove which Artifact/Project/output/base or source
+  // mapping it belongs to; the owning caller must supply the expected facts.
+  const binding = request.identityBinding;
+  if (binding === undefined) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'an authoritative identity sidecar requires the expected owning binding',
+    );
+  }
+  if (!isDeepStrictEqual(map.artifactRef, binding.artifactRef)) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar artifact reference does not match the expected Artifact and Scope',
+    );
+  }
+  if (binding.artifactRef.scope.enterpriseId !== request.enterpriseId) {
+    fail(ARTIFACT_MARKDOWN_IDENTITY_INVALID, 'the expected Artifact is not in this enterprise');
+  }
+  if (map.candidateOutputId !== request.identityDerivation.candidateOutputId) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar candidate output does not match the current candidate output',
+    );
+  }
+  if (!isDeepStrictEqual(map.baseRevisionRef, binding.baseRevisionRef)) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar base revision does not match the expected base',
+    );
+  }
+  if (!isDeepStrictEqual(map.baselineMappingRef, binding.baselineMappingRef)) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar baseline mapping does not match the expected source mapping',
+    );
+  }
   if (!isDeepStrictEqual(map.profileRef, markdownDocumentSchemaReference(request.enterpriseId))) {
     fail(
       ARTIFACT_MARKDOWN_IDENTITY_INVALID,
@@ -1060,9 +1156,6 @@ function assertIdentityBinding(
   if (map.documentId !== request.documentId) {
     fail(ARTIFACT_MARKDOWN_IDENTITY_INVALID, 'identity sidecar documentId does not match');
   }
-  if (map.artifactRef.scope.enterpriseId !== request.enterpriseId) {
-    fail(ARTIFACT_MARKDOWN_IDENTITY_INVALID, 'identity sidecar artifact is not in this enterprise');
-  }
   if (
     request.enforceRawBytesBinding !== false &&
     map.markdownBytesSha256.digest !== rawBytesSha256.digest
@@ -1071,6 +1164,54 @@ function assertIdentityBinding(
       ARTIFACT_MARKDOWN_IDENTITY_INVALID,
       'identity sidecar raw Markdown binding does not match',
     );
+  }
+}
+
+/** Every declared identity must correspond exactly to one materialized fact. */
+function assertSidecarCorrespondence(
+  map: Artifact.MarkdownIdentityMap,
+  sourceNodes: readonly MarkdownSourceNodeFact[],
+  sourceColumns: readonly MarkdownSourceColumnFact[],
+): void {
+  const declaredByPath = new Map(map.nodes.map((node) => [node.sourceNodePath, node] as const));
+  if (declaredByPath.size !== sourceNodes.length || map.nodes.length !== sourceNodes.length) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar does not cover exactly the parsed units',
+    );
+  }
+  for (const node of sourceNodes) {
+    const declared = declaredByPath.get(node.sourceNodePath);
+    if (
+      declared?.unitId !== node.unitId ||
+      declared.type !== node.type ||
+      declared.ordinal !== node.ordinal ||
+      !isDeepStrictEqual(declared.parentUnitId, node.parentUnitId)
+    ) {
+      fail(
+        ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+        `identity sidecar entry for '${node.sourceNodePath}' does not correspond to the parsed unit`,
+      );
+    }
+  }
+
+  const declaredColumns = new Map(
+    map.columns.map((column) => [`${column.tableUnitId}#${column.ordinal}`, column] as const),
+  );
+  if (declaredColumns.size !== map.columns.length || map.columns.length !== sourceColumns.length) {
+    fail(
+      ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+      'identity sidecar does not cover exactly the parsed table columns',
+    );
+  }
+  for (const column of sourceColumns) {
+    const declared = declaredColumns.get(`${column.tableUnitId}#${column.ordinal}`);
+    if (declared?.columnId !== column.columnId) {
+      fail(
+        ARTIFACT_MARKDOWN_IDENTITY_INVALID,
+        `identity sidecar column for '${column.tableUnitId}#${column.ordinal}' does not correspond to the parsed table`,
+      );
+    }
   }
 }
 
@@ -1101,9 +1242,6 @@ export function parseMarkdownDocument(request: MarkdownParseRequest): MarkdownPa
   });
   const units = materializer.materialize(nodes, '', undefined).units;
   if (request.identityMap !== undefined) {
-    if (units.length !== request.identityMap.nodes.length) {
-      fail(ARTIFACT_MARKDOWN_IDENTITY_INVALID, 'identity sidecar does not cover every parsed unit');
-    }
     const mapValidation = registry.validateMarkdownIdentityMap(request.identityMap);
     if (!mapValidation.valid) {
       fail(
@@ -1111,6 +1249,11 @@ export function parseMarkdownDocument(request: MarkdownParseRequest): MarkdownPa
         `identity sidecar is not closed: ${mapValidation.errors[0]?.message ?? 'invalid'}`,
       );
     }
+    assertSidecarCorrespondence(
+      request.identityMap,
+      materializer.sourceNodes,
+      materializer.sourceColumns,
+    );
   }
 
   const content: Artifact.MarkdownDocumentContent = {
@@ -1161,6 +1304,7 @@ export function verifyMarkdownRoundTrip(request: MarkdownRoundTripRequest): Mark
     documentMetadata: request.content.body.metadata,
     identityDerivation: request.identityDerivation,
     identityMap: request.identityMap,
+    identityBinding: request.identityBinding,
     enforceRawBytesBinding: false,
     ...(request.now === undefined ? {} : { now: request.now }),
   });

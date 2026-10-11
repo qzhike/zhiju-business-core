@@ -201,6 +201,36 @@ describe('inline rendering', () => {
   it('rejects leading whitespace that canonical Markdown cannot carry', () => {
     expectError(() => renderMarkdownInline(' leading', []), 'INTEGRATION_MARKDOWN_RENDER_INVALID');
   });
+
+  it('escapes sequences that would read back as links, images or footnotes', () => {
+    expect(renderMarkdownInline('[^note]', [])).toBe('\\[^note]');
+    expect(renderMarkdownInline('a](b)', [])).toBe('a\\](b)');
+    expect(renderMarkdownInline('![a]', [])).toBe('\\![a]');
+  });
+});
+
+describe('list rendering', () => {
+  it('escapes a checkbox-looking list item so it does not read back as a task list', () => {
+    const item: Artifact.MarkdownListItemUnit = {
+      unitId: 'l1',
+      unitType: 'PARAGRAPH',
+      ordinal: 0,
+      text: '[x] literal',
+      childUnitIds: [],
+      semanticMetadata: {
+        markdown: {
+          blockKind: 'LIST_ITEM',
+          inlineSpans: [],
+          listId: 'list:0',
+          listKind: 'UNORDERED',
+          listOrdinal: 1,
+          listDepth: 1,
+        },
+      },
+    };
+    const rendered = renderMarkdownDocument(content([item]));
+    expect(rendered.bytes.toString('utf8')).toBe('- \\[x] literal\n');
+  });
 });
 
 describe('document rendering', () => {

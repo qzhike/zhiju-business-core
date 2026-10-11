@@ -215,6 +215,137 @@ describe('closed markdown document schema', () => {
     expect(registry.validateMarkdownDocumentContent(content).valid).toBe(false);
   });
 
+  it('rejects an unregistered schemaRef selector or version', () => {
+    const unknownObject = validContent();
+    (unknownObject.schemaRef as Record<string, unknown>).objectId =
+      '0199b600-0000-7000-8000-00000000ffff';
+    expect(registry.validateMarkdownDocumentContent(unknownObject).valid).toBe(false);
+
+    const unknownVersion = validContent();
+    (unknownVersion.schemaRef as Record<string, unknown>).versionId =
+      '0199b600-0000-7000-8000-00000000fffe';
+    expect(registry.validateMarkdownDocumentContent(unknownVersion).valid).toBe(false);
+
+    const projectScoped = validContent();
+    (projectScoped.schemaRef as Record<string, unknown>).scope = {
+      enterpriseId: ENTERPRISE_ID,
+      projectId: '0199b600-0000-7000-8000-00000000c273',
+    };
+    expect(registry.validateMarkdownDocumentContent(projectScoped).valid).toBe(false);
+  });
+
+  it('rejects a header row that is not the table first row', () => {
+    const content = withBody((body) => {
+      body.units = [
+        {
+          unitId: 't0',
+          unitType: 'TABLE',
+          ordinal: 0,
+          childUnitIds: ['t0r0', 't0r1'],
+          semanticMetadata: {
+            markdown: {
+              columns: [{ columnId: 'c0', ordinal: 0, alignment: 'NONE' }],
+              headerRowUnitId: 't0r1',
+            },
+          },
+        },
+        {
+          unitId: 't0r0',
+          parentUnitId: 't0',
+          unitType: 'TABLE_ROW',
+          ordinal: 0,
+          childUnitIds: ['t0r0c0'],
+          semanticMetadata: { markdown: { rowRole: 'DATA' } },
+        },
+        {
+          unitId: 't0r0c0',
+          parentUnitId: 't0r0',
+          unitType: 'TABLE_CELL',
+          ordinal: 0,
+          childUnitIds: [],
+          text: 'h',
+          semanticMetadata: { markdown: { columnId: 'c0', valueState: 'TEXT', inlineSpans: [] } },
+        },
+        {
+          unitId: 't0r1',
+          parentUnitId: 't0',
+          unitType: 'TABLE_ROW',
+          ordinal: 1,
+          childUnitIds: ['t0r1c0'],
+          semanticMetadata: { markdown: { rowRole: 'HEADER' } },
+        },
+        {
+          unitId: 't0r1c0',
+          parentUnitId: 't0r1',
+          unitType: 'TABLE_CELL',
+          ordinal: 0,
+          childUnitIds: [],
+          text: 'd',
+          semanticMetadata: { markdown: { columnId: 'c0', valueState: 'TEXT', inlineSpans: [] } },
+        },
+      ];
+    });
+    expect(registry.validateMarkdownDocumentContent(content).valid).toBe(false);
+    expect(
+      markdownContentInvariantErrors(content).some((error) =>
+        error.instancePath.endsWith('headerRowUnitId'),
+      ),
+    ).toBe(true);
+
+    // The same graph with the header on the real first row stays valid.
+    const valid = withBody((body) => {
+      body.units = [
+        {
+          unitId: 't0',
+          unitType: 'TABLE',
+          ordinal: 0,
+          childUnitIds: ['t0r0', 't0r1'],
+          semanticMetadata: {
+            markdown: {
+              columns: [{ columnId: 'c0', ordinal: 0, alignment: 'NONE' }],
+              headerRowUnitId: 't0r0',
+            },
+          },
+        },
+        {
+          unitId: 't0r0',
+          parentUnitId: 't0',
+          unitType: 'TABLE_ROW',
+          ordinal: 0,
+          childUnitIds: ['t0r0c0'],
+          semanticMetadata: { markdown: { rowRole: 'HEADER' } },
+        },
+        {
+          unitId: 't0r0c0',
+          parentUnitId: 't0r0',
+          unitType: 'TABLE_CELL',
+          ordinal: 0,
+          childUnitIds: [],
+          text: 'h',
+          semanticMetadata: { markdown: { columnId: 'c0', valueState: 'TEXT', inlineSpans: [] } },
+        },
+        {
+          unitId: 't0r1',
+          parentUnitId: 't0',
+          unitType: 'TABLE_ROW',
+          ordinal: 1,
+          childUnitIds: ['t0r1c0'],
+          semanticMetadata: { markdown: { rowRole: 'DATA' } },
+        },
+        {
+          unitId: 't0r1c0',
+          parentUnitId: 't0r1',
+          unitType: 'TABLE_CELL',
+          ordinal: 0,
+          childUnitIds: [],
+          text: 'd',
+          semanticMetadata: { markdown: { columnId: 'c0', valueState: 'TEXT', inlineSpans: [] } },
+        },
+      ];
+    });
+    expect(registry.validateMarkdownDocumentContent(valid).valid).toBe(true);
+  });
+
   it('rejects a table whose rows and cells do not match its columns', () => {
     const content = withBody((body) => {
       body.units = [

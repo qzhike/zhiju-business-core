@@ -7,12 +7,13 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { markdownDocumentSchemaReference, type Artifact } from '@zhiju/contracts';
+import { markdownDocumentSchemaReference, type Artifact, type Common } from '@zhiju/contracts';
 
 import {
   buildMarkdownIdentityMap,
   MARKDOWN_PARSER_PROFILE,
   parseMarkdownDocument,
+  type MarkdownIdentityBinding,
   type MarkdownParseResult,
 } from './markdown-document-service.js';
 
@@ -282,6 +283,8 @@ describe('closed rejection set', () => {
     { name: 'nested-formatting.md', code: 'ARTIFACT_MARKDOWN_UNSUPPORTED' },
     { name: 'footnote.md', code: 'ARTIFACT_MARKDOWN_UNSUPPORTED' },
     { name: 'malformed-utf8.md', code: 'ARTIFACT_MARKDOWN_UNSUPPORTED' },
+    { name: 'unsupported-extension.md', code: 'ARTIFACT_MARKDOWN_UNSUPPORTED' },
+    { name: 'task-list.md', code: 'ARTIFACT_MARKDOWN_UNSUPPORTED' },
   ];
 
   for (const testCase of cases) {
@@ -317,29 +320,65 @@ describe('approved limits', () => {
   it('rejects a Markdown file above the approved byte budget', () => {
     expectCode(() => parseInput(Buffer.alloc(10_485_761, 0x61)), 'ARTIFACT_MARKDOWN_LIMIT');
   });
+
+  it('rejects a table-heavy file above the total Unit budget', () => {
+    // Each 9-byte table occupies 3 Units (table + row + cell) and stays within
+    // the per-table column/row limits; ~33.4k tables exceed 100,000 Units in
+    // ~300 KB, well below the byte budget.
+    const table = '|a|\n|-|\n\n';
+    expectCode(() => parseText(table.repeat(33_335)), 'ARTIFACT_MARKDOWN_LIMIT');
+  });
 });
 
 describe('identity sidecar', () => {
-  function identityMap(parsed: MarkdownParseResult): Artifact.MarkdownIdentityMap {
-    return buildMarkdownIdentityMap({
-      parse: parsed,
-      artifactRef: {
-        kind: 'OBJECT',
-        objectType: 'artifact.artifact',
-        objectId: ARTIFACT_ID,
-        scope: { enterpriseId: ENTERPRISE_ID, projectId: PROJECT_ID },
-      },
-      profileRef: markdownDocumentSchemaReference(ENTERPRISE_ID),
-    });
+  const ARTIFACT_REF = {
+    kind: 'OBJECT',
+    objectType: 'artifact.artifact',
+    objectId: ARTIFACT_ID,
+    scope: { enterpriseId: ENTERPRISE_ID, projectId: PROJECT_ID },
+  } as Common.ObjectRef;
+  const BINDING: MarkdownIdentityBinding = { artifactRef: ARTIFACT_REF };
+  const BASE_REVISION = {
+    kind: 'CONTENT_ADDRESSED',
+    objectType: 'artifact.artifact_revision',
+    objectId: '0199b600-0000-7000-8000-00000000f001',
+    scope: { enterpriseId: ENTERPRISE_ID, projectId: PROJECT_ID },
+    contentHash: { algorithm: 'SHA-256', canonicalizationVersion: '1', digest: 'b'.repeat(64) },
+  } as Common.ContentAddressedRef;
+  const SOURCE_MAPPING = {
+    kind: 'SNAPSHOT',
+    objectType: 'artifact.markdown_source_mapping',
+    objectId: '0199b600-0000-7000-8000-00000000f002',
+    scope: { enterpriseId: ENTERPRISE_ID, projectId: PROJECT_ID },
+    snapshotId: '0199b600-0000-7000-8000-00000000f003',
+    contentHash: { algorithm: 'SHA-256', canonicalizationVersion: '1', digest: 'c'.repeat(64) },
+  } as Common.SnapshotRef;
+
+  function identityMap(
+    parsed: MarkdownParseResult,
+    overrides: Partial<Artifact.MarkdownIdentityMap> = {},
+  ): Artifact.MarkdownIdentityMap {
+    return {
+      ...buildMarkdownIdentityMap({
+        parse: parsed,
+        artifactRef: ARTIFACT_REF,
+        profileRef: markdownDocumentSchemaReference(ENTERPRISE_ID),
+      }),
+      ...overrides,
+    };
   }
 
   const source = '# T\n\n| a | b |\n|---|---|\n| 0 |  |\n\n- one\n- two\n';
 
-  it('inherits every identity from the exact sidecar', () => {
+  it('inherits every identity from the exact sidecar and owning binding', () => {
     const first = parseText(source);
     const second = parseText(source, {
-      identityDerivation: { originalIntentRef: 'other', candidateOutputId: 'other' },
+      identityDerivation: {
+        originalIntentRef: 'other',
+        candidateOutputId: DERIVATION.candidateOutputId,
+      },
       identityMap: identityMap(first),
+      identityBinding: BINDING,
     });
     expect(second.content.body.units.map((unit) => unit.unitId)).toEqual(
       first.content.body.units.map((unit) => unit.unitId),
@@ -347,36 +386,194 @@ describe('identity sidecar', () => {
     expect(second.contentHash.digest).toBe(first.contentHash.digest);
   });
 
-  it('rejects a sidecar whose raw byte binding does not match', () => {
+  it('requires the expected owning binding whenever a sidecar is supplied', () => {
+    const first = parseText(source);
+    expectCode(
+      () => parseText(source, { identityMap: identityMap(first) }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+  });
+
+  it('rejects a sidecar for another Artifact, Project or candidate output', () => {
     const first = parseText(source);
     const map = identityMap(first);
     expectCode(
       () =>
         parseText(source, {
-          identityMap: {
-            ...map,
-            markdownBytesSha256: { ...first.rawBytesSha256, digest: 'f'.repeat(64) },
+          identityMap: map,
+          identityBinding: {
+            artifactRef: { ...ARTIFACT_REF, objectId: '0199b600-0000-7000-8000-00000000a999' },
           },
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: map,
+          identityBinding: {
+            artifactRef: {
+              ...ARTIFACT_REF,
+              scope: {
+                enterpriseId: ENTERPRISE_ID,
+                projectId: '0199b600-0000-7000-8000-00000000c999',
+              },
+            },
+          },
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityDerivation: { ...DERIVATION, candidateOutputId: 'another-output' },
+          identityMap: map,
+          identityBinding: BINDING,
         }),
       'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
     );
   });
 
-  it('rejects an incomplete sidecar and a wrong declared type', () => {
+  it('rejects an unexpected or missing base revision and source mapping', () => {
+    const first = parseText(source);
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, { baseRevisionRef: BASE_REVISION }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first),
+          identityBinding: { ...BINDING, baseRevisionRef: BASE_REVISION },
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, { baselineMappingRef: SOURCE_MAPPING }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    const accepted = parseText(source, {
+      identityMap: identityMap(first, {
+        baseRevisionRef: BASE_REVISION,
+        baselineMappingRef: SOURCE_MAPPING,
+      }),
+      identityBinding: {
+        ...BINDING,
+        baseRevisionRef: BASE_REVISION,
+        baselineMappingRef: SOURCE_MAPPING,
+      },
+    });
+    expect(accepted.contentHash.digest).toBe(first.contentHash.digest);
+  });
+
+  it('rejects a sidecar whose raw byte binding does not match', () => {
+    const first = parseText(source);
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, {
+            markdownBytesSha256: { ...first.rawBytesSha256, digest: 'f'.repeat(64) },
+          }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+  });
+
+  it('rejects a sidecar with a wrong declared type, parent or ordinal', () => {
+    const first = parseText(source);
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, {
+            nodes: identityMap(first).nodes.map((node, index) =>
+              index === 1 ? { ...node, type: 'TABLE' as const } : node,
+            ),
+          }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, {
+            nodes: identityMap(first).nodes.map((node) => ({
+              ...node,
+              parentUnitId: 'nonexistent-parent',
+            })),
+          }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: identityMap(first, {
+            nodes: identityMap(first).nodes.map((node) => ({ ...node, ordinal: 999 })),
+          }),
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+  });
+
+  it('rejects an incomplete, extended or relocated sidecar correspondence', () => {
     const first = parseText(source);
     const map = identityMap(first);
     expectCode(
-      () => parseText(source, { identityMap: { ...map, nodes: map.nodes.slice(0, -1) } }),
+      () =>
+        parseText(source, {
+          identityMap: { ...map, nodes: map.nodes.slice(0, -1) },
+          identityBinding: BINDING,
+        }),
       'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
     );
-    const wrongType = {
-      ...map,
-      nodes: map.nodes.map((node, index) =>
-        index === 1 ? { ...node, type: 'TABLE' as const } : node,
-      ),
-    };
     expectCode(
-      () => parseText(source, { identityMap: wrongType }),
+      () =>
+        parseText(source, {
+          identityMap: {
+            ...map,
+            nodes: map.nodes.map((node, index) =>
+              index === 1 ? { ...node, sourceNodePath: 'nonexistent/path' } : node,
+            ),
+          },
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: {
+            ...map,
+            columns: [{ tableUnitId: 'nonexistent-table', columnId: 'c0', ordinal: 0 }],
+          },
+          identityBinding: BINDING,
+        }),
+      'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
+    );
+    expectCode(
+      () =>
+        parseText(source, {
+          identityMap: {
+            ...map,
+            columns: [
+              ...map.columns,
+              { tableUnitId: map.columns[0]?.tableUnitId ?? 't', columnId: 'extra', ordinal: 9 },
+            ],
+          },
+          identityBinding: BINDING,
+        }),
       'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
     );
   });
@@ -386,7 +583,11 @@ describe('identity sidecar', () => {
     const map = identityMap(first);
     expectCode(
       () =>
-        parseText(source, { documentId: '0199b600-0000-7000-8000-00000000d999', identityMap: map }),
+        parseText(source, {
+          documentId: '0199b600-0000-7000-8000-00000000d999',
+          identityMap: map,
+          identityBinding: BINDING,
+        }),
       'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
     );
     expectCode(
@@ -394,8 +595,100 @@ describe('identity sidecar', () => {
         parseText(source, {
           enterpriseId: '0199b600-0000-7000-8000-00000000e999',
           identityMap: map,
+          identityBinding: BINDING,
         }),
       'ARTIFACT_MARKDOWN_IDENTITY_INVALID',
     );
+  });
+});
+
+describe('list line breaks and block boundaries', () => {
+  it('keeps the marker line hard break instead of joining with a space', () => {
+    const parsed = parseText('- first  \n  second\n');
+    const item = defined(
+      parsed.content.body.units.find((unit) => markdownMetadata(unit).blockKind === 'LIST_ITEM'),
+      'list item',
+    );
+    expect(unitText(item)).toBe('first\nsecond');
+    const spans = markdownMetadata(item).inlineSpans as readonly Artifact.MarkdownInlineSpan[];
+    expect(spans.map((span) => span.kind)).toEqual(['HARD_BREAK']);
+  });
+
+  it('ends the list at a following heading instead of consuming it', () => {
+    const parsed = parseText('- item\n# Heading\nbody\n');
+    const items = parsed.content.body.units.filter(
+      (unit) => markdownMetadata(unit).blockKind === 'LIST_ITEM',
+    );
+    expect(items).toHaveLength(1);
+    expect(unitText(defined(items[0], 'list item'))).toBe('item');
+    const sections = parsed.content.body.units.filter((unit) => unit.unitType === 'SECTION');
+    expect(sections.map((unit) => unitText(unit))).toEqual(['Heading']);
+    expect(sections[0]?.parentUnitId).toBeUndefined();
+    expect(parsed.content.body.units.some((unit) => unitText(unit) === 'body')).toBe(true);
+  });
+
+  it('ends the list at a thematic break instead of consuming it', () => {
+    const parsed = parseText('- item\n\n---\n');
+    const breaks = parsed.content.body.units.filter(
+      (unit) => markdownMetadata(unit).blockKind === 'THEMATIC_BREAK',
+    );
+    expect(breaks).toHaveLength(1);
+  });
+});
+
+describe('unsupported extensions', () => {
+  it('rejects an unescaped strikethrough extension', () => {
+    expectCode(() => parseText('~~removed~~\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+  });
+
+  it('keeps escaped tildes as literal text', () => {
+    const parsed = parseText('\\~\\~removed\\~\\~\n');
+    const paragraph = defined(
+      parsed.content.body.units.find((unit) => unit.unitType === 'PARAGRAPH'),
+      'paragraph',
+    );
+    expect(unitText(paragraph)).toBe('~~removed~~');
+    expect(markdownMetadata(paragraph).inlineSpans).toEqual([]);
+  });
+
+  it('rejects an unescaped task-list extension and keeps its escaped literal', () => {
+    expectCode(() => parseText('- [ ] task\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+    expectCode(() => parseText('- [x] task\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+    const parsed = parseText('- \\[ ] literal\n');
+    const item = defined(
+      parsed.content.body.units.find((unit) => markdownMetadata(unit).blockKind === 'LIST_ITEM'),
+      'list item',
+    );
+    expect(unitText(item)).toBe('[ ] literal');
+  });
+});
+
+describe('dangerous syntax outside code spans', () => {
+  it('keeps link, footnote and script looking text literal inside inline code', () => {
+    const parsed = parseText(
+      '`[label](https://example.com)` and `[^note]` and `javascript:alert(1)`\n',
+    );
+    const paragraph = defined(
+      parsed.content.body.units.find((unit) => unit.unitType === 'PARAGRAPH'),
+      'paragraph',
+    );
+    expect(unitText(paragraph)).toBe(
+      '[label](https://example.com) and [^note] and javascript:alert(1)',
+    );
+    expect(
+      (markdownMetadata(paragraph).inlineSpans as readonly Artifact.MarkdownInlineSpan[]).map(
+        (span) => span.kind,
+      ),
+    ).toEqual(['CODE', 'CODE', 'CODE']);
+  });
+
+  it('still rejects the same syntax outside code spans', () => {
+    expectCode(() => parseText('[label](https://example.com)\n'), 'ARTIFACT_MARKDOWN_UNSAFE');
+    expectCode(
+      () => parseText('![image](https://example.com/p.png)\n'),
+      'ARTIFACT_MARKDOWN_UNSAFE',
+    );
+    expectCode(() => parseText('see [^note]\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
+    expectCode(() => parseText('javascript:alert(1)\n'), 'ARTIFACT_MARKDOWN_UNSAFE');
   });
 });

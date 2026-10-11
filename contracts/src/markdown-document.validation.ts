@@ -5,6 +5,24 @@
 import type { ErrorObject } from 'ajv';
 
 import { canonicalDocumentInvariantErrors, isRecord } from './canonical-content.validation.js';
+import { artifactMarkdownSchema } from './markdown-document-profile.js';
+
+/**
+ * Closed check of one content `schemaRef`: exact registered
+ * kind/objectType/objectId/versionId and Enterprise-only Scope (no projectId).
+ * An unknown selector or version fails closed.
+ */
+export function isRegisteredMarkdownDocumentSchema(value: unknown): boolean {
+  if (!isRecord(value) || !isRecord(value.scope)) return false;
+  return (
+    value.kind === 'VERSIONED' &&
+    value.objectType === artifactMarkdownSchema.objectType &&
+    value.objectId === artifactMarkdownSchema.objectId &&
+    value.versionId === artifactMarkdownSchema.versionId &&
+    typeof value.scope.enterpriseId === 'string' &&
+    Object.keys(value.scope).length === 1
+  );
+}
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -157,20 +175,42 @@ function validateTable(
     }
   }
 
+  const children = Array.isArray(unit.childUnitIds) ? unit.childUnitIds : [];
+  const rowIds = children.filter((childId): childId is string => typeof childId === 'string');
+  const firstRowId = rowIds[0];
+  const firstRow = firstRowId === undefined ? undefined : unitById.get(firstRowId);
+
   if (typeof metadata.headerRowUnitId === 'string') {
-    const header = unitById.get(metadata.headerRowUnitId);
-    if (header === undefined || header.parentUnitId !== unit.unitId) {
+    if (firstRow === undefined || firstRowId !== metadata.headerRowUnitId) {
       errors.push(
         invariantError(
           `${basePath}/headerRowUnitId`,
-          `headerRowUnitId '${metadata.headerRowUnitId}' must reference a row of this table`,
+          `headerRowUnitId '${metadata.headerRowUnitId}' must reference the table's actual first row '${String(firstRowId)}'`,
         ),
       );
-    } else if (markdownMetadata(header)?.rowRole !== 'HEADER') {
+    } else if (firstRow.unitType !== 'TABLE_ROW') {
+      errors.push(
+        invariantError(`${basePath}/headerRowUnitId`, 'the table first row must be a TABLE_ROW'),
+      );
+    } else if (markdownMetadata(firstRow)?.rowRole !== 'HEADER') {
       errors.push(
         invariantError(
           `${basePath}/headerRowUnitId`,
           `headerRowUnitId '${metadata.headerRowUnitId}' must reference a HEADER row`,
+        ),
+      );
+    }
+    const rowOrdinals = rowIds
+      .map((rowId) => unitById.get(rowId))
+      .map((row) => (typeof row?.ordinal === 'number' ? row.ordinal : undefined))
+      .filter((ordinal): ordinal is number => ordinal !== undefined);
+    const headerOrdinal =
+      firstRow !== undefined && typeof firstRow.ordinal === 'number' ? firstRow.ordinal : undefined;
+    if (headerOrdinal === undefined || rowOrdinals.some((ordinal) => ordinal < headerOrdinal)) {
+      errors.push(
+        invariantError(
+          `${basePath}/headerRowUnitId`,
+          'the header row must hold the lowest row ordinal of the table',
         ),
       );
     }
@@ -187,7 +227,6 @@ function validateTable(
     }
   }
 
-  const children = Array.isArray(unit.childUnitIds) ? unit.childUnitIds : [];
   let headerCount = 0;
   for (const [rowIndex, childId] of children.entries()) {
     const row = typeof childId === 'string' ? unitById.get(childId) : undefined;
@@ -379,5 +418,15 @@ export function markdownIdentityMapInvariantErrors(input: unknown): readonly Err
 /** Closed Markdown document content payload + cross-unit invariants. */
 export function markdownContentInvariantErrors(input: unknown): readonly ErrorObject[] {
   if (!isRecord(input) || !isRecord(input.body)) return [];
-  return markdownDocumentBodyInvariantErrors(input.body);
+  const errors: ErrorObject[] = [];
+  if (!isRegisteredMarkdownDocumentSchema(input.schemaRef)) {
+    errors.push(
+      invariantError(
+        '/schemaRef',
+        'schemaRef must be the registered Enterprise-scoped artifact.markdown_document.schema@1.0 selector',
+      ),
+    );
+  }
+  errors.push(...markdownDocumentBodyInvariantErrors(input.body));
+  return errors;
 }

@@ -79,10 +79,22 @@ function unitText(unit: Artifact.MarkdownDocumentUnit): string {
   return 'text' in unit && typeof unit.text === 'string' ? unit.text : '';
 }
 
+function needsEscape(points: readonly string[], index: number): boolean {
+  const character = points[index];
+  if (character === undefined) return false;
+  if (ESCAPED_CHARACTERS.has(character)) return true;
+  const next = points[index + 1];
+  // Sequences that would otherwise read back as links, images or footnotes.
+  if (character === '[' && next === '^') return true;
+  if (character === ']' && (next === '(' || next === '[')) return true;
+  return character === '!' && next === '[';
+}
+
 function escapeLiteral(value: string): string {
+  const points = Array.from(value);
   let out = '';
-  for (const character of value) {
-    out += ESCAPED_CHARACTERS.has(character) ? `\\${character}` : character;
+  for (const [index, character] of points.entries()) {
+    out += needsEscape(points, index) ? `\\${character}` : character;
   }
   return out;
 }
@@ -135,7 +147,7 @@ export function renderMarkdownInline(
     }
     const character = points[index];
     if (character === undefined) break;
-    out += ESCAPED_CHARACTERS.has(character) ? `\\${character}` : character;
+    out += needsEscape(points, index) ? `\\${character}` : character;
     index += 1;
   }
 
@@ -210,8 +222,9 @@ export function renderMarkdownDocument(
         metadata.listKind === 'ORDERED'
           ? (metadata.orderedMarker ?? `${String(metadata.listOrdinal ?? 1)}.`)
           : '-';
+      const content = renderMarkdownInline(unitText(item), metadata.inlineSpans ?? []);
       lines.push(
-        `${'  '.repeat(depth - 1)}${marker} ${renderMarkdownInline(unitText(item), metadata.inlineSpans ?? [])}`,
+        `${'  '.repeat(depth - 1)}${marker} ${content.startsWith('[') ? `\\${content}` : content}`,
       );
       for (const childId of item.childUnitIds) {
         const child = unitById.get(childId);

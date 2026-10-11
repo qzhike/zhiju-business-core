@@ -103,6 +103,7 @@ function roundTrip(parsed: MarkdownParseResult, raw: Uint8Array): void {
     enterpriseId: ENTERPRISE_ID,
     identityDerivation: parsed.identityDerivation,
     identityMap: map,
+    identityBinding: { artifactRef: artifactRef() },
     renderedBytes: rendered.bytes,
   });
 }
@@ -170,6 +171,9 @@ describe('focused standalone fixtures', () => {
     { file: 'hard-breaks.md', code: 'FIXTURE-BREAK', kind: 'FILLED_RECORD' },
     { file: 'unicode-placeholders.md', code: 'FIXTURE-UNICODE', kind: 'FILLED_RECORD' },
     { file: 'escaped-pipes.md', code: 'FIXTURE-ESCAPE', kind: 'FILLED_RECORD' },
+    { file: 'list-breaks.md', code: 'FIXTURE-LIST', kind: 'FILLED_RECORD' },
+    { file: 'escaped-literals.md', code: 'FIXTURE-LITERAL', kind: 'FILLED_RECORD' },
+    { file: 'code-literals.md', code: 'FIXTURE-CODE', kind: 'FILLED_RECORD' },
   ];
 
   for (const testCase of cases) {
@@ -179,4 +183,17 @@ describe('focused standalone fixtures', () => {
       roundTrip(parsed, bytes);
     });
   }
+
+  it('rejects unsupported extensions for the whole file', () => {
+    for (const file of ['unsupported-extension.md', 'task-list.md']) {
+      const bytes = fixtureBytes(file);
+      expect(() => parse(bytes, 'FIXTURE-REJECT', 'FILLED_RECORD')).toThrow(ArtifactBusinessError);
+      try {
+        parse(bytes, 'FIXTURE-REJECT', 'FILLED_RECORD');
+        expect.unreachable();
+      } catch (error) {
+        expect((error as ArtifactBusinessError).code).toBe('ARTIFACT_MARKDOWN_UNSUPPORTED');
+      }
+    }
+  });
 });

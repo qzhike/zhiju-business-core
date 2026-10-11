@@ -222,6 +222,7 @@ export {
   deriveMarkdownUnitId,
 } from './business/markdown-document-service.js';
 export type {
+  MarkdownIdentityBinding,
   MarkdownIdentityDerivation,
   MarkdownParseRequest,
   MarkdownParseResult,

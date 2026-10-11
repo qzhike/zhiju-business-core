@@ -260,7 +260,7 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | ID / 归属 | 输入 | 可核验预期 | 实际 / 结果 |
 |---|---|---|---|
 | IG-MF-004-T1 / Renderer 确定性 | 封闭 `artifact.markdown_document.schema@1.0` payload（标题、段落含 STRONG、分隔线、有序列表、含转义 pipe 与 blank cell 的表） | 同一 tree 两次渲染 bytes/checksum 相同，输出形状固定为 `## …`/`**…**`/`---`/`2. …`/`| … |` 与三连字符分隔行；`MARKDOWN_RENDERER_PROFILE` 冻结 | 已执行 / PASS |
-| IG-MF-004-T2 / Renderer 边界 | `renderMarkdownInline` 的控制字符、STRONG/EMPHASIS 组合、inline code fence 加长、`<br>` 硬换行、前导空白；非封闭 profile payload | 控制字符转义后语义不变；三重 marker 用 `***`；code 内反引号自动加长 fence；硬换行输出 `<br>`；前导空白返回 `INTEGRATION_MARKDOWN_RENDER_INVALID`；非法 payload 返回 `INTEGRATION_RENDER_INPUT_MISMATCH` | 已执行 / PASS |
+| IG-MF-004-T2 / Renderer 边界 | `renderMarkdownInline` 的控制字符、STRONG/EMPHASIS 组合、inline code fence 加长、`<br>` 硬换行、前导空白、`[^`/`](`/`![` 序列；checkbox 样式的列表项；非封闭 profile payload | 控制字符转义后语义不变；三重 marker 用 `***`；code 内反引号自动加长 fence；硬换行输出 `<br>`；前导空白返回 `INTEGRATION_MARKDOWN_RENDER_INVALID`；会读回成链接/图片/脚注的序列与 checkbox 列表项被转义；非法 payload 返回 `INTEGRATION_RENDER_INPUT_MISMATCH` | 已执行 / PASS |
 | IG-MF-004-T3 / 跨模块 round-trip | 已检入 procurement 快照与全部聚焦 fixture | ART `verifyMarkdownRoundTrip` 对 renderer 输出重新 `parse`，tree/身份/cv1 Hash 相等；不一致返回 `ARTIFACT_MARKDOWN_LOSSY` | 已执行 / PASS（`ART-MF-006-T2` 同批证据） |
 
 未执行：`request_markdown_suggestion_intake@1.0`、`get_markdown_suggestion_intake@1.0`、`request_markdown_render@1.0`、`get_markdown_render_binding@1.0`、原输出观察、Attempt/Binding/Representation 接线、真实 Host/Provider/object store/HTTP/browser 与人工验收。
