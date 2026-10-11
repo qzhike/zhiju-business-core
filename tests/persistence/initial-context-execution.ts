@@ -1,6 +1,5 @@
 import { describe } from 'vitest';
 import { registerCompletion } from './initial-context-completion-cases.js';
-import { registerDelivery } from './initial-context-delivery-cases.js';
 import { registerLegacy } from './initial-context-legacy-cases.js';
 import { registerMaterialRecovery } from './initial-context-material-recovery-cases.js';
 import { registerProcess } from './initial-context-process-cases.js';
@@ -17,6 +16,5 @@ export function registerExecution(suite: InitialContextSuite): void {
     registerResultLifecycle(suite, runScenario);
     registerProcess(suite, runScenario);
     registerResultRejection(suite, runScenario);
-    registerDelivery(suite);
   });
 }

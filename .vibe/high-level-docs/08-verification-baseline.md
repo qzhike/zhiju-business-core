@@ -49,7 +49,9 @@ CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最�
 
 Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。`docs/code/full` 路由不变；CI 的 `checks` 执行预算为 30 分钟，`persistence` 执行预算为 60 分钟。增加数据库任务预算不改变测试收集、串行执行、固定镜像或失败/取消判定。
 
-13 类 Core-valid unsupported final 使用 `initial-context-unsupported-final.test.ts` 中的两个独立 PostgreSQL 容器组交错执行真实等待。每组内部测试仍串行；连接、角色、迁移、时钟、业务准备缓存和运行时存储各自独立。开始前验证实例身份不同，角色撤销、同一业务键行锁、时钟变化与 SQL 异常不跨组传播。每例后 drain；失败、超时或 drain 异常后，该组后续用例显式失败且不再执行业务操作。setup 部分失败和整组退出均关闭已创建的资源。其他持久化文件及共用数据库保持原串行配置，不改变业务期限、清理断言或完整门禁要求。
+13 类 Core-valid unsupported final 保持 `initial-context-unsupported-final.test.ts` 中既有的两个独立 PostgreSQL 容器组。12 个授权资格变化用例迁至 `initial-context-eligibility.test.ts`，按 GRANT/POLICY 分成两个各 6 例的独立容器组；三个交付用例迁至 `initial-context-delivery.test.ts`，每例独占容器，最多同时执行两例。各组内部仍串行，交错执行真实等待；连接、角色、迁移、时钟、业务准备缓存和运行时存储各自独立。开始业务执行前验证实例身份不同，角色撤销、同一业务键行锁、时钟变化与 SQL 异常不跨组传播。每例后 drain；失败、超时或 drain 异常后，复用该环境的后续用例显式失败且不再执行业务操作。setup 部分失败和整组退出均关闭已创建的资源；断言失败及超时也必须保留排空与清理保障，不能把整个测试体加入其自身 drain 集合。其余 64 个 initial-context 用例及其他持久化文件保持原相对顺序和串行配置。此范围只调整隔离调度，不删除或合并叶级用例、业务链、断言及 owning expiry cleanup，不改变真实期限、重试等待、Run budget、测试超时或完整门禁要求。
+
+隔离环境在排空开始前即禁止复用，仅完整成功且未发生失败或取消时恢复；Vitest 钩子超时不能绕过此状态。清理须在钩子预算内为测试体收敛、排空和连接关闭分别保留有限等待及停止容器的兜底机会，不能无限等待同一 Promise。setup 与退出共用关闭标记：退出后禁止准备下一批，已在途的启动返回后须立即回收，未结束的准备后续不得遗漏新产生资源。正常路径仍完整等待真实业务操作；上述界限仅处理异常退出，不调整业务期限或测试超时。
 
 数据库验证必须流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前执行项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL 文本、连接凭据或业务 payload。`initial-context` 另记录业务准备、Validation/Freeze 矩阵、队列探针、Run/Result 业务边界、正式完成的输入拒绝/原子回滚/评价与竞态/判定失效阶段、恢复链的材料确认/解决/Context-2 构建阶段、真实期限等待、历史升级和 pending-operation drain；测试正常退出前的汇总报告不能替代这些进度。真实队列竞态以指定 PostgreSQL 后端的阻塞关系同步，释放锁后等待后台操作完成；服务端到期测试继续等待实际 deadline，不改变数据库时钟或跳过 cleanup。
 

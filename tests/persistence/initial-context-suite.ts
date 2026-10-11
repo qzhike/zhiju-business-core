@@ -280,6 +280,8 @@ export function createInitialContextSuite(
     it(name, { timeout }, () => runIntegrationCase(name, run));
   }
 
+  const caseHeartbeats = new Set<ReturnType<typeof setInterval>>();
+
   async function runIntegrationCase(name: string, run: () => Promise<void>): Promise<void> {
     const started = performance.now();
     progress('test start', name);
@@ -290,6 +292,7 @@ export function createInitialContextSuite(
         // Diagnostics are best effort; preserve the original failure.
       });
     }, 30_000);
+    caseHeartbeats.add(heartbeat);
     try {
       await run();
     } catch (error) {
@@ -299,6 +302,7 @@ export function createInitialContextSuite(
       throw error;
     } finally {
       clearInterval(heartbeat);
+      caseHeartbeats.delete(heartbeat);
       phaseEnd();
       progress('test body end', `${name}; elapsedMs=${Math.round(performance.now() - started)}`);
     }
@@ -1390,6 +1394,8 @@ export function createInitialContextSuite(
 
   async function dispose() {
     phase('suite cleanup');
+    for (const heartbeat of caseHeartbeats) clearInterval(heartbeat);
+    caseHeartbeats.clear();
     try {
       // Setup can fail before a pool exists. Close every initialized resource
       // even if another close fails, and preserve cleanup failures for Vitest.

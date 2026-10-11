@@ -493,7 +493,7 @@ EXIT-D-004 的原可执行反例由 `initial-context.test.ts` 的 final/blocked-
 
 ### initial-context 测试代码定位与执行边界
 
-原有 92 个用例由两个入口承载：`tests/persistence/initial-context.test.ts` 注册 79 个共用数据库用例（22 个 Context/SourceSlice 与 57 个受控运行用例）；`initial-context-unsupported-final.test.ts` 注册其余 13 个 unsupported final 用例。以下文件均在 `tests/persistence/`；辅助文件不使用 `.test.ts` 后缀，避免被测试发现器重复注册。
+原有 92 个用例由四个入口承载：`tests/persistence/initial-context.test.ts` 注册 64 个共用数据库用例（22 个 Context/SourceSlice 与 42 个受控运行用例）；`initial-context-eligibility.test.ts` 注册 12 个授权资格变化用例；`initial-context-delivery.test.ts` 注册三个交付用例；`initial-context-unsupported-final.test.ts` 保留既有 13 个 unsupported final 用例。以下文件均在 `tests/persistence/`；辅助文件不使用 `.test.ts` 后缀，避免被测试发现器重复注册。
 
 | 业务范围 | 维护位置 |
 | --- | --- |
@@ -504,21 +504,26 @@ EXIT-D-004 的原可执行反例由 `initial-context.test.ts` 的 final/blocked-
 | 历史升级 | `initial-context-legacy-cases.ts` |
 | 正式输出与 Completion | `initial-context-completion-cases.ts` |
 | 补充材料、恢复与第二次运行 | `initial-context-material-recovery-cases.ts` |
-| Result 生命周期、撤权、到期与竞争 | `initial-context-result-lifecycle-cases.ts` |
+| Result 生命周期、到期与竞争 | `initial-context-result-lifecycle-cases.ts` |
+| 授权资格变化，GRANT/POLICY 两个各 6 例的独立数据库组 | `initial-context-eligibility.test.ts` |
 | Process 持久化与重启恢复 | `initial-context-process-cases.ts` |
 | 过期 Acceptance 与非 final 结果拒绝 | `initial-context-result-rejection-cases.ts` |
 | 13 类不支持的 final，两个独立数据库组 | `initial-context-unsupported-final.test.ts` |
-| 独立交付库、延迟提交与乱序 | `initial-context-delivery-cases.ts` |
+| 独立交付库、延迟提交与乱序，最多两例交错执行 | `initial-context-delivery.test.ts`、`initial-context-delivery-cases.ts` |
 
 `initial-context-fixtures.ts` 保存常量、数据类型与纯辅助函数；`initial-context-suite.ts` 创建一套连接、owning 准备能力、操作跟踪和清理流程；`initial-context-scenario.ts` 编排独立业务链。授权准备、正式输出、Result 边界、恢复、Run-2 等长步骤分别位于 `initial-context-prepare-*`、`initial-context-create-*`、`initial-context-execute-*`、`initial-context-verify-*`；步骤接口只列出实际依赖。跨步骤变化的时钟和业务引用使用实时访问器，不能在创建步骤依赖时复制快照。
 
-共用数据库的 79 个用例保留原相对顺序并继续串行；13 个 unsupported final 保留原叶级名称、业务链、断言与真实 PostgreSQL 等待，完整名称增加独立数据库组定位。每组各自串行，两组交错执行。每例之后仍排空被跟踪操作。三个独立交付场景各自创建 suite 与 Run 编排器，在退出时依次 drain、关闭全部连接、停止容器，不再替换外层数据库连接或共享场景缓存。独立环境中的被跟踪操作也交给外层 drain 观察，保留超时后延续操作的排空保障；不把整个测试体作为待排空 Promise。该交付场景隔离不改变文件并行配置。13 类 unsupported final 的两组环境另行验证 PostgreSQL 实例、角色权限、业务行锁、时钟和异常隔离；任何失败或超时都会停止该组后续业务操作并显式失败，避免重用不确定环境。部分 setup 失败也须关闭已经创建的连接和容器。
+共用数据库的 64 个用例保留原相对顺序并继续串行。12 个授权资格变化用例按 GRANT/POLICY 分成两个独立数据库组，每组依次执行 SUBMIT、RECORD、VALIDATE、ACCEPT、FINALIZE 和原持锁用例；不跨组共享 suite、Run 编排器、准备缓存或运行时存储。三个交付用例各自创建独立容器、suite 与 Run 编排器，最多两例交错执行；每例内部正常/恢复业务链和 Task-only/Task+Release 顺序保持不变。13 个 unsupported final 的既有两组调度保持不变。全部用例保留原叶级名称、业务链、断言与真实 PostgreSQL 等待，完整名称允许增加独立环境定位，不改变文件并行配置。
+
+并发环境在业务执行前验证 PostgreSQL 实例、角色权限、同一业务键行锁、时钟和 SQL 异常隔离；阶段记录、操作跟踪与排空集合也必须独立。每例后排空被跟踪操作；超时后延续操作仍受退出清理保障，不把整个测试体加入其自身 drain 集合。任何失败、超时或 drain 异常都会停止复用该环境的后续业务操作并显式失败，健康环境仍独立完成。部分 setup 失败、断言失败、超时和正常退出均须依次 drain、关闭已创建连接并停止容器，并以聚焦故障注入验证清理，不能用 skipped 代替失败。
+
+异常退出补充覆盖：测试体成功但 drain 挂起到钩子超时后，同环境下一例仍须在业务入口前失败；测试体、drain 或连接关闭持续挂起时，仍须调用容器停止并保留失败；第二批容器在 setup 超时及退出后才返回时，须立即回收且不再创建 suite 或继续迁移。准备过程中已创建的连接也须收敛或随容器终止，并在迟到的准备退出时再次收集。健康组、正常串行复用及及时结束的超时后延续操作保留对照。生命周期钩子须通过原 Vitest 调度的故障回归，真实 PostgreSQL 验证另行保留；诊断计时缩放不能改变业务用例的真实期限和超时。
 
 日常修改可先通过持久化门禁的单文件与名称过滤执行相关业务组；修改共用环境、业务链编排或准备缓存，以及交付前，仍须完成 clean build 与完整持久化门禁。局部用例通过不等于全量回归、远端 CI、外部 Runtime 或人工验收通过。
 
 ### 受控运行测试准备与覆盖归属
 
-两个入口合计保留 92 个用例、其中 70 个受控运行用例的叶级名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。持久化文件之间继续串行，同一数据库组的所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
+四个入口合计保留 92 个用例、其中 70 个受控运行用例的叶级名称和各自业务断言。每个场景通过 owning 入口生成 Service/Actor、Grant 与独立 Decision、Policy、Slice、Task/Draft/Context、READY WorkOrder、Bundle/Run/Attempt；除下述未撤权分支可复用的准备事实外，可变生命周期对象、运行时存储和时钟不跨场景复用。共用的 suite 基础事实保持既有边界；队列探针撤销的共用 Policy-read Grant 在同一场景的 finally 中重新通过 owning grant 能力恢复，包含探针断言失败路径。持久化文件之间继续串行，同一数据库组的所有被跟踪业务操作在下一测试前 drain；不能把 abandoned test body 本身加入其 afterEach 等待集合。
 
 | 原重复覆盖 | 保留的测试归属 | 其他场景的准备与独立覆盖 |
 | --- | --- | --- |
