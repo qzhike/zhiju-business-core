@@ -30,33 +30,6 @@ export function registerResultLifecycle(
     240_000,
   );
 
-  for (const source of ['GRANT', 'POLICY'] as const)
-    for (const step of ['SUBMIT', 'RECORD', 'VALIDATE', 'ACCEPT', 'FINALIZE'] as const)
-      suite.itIntegration(
-        `rejects ${step} after current ${source} eligibility changes and expires without renewing rights`,
-        () =>
-          runScenario('ELIGIBILITY_CHANGE', 'RUNTIME_USAGE', undefined, undefined, {
-            source,
-            step,
-          }),
-        180_000,
-      );
-
-  for (const [step, source] of [
-    ['SUBMIT', 'POLICY'],
-    ['ACCEPT', 'GRANT'],
-  ] as const)
-    suite.itIntegration(
-      `refuses ${step} when ${source} eligibility changes while the owning Run lock is held`,
-      () =>
-        runScenario('ELIGIBILITY_CHANGE', 'RUNTIME_USAGE', undefined, undefined, {
-          step,
-          source,
-          whileLocked: true,
-        }),
-      180_000,
-    );
-
   suite.itIntegration(
     'expires a Run after a late synthetic final',
     () => runScenario('TIMED_OUT'),

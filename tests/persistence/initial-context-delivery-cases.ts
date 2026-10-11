@@ -1,36 +1,25 @@
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { type CanonicalJsonObject, newUuidV7 } from '@zhiju/shared-kernel';
 import type { KyselyPlugin } from 'kysely';
 import { expect } from 'vitest';
-import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
-import { runFlyway } from '../../tools/persistence/flyway.mjs';
 import {
   definedValue,
   type DeliveryScheduleHooks,
   type PreparedDeliverySource,
 } from './initial-context-fixtures.js';
-import { createRunScenario } from './initial-context-scenario.js';
-import { createInitialContextSuite, type InitialContextSuite } from './initial-context-suite.js';
+import type { IsolatedInitialContextCase } from './initial-context-isolated-cases.js';
 
-export function registerDelivery(registrationSuite: InitialContextSuite): void {
-  registrationSuite.itIntegration(
+export function deliveryCases(): IsolatedInitialContextCase[] {
+  const cases: IsolatedInitialContextCase[] = [];
+  function registerCase(
+    name: string,
+    run: IsolatedInitialContextCase['run'],
+    timeout: number,
+  ): void {
+    cases.push({ name, run, timeout });
+  }
+  registerCase(
     'TE-DEL-D-004/EP-DEL-D-004 isolated late-commit and cross-Item out-of-order schedule',
-    async () => {
-      const container = await new PostgreSqlContainer(postgresImageReference())
-        .withDatabase('zhiju_core')
-        .withUsername('postgres')
-        .withPassword('zhiju-gate-test')
-        .withStartupTimeout(120_000)
-        .start();
-      const suite = createInitialContextSuite({
-        databaseUrl: container.getConnectionUri(),
-        registerHooks: false,
-        // The parent drain must also observe abandoned child operations after a timeout.
-        observeOperation: (operation) => {
-          void registrationSuite.track(operation);
-        },
-      });
-      const runScenario = createRunScenario(suite);
+    async (suite, runScenario) => {
       let releaseProducer!: () => void;
       const held = new Promise<void>((resolve) => {
         releaseProducer = resolve;
@@ -58,13 +47,6 @@ export function registerDelivery(registrationSuite: InitialContextSuite): void {
       };
       let pendingCompletion: ReturnType<PreparedDeliverySource['complete']> | undefined;
       try {
-        await runFlyway(container.getId(), {
-          command: 'migrate',
-          database: 'zhiju_core',
-          username: 'postgres',
-          password: 'zhiju-gate-test',
-        });
-        await suite.prepareSuite(true);
         let lateSource: PreparedDeliverySource | undefined;
         let visibleSource: PreparedDeliverySource | undefined;
         const prepare = (hooks: DeliveryScheduleHooks) =>
@@ -241,73 +223,31 @@ export function registerDelivery(registrationSuite: InitialContextSuite): void {
       } finally {
         releaseProducer();
         if (pendingCompletion) await Promise.allSettled([pendingCompletion]);
-        try {
-          await suite.drain();
-        } finally {
-          try {
-            await suite.dispose();
-          } finally {
-            await container.stop();
-          }
-        }
       }
     },
     600_000,
   );
   for (const recovered of [false, true])
-    registrationSuite.itIntegration(
+    registerCase(
       `TE-DEL-D-001/002/003 isolated ${recovered ? 'recovered' : 'normal'} owning delivery fixture`,
-      async () => {
-        const container = await new PostgreSqlContainer(postgresImageReference())
-          .withDatabase('zhiju_core')
-          .withUsername('postgres')
-          .withPassword('zhiju-gate-test')
-          .withStartupTimeout(120_000)
-          .start();
-        const suite = createInitialContextSuite({
-          databaseUrl: container.getConnectionUri(),
-          registerHooks: false,
-          // The parent drain must also observe abandoned child operations after a timeout.
-          observeOperation: (operation) => {
-            void registrationSuite.track(operation);
-          },
-        });
-        const runScenario = createRunScenario(suite);
-        try {
-          await runFlyway(container.getId(), {
-            command: 'migrate',
-            database: 'zhiju_core',
-            username: 'postgres',
-            password: 'zhiju-gate-test',
-          });
-          await suite.prepareSuite(true);
-          expect(
-            (await suite.admin.query('SELECT count(*)::int n FROM task_execution.task')).rows,
-          ).toEqual([{ n: 0 }]);
-          const scenario = recovered ? 'FORMAL_DELIVERY_RECOVERED' : 'FORMAL_DELIVERY_NORMAL';
-          await runScenario(scenario);
-          await runScenario(
-            scenario,
-            'RUNTIME_USAGE',
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            'NORMAL',
-            true,
-          );
-        } finally {
-          try {
-            await suite.drain();
-          } finally {
-            try {
-              await suite.dispose();
-            } finally {
-              await container.stop();
-            }
-          }
-        }
+      async (suite, runScenario) => {
+        expect(
+          (await suite.admin.query('SELECT count(*)::int n FROM task_execution.task')).rows,
+        ).toEqual([{ n: 0 }]);
+        const scenario = recovered ? 'FORMAL_DELIVERY_RECOVERED' : 'FORMAL_DELIVERY_NORMAL';
+        await runScenario(scenario);
+        await runScenario(
+          scenario,
+          'RUNTIME_USAGE',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'NORMAL',
+          true,
+        );
       },
       600_000,
     );
+  return cases;
 }
