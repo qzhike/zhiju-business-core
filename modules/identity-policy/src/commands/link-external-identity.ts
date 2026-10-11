@@ -221,7 +221,7 @@ function scopeMatches(
   return scope?.projectId === undefined || context.allowedProjectIds.includes(scope.projectId);
 }
 
-function principalReference(id: string, enterpriseId: string): Common.ObjectRef {
+export function principalReference(id: string, enterpriseId: string): Common.ObjectRef {
   return {
     kind: 'OBJECT',
     objectType: 'identity.principal',
@@ -230,7 +230,7 @@ function principalReference(id: string, enterpriseId: string): Common.ObjectRef 
   };
 }
 
-function externalIdentityLinkReference(id: string, enterpriseId: string): Common.ObjectRef {
+export function externalIdentityLinkReference(id: string, enterpriseId: string): Common.ObjectRef {
   return {
     kind: 'OBJECT',
     objectType: 'identity.external_identity_link',

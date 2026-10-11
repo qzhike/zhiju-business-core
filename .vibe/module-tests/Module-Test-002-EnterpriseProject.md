@@ -569,16 +569,16 @@ pnpm persistence:gate
 
 ## Workspace 授权目录场景（#258）
 
-状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT RUN`。对应 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)，以公开入口及真实IP权限/RLS取证，不能直接写中间业务行或拿匿名board作授权集合。
+状态：`HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / LOCAL DETERMINISTIC + DISPOSABLE-POSTGRESQL + REAL PUBLIC-HTTP + CONTROLLED KEYCLOAK + BUILT-BROWSER EVIDENCE RECORDED IN ISSUE/PR`（受控 Keycloak 26.7.0 隔离 realm/client/user 与受控 Chromium 制品旅程已在 exact-head persistence gate 通过；真实生产部署、实际 Windows/macOS Chrome/Edge 矩阵与独立人工顾问验收仍 `NOT RUN`）。对应 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)，以公开入口及真实IP权限/RLS取证，不能直接写中间业务行或拿匿名board作授权集合。
 
 | ID / 层次 | 输入与 owner 检查 | 可观察预期 | 实际 / 结果 |
 |---|---|---|---|
-| EP-258-001 / Contract + HTTP | verified Human，自身目录、两个Enterprise下明确授权Project | EP public Query仅返回当前受权精确refs/安全摘要/版本与水位；每项有独立IP discovery检查，无空Scope业务Decision/全库EP查询 | 未执行 / `NOT RUN` |
-| EP-258-002 / Security + Persistence | A授权、B拒绝/撤权；改requester/filter/ProjectRef，目录后访问board | B无protected read/无数据或计数泄露；选A后board仍单独授权；同名不合并/赋权 | 未执行 / `NOT RUN` |
-| EP-258-003 / Pagination | 50项页；201个当前获权候选，前200不匹配searchText、第201匹配；200项/5秒扫描预算；前页非空/末页空；篡改/过期/换Session/Grant或水位变化cursor | 首请求 `OK + items=[] + nextCursor`，Page/Envelope游标同值且不超预算；下一页沿稳定排序返回第201项。末页省略游标，空末页不丢前页结果；无未授权总数；拒绝错绑定/变化并从首屏重读 | 未执行 / `NOT RUN` |
-| EP-258-004 / Dependency | IP/EP首屏或中途失败；完整零可见Project及过滤空中间页对照 | 失败503/无data且ERROR，不冒充EMPTY或枚举结束；空中间页仍OK+nextCursor并继续分页；仅完整无cursor且累计零项为EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 未执行 / `NOT RUN` |
-| EP-258-005 / Preparing + Recovery | 创建已提交但缺discovery Grant、准备请求响应丢失/expiry | 不补Grant/卡片；同原requestRef/key当前read权限回读，成功Enterprise/Project/Receipt保留，不重建 | 未执行 / `NOT RUN` |
-| EP-258-006 / Isolation + Board | exact双ScopeRLS、目录显示字段、EP/TE不同水位及分页分母 | 每Scope独立受权读取；无跨Schema授权join；看板保留自己的真实状态/水位，不拿局部和当全项目数 | 未执行 / `NOT RUN` |
+| EP-258-001 / Contract + HTTP | verified Human，自身目录、两个Enterprise下明确授权Project | EP public Query仅返回当前受权精确refs/安全摘要/版本与水位；每项有独立IP discovery检查，无空Scope业务Decision/全库EP查询 | PostgreSQL PASS：公开目录入口对已验证 Human 返回恰好两个受权 Project 的安全摘要/版本/水位，无空 Scope 业务 Decision、无全库 EP 查询（`workspace-directory.test.ts` case 1/9）；真实受控 Keycloak 26.7.0 的公开 HTTP 允许/拒绝链见 `tests/persistence/workspace-controlled-keycloak.test.ts`，构建产物浏览器旅程见 `workspace-built-browser.test.ts`。 |
+| EP-258-002 / Security + Persistence | A授权、B拒绝/撤权；改requester/filter/ProjectRef，目录后访问board | B无protected read/无数据或计数泄露；选A后board仍单独授权；同名不合并/赋权 | PostgreSQL PASS：B（无授权）与其 Grant 不产生任何卡片、计数或存在性泄漏，同名不合并；选中 A 后的 EP Board 仍独立授权并返回真实 owning 结果，TE Board 在未部署 Board Policy 时 503（`workspace-trusted-http.test.ts`） |
+| EP-258-003 / Pagination | 50项页；201个当前获权候选，前200不匹配searchText、第201匹配；200项/5秒扫描预算；前页非空/末页空；篡改/过期/换Session/Grant或水位变化cursor | 首请求 `OK + items=[] + nextCursor`，Page/Envelope游标同值且不超预算；下一页沿稳定排序返回第201项。末页省略游标，空末页不丢前页结果；无未授权总数；拒绝错绑定/变化并从首屏重读 | PostgreSQL PASS：201 个候选且前 200 不匹配过滤时首页 `items=[]+nextCursor`、沿绑定游标取到第 201 项、末页省略游标；篡改/过期/异 session 游标分别返回 `QUERY_CURSOR_INVALID`/`QUERY_CURSOR_EXPIRED`/`QUERY_CURSOR_INVALID`（异 session 先于 scope 比较失败，同属重启类）；无未授权总数（`workspace-directory.test.ts` case 5）。每次续读在精确 Scope 下逐项重取当次 Decision 并重读比对整条链已返回摘要（原样 Project 拼写、`aggregateVersion`/`status`），任一变化/缺失/失权即 `QUERY_CURSOR_INVALID`；本 Query 声明 cursor 信封 `^[A-Za-z0-9_-]{16,8192}$`，超出容量 fail closed 并重启（确定性本地用例含 reviewer 反例、中页摘要后变、拼写保持与容量溢出：`workspace-directory-entry.test.ts`） |
+| EP-258-004 / Dependency | IP/EP首屏或中途失败；完整零可见Project及过滤空中间页对照 | 失败503/无data且ERROR，不冒充EMPTY或枚举结束；空中间页仍OK+nextCursor并继续分页；仅完整无cursor且累计零项为EMPTY；未注册目录拒绝，无BFF扫库/demo fallback | 部分确定性本地 PASS：依赖失败映射为 503/ERROR 且不冒充 EMPTY/枚举结束、未注册目录不可调用（`dispatch.test.ts`、`workspace-directory-entry.test.ts`）；真实 IP/EP 中途故障未执行 / `NOT RUN` |
+| EP-258-005 / Preparing + Recovery | 创建已提交但缺discovery Grant、准备请求响应丢失/expiry | 不补Grant/卡片；同原requestRef/key当前read权限回读，成功Enterprise/Project/Receipt保留，不重建 | PostgreSQL PASS（子迹）：候选缺少 EP Project 行时跳过而不伪造卡片；缺 discovery Grant 的已提交创建不补权限（`workspace-directory.test.ts` case 7）与 D14 原请求回读 `NOT RUN` |
+| EP-258-006 / Isolation + Board | exact双ScopeRLS、目录显示字段、EP/TE不同水位及分页分母 | 每Scope独立受权读取；无跨Schema授权join；看板保留自己的真实状态/水位，不拿局部和当全项目数 | PostgreSQL PASS：每 Scope 在自身 Enterprise+Project RLS Context 读取、无跨 Schema 授权 join、首屏 `snapshotAt`/水位沿游标链保持不变；EP/TE 看板各自 consistency/freshness，不把局部和当全项目数（`workspace-directory.test.ts` case 9、`workspace-trusted-http.test.ts`） |
 
 ## #257 公司启动规则与词表设计场景
 

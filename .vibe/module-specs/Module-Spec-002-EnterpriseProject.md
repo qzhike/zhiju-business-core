@@ -992,7 +992,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ## Workspace 授权项目目录提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED (240th public operation; frozen 200-operation v1.0 baseline unchanged) / IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK JOURNEY AND BUILT-BROWSER JOURNEY EXECUTED IN THE EXACT-HEAD PERSISTENCE GATE (ISOLATED REALM/CLIENT/USER, PINNED 26.7.0) / PRODUCTION DEPLOYMENT, PLATFORM MATRIX AND MANUAL ACCEPTANCE NOT RUN`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
 
 | 拟 operation / consistency / Scope | 封闭 payload | result data / Purpose |
 |---|---|---|
@@ -1002,13 +1002,15 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 执行顺序：Core verified self requester → IP 内部 self候选 Port → 每个候选取得 IP 当前 `project.workspace.discover@1.0` scoped Decision → 本模块在该精确 Enterprise+Project RLS Context 读自己的 Project/必要企业显示摘要 → 返回前当前权限重验。IP Port 字段/mapping 唯一见 [Spec001 #258](Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258)；候选不是 ALLOW，不能以目录空 Scope 扫 EP 全库或跨 Schema join Role/Grant。企业名称只作该已授权 Project 的最小显示字段，不授予企业正文读取权限。
 
-稳定排序 `(enterpriseId,projectId)`；仅对受权摘要执行规范化 search/enterprise filter。目录 Cursor 绑定 query/version、实际 Principal、稳定登录sessionBindingHash/代次（非每次validatedAt）、过滤Hash、IP授权集合指纹、EP/IP sourceWatermarks、last sort key与5分钟期限；不含可读Subject/secret。每页重验当前权限；授权集合/Session/过滤变更拒绝 `QUERY_CURSOR_SCOPE_MISMATCH`，过期 `QUERY_CURSOR_EXPIRED`，前端从第一页重新读取。内部候选扫描单请求最多200项/5秒，输出≤pageSize；尚有候选则返回绑定nextCursor，即使本页过滤为空也不能宣称全目录空。各 Scope 在自己的 Context 下读取，无全局事务/权限；返回 PAGE 的 snapshotAt/watermarks 是读取观察，不是跨 Enterprise 原子快照。
+稳定排序 `(enterpriseId,projectId)`；仅对受权摘要执行规范化 search/enterprise filter。目录 Cursor 绑定 query/version、实际 Principal、稳定登录sessionBindingHash/代次（非每次validatedAt）、过滤Hash、IP授权集合指纹、EP/IP sourceWatermarks、last sort key与5分钟期限；不含可读Subject/secret。（下段为 #266 审查 R5 的 owner 决定实现事实：）为在每次续读时复验整条链已返回的摘要，本 Query 的 cursor 声明扩展的封闭信封 `^[A-Za-z0-9_-]{16,8192}$`（字母表与共享 OpaqueCursor 相同，仅长度上界按本 Query 声明提高；其他 Board/Query cursor 仍为 16..512），并携带按序的已返回摘要身份与观测 `{enterpriseId,projectId,aggregateVersion,status}`：每次续读逐项在该 Exact Enterprise+Project Scope 下重读并比对，任一变化/缺失/不再受权使该页拒绝 `QUERY_CURSOR_INVALID`（授权集合/会话/过滤变化仍为 `QUERY_CURSOR_SCOPE_MISMATCH`，过期仍为 `QUERY_CURSOR_EXPIRED`）。已返回集合超出声明 cursor 容量时 fail closed 返回 `QUERY_CURSOR_INVALID`，客户端按既有规则从第一页重取；不静默丢失已返回项、不伪称已复验。实现细节（#266 已实现）：每个条目按 42 字节编码（含该摘要被返回时的**原样 Project 身份拼写**，续读按同拼写重新构造候选与 Decision，禁止规范化互转），8192 字符容量约容纳 140 个已返回摘要；每条续读会在其 Exact Enterprise+Project Scope 下重新取得当次 Decision 并重读比对 `aggregateVersion`/`status`，语义等价于“整条链在每次续读时被完整复验”。每页重验当前权限；授权集合/Session/过滤变更拒绝 `QUERY_CURSOR_SCOPE_MISMATCH`，过期 `QUERY_CURSOR_EXPIRED`，前端从第一页重新读取。内部候选扫描单请求最多200项/5秒，输出≤pageSize；尚有候选则返回绑定nextCursor，即使本页过滤为空也不能宣称全目录空。各 Scope 在自己的 Context 下读取，无全局事务/权限；返回 PAGE 的 snapshotAt/watermarks 是读取观察，不是跨 Enterprise 原子快照。
 
 翻页的snapshotAt/asOf与sourceWatermarks固定为首屏观察，不能按翻页时刻漂移。EP/IP相关源水位在逐项读取前后及最终返回检查点变化则拒绝该页 `QUERY_CURSOR_INVALID` 并从首屏重取，不新建目录Snapshot或技术Session业务cache；当前权限仍独立重验，不能以首屏asOf恢复已撤Grant。水位范围只覆盖候选来源和已许可摘要，不暴露未授权项目变化计数。
 
 合法页均返回 `OK + data:Page<WorkspaceProjectSummary>`，包括 `items=[] + nextCursor` 的空中间页；Page 与 QueryResult 的 nextCursor 同值，枚举未完必须返回绑定游标，完整末页才省略。客户端按游标继续分页，不为得到非空页突破200项/5秒扫描预算；只有同一有效游标链枚举完整、末页无nextCursor且累计可见项为零才显示完整EMPTY，空末页不清空之前的非空项。IP/EP依赖失败为 DEPENDENCY_UNAVAILABLE、无部分数据伪装完整目录。不返回未授权项目存在性或全局总数。新准备项目若尚无真实 current discovery Grant 不进入目录，owning preparation request 页面仍按其当前 read权回读，不补权限或伪造卡片。无该 Query 的 handler/注册时工作台目录不可用，BFF不能从旧缓存、匿名原型、Repository或per-project board推导项目集合。
 
 选中项目后的 `project.get_project_board_slice@1.0` 仍只读指定 Project 的 DeliveryItem，`execution.get_task_board_slice@1.0` 仍由 TE 独立拥有；两者各验自身当前权限和consistency。目录项不作为board/data资格、不扩大分页分母。跨项目工作台首版只用本目录的项目卡片和受控单项目看板，不新增跨项目任务Projection/完成判据。
+
+实现事实（#266）：目录 Query 已注册为第 240 个公开 operation（冻结的 200-operation v1.0 baseline 保持不变，属 `operation-added-as-minor`）；EP 侧逐项目摘要在精确 Enterprise+Project RLS Context 内经 `readWorkspaceProjectSummary` 读取，只返回本节的 `WorkspaceProjectSummary` 最小字段。目录页的 `enterprise_project` 水位是**读取观察**：`servedObservationDigest` 对首屏已返回摘要的 `{enterpriseId,projectId,aggregateVersion,status}` 取 cv1 摘要，`enterpriseProjectWatermarkSequence` 只取该摘要的 48 位投影并沿游标链保持不变，不是 owning EP 源 sequence，也不代表全库或未授权项目的任何计数；`identity_policy` 水位取当次 IP 候选集的覆盖 Grant 事实计数，翻页间变化即拒绝该页。`project.get_project_board_slice@1.0` 的 owning Handler 原先只接受遗留内部拼写 `Project`，与其已注册 payload（共享 `objectRef`，`objectType` 为小写点分 namespace）不一致；#266 修正为同时接受 `project.project`、`zhiju.project.project`（注册契约的两种原形）与遗留 `Project`，未改变 payload/result/consistency/cursor/水位语义。
 
 ## #257 公司启动规则与词表字段提案
 

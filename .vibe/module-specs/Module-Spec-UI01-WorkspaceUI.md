@@ -278,7 +278,7 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 ## 可信 Human Session 与公开 Workspace 接入提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED AND IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK JOURNEY AND CONTROLLED-CHROMIUM BUILT-BROWSER JOURNEY EXECUTED IN THE EXACT-HEAD PERSISTENCE GATE / ACTUAL CHROME-EDGE PLATFORM MATRIX, PRODUCTION DEPLOYMENT AND MANUAL ACCEPTANCE NOT RUN`。字段、封闭技术配置、Session转换、有限public operation/version表、CSRF/流/内容协议与TR-258验收trace唯一见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。已批准 UI-DG-003 架构/会话期限和当前布局不变，工程外壳匿名证据不代表本提案实现。
 
 1. Browser Cookie只索引BFF技术会话；token exchange后通过Core受信身份bootstrap桥确认当前link/ACTIVE HUMAN，才能进入工作台。每次受保护请求Core独立校验token，IP形成真实Actor/当次Decision；Browser自报actor/Decision/actingFor/header覆盖拒绝。email/Realm Role和BFF缓存摘要不赋权。
 2. BFF技术Session只存认证字段，业务草稿/原意图/Receipt由owner保存；未经公开能力保存的页面草稿明确“未保存”，不承诺重启/跨设备恢复。单次登录交易绑定发起Browser，多Tab交易独立、并发callback只一winner；成功与安全error回调沿Delta封闭参数表接纳并精确验证响应iss，有限session_state仅校验后丢弃，不代替state/nonce或赋权；缺/错/重复issuer拒绝且零新Session。refresh串行，logout/过期/重启失效后不被迟到refresh复活。
@@ -287,7 +287,9 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 5. ZIP仅原流→IG issued intake，大小/累计bytes/backpressure/期限在BFF和IG各自限制；BFF不解包/分析/写对象存储。依据只读EP受权摘录/QG exact Evidence。当前无D14原件bytes transport，下载保持不可用；有owner精确版本/hash/当前权限与公开stream才能单独审查启用，不将locator自行变URL。
 6. 原CREATE request预分配target UUID，稳定key=`operation:1.0:targetUuid`；安全request页面不含客户正文/token。response丢失/401/重启后从Core回读原request/key；新认证只改变当次权限证明，不改原payload/历史Actor，禁止新键自动重发。PENDING/UNKNOWN/PARTIAL/STALE保留真实成功steps，COMMITTED/202不表示running。
 7. 所有POST Query/业务写/上传/登出/技术活动要求精确Origin/Host/CSRF/Content-Type；只有绑定的OIDC callback例外。受保护响应no-store，安全Markdown/CSP与遥测allowlist沿Delta；Scope/Principal变更与失权清DOM/cache/objectURL，generation检查迟到响应、multiTab失效与bfcache恢复。
-8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。真实OIDC/PostgreSQL/Host/Runner/Chrome/Edge/Manual仍NOT RUN，不因docs gate通过宣告可用Session或任务READY。
+8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。#266 已执行受控 Keycloak、真实公开 HTTP、一次性 PostgreSQL 与受控 Chromium 制品旅程（见本节实现事实）；生产部署、Host/Runner、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收仍 NOT RUN，不因 docs gate 或受控证据宣告生产可用 Session 或任务 READY。
+
+实现事实（#266）：上述 1–8 条的 BFF/Web 路径、封闭 Core 技术配置（`ZHIJU_WORKSPACE_TRUST_CONFIG`）与部署锁定值（capability code 映射、`ZHIJU_WORKSPACE_BOARD_CURSOR_KEY`、`ZHIJU_WORKSPACE_BOARD_POLICY_REFS`）已实现并有确定性本地、一次性 PostgreSQL、真实公开 HTTP 与 Chromium 制品旅程证据。首版 `execution.get_task_board_slice@1.0` 仍要求部署为该 Project 配置精确 Board Policy 版本引用：未配置时 owning 入口按既有语义返回 `DEPENDENCY_UNAVAILABLE` 并由 UI 诚实显示不可用，不伪造看板数据；`project.get_project_board_slice@1.0` 只需该 Project 的独立 board 读授权。目录页的 EP 水位是首屏已返回摘要观测摘要（`servedObservationDigest`）的 48 位投影（`enterpriseProjectWatermarkSequence`），属读取观察，不是全局计数、未授权项目计数或完成度。真实受控 Keycloak 26.7.0 旅程（隔离 realm/client/user 的 PKCE 登录 → callback `iss` → refresh → admin-API 密钥轮换 → 错 aud/azp/iss 拒绝）与受控 Chromium 制品旅程已在 exact-head persistence gate 通过（`tests/persistence/workspace-controlled-keycloak.test.ts`、`workspace-built-browser.test.ts`；证据见 PR #273 与本 Issue 评论）；生产部署、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收仍 `NOT RUN`。
 
 ## D12 / Q11 项目交付与原意图恢复提案（#260）
 

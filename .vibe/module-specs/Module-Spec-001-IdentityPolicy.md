@@ -1056,7 +1056,7 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 
 ## Workspace 可信 Human 入口与目录授权提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。技术配置、会话和 trust traces 见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本节拥有身份映射/授权接受集，不把 OIDC login 或 BFF Session 当成 Zhiju Role/Capability。现有 register/link/ActorSnapshot/Decision Port 的约束保留；当前 scoped Actor/Decision 实现只支持 Enterprise/Project，不因本提案获得无 Scope 业务授权。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED AND IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK JOURNEY EXECUTED (ISOLATED REALM/CLIENT/USER, PINNED 26.7.0) / PRODUCTION DEPLOYMENT, PLATFORM MATRIX AND MANUAL ACCEPTANCE NOT RUN`。技术配置、会话和 trust traces 见 [Session Delta](../decisions/workspace-trusted-session-public-access.md)。本节拥有身份映射/授权接受集，不把 OIDC login 或 BFF Session 当成 Zhiju Role/Capability。现有 register/link/ActorSnapshot/Decision Port 的约束保留；当前 scoped Actor/Decision 实现只支持 Enterprise/Project，不因本提案获得无 Scope 业务授权。
 
 ### 身份 bootstrap 与可信 Actor
 
@@ -1080,6 +1080,10 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 |---|---|---|
 | EP 目录逐项 / 实际 HUMAN，无 actingFor | 内部 `project.workspace.discover@1.0` / `project.workspace.discover` / `project.workspace.discover.v1`；受信配置 key `workspaceProjectDiscoveryHumanV1` 映射到实际 capability code | OBJECT ProjectRef，允许 owning 的 `project.project`、`zhiju.project.project` 两种完整身份，各按原形匹配，禁止互转；PROJECT Scope enterprise/project 必全，project objectId=projectId |
 | 目录 payloadHash | server closed `{directoryQueryId,projectRef,normalizedFilter,pageBindingHash}` 的 cv1 hash | 与当次 HUMAN/Actor/认证摘要、query@version/Scope、当前 covering Grant/Policy 一起重验；不是通用 board 或 content Decision |
+| EP 项目 Board 逐项目读取 / 实际 HUMAN，无 actingFor（#266 物化，未新增公开 operation/Purpose） | `project.get_project_board_slice@1.0` / `enterprise.project.get_project_board_slice`（逐字复用该 operation 已注册的 authorizationPurpose） / `project.get_project_board_slice.v1`；受信配置 key `projectBoardSliceReadHumanV1` 映射到实际 capability code | OBJECT ProjectRef，按已注册 payload 的 `project.project`、`zhiju.project.project` 两种原形匹配；PROJECT Scope enterprise/project 必全，project objectId=projectId；仅此一项、不等于目录发现或 content/Evidence 权限 |
+| EP Board payloadHash | server 以当次注册 payload 的 cv1 hash 计算 | 与当次 HUMAN/Actor/认证摘要、query@version/Scope、当前 covering Grant/Policy 一起重验；不授予 D14 confirm/resume 或下载权限 |
+
+实现事实（#266，本分支）：`identity_workspace_discovery_reader` 见 `migrations/identity_policy/V1008__workspace_self_discovery_reader.sql`（仅 `identity_policy.capability_grant`、仅 SELECT、仅 `scope_kind='PROJECT'`、自身 principal 且需有效技术 Context）；`resolveVerifiedHuman` 与 `AuthenticationContext` 摘要见 `modules/identity-policy/src/commands/workspace-human-identity.ts`；self 候选与逐项 `project.workspace.discover@1.0` Decision 见 `modules/identity-policy/src/commands/workspace-project-discovery.ts`。EP Board 的 HUMAN 读接受集由 #266 按上表物化：operation/authorizationPurpose 逐字复用已注册值，只新增受信配置 key `projectBoardSliceReadHumanV1`，不改任何业务 payload/result/Event 合同；其独立审查/人类批准仍按本 Issue 门禁执行。执行证据：确定性本地、一次性 PostgreSQL、真实公开 HTTP，以及真实受控 Keycloak 26.7.0 隔离 realm/client/user 的 PKCE 登录/refresh/admin-API 密钥轮换与受控 Chromium 制品旅程，均在 exact-head persistence gate 通过（见 PR #273 与本 Issue 评论）；生产部署与人工验收仍 `NOT RUN`。
 
 目录自身 Query 是 EP 声明的 `scopeRef={}` self-discovery 入口，由 verifier 确立 requester；每个结果仍有上述 scoped Decision。空 Scope 不生成 PLATFORM 业务授权，不修改既有 scoped Port 接受集。撤权/Grant 或 Policy 变化使翻页绑定失效；换 Session/Principal 必重新从第一页查询。发现权限只允许 EP 安全摘要；board、Evidence、D14 confirm/resume 各依 owning 的现行独立 mapping，缺任一权限对应 protected reads/writes=0。新准备项目只有 owning memberPolicy/provisioning 已产生该精确 discovery 权限时才进入目录，ScopeClaim/创建成功本身不代替 Grant。
 

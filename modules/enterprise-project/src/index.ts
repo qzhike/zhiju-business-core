@@ -343,6 +343,13 @@ export type {
   GetProjectContextSourceQueryPayload,
   GetProjectBoardSliceQueryPayload,
 } from './business/query-handlers.js';
+// IM-UI-01 (#258/#266): EnterpriseProject owning read behind one candidate card
+// of the workspace trusted-Human project directory.
+export { readWorkspaceProjectSummary } from './business/workspace-directory-read.js';
+export type {
+  WorkspaceProjectSummaryView,
+  WorkspaceProjectSummaryRequest,
+} from './business/workspace-directory-read.js';
 // IM-06 (#188): ContextSourceSlice capture/read handlers, the IdentityPolicy
 // resolution Port they consume and the shared source-slice assembly the
 // persisted capture reuses from the owning Source Query.

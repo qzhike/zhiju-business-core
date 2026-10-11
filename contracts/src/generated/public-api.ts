@@ -2359,4 +2359,14 @@ export const publicApiOperations = [
       },
     ],
   },
+  {
+    type: 'project.find_workspace_projects',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'project.workspace.discover',
+    dataClassification: 'INTERNAL',
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

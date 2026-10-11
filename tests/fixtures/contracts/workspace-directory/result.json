@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "enterpriseRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.project.enterprise",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d405"
+        }
+      },
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.project.project",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d406",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d405",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d406"
+        }
+      },
+      "enterpriseDisplayName": "示例企业",
+      "displayCode": "ENT-0001",
+      "title": "升级项目",
+      "status": "ACTIVE",
+      "aggregateVersion": 3
+    }
+  ],
+  "nextCursor": "opaque-cursor-value-0002",
+  "snapshotAt": "2026-10-10T00:00:00Z",
+  "sourceWatermarks": [
+    {
+      "sourceModule": "enterprise_project",
+      "sequence": 7,
+      "observedAt": "2026-10-10T00:00:00Z"
+    },
+    {
+      "sourceModule": "identity_policy",
+      "sequence": 4,
+      "observedAt": "2026-10-10T00:00:00Z"
+    }
+  ]
+}

@@ -16,13 +16,40 @@ pnpm --filter @zhiju/workspace-bff start
 ```
 
 `PORT` defaults to 3101; the server listens on loopback for a same-origin reverse
-proxy. `GET /bff/health` reports process health and unconfigured business integration.
-`GET /bff/bootstrap` reports reauthentication required and business actions disabled;
-it returns no identity, tokens or credentials. All other requests return a safe
-503 JSON error. Development switches cannot enable a fixture execution route.
+proxy. `GET /bff/health` reports process health and whether the trusted session
+integration is configured. `GET /bff/bootstrap` reports reauthentication required
+and business actions disabled; it returns no identity, tokens or credentials.
 
-OIDC certification, sessions, CSRF-protected writes and allowlisted public business
-proxies require later integration work. Merely providing environment URLs or a
-client secret does not activate them. The shell does not upload files, accept
-reports or fabricate Runner receipts. Request logging is disabled and error
-responses use a fixed safe message.
+With a valid `ZHIJU_WORKSPACE_TRUST_CONFIG` deployment document the BFF is the
+trusted Human session boundary: OIDC Authorization Code + PKCE sign-in with the
+closed callback acceptance set, separate ID/access-token validation, bounded
+single-process sessions with CSRF/Origin/Host protection, single-flight refresh,
+logout and the finite allowlisted query proxy to the fixed Core origin. Without
+that configuration it keeps the shell contract: every business request returns a
+safe 503 JSON error, no session or identity is produced and development switches
+cannot enable a fixture execution route. Missing production values are startup
+rejections, never guessed defaults.
+
+The BFF never uploads files, accepts reports or fabricates Runner receipts, and it
+holds no business drafts, original intents or receipts. Request logging is
+disabled and error responses use a fixed safe message with a random correlation
+id; tokens, cookies, the external subject and customer content are never logged
+or echoed. Real Keycloak, Core HTTP and manual acceptance remain `NOT RUN`.
+
+Three session invariants are enforced structurally:
+
+- `X-Forwarded-Proto`/`X-Forwarded-Host` are accepted only as a single
+  well-formed pair from an allowlisted proxy peer, and they resolve the served
+  destination's Host alone. The request's own `Origin` header is never replaced;
+  a missing, `null` or foreign Origin is rejected with 403 and zero Core calls
+  even through an allowlisted proxy.
+- Each login transaction carries the generation of its browser binding. A
+  callback completes that generation by compare-and-set, so concurrent callbacks
+  issued under one browser binding elect exactly one winner; the winner advances
+  the generation and invalidates the session it replaces, so the superseded
+  session cookie never resolves to `ALLOWED` again. Distinct browser bindings and
+  principals stay independent.
+- Every awaited protected read rechecks the exact session record's identity,
+  generation and expiry after the Core call and before any body is written; a
+  logout completing mid-flight turns the response into a safe `401`
+  `UI_REAUTH_REQUIRED` with no payload.

@@ -2504,7 +2504,7 @@ forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_STAR
 
 ## Workspace self-discovery 读取边界提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT IMPLEMENTED`。不新增业务目录表/Projection/Session Repository，不在本 Issue 写SQL。身份/目录字段唯一见 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258) 与 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / IMPLEMENTED (#266, V1008) / EXECUTION EVIDENCE IN ISSUE-PR / PRODUCTION NOT RUN`。不新增业务目录表/Projection/Session Repository，不在本 Issue 写业务SQL。身份/目录字段唯一见 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258) 与 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。
 
 首次身份解析只在IP受控Port读取平台Principal/ExternalIdentityLink；self候选需后续独立注册的 `identity_workspace_discovery_reader` 受限SELECT权限/RLS policy，仅允许受信认证Context的principalId读取其当前Project Grant/Policy候选Scope。该Context由Core实际token verifier和固定technical peer建立，不能从Browser指定principalId。对现有IP FORCE RLS新增的读policy仅作用此专用role与自身候选字段；禁止BYPASSRLS、任意用户枚举、Grant正文对Browser输出、写权限或EP表权限，其他现有app/audit/dispatcher/projection角色不获得该权限。Port内部输入不能自由选择Principal，结果只供受控EP目录入口逐项再授权。
 

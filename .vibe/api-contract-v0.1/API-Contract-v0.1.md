@@ -267,6 +267,8 @@ CursorClaims
 - `asOf` 与分页 Snapshot 必须保持一致，不允许翻页时漂移到新的权威版本；
 - page size 受 `PayloadGuardPolicy` 限制，超限拒绝，不静默截断。
 
+Cursor 的公开表示默认使用共享不透明正则 `^[A-Za-z0-9_-]{16,512}$`。Query 可在 owning Spec 中声明**自己的封闭 cursor 信封**（同一字母表、明确的长度上界与理由），注册 schema 必须使用该声明而不是开放字符串：目前只有 `project.find_workspace_projects@1.0` 声明 `^[A-Za-z0-9_-]{16,8192}$`，因为它的 cursor 携带整条链已返回摘要的身份与观测，以便每次续读复验（EP §258；上界选择见该节），其余 Query/Board cursor 继续使用 16..512。
+
 ### 6.3 QueryResult
 
 使用 `06` 定义的 `QueryResult<T>`。模块规格唯一维护 `T`：
@@ -658,7 +660,7 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 
 ## Workspace public transport 与 self-discovery 提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / NOT REGISTERED / NOT IMPLEMENTED`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED (#266) / IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / PRODUCTION NOT RUN`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。
 
 唯一新public operation提案 `project.find_workspace_projects@1.0` 的payload/result/分页见 [EP owning Spec](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。它显式接受 `scopeRef={}` 的verified self-discovery，requester只从Core身份解析；不生成空Scope业务Actor/Decision，每个返回项目仍独立取得IP当前Project Decision并按双Scope RLS读取。此例外须新Query注册及实际可信入口，不把现有identity scoped Port/board接受集放宽。
 

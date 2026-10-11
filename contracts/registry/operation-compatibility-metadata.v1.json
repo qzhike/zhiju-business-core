@@ -1676,6 +1676,13 @@
       "authorizationPurpose": "project.delivery_item.evaluate_completion",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "im06-exact-delivery-completion-v2"
+    },
+    {
+      "type": "project.find_workspace_projects",
+      "version": "1.0",
+      "authorizationPurpose": "project.workspace.discover",
+      "dataClassification": "INTERNAL",
+      "semanticDeclaration": "workspace-trusted-session-public-access-v1"
     }
   ]
 }

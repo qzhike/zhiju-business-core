@@ -13,6 +13,9 @@
       "path": "../../apps/api"
     },
     {
+      "path": "../../apps/workspace-bff"
+    },
+    {
       "path": "../../modules/identity-policy"
     },
     {

@@ -2649,6 +2649,16 @@
         }
       ],
       "resultSchemaRef": "https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_evaluate_delivery_item_completion_v2_0_result"
+    },
+    {
+      "type": "project.find_workspace_projects",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "enterprise-project",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "project.workspace.discover",
+      "dataClassification": "INTERNAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
     }
   ]
 }

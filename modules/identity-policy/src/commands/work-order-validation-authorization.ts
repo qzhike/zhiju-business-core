@@ -189,7 +189,7 @@ export type WorkOrderValidationBoundary =
  * object types, Grant selector type and trusted configuration key of one
  * approved entry (Spec 001 §15.10).
  */
-interface AuthorizationEntryBinding {
+export interface AuthorizationEntryBinding {
   readonly commandType: string;
   readonly commandVersion: string;
   readonly authorizationPurpose: string;
@@ -352,7 +352,7 @@ export type WorkOrderValidationDenialReason =
   | 'GRANT_POLICY_SNAPSHOT_NOT_CURRENT';
 
 /** The request fields every entry of this slice shares. */
-interface WorkOrderValidationEntryRequest {
+export interface WorkOrderValidationEntryRequest {
   /** Exact actor snapshot of the calling principal (id and payload hash). */
   readonly actorSnapshotRef: ActorSnapshotRef;
   readonly commandType: string;
@@ -417,7 +417,7 @@ export interface WorkOrderValidationContextReadAuthorizationView {
 }
 
 /** The revalidation fields every entry of this slice shares. */
-interface WorkOrderValidationEntryRevalidation {
+export interface WorkOrderValidationEntryRevalidation {
   readonly decisionRef: Common.ContentAddressedRef;
   readonly expectedCommandType: string;
   readonly expectedCommandVersion: string;
@@ -482,7 +482,7 @@ interface WorkOrderValidationRevalidationAllow {
   readonly expiresAt: Common.UtcInstant;
 }
 
-interface WorkOrderValidationRevalidationDeny {
+export interface WorkOrderValidationRevalidationDeny {
   readonly valid: false;
   readonly reason: WorkOrderValidationRevalidationFailure;
 }
@@ -665,7 +665,7 @@ function selectedGrantFacts(grant: SelectedCapabilityGrant): SelectedAuthorizati
   };
 }
 
-type IssuedEntryDecision =
+export type IssuedEntryDecision =
   | { readonly outcome: 'DENY'; readonly reasons: readonly string[] }
   | {
       readonly outcome: 'ALLOW';
@@ -675,7 +675,7 @@ type IssuedEntryDecision =
       readonly expiresAt: Common.UtcInstant;
     };
 
-type RevalidatedEntryDecision =
+export type RevalidatedEntryDecision =
   | {
       readonly valid: true;
       readonly authorizationDecisionRef: Common.ContentAddressedRef;
@@ -835,7 +835,7 @@ export function createWorkOrderValidationAuthorizationPort(
  * canonical payload next to the V1006 OBJECT mirror; the promoted columns keep
  * the OBJECT mirror shape only (Spec 001 §15.10).
  */
-async function issueEntryDecision(
+export async function issueEntryDecision(
   config: WorkOrderValidationAuthorizationConfig,
   now: () => Date,
   boundary: WorkOrderValidationBoundary | undefined,
@@ -1067,7 +1067,7 @@ async function issueEntryDecision(
  * the current principal state and a fresh read of the covering Grant and its
  * Policy Snapshot at the trusted time.
  */
-async function revalidateEntryDecision(
+export async function revalidateEntryDecision(
   config: WorkOrderValidationAuthorizationConfig,
   now: () => Date,
   boundary: WorkOrderValidationBoundary | undefined,

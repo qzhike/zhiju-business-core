@@ -685,3 +685,166 @@ describe('resolution receipt attestation public contracts', () => {
     }
   });
 });
+
+// ===========================================================================
+// #258 workspace directory Query — `project.find_workspace_projects@1.0`
+// ===========================================================================
+
+const directoryType = 'project.find_workspace_projects';
+
+interface DirectoryNegativeCase {
+  base: string;
+  path: string;
+  keyword: string;
+  expectedPath: string;
+  remove?: boolean;
+  value?: unknown;
+  params?: Record<string, unknown>;
+}
+
+function readDirectoryFixture(name: string): Fixture {
+  return JSON.parse(
+    readFileSync(
+      new URL(
+        `../../../tests/fixtures/contracts/workspace-directory/${name}.json`,
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as Fixture;
+}
+
+const directoryNegativeCases = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../tests/fixtures/contracts/workspace-directory/negative-cases.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as DirectoryNegativeCase[];
+
+// The shared `setPath` helper rejects array nodes, so the directory cases use a
+// local traversal that also walks array indices (e.g. `/items/0/status`).
+function setDirectoryPath(input: Fixture, path: string, value: unknown, remove = false): void {
+  const keys = path.split('/').slice(1);
+  const key = keys.pop();
+  if (key === undefined) throw new Error('missing fixture path');
+  let parent = input as Record<string, unknown>;
+  for (const name of keys) {
+    const next = parent[name];
+    if (next === null || typeof next !== 'object') throw new Error('missing fixture path');
+    parent = next as Record<string, unknown>;
+  }
+  if (remove) Reflect.deleteProperty(parent, key);
+  else parent[key] = value;
+}
+
+function validateDirectory(base: string, input: unknown) {
+  return base === 'result'
+    ? registry.validateOperationResult(directoryType, '1.0', input)
+    : registry.validateOperation(directoryType, '1.0', input);
+}
+
+describe('workspace directory public contracts', () => {
+  it('accepts the complete Query and page fixtures', () => {
+    expect(validateDirectory('query', readDirectoryFixture('query'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    expect(validateDirectory('result', readDirectoryFixture('result'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it('bounds the extended directoryCursor and accepts long legal continuations', () => {
+    // #258 R5 option (a): `project.find_workspace_projects@1.0` extends the
+    // cursor past the shared `opaqueCursor` (16..512) to 16..8192 so a
+    // continuation can carry and re-observe the chain's served
+    // identities/observations. The alphabet stays `^[A-Za-z0-9_-]+$` on both
+    // the request `page.cursor` and the result `nextCursor`. The untouched
+    // valid fixtures are the positive controls; the negatives are one too
+    // short (minLength), a dotted value (pattern) and one character past the
+    // declared bound (maxLength).
+    const cursorCases = directoryNegativeCases.filter(
+      (test) => test.base === 'result' && test.path === '/nextCursor',
+    );
+    expect(cursorCases.map((test) => [test.keyword, test.value])).toEqual([
+      ['minLength', 'x'],
+      ['pattern', 'opaque.cursor.value.0002'],
+      ['maxLength', 'a'.repeat(8193)],
+    ]);
+    for (const length of [16, 512, 1024, 8192]) {
+      const cursor = 'a'.repeat(length);
+      const query = readDirectoryFixture('query');
+      setDirectoryPath(query, '/payload/page/cursor', cursor);
+      expect(validateDirectory('query', query)).toEqual({ valid: true, errors: [] });
+      const result = readDirectoryFixture('result');
+      setDirectoryPath(result, '/nextCursor', cursor);
+      expect(validateDirectory('result', result)).toEqual({ valid: true, errors: [] });
+    }
+    expect(validateDirectory('result', readDirectoryFixture('result'))).toEqual({
+      valid: true,
+      errors: [],
+    });
+    for (const test of cursorCases) {
+      const input = readDirectoryFixture('result');
+      setDirectoryPath(input, test.path, test.value, test.remove);
+      const outcome = validateDirectory('result', input);
+      expect(outcome.valid).toBe(false);
+      expect(outcome.errors).toContainEqual(
+        expect.objectContaining({ keyword: test.keyword, instancePath: '/nextCursor' }),
+      );
+    }
+  });
+
+  it.each(directoryNegativeCases)('rejects $base $path ($keyword)', (test) => {
+    const input = readDirectoryFixture(test.base);
+    expect(validateDirectory(test.base, input)).toEqual({ valid: true, errors: [] });
+    setDirectoryPath(input, test.path, test.value, test.remove);
+    const outcome = validateDirectory(test.base, input);
+    expect(outcome.valid).toBe(false);
+    expect(outcome.errors).toContainEqual(
+      expect.objectContaining({
+        keyword: test.keyword,
+        instancePath: test.expectedPath,
+        ...(test.params === undefined ? {} : { params: expect.objectContaining(test.params) }),
+      }),
+    );
+  });
+
+  it('accepts the declared 1..50 pageSize boundary and the optional page fields', () => {
+    for (const pageSize of [1, 50]) {
+      const input = readDirectoryFixture('query');
+      setDirectoryPath(input, '/payload/page', { pageSize });
+      expect(validateDirectory('query', input)).toEqual({ valid: true, errors: [] });
+    }
+    const minimal = readDirectoryFixture('query');
+    setDirectoryPath(minimal, '/payload', { page: { pageSize: 1 } });
+    expect(validateDirectory('query', minimal)).toEqual({ valid: true, errors: [] });
+    const emptyPage = readDirectoryFixture('result');
+    setDirectoryPath(emptyPage, '/items', []);
+    setDirectoryPath(emptyPage, '/nextCursor', 'opaque-cursor-value-0003');
+    expect(validateDirectory('result', emptyPage)).toEqual({ valid: true, errors: [] });
+  });
+
+  it('exposes the declared self-discovery ScopeRef and exact registration metadata', () => {
+    // The declared #258 exception: an empty scopeRef is accepted for this Query
+    // alone because it is not added to operationScopeSchema()'s projectRequired
+    // list, so its envelope keeps the plain shared ScopeRef.
+    const envelope = operationEnvelopeSchema(operation(directoryType));
+    expect(object(envelope.properties).scopeRef).toEqual({
+      $ref: 'https://schemas.zhiju.local/common/1.0#/$defs/scopeRef',
+    });
+    expect(registry.getOperation(directoryType, '1.0')).toMatchObject({
+      owner: 'enterprise-project',
+      kind: 'QUERY',
+      schemaStatus: 'FULL',
+      allowedConsistency: ['AUTHORITATIVE'],
+      authorizationPurpose: 'project.workspace.discover',
+      dataClassification: 'INTERNAL',
+    });
+    expect(registry.getOperation(directoryType, '1.0')?.payloadGuardPolicyRef).toBeUndefined();
+  });
+});

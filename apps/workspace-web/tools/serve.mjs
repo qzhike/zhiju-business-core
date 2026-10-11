@@ -43,9 +43,16 @@ const server = createServer(async (req, res) => {
         timeout: 15_000,
       },
       (response) => {
-        res.writeHead(response.statusCode ?? 502, {
-          'Content-Type': response.headers['content-type'] ?? 'application/json',
-        });
+        // Forward the upstream status and headers (Location, Set-Cookie,
+        // Cache-Control, Content-Type, ...): the authentication redirect and the
+        // __Host- session cookies must reach the browser unchanged. Only
+        // hop-by-hop headers are dropped; the CSP/no-referrer/nosniff headers
+        // above stay in place.
+        const headers = { ...response.headers };
+        for (const hopByHop of ['connection', 'keep-alive', 'transfer-encoding', 'upgrade']) {
+          delete headers[hopByHop];
+        }
+        res.writeHead(response.statusCode ?? 502, headers);
         response.pipe(res);
       },
     );

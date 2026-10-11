@@ -1,11 +1,12 @@
-import { Component, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ReportView, WorkspaceData } from './model.js';
+import { ContentBoundary, Missing } from './shell.js';
+import { TrustedApp } from './TrustedApp.js';
 
 const projectId = 'DEMO-PROJECT-01';
 const initialReportId = 'DEMO-STARTUP-REPORT-01';
@@ -27,31 +28,11 @@ async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
   throw new Error('UI_SERVICE_NOT_CONFIGURED');
 }
 
-class ContentBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  override state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  override render() {
-    return this.state.failed ? (
-      <section role="alert" className="panel error">
-        <h1>页面暂不可用</h1>
-        <p>无法安全读取页面状态，请重新加载。</p>
-        <button
-          onClick={() => {
-            window.location.reload();
-          }}
-        >
-          重新加载
-        </button>
-      </section>
-    ) : (
-      this.props.children
-    );
-  }
+export function App() {
+  return __DEV_FIXTURE__ ? <FixtureApp /> : <TrustedApp />;
 }
 
-export function App() {
+function FixtureApp() {
   const location = useLocation();
   const heading = useRef<HTMLElement>(null);
   const query = useQuery({
@@ -166,16 +147,6 @@ export function App() {
         </main>
       </div>
     </>
-  );
-}
-
-function Missing() {
-  return (
-    <section className="panel">
-      <h1 tabIndex={-1}>无法打开此页面</h1>
-      <p>未找到或无权访问这个精确对象。</p>
-      <Link to="/workbench">返回工作台</Link>
-    </section>
   );
 }
 
