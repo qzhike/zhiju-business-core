@@ -992,7 +992,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 ## Workspace 授权项目目录提案（#258）
 
-状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED (240th public operation; frozen 200-operation v1.0 baseline unchanged) / IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK, PRODUCTION AND MANUAL ACCEPTANCE NOT RUN`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
+状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED (240th public operation; frozen 200-operation v1.0 baseline unchanged) / IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / CONTROLLED KEYCLOAK JOURNEY AND BUILT-BROWSER JOURNEY EXECUTED IN THE EXACT-HEAD PERSISTENCE GATE (ISOLATED REALM/CLIENT/USER, PINNED 26.7.0) / PRODUCTION DEPLOYMENT, PLATFORM MATRIX AND MANUAL ACCEPTANCE NOT RUN`。这是首个 Human 工作台必需的有限 additive Query，不修改既有 project board、D14 request/Receipt、Project状态机或业务 Schema 所有权。技术入口见 [Session Delta](../decisions/workspace-trusted-session-public-access.md#4-授权目录与工作台来源)。
 
 | 拟 operation / consistency / Scope | 封闭 payload | result data / Purpose |
 |---|---|---|
@@ -1010,7 +1010,7 @@ TE 拟权威 Query `execution.get_initial_work_scope_state@1.0` 输入 `{project
 
 选中项目后的 `project.get_project_board_slice@1.0` 仍只读指定 Project 的 DeliveryItem，`execution.get_task_board_slice@1.0` 仍由 TE 独立拥有；两者各验自身当前权限和consistency。目录项不作为board/data资格、不扩大分页分母。跨项目工作台首版只用本目录的项目卡片和受控单项目看板，不新增跨项目任务Projection/完成判据。
 
-实现事实（#266）：目录 Query 已注册为第 240 个公开 operation（冻结的 200-operation v1.0 baseline 保持不变，属 `operation-added-as-minor`）；EP 侧逐项目摘要在精确 Enterprise+Project RLS Context 内经 `readWorkspaceProjectSummary` 读取，只返回本节的 `WorkspaceProjectSummary` 最小字段。目录页的 `enterprise_project` 水位是**读取观察**：它记录首屏实际读取的受权摘要数并沿游标链保持不变，不是 owning EP 源 sequence，也不代表全库或未授权项目的任何计数；`identity_policy` 水位取当次 IP 候选集的覆盖 Grant 事实计数，翻页间变化即拒绝该页。`project.get_project_board_slice@1.0` 的 owning Handler 原先只接受遗留内部拼写 `Project`，与其已注册 payload（共享 `objectRef`，`objectType` 为小写点分 namespace）不一致；#266 修正为同时接受 `project.project`、`zhiju.project.project`（注册契约的两种原形）与遗留 `Project`，未改变 payload/result/consistency/cursor/水位语义。
+实现事实（#266）：目录 Query 已注册为第 240 个公开 operation（冻结的 200-operation v1.0 baseline 保持不变，属 `operation-added-as-minor`）；EP 侧逐项目摘要在精确 Enterprise+Project RLS Context 内经 `readWorkspaceProjectSummary` 读取，只返回本节的 `WorkspaceProjectSummary` 最小字段。目录页的 `enterprise_project` 水位是**读取观察**：`servedObservationDigest` 对首屏已返回摘要的 `{enterpriseId,projectId,aggregateVersion,status}` 取 cv1 摘要，`enterpriseProjectWatermarkSequence` 只取该摘要的 48 位投影并沿游标链保持不变，不是 owning EP 源 sequence，也不代表全库或未授权项目的任何计数；`identity_policy` 水位取当次 IP 候选集的覆盖 Grant 事实计数，翻页间变化即拒绝该页。`project.get_project_board_slice@1.0` 的 owning Handler 原先只接受遗留内部拼写 `Project`，与其已注册 payload（共享 `objectRef`，`objectType` 为小写点分 namespace）不一致；#266 修正为同时接受 `project.project`、`zhiju.project.project`（注册契约的两种原形）与遗留 `Project`，未改变 payload/result/consistency/cursor/水位语义。
 
 ## #257 公司启动规则与词表字段提案
 
