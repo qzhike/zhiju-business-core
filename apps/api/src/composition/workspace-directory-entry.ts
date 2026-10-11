@@ -37,10 +37,14 @@
 //      its exact Enterprise+Project scope (a fresh per-candidate Decision, its
 //      revalidation and the owning EnterpriseProject read) and restarts with
 //      `QUERY_CURSOR_INVALID` when one of them changed, lost its Decision or
-//      disappeared. The carried set is bounded by this Query's declared cursor
-//      bound (`^[A-Za-z0-9_-]{16,8192}$`, R5 option (a)); a chain whose served
-//      set outgrows that capacity fails closed with `QUERY_CURSOR_INVALID`
-//      rather than dropping a carried observation.
+//      disappeared. The re-authorized carried entries are kept and participate in
+//      the before-return checkpoint as well: after this page's new reads they are
+//      revalidated and re-observed once more, so a project that changes *while*
+//      the new page is being scanned cannot let a stale card leave in a chain
+//      whose final page emits no further cursor. The carried set is bounded by
+//      this Query's declared cursor bound (`^[A-Za-z0-9_-]{16,8192}$`, R5
+//      option (a)); a chain whose served set outgrows that capacity fails closed
+//      with `QUERY_CURSOR_INVALID` rather than dropping a carried observation.
 //
 // A legal page is always `OK + Page<WorkspaceProjectSummary>` — including an
 // empty intermediate page (`items=[] + nextCursor`) when the filter or the scan
@@ -212,6 +216,21 @@ interface DirectoryServedObservation {
   readonly projectId: string;
   readonly aggregateVersion: number;
   readonly status: WorkspaceProjectSummaryView['status'];
+}
+
+/**
+ * One entry the before-return checkpoint revalidates: a candidate this page
+ * newly authorized, or a carried observation the start-of-continuation check
+ * re-authorized. The checkpoint keeps the Decision the entry was authorized
+ * under and the EnterpriseProject summary it observed, so a second revalidation
+ * and owning read can prove the card is still reproducible when the page leaves.
+ */
+interface DirectoryCheckpointEntry {
+  readonly candidate: Common.ObjectRef;
+  readonly decisionRef: Common.ContentAddressedRef;
+  readonly scope: RequestScope;
+  readonly row: DecisionRow;
+  readonly observed: WorkspaceProjectSummaryView;
 }
 
 /**
@@ -739,7 +758,9 @@ export function createWorkspaceDirectoryEntry(
    *
    * The whole page fails on a lost Decision, a missing Project row or a changed
    * `aggregateVersion`/`status`: a card the chain already served must still be
-   * reproducible before the next card is served.
+   * reproducible before the next card is served. The re-authorized entry is
+   * returned so the before-return checkpoint can re-check it again once this
+   * page's own reads have completed.
    */
   async function reobserveServedObservation(input: {
     readonly resolution: VerifiedHumanResolution;
@@ -748,7 +769,7 @@ export function createWorkspaceDirectoryEntry(
     readonly pageBindingHash: string;
     readonly correlationId: string;
     readonly observation: DirectoryServedObservation;
-  }): Promise<void> {
+  }): Promise<DirectoryCheckpointEntry> {
     const candidate: Common.ObjectRef = {
       kind: 'OBJECT',
       objectType: input.observation.objectType,
@@ -786,12 +807,21 @@ export function createWorkspaceDirectoryEntry(
       boundary.enterpriseProjectContext(authorized.row, authorized.scope, input.correlationId),
       { enterpriseId: authorized.scope.enterpriseId, projectId: authorized.scope.projectId },
     );
-    const observationChanged =
+    // A vanished Project row and a changed observation are the same failure: the
+    // card can no longer be reproduced, so the whole page fails identically.
+    if (
       observed?.aggregateVersion !== input.observation.aggregateVersion ||
-      observed.status !== input.observation.status;
-    if (observationChanged) {
+      observed.status !== input.observation.status
+    ) {
       entryError(QUERY_CURSOR_INVALID, 'a summary the directory chain served changed');
     }
+    return {
+      candidate,
+      decisionRef: authorized.decisionRef,
+      scope: authorized.scope,
+      row: authorized.row,
+      observed,
+    };
   }
 
   /**
@@ -890,6 +920,54 @@ export function createWorkspaceDirectoryEntry(
     }
   }
 
+  /**
+   * The before-return checkpoint of one entry — a candidate this page just
+   * authorized or a carried observation the start-of-continuation check
+   * re-authorized. It runs after every awaited new-page read, so it covers a
+   * change that happened *while* this request was working: the entry's Decision
+   * must still revalidate and its owning EnterpriseProject summary must still be
+   * readable with the same `aggregateVersion`/`status` it carried.
+   *
+   * One failure fails the whole page with `QUERY_CURSOR_INVALID`, so a failed
+   * checkpoint never emits a page, a cursor or a `snapshotAt`/watermark.
+   */
+  async function checkpointEntry(input: {
+    readonly resolution: VerifiedHumanResolution;
+    readonly directoryQueryId: string;
+    readonly normalizedFilter: NormalizedFilter;
+    readonly pageBindingHash: string;
+    readonly correlationId: string;
+    readonly entry: DirectoryCheckpointEntry;
+  }): Promise<void> {
+    await revalidateCandidate({
+      resolution: input.resolution,
+      decisionRef: input.entry.decisionRef,
+      scope: input.entry.scope,
+      candidate: input.entry.candidate,
+      directoryQueryId: input.directoryQueryId,
+      normalizedFilter: input.normalizedFilter,
+      pageBindingHash: input.pageBindingHash,
+      actorSnapshotId: input.entry.row.actor_snapshot_id,
+    });
+    const observed = await readWorkspaceProjectSummary(
+      config.enterpriseProjectDb,
+      boundary.enterpriseProjectContext(input.entry.row, input.entry.scope, input.correlationId),
+      {
+        enterpriseId: input.entry.scope.enterpriseId,
+        projectId: input.entry.scope.projectId,
+      },
+    );
+    const observationChanged =
+      observed?.aggregateVersion !== input.entry.observed.aggregateVersion ||
+      observed.status !== input.entry.observed.status;
+    if (observationChanged) {
+      entryError(
+        QUERY_CURSOR_INVALID,
+        'the EnterpriseProject observation changed before the page returned',
+      );
+    }
+  }
+
   return {
     async findWorkspaceProjects(value, session) {
       const envelope = record(value);
@@ -946,6 +1024,11 @@ export function createWorkspaceDirectoryEntry(
         cursor: incomingCursor ?? null,
       });
 
+      // The carried entries the start-of-continuation check just re-authorized;
+      // they are kept so the before-return checkpoint re-checks them once more
+      // after this page's own awaited reads.
+      const carried: DirectoryCheckpointEntry[] = [];
+
       let cursor: DirectoryCursorBody | undefined;
       if (incomingCursor !== undefined) {
         cursor = decodeCursor(incomingCursor, session.sessionBinding);
@@ -997,27 +1080,28 @@ export function createWorkspaceDirectoryEntry(
         // fails the whole page (`QUERY_CURSOR_INVALID`) instead of letting a stale
         // card stay served; the carried set is re-read in chain order so the check
         // never depends on how many pages the chain has already served.
+        //
+        // This pass rejects a change that already happened before the request.
+        // The re-authorized entries are retained for the before-return checkpoint
+        // below, which rejects a change that happens *during* this request's own
+        // new-page reads.
         for (const observation of cursor.served) {
-          await reobserveServedObservation({
-            resolution,
-            directoryQueryId: queryId,
-            normalizedFilter,
-            pageBindingHash,
-            correlationId,
-            observation,
-          });
+          carried.push(
+            await reobserveServedObservation({
+              resolution,
+              directoryQueryId: queryId,
+              normalizedFilter,
+              pageBindingHash,
+              correlationId,
+              observation,
+            }),
+          );
         }
       }
 
       const startedAt = now().getTime();
       const items: WorkspaceProjectSummaryView[] = [];
-      const used: {
-        readonly candidate: Common.ObjectRef;
-        readonly decisionRef: Common.ContentAddressedRef;
-        readonly scope: RequestScope;
-        readonly row: DecisionRow;
-        readonly observed: WorkspaceProjectSummaryView;
-      }[] = [];
+      const used: DirectoryCheckpointEntry[] = [];
       let examined = 0;
       let hasMore = scan.nextCursor !== undefined;
       let lastKey = cursor === undefined ? undefined : cursor.lastSortKey;
@@ -1068,31 +1152,22 @@ export function createWorkspaceDirectoryEntry(
       // is repeated in the same context so a changed EnterpriseProject
       // observation rejects the page instead of returning a value no current
       // read can reproduce.
-      for (const usedEntry of used) {
-        await revalidateCandidate({
+      //
+      // The checkpoint covers the *whole* chain, not only the page just scanned:
+      // the carried entries the start-of-continuation check re-authorized are
+      // re-checked here too, because the awaited new-page reads may have let an
+      // earlier page's project change after that first check passed. Both sets
+      // are re-checked in chain order so a failed checkpoint emits no page, no
+      // cursor and no `snapshotAt`/watermark.
+      for (const entry of [...carried, ...used]) {
+        await checkpointEntry({
           resolution,
-          decisionRef: usedEntry.decisionRef,
-          scope: usedEntry.scope,
-          candidate: usedEntry.candidate,
           directoryQueryId: queryId,
           normalizedFilter,
           pageBindingHash,
-          actorSnapshotId: usedEntry.row.actor_snapshot_id,
+          correlationId,
+          entry,
         });
-        const observed = await readWorkspaceProjectSummary(
-          config.enterpriseProjectDb,
-          boundary.enterpriseProjectContext(usedEntry.row, usedEntry.scope, correlationId),
-          { enterpriseId: usedEntry.scope.enterpriseId, projectId: usedEntry.scope.projectId },
-        );
-        const observationChanged =
-          observed?.aggregateVersion !== usedEntry.observed.aggregateVersion ||
-          observed.status !== usedEntry.observed.status;
-        if (observationChanged) {
-          entryError(
-            QUERY_CURSOR_INVALID,
-            'the EnterpriseProject observation changed before the page returned',
-          );
-        }
       }
 
       // Every served summary keeps its own candidate identity: the candidate

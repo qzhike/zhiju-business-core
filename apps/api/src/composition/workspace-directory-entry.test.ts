@@ -11,9 +11,9 @@
 // tamper/expiry/scope-mismatch/watermark-drift error mapping, the
 // fail-the-whole-page revalidation rule, the full-chain re-observation of every
 // served EnterpriseProject summary (including a summary served on an earlier page
-// that changed after the next continuation already passed) and the declared
-// cursor capacity that fails a chain closed instead of dropping a carried
-// observation.
+// that changed after the next continuation already passed, and one that changes
+// *during* the terminal page's own new-page read) and the declared cursor
+// capacity that fails a chain closed instead of dropping a carried observation.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Common } from '@zhiju/contracts';
@@ -693,6 +693,85 @@ describe('createWorkspaceDirectoryEntry', () => {
       'QUERY_CURSOR_INVALID',
       'a summary the directory chain served changed',
     );
+  });
+
+  it('completes a two-page chain whose terminal page re-observes the carried card unchanged', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
+          : scanPage({ projectIds: [PRJ_B] }),
+      ),
+    );
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
+    expect(projectIdsOf(first)).toEqual([PRJ]);
+    expect(first.nextCursor).toBeDefined();
+
+    const second = await entry.findWorkspaceProjects(
+      envelope({ page: { pageSize: 1, cursor: cursorOf(first) } }),
+      session(),
+    );
+
+    // The positive control of the terminal-page checkpoint: an unchanged carried
+    // card keeps the chain legal, its snapshot instant and watermarks stay the
+    // first page's, and the exhausted scan emits no further cursor.
+    expect(second.status).toBe('OK');
+    expect(second.stalenessStatus).toBe('FRESH');
+    expect(projectIdsOf(second)).toEqual([PRJ_B]);
+    expect(second.nextCursor).toBeUndefined();
+    expect(pageOf(second).nextCursor).toBeUndefined();
+    expect(pageOf(second).snapshotAt).toBe(pageOf(first).snapshotAt);
+    expect(pageOf(second).sourceWatermarks).toEqual(pageOf(first).sourceWatermarks);
+  });
+
+  it('rejects the terminal page when a carried summary changes while that page reads the next project', async () => {
+    vi.mocked(discoverWorkspaceProjectScopes).mockImplementation((_deps, _config, input) =>
+      Promise.resolve(
+        scanAfterProjectOf(input) === undefined
+          ? scanPage({ projectIds: [PRJ], nextCursor: 'scan-cursor-1' })
+          : scanPage({ projectIds: [PRJ_B] }),
+      ),
+    );
+    // The carried project page one served stays at aggregateVersion 3 until this
+    // terminal page reads the *next* project B; that read advances it to 4. The
+    // carried re-read at the start of this request therefore still passes, and
+    // only the before-return checkpoint can see the change: without it the page
+    // (which emits no further cursor) would answer OK/FRESH with the stale card
+    // and no later continuation could repair the completed chain.
+    let carriedProjectVersion = 3;
+    const reads: string[] = [];
+    vi.mocked(readWorkspaceProjectSummary).mockImplementation((_db, _context, request) => {
+      reads.push(request.projectId);
+      if (request.projectId === PRJ_B) carriedProjectVersion = 4;
+      return Promise.resolve({
+        ...summary(request.projectId, `Project ${request.projectId}`),
+        aggregateVersion: request.projectId === PRJ ? carriedProjectVersion : 3,
+      });
+    });
+    const entry = makeEntry();
+
+    const first = await entry.findWorkspaceProjects(envelope({ page: { pageSize: 1 } }), session());
+    expect(projectIdsOf(first)).toEqual([PRJ]);
+    expect(first.nextCursor).toBeDefined();
+    const cursor = cursorOf(first);
+
+    // Only page two's reads are asserted below.
+    reads.length = 0;
+
+    // The failing page is not OK and carries no page/cursor: the checkpoint
+    // message proves the rejection came from the before-return checkpoint rather
+    // than from the start-of-continuation re-read.
+    await expectCode(
+      entry.findWorkspaceProjects(envelope({ page: { pageSize: 1, cursor } }), session()),
+      'QUERY_CURSOR_INVALID',
+      'the EnterpriseProject observation changed before the page returned',
+    );
+    // Page two's exact read order: the carried card re-read at the start (still
+    // version 3), the new-page read of B that advances A, and the checkpoint
+    // re-read that observes A@4.
+    expect(reads).toEqual([PRJ, PRJ_B, PRJ]);
   });
 
   it('rejects a continuation whose carried served project vanished', async () => {
