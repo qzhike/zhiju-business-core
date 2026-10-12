@@ -264,3 +264,40 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 | AF-D12-004 | shared Artifact映射多个Item、多个批准版本、Human-only来源无Run/报告，新候选到达 | 文件只一entry，Profile/Scope兼容；显式选一个exact批准版本；来源原样、不伪造执行；新候选不改旧Batch | 无新项目关联消费 / NOT RUN |
 | AF-D12-005 | Contract；TR-260-09，仅ProjectRef/Page、零已知文件refs；跨轮次/shared/Human文件、内部获批但无Release、未登记Markdown、无权/跨Project/Enterprise-owned成果 | ART owning发现真实ArtifactView/批准指针/精确登记View，共享文件只一次；无Release仍返回，无表示为空且不造Ref；按当前Human及Reader权限裁剪，无名称/数量泄漏，不读取EP/REL Repository | 无新发现Port / NOT RUN |
 | AF-D12-006 | Pagination/Race；多页/空中间页、多个批准版本与表示、伪造/过期cursor、获批绑定或表示登记水位变化、发现索引过时、Guard超限 | 共享Page元数据及稳定身份顺序，有cursor继续；实际owning读回后再由REL逐项重验；读切面变化拒绝旧cursor，不能遗漏版本/复制shared成果或静默截断，不新增批准/发布事实 | 无新发现分页/重验实现 / NOT RUN |
+
+## Markdown 内容、候选与定位设计场景（#259）
+
+字段权威为 [ART §13](../module-specs/Module-Spec-004-Artifact.md#13-markdown-候选定位与表示提案259)，完整步骤及fixture来源见 [MF traces](../decisions/markdown-file-feedback.md#8-设计-trace-与真实来源)。以下是SYNTHETIC / DESIGN TRACE，未写实现测试；历史ART证据不变，实际/结果全部NOT RUN。
+
+| ID / 层次 | 输入 / 故障 | 可核验预期 | 实际 / 结果 |
+|---|---|---|---|
+| ART-MF-001 / Contract + Integration | MF-01无Root/Revision/constraints→TE prepare/ART mapping→Human公开get完整map→new range prepare/完整proposal→confirm→IG/TE真实来源→ART first candidate | request/Scope/file/plan/Ref/cv1 Hash及当前读权逐项核；prepare/get不创建Root/Revision或盲确认，过期/失权/错hash不能confirm；exactFile/source/template/protection/Result Acceptance逐项核；Parent=[]、完整Canonical、独立sealed Revision/acceptance/Receipt，没有Quality或Completion事实 | 未执行 / NOT RUN |
+| ART-MF-002 / Unit + Golden | blank、0、□/☑/√、两个H1、标题编号、alignment、br/硬换行、转义pipe、长中文、CRLF/BOM | raw bytes hash与canonical Hash分域；全部语义/身份render→parse相同；空cell text省略，0为TEXT，无Unicode/空格/字段默认替换 | 未执行 / NOT RUN |
+| ART-MF-003 / Negative + Integration | MF-02合法数量改12对照MF-05添金额审批/删总经理栏/改人员/跨file/改KEEP | C2 Parent=C1、完整Diff含metadata/移动/新删Unit且只授权范围；保护关系/原文不变；非法zero content staging/Revision | 未执行 / NOT RUN |
+| ART-MF-004 / Contract + Template | 采购程序A/5表1三列表头/五列行、未知HTML/合并单元格/footnote/extension | 原template/source preserved，整文件UNSUPPORTED，不补列/裁表/删历史；独立申请单/评价记录不阻 | 未执行 / NOT RUN |
+| ART-MF-005 / Template + Manual | 评价记录五维度、审批“Ⅰ类准入”与编制说明#4、filled record/空签名 | 全部文字/列/适用差异可检查；不可静默专业裁定/模板示例变客户活动或已签批 | 未执行 / NOT RUN |
+| ART-MF-006 / Security + Round-trip | 脚本/HTML属性/外链/伪注释ID/重复ID/超限；renderer改blank/0/换行/编号 | UNSAFE/UNSUPPORTED/IDENTITY_INVALID/LOSSY，拒整个candidate；raw保存与受权原因，零accepted部分删减版本 | 未执行 / NOT RUN |
+| ART-MF-007 / Diff + Browser | MF-06 36变化/9章，ADDED/REMOVED/CHANGED+MOVED、new/delete/context、宽表 | exact inputs/算法/full diffHash与稳定changeId；total entry与distinctUnit计数分开、跨页/章可定位、不裁列、不当批准证据 | 未执行 / NOT RUN |
+| ART-MF-008 / Locator + Security | 删除旧row、同名header、moved unit、错claimHash/Scope/游标/filter或current授权变化 | originalLocation保留；REMOVED/AMBIGUOUS不自动迁移；安全拒绝错绑定、cursor不得续错输入/权限 | 未执行 / NOT RUN |
+| ART-MF-009 / Old-base + History | MF-07 B/M/S，S无关变化、同row冲突、current已S2 | 新Parent=S，完整S→C范围校验；冲突待判断无直接merge；若S2到达新candidate仅历史、不覆盖Head | 未执行 / NOT RUN |
+| ART-MF-010 / Evidence + Provenance | MF-11真Evidence但source/locator/capturedHash/claim关系错配、旧Run新session | 独立owner读权、精确源/claim核验拒绝；不能用只匹配Evidence ID或Runner自报补齐 | 未执行 / NOT RUN |
+| ART-MF-011 / PostgreSQL + Fault | source/bytes readback、link/finalize UNKNOWN；seal事务各点故障、同键/异hash、Head CAS竞争 | FROZEN前不seal；seal/acceptance/Receipt原子；原键不重复；Head失败保留不可变历史、零覆盖winner | 未执行 / NOT RUN |
+| ART-MF-012 / Representation + HTTP | MF-12 request_markdown_render@1.0 exactrender→registration→download；wrong originalOperation/Revision/profile/renderer/checksum、UNKNOWN、撤权/stream中断 | 只核真实新operation的successful Binding登记，旧request_render来源或自报operation拒绝，raw非Representation；当前权限+ticket+实际bytes完整；safe attachment/no-store、下载不Approval/Release | 未执行 / NOT RUN |
+
+ART-MF-001/003补充：首次scope校验使用完整sourceMapping→candidate而非EMPTY diff；template-derived空白表无内容变化但有完整CREATE计划可建立首Revision。C1→C2/C3复用同Artifact合法lineage的稳定约束，不因原NEW起点再创建Root；current已S2时旧S请求STALE，锚/范围/保护改变需显式新constraints确认。此补充仍NOT RUN。
+
+## 已实现的 Markdown 技术子用例（#270）
+
+实现权威为 [ART §13.6](../module-specs/Module-Spec-004-Artifact.md#136-已实现的技术管线与证据270)。下表只把 #270 实际执行的技术子用例标为 PASS；上表 ART-MF-001～012 的整行仍为 `NOT RUN`，不因本节升级。
+
+| ID / 归属 | 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|---|
+| ART-MF-002-T1 / Unit + Golden | 已检入 `application.md`（`7aa43be…e42b`）、`evaluation.md`（`72c9a6a…c21f`）原 bytes | 原 bytes SHA-256 与解析分离；空白 cell 省略 text 且 `valueState=BLANK`，文本 `0` 保持 `TEXT`；两份文件 `parse→render→parse` 得到同一 tree、身份与 cv1 contentHash | 已执行 / PASS（Draft 前的配置目标 `code`；`full` 结果见本修订 PR） |
+| ART-MF-002-T2 / Unit | 聚焦 fixture `wide-table.md`、`repeated-labels.md`、`ordered-markers.md`、`blank-versus-zero.md`、`hard-breaks.md`、`unicode-placeholders.md`、`escaped-pipes.md`、`list-breaks.md`、`list-thematic-break.md`、`escaped-literals.md`、`code-literals.md` | 宽表 12 列含 LEFT/CENTER/RIGHT/NONE alignment；重复标签/重复行不合并；原编号 `5.`/`1)` 保留；`<br>`/两空格/反斜线硬换行映射 LF+HARD_BREAK；列表 marker 行硬换行不被续行空格吞掉，后续 ATX 标题/分隔线终止列表并保留 SECTION；紧邻列表或段落的 `***`/`___`/`- - -` 保持 THEMATIC_BREAK（有/无空行两种），任意缩进的空格分隔分隔线（`- item` + 两空格 `* * *`/`- - -`）同样终止列表并产出 THEMATIC_BREAK 且不重复进入同一行（普通缩进子列表 `- child`/`* * x` 仍作为 listDepth=2 子项），紧邻段落的 `---`/`===` 与列表项内缩进 setext 整文件拒绝；`□`/`Ⅰ`/`[日期]` 原样保留；`\|` 保留为 cell 文本；`\~`/`\[`/`\#` 等转义标点保持 literal；inline code 内的链接/脚注/脚本样式文字只按 literal 处理 | 已执行 / PASS |
+| ART-MF-004-T1 / Template + Round-trip | 采购程序 `procedure.md`（`3bd0ce1…01ba`）原 bytes | 表 1 表头 3 列、数据行 5 列的 ragged table 使整份文件显式拒绝（`ARTIFACT_MARKDOWN_UNSUPPORTED`），原件保留、不补列/裁列 | 已执行 / PASS |
+| ART-MF-006-T1 / Security + Round-trip | `ragged-table.md`、`unsafe-html.md`、`unsafe-link.md`、`front-matter.md`、`code-fence.md`、`blockquote.md`、`nested-formatting.md`、`footnote.md`、`malformed-utf8.md`、`unsupported-extension.md`、`task-list.md` 及 indented code/setext 输入 | 分别返回 `ARTIFACT_MARKDOWN_UNSUPPORTED` / `ARTIFACT_MARKDOWN_UNSAFE`，不产生部分 tree 或候选；未转义的 `~~` 删除线与 task-list 扩展整文件拒绝，转义后保持 literal；span 外链接/图片/脚注/脚本拒绝，code span 内同类文字接纳 | 已执行 / PASS |
+| ART-MF-006-T2 / Limits + Identity | 129 列表格、65537 code point 文本、7 层列表、10 MiB+1 byte 文件、33,335 个小表（约 300 KB，>100,000 Units）；错 raw hash/documentId/profile/enterprise、缺 `identityBinding`、错 Artifact objectId/同 Enterprise 的 Project、错 candidateOutputId、意外或缺失 base/mapping、错 declared type/parent/ordinal、被替换 path、缺失或额外 column 的 sidecar | limits 返回 `ARTIFACT_MARKDOWN_LIMIT`（含表格行/单元格的总 Unit 预算）；身份问题返回 `ARTIFACT_MARKDOWN_IDENTITY_INVALID`；只有精确 owning binding + 完整逐项对应的合法 sidecar 才完全继承既有 Unit/row/cell/column 身份 | 已执行 / PASS |
+| ART-MF-006-T3 / Contract | 已注册 selector 之外的 `schemaRef`（未知 objectId/versionId、Project Scope）；header 不在真实首行的表格图 | `validateMarkdownDocumentContent` 与 renderer 前置校验 fail closed；header 必须是 `childUnitIds[0]` 且持有最低行 ordinal 的 HEADER | 已执行 / PASS |
+| ART-MF-005 / Template + Manual | `evaluation.md` 五评价维度、审批栏、编制说明与 `更新记录` 已填记录 | 全部文字/表格/空签名区与已填记录完整可读（本技术层仅证明无损解析与 round-trip） | 技术子用例已执行 / PASS；独立人工内容验收 `NOT RUN` |
+
+未执行：ART-MF-001/003/007/008/009/010/011/012 的公开 prepare/confirm 读回、候选接纳、Diff/目录/游标、Evidence 错配、PostgreSQL/故障、Representation/download，以及任何 TE/IG 真实 Attempt、OIDC/HTTP、Browser、人工内容验收。

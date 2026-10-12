@@ -10,3 +10,6 @@ tests/types/.tsbuildinfo
 dist-types/
 test-results/
 playwright-report/
+
+# Raw byte-exact Markdown canonicalization inputs/expectations (#270).
+tests/fixtures/markdown/

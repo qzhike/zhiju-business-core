@@ -1442,3 +1442,13 @@ sequence为partition分配/观察序，不承诺全局producercommit序或完整
 成功事实只追加，不因下游失败删除企业、已确认版本/start 或已接纳来源。PENDING 等待，PARTIAL 保留已成功且仅续未完成，UNKNOWN 先查真实事实，FAILED 无已完成步骤，STALE 保留历史/草稿重新核对；组合时 unknown/stale 不能清除已成功 step refs。start 后 scope 失败只恢复 scope，不重 start；撤权禁止继续，即使原 Receipt 是 COMMITTED。projection/HTTP202/Run 自报均不是 owning 成功。完整转换在 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，Process 不持有他方 Repository。
 
 首轮 scope 未接收而原 startup request 失效时，EP 新 initial_scope_request 只驱动 Human scope decision→TE receive，不重复 info/start。TE get_initial_work_scope_state 是当次观测，不是跨模块锁；最终 receive 的同 Project INITIAL 唯一约束裁决竞争，输家读取成功 owning scope，不把自身不同 intent 当成功。原 request→start 事实及 decision 两种 startBindingMode 必须精确验证。
+
+## Markdown 请求与候选的有限一致性提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT IMPLEMENTED。沿用单Root事务、各owner公开Ref/受权Port和幂等Receipt；[TE固定FileProcessingProcess](../module-specs/Module-Spec-003-TaskExecution.md#283-逐步处理候选事实与恢复)不是通用Workflow、共享Repository或跨Schema事务。
+
+确认前先由Human prepare Command在TE提交不可变准备意图/Receipt，再以SERVICE独立权限调用ART mapping/proposal producers并保存各自真实refs；Human get Query仅组合两owner既有事实，在无Root/Revision时返回完整有权读取的提案/映射。阶段失败不回滚已保存映射，不以Query补写；新range/源须新准备意图。随后ART Human整份confirm重验源/CAS，之后Human才可显式generation；确认前读回不锁定确认资格，不与ART提交组成跨模块事务。
+
+private pending传输快照→TE原request/唯一文件占用→逐TE Task/WO/Context/Run→IG committedAttempt后invoke→TE Result/Validation/Acceptance→ART FROZEN+seal/acceptance→独立Head CAS→IG render→ART Representation，每步提交后才能保存Process成功ref；从requestID+step+固定target派生稳定key。当前授权/source水位在每步重验，不复用历史Decision；query观察不是跨模块锁，竞争由owning CAS/唯一约束裁决。
+
+原response丢失先查同request/key/hash，IG UNKNOWN不second invoke；只确定未提交才同键明确重试，resume不接新内容。已提交Task/Revision/Receipt不能用补偿删除；seal后Head冲突保留候选历史，render失败保留可检查Revision和独立导出失败。相邻file互不扩改/暂停；current/source变动用STALE/impact，新内容用新intent/Context/Run，不改原snapshot。草稿CAS失败保留本人fork，不last-write-wins。正负/fault trace见 [MF-08/09/12](../decisions/markdown-file-feedback.md#8-设计-trace-与真实来源)，实际执行NOT RUN。

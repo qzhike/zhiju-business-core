@@ -213,6 +213,25 @@ export {
 } from './business/structured-document-service.js';
 
 export {
+  MARKDOWN_PARSER_PROFILE,
+  parseMarkdownDocument,
+  verifyMarkdownRoundTrip,
+  buildMarkdownIdentityMap,
+  deriveMarkdownColumnId,
+  markdownListId,
+  deriveMarkdownUnitId,
+} from './business/markdown-document-service.js';
+export type {
+  MarkdownIdentityBinding,
+  MarkdownIdentityDerivation,
+  MarkdownParseRequest,
+  MarkdownParseResult,
+  MarkdownRoundTripRequest,
+  MarkdownSourceColumnFact,
+  MarkdownSourceNodeFact,
+} from './business/markdown-document-service.js';
+
+export {
   handleRegisterRepresentation,
   handleGetRepresentation,
   validateRepresentationBinding,
@@ -280,6 +299,11 @@ export {
   ARTIFACT_REPRESENTATION_BINDING_MISMATCH,
   ARTIFACT_REPRESENTATION_FORMAT_INVALID,
   ARTIFACT_REPRESENTATION_IDENTITY_CONFLICT,
+  ARTIFACT_MARKDOWN_UNSUPPORTED,
+  ARTIFACT_MARKDOWN_UNSAFE,
+  ARTIFACT_MARKDOWN_LIMIT,
+  ARTIFACT_MARKDOWN_LOSSY,
+  ARTIFACT_MARKDOWN_IDENTITY_INVALID,
 } from './business/artifact-business-errors.js';
 
 export {

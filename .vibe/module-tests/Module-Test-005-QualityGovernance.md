@@ -247,3 +247,13 @@ WI-02 非目标：GateResult evaluation、ReviewIssue、Human Approval decision�
 | QG-D12-003 | historical READY/FULLY_APPROVED后Gate失效、Approval/Decision/Role撤销、新RAS/ABS/RRS或Profile变化 | confirmation/AVAILABLE/许可/流消费旧exact refs不可用；历史Query不重写，不自动找新Snapshot修补；新未批准候选独立 | 无新消费/Impact链 / NOT RUN |
 | QG-D12-004 | 独立导出Proof调用方无对应purpose、TE-only Port冒用、wrong Profile/Scope/Hash、缺ABS/NOT_APPLICABLE | 新Port独立授权并fail-closed，不扩大#192/TE allowlist；Quality proofHash域稳定，缺ABS不能true | 无新Port/注册 / NOT RUN |
 | QG-D12-005 | Quality/Plan配套规则冲突、未知classification、跨Plan/Profile借批准、使用旧下载当required companion | 拒绝或明确不可用；规则/完整Ref及语义Hash绑定闭包；不同Owner水位不宣称全局原子快照 | 无有限配套规则消费 / NOT RUN |
+
+## Markdown 意见与精确质量事实设计场景（#259）
+
+权威为 [QG #259](../module-specs/Module-Spec-005-QualityGovernance.md#markdown-逐文件意见与质量事实边界提案259)。复用既有owning Contracts，不把设计trace或Runner报告当质量结果。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| QG-MF-001 / MF-03/05/11模板适用差异、保护Evidence完整原文/关系；错source/locator/claim/hash或CONTEXT_ONLY | 真Evidence状态与claim分开核；不采模板/摘要当客户事实，不替顾问裁定；无充分当前依据阻本文件，历史Evidence/Revision保留 | 未执行 / NOT RUN |
+| QG-MF-002 / MF-10普通两条意见、linked Blocking Issue、新candidate HANDLED、propose resolution | 普通edit不自动Raise；新candidate不Close，Issue原statement/locator不改，待处理显式；Resolution绑定exact新Revision/changedClaim | 未执行 / NOT RUN |
+| QG-MF-003 / 作者自验/Agent actingFor批准、旧RAS/ABS、新Revision Gate缺失、render round-trip/下载成功 | 职责分离/Human-only拒绝，mandatory Gate仍须满足，新Revision不继承批准；render技术PASS/下载不代表RAS/Approval/Release | 未执行 / NOT RUN |

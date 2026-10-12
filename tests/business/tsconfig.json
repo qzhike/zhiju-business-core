@@ -8,5 +8,11 @@
   },
   "include": ["./**/*.ts"],
   "exclude": ["../../node_modules", ".tsbuildinfo"],
-  "references": [{ "path": "../../modules/enterprise-project" }]
+  "references": [
+    { "path": "../../packages/shared-kernel" },
+    { "path": "../../contracts" },
+    { "path": "../../modules/enterprise-project" },
+    { "path": "../../modules/artifact" },
+    { "path": "../../modules/integration-gateway" }
+  ]
 }

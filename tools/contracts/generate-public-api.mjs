@@ -9,6 +9,7 @@ import {
 import { workOrderSchema } from '../../contracts/src/core.schema.ts';
 import { loadWorkOrderReadyProfileRegistry } from '../../contracts/src/work-order-ready-profiles.ts';
 import { loadArtifactExecutionSchema } from '../../contracts/src/formal-output-profile.ts';
+import { loadArtifactMarkdownSchema } from '../../contracts/src/markdown-document-profile.ts';
 import { loadEvaluatorProfileRegistry } from '../../contracts/src/evaluator-profiles.ts';
 import { loadPolicyProfileRegistry } from '../../contracts/src/policy-profiles.ts';
 import { loadCompanyStartupRegistry } from '../../contracts/src/company-startup.ts';
@@ -41,6 +42,15 @@ const schemaRegistrySource = readFileSync(
 const schemaRegistryOutputPath = join(
   root,
   'contracts/src/generated/artifact-execution-schemas.json',
+);
+// #270: the Markdown document profile uses its own closed registry and mirror.
+const markdownRegistrySource = readFileSync(
+  join(root, 'contracts/registry/artifact-markdown-schemas.v1.json'),
+  'utf8',
+);
+const markdownRegistryOutputPath = join(
+  root,
+  'contracts/src/generated/artifact-markdown-schemas.json',
 );
 const registryPath = join(root, 'contracts', 'registry', 'public-api.v1.json');
 const outputPath = join(root, 'contracts', 'src', 'generated', 'public-api.ts');
@@ -103,6 +113,7 @@ const readyRegistryOutputPath = join(
   'contracts/src/generated/work-order-ready-profiles.json',
 );
 loadArtifactExecutionSchema(JSON.parse(schemaRegistrySource));
+loadArtifactMarkdownSchema(JSON.parse(markdownRegistrySource));
 assertSliceOperationRegistrations(registry.operations);
 assertTaskExecutionOperationRegistrations(registry.operations);
 assertInitialContextEnterpriseFactRegistration();
@@ -214,6 +225,7 @@ if (process.argv.includes('--check')) {
     current !== generated ||
     readFileSync(companyRegistryOutputPath, 'utf8') !== companyRegistrySource ||
     readFileSync(schemaRegistryOutputPath, 'utf8') !== schemaRegistrySource ||
+    readFileSync(markdownRegistryOutputPath, 'utf8') !== markdownRegistrySource ||
     readFileSync(readyRegistryOutputPath, 'utf8') !== readyRegistrySource ||
     readFileSync(guardOutputPath, 'utf8') !== guardSource ||
     readFileSync(profileRegistryOutputPath, 'utf8') !== profileRegistrySource ||
@@ -230,6 +242,7 @@ if (process.argv.includes('--check')) {
 } else {
   writeFileSync(companyRegistryOutputPath, companyRegistrySource, 'utf8');
   writeFileSync(schemaRegistryOutputPath, schemaRegistrySource, 'utf8');
+  writeFileSync(markdownRegistryOutputPath, markdownRegistrySource, 'utf8');
   writeFileSync(outputPath, generated, 'utf8');
   writeFileSync(readyRegistryOutputPath, readyRegistrySource, 'utf8');
   writeFileSync(guardOutputPath, guardSource, 'utf8');

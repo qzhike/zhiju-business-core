@@ -13,7 +13,8 @@
     "src/generated/evaluator-profiles.json",
     "src/generated/task-execution-creation-purposes.json",
     "src/generated/work-order-ready-profiles.json",
-    "src/generated/artifact-execution-schemas.json"
+    "src/generated/artifact-execution-schemas.json",
+    "src/generated/artifact-markdown-schemas.json"
   ],
   "references": [
     {

@@ -116,3 +116,15 @@
 | RA-LOCK-014 | approved匿名expected-facts独立核对保护方针/职责/产品、17/18数量、M25与多对多模板 | 保护值/来源/缺口逐项解释，不自动展开授权编号/确认事实；确定性checks不证明业务语义正确 | 未执行 / `NOT RUN` |
 
 覆盖归属：原调用/stop/readback由 [IG-LOCK](../module-tests/Module-Test-007-IntegrationGateway.md#d14-runner-原调用与锁验收256)，六控制/Run由 [TE-LOCK](../module-tests/Module-Test-003-TaskExecution.md#d14-runner-六项控制与结果验收256)，当前授权/数据边界由 [IP-LOCK](../module-tests/Module-Test-001-IdentityPolicy.md#d14-runner-最小权限与锁验收256)。EP报告仍执行既有EP-D14-003/004/010，owner不变化。真实HTTP/OIDC/PostgreSQL/Host/Browser/Provider与独立人工验收各出证，当前全部 `NOT RUN`；四Runtime全面conformance不属首发Gate。
+
+## Markdown 生成 Profile 设计场景（#259）
+
+权威见 [Runtime #259](Runtime-Adapter-Contract-v0.1.md#markdown-整份生成与旧基准复核-profile-提案259)，均匿名设计trace。原型/自检/exit码不替代下表真实调用、Host接纳或人工内容判断。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| RA-MF-001 / approved generation lock+MF-01/02支持模板，原intent/constraints+单file真实调用 | 精确部署/tool/schema/model/data权限，输入只读/输出根隔离；三份原bytes绑定同Run/session，内容完整；generation feasible与Host acceptance分别取证 | 未执行 / NOT RUN |
+| RA-MF-002 / MF-07旧base B/M/current S，重复标题/row或冲突/保护/跨file要求 | 原三快照分别保存，不推filename身份；只处理authorized S→candidate，不automatic merge/rebase，歧义/保护待Human | 未执行 / NOT RUN |
+| RA-MF-003 / 缺profile/lock漂移、AGENTS/tool加载、出界path、HTML/外链/输出替换或v0.1/analysisselector | 物化前/受控Host/validator fail closed，零非法invoke或accepted candidate，不换Harness放行 | 未执行 / NOT RUN |
+| RA-MF-004 / MF-08 ack UNKNOWN、重启、异hash二final/新Run旧session、取消/过期late | 原journal查询、zero second invoke；Run/fencing精确来源，late只历史；旧Result/Revision/其他file完整保留 | 未执行 / NOT RUN |
+| RA-MF-005 / MF-10 partial处理报告、ART接纳/Head失败、导航/下载成功 | 所有submittedItem显式 disposition/real locations，反馈未处理不伪全成功；ART/Quality/Human判断独立，审阅和下载不Completion/Approval | 未执行 / NOT RUN |

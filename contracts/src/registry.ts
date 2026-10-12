@@ -38,9 +38,15 @@ import { publicApiOperations } from './generated/public-api.js';
 import {
   artifactCanonicalContentManifestSchemaRef,
   artifactCanonicalContentPayloadSchemaRef,
+  artifactMarkdownDocumentContentSchemaRef,
+  artifactMarkdownIdentityMapSchemaRef,
 } from './operations/artifact.schema.js';
 import { executableOperationSchemas } from './operations/index.js';
 import { canonicalContentInvariantErrors } from './canonical-content.validation.js';
+import {
+  markdownContentInvariantErrors,
+  markdownIdentityMapInvariantErrors,
+} from './markdown-document.validation.js';
 import {
   validateContextSnapshotReadBinding,
   validateInitialContextCommandResult,
@@ -183,6 +189,25 @@ export class ContractRegistry {
 
   validateCanonicalContentManifest(input: unknown): ContractValidationResult {
     return this.#run(this.#ajv.getSchema(artifactCanonicalContentManifestSchemaRef), input);
+  }
+
+  /** Closed `artifact.markdown_document.schema@1.0` payload plus graph invariants. */
+  validateMarkdownDocumentContent(input: unknown): ContractValidationResult {
+    const structural = this.#run(
+      this.#ajv.getSchema(artifactMarkdownDocumentContentSchemaRef),
+      input,
+    );
+    if (!structural.valid) return structural;
+    const errors = markdownContentInvariantErrors(input);
+    return errors.length === 0 ? structural : { valid: false, errors };
+  }
+
+  /** Closed Markdown identity sidecar plus duplicate-identity invariants. */
+  validateMarkdownIdentityMap(input: unknown): ContractValidationResult {
+    const structural = this.#run(this.#ajv.getSchema(artifactMarkdownIdentityMapSchemaRef), input);
+    if (!structural.valid) return structural;
+    const errors = markdownIdentityMapInvariantErrors(input);
+    return errors.length === 0 ? structural : { valid: false, errors };
   }
 
   get policyProfileRegistry(): PolicyProfileRegistry {

@@ -2519,3 +2519,109 @@ receive_initial_work_scope 的 scopeRequestRef 只接受 EP startup_request 或 
 Human取消沿既有 `execution.request_run_cancel@1.0` 的请求与终结分离语义，未来须新增 preparation selector/producer支持与真实预算事实，现行仅两次synthetic的Handler不会因本提案获新能力。TE提交CANCELLING后，独立受权IG/Host control consumer只向原cgroup发送stop；没有可信ProviderACK不进入CANCELLED。Run到期与final/record共享行锁/CAS，取消先提交则final仅走原IG历史观察+TE late-isolation Audit，零可用Acceptance/新EP report；record先提交则取消拒绝。晚heartbeat/progress不能续执行，晚usage只独立历史计量。
 
 明确新分析/重试要求原Run确定terminal且非取消终结、旧进程树已确认停止、当前同Scope/phase资格/授权及剩余预算有效；最多第二次，不自动重试、不fallback。BLOCKED_INPUT须真实解决，重新source/Context/Bundle/Run/Attempt/lease/fencing；UNKNOWN先readback原Attempt和Host journal，不新spawn；terminal永不resume。新D14内部retry/expiry/late producer须显式受控接受集与owning测试，不借旧schedule/cancel/expire入口的宽松JSON接受新profile。报告ACCEPTED/SUCCEEDED仍不产生Task/WO/文件/项目Completion。
+
+## 28. 整份生成、单文件意见与个人草稿提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。方案和状态trace见 [Markdown Delta](../decisions/markdown-file-feedback.md)。TE拥有原执行意图、专用有限Process、来源/Context/Run/Result事实与私稿技术支持记录，不新增领域Feedback Aggregate，不把普通修改塞入§24 CustomerMaterial answer或Quality ReviewIssue。
+
+### 28.0 确认前的提案准备与公开读回
+
+首份文件尚无Artifact Root、Branch、Revision或constraints时，Human从已有整份计划核对页显式发起准备；不能先调用要求current Revision的get_file_review_basis。新增操作均拟@1.0、同Project、共享Envelope：
+
+| 操作 / mode | closed payload | closed data / purpose |
+|---|---|---|
+| execution.prepare_file_constraint_review / CREATE，OBJECT/zhiju.execution.file_constraint_review_request | workScopeRef、fileId、planRef、rangeProposal?:{baselineMappingRef,items}；items闭集沿ART §13.1 | requestRef、requestPayloadHash、receiptRef、preparationState:RECEIVED；execution.file_constraint_review.prepare / HUMAN_ONLY；仅接纳不可变准备意图，不确认范围或启动执行 |
+| execution.get_file_constraint_review / AUTHORITATIVE Query | requestRef、originalIdempotencyKey、requestPayloadHash | requestRef、originalPayload、requestPayloadHash、receiptRef、preparationState、baselineMappingRef?/baselineMappingPayload?/baselineMappingHash?、proposalRef?/proposalPayload?/proposalHash?、currentEligibility:{mayConfirm,reasonCodes,validUntil?}、sourceWatermarks；execution.file_constraint_review.read / HUMAN_ONLY；仅受权读回，不触发producer或推进步骤 |
+
+准备请求技术记录固定requestRef、originalCommandId、originalIdempotencyKey、requestPayloadHash、originalPayload、actorSnapshotRef、authorizationDecisionRef、sourceWatermarks、submittedAt。target预分配且与原key/hash绑定，intent/Receipt/Audit在一个TE事务提交；它不是fileSourceBinding、file_submitted_intent或生成request，不要求已确认constraints。先核Human对同workScope完整file/plan及全部源/模板/保护内容的当前读权；再通过EP owning Port核真实已接收集合、原report/plan/start、完整changes/KEEP、精确fileIdentity和当前资格。缺来源或身份则BLOCKED，不猜文件名或创建Root。
+
+内部readFileConstraintReviewRequest Port为ART核验准备来源提供独立AUTHORITATIVE读回，不复用Human-only公开Query。closed输入{requestRef}，closed输出{requestRef,originalCommandId,originalIdempotencyKey,requestPayloadHash,originalPayload,actorSnapshotRef,authorizationDecisionRef,sourceWatermarks,submittedAt,receiptRef,currentEligibility}；只接受专用ART SERVICE的当前execution.file_constraint_review_binding.read权限，同Scope/file/plan及原Hash精确核验后才读取。原Human/服务Decision仅是历史来源，不能代替当前许可；不存在/不可见统一masked，依赖失败不是未接收，Port不推进准备步骤。
+
+原请求提交后，无rangeProposal时TE专用SERVICE以自身当前权限调用ART §13.1的prepareFileSourceMapping；有rangeProposal时先受权读回其exact baselineMappingRef并核原请求/源水位，不重建或换成新映射，再调用prepareFileConstraintProposal。每个写调用使用requestId+固定阶段的稳定key并保存真实owning refs/Receipt。无rangeProposal仅准备完整基线映射，返回MAPPING_REQUIRED；不启动诊断Runner或把自然语言计划变通配范围。Human可在同整份核对页查看映射并明确位置，用新key提交携带该exact baselineMappingRef/items的新准备意图；TE从本request及trusted Context填写内部rangeProposal的planRef/fileId/proposalSourceRef，Browser不得填写来源证明或Actor。另行授权的诊断提案只有经owning exact source读回和同plan/map验证才能使用。新准备不回填旧请求或旧映射。
+
+Query先当前Human自身及逐owner依赖读权，再由TE专用SERVICE经ART readFileConstraintReview Port读回本request实际准备的完整映射/提案；服务自身授权不能替代Human内容可读性。ART核request/plan/file/Scope及各Ref的cv1 Hash；baselineMappingHash/proposalHash分别等于其exact Ref的contentHash，不能以原bytes hash代替。TE不读取ART Repository。状态闭集RECEIVED/PREPARING/MAPPING_REQUIRED/BLOCKED/READY/STALE/UNKNOWN；有映射时三个baselineMapping字段一起返回，有提案时三个proposal字段一起返回且必须包含完整映射。READY且mayConfirm=true只在精确源/保护/计划仍可用、映射/提案完整且未到validUntil时成立；其他状态mayConfirm=false。UNKNOWN保留已确定refs，不伪MAPPING_REQUIRED或零接收；Query不重试producer、confirm、dispatch或创建任何业务事实。原command同键同hash的重放核当次权限、只返回原Receipt；内部准备仅按原阶段Receipt续接，源/范围变动须Human新准备意图。
+
+Browser取得完整proposalRef/payload/hash和baselineMappingRef/payload/hash后，才可调用artifact.confirm_file_edit_constraints确认整份原快照；ART提交时重新核资格/CAS，读回不锁定未来确认。确认成功后，Human另行显式request_file_generation；准备、读取或确认均不自动创建Task/WorkOrder/Context/Run/Artifact。
+
+### 28.1 精确来源与执行接受集
+
+内部 captureFileSourceBinding producer 只由已授权的整份生成/意见请求过程调用。输入为workScopeRef/fileId/planRef与ART已确认constraintsRef，EP/ART/QG各自当前授权读回，形成 SNAPSHOT/zhiju.execution.file_source_binding；payload闭集：
+
+~~~text
+bindingId, projectRef, workScopeRef, fileId, reportRef, planRef,
+projectStartBindingRef, projectStartSnapshotRefs,
+allChangeIds, keepChangeIds, dependencyBindings, sourceBindings,
+templateBindings, protectionBindings, constraintsRef,
+artifactRef, branchMode, branchId?, submittedCurrentRevisionRef?, observedHeadVersion?,
+generationProfileRef, structureSchemaRef, toolchainLockRef,
+sourceWatermarks, createdAt, validUntil
+~~~
+
+projectStartSnapshotRefs恰冻结Profile/QMS/ProductScope refs，不重建start；dependencyBindings每项为changeId、确实必需的dependencyChangeIds和owning满足证明refs；sourceBindings每项exact SourceMaterial/derivedSource ref、role、原bytes hash、派生bytes hash（如有）、readLimit与用途；templateBindings固定已发布TemplateBaseline/模板精确版本+bytes hash；protectionBindings为ART确认约束的完整精确Evidence/Fact/Product/QMS/claim refs，不采信raw alias。artifactRef来自已确认identity或existingArtifact；branchMode=EXISTING时branchId/observedHeadVersion必填且来自ART，token初始合法0，不是Revision；NEW_OWNING_MAIN时branchId/observedHeadVersion/currentRevision均省略，预分配Artifact identity不假称Branch已创建。sets按ID UTF-8稳定排序，payload cv1 hash排除自身Ref/hash；源内容经授权object引用，不保存Runtime path。
+
+fileId须在已接纳scope的完整集合，planRef/fullChangeIds完全一致，KEEP/真正依赖/保护均有明确结果；某文件已阻塞仅拒本文件，不重算其他文件的初轮资格。先当前IP自身权限和各owner read，再producer提交前重验水位/期限。任何unsupported mapping/profile/未发布tool lock都不得生成usable binding。
+
+首次candidate已建立后，同workScope/file只绑定原Artifact；新binding采用真实EXISTING Branch/current，不按原constraints的NEW起点另造Root。原plan约束可复用于ART已验证的同lineage稳定范围，current变动的冻结检查针对每次提交的S而非要求永久停在初版；范围/保护/位置解析失效须显式新constraints确认，不能静默换旧payload或用户位置引用。
+
+新 FileGenerationContext@1.0为独立SNAPSHOT/zhiju.execution.file_generation_context，closed {contextId,projectRef,taskRef,workOrderRef,purpose:file.generation或file.revision_review,audience,fileSourceBindingRef,submittedIntentRef,sourceWatermarks,authorizedInputs,coverage,omissions,createdAt,expiresAt,structureSchemaRef,generationProfileRef,toolchainLockRef}。authorizedInputs只含本intent中的exact源/模板/保护/基线/改稿及已接纳附件；coverage/omissions与binding逐项相等，expiresAt≤binding/当前授权/执行预算上界，缺有限上界拒绝。header/schema/canonicalization遵循共享Snapshot规则，cv1 hash不包含自身Ref/hash，不伪填PreparationContext或ProjectContext。
+
+新的WorkOrder/profile、builder/Validator/Freeze/Run/Result各层接受集以显式file-generation selector注册，目标限一个完整Artifact，sourceBinding/constraints/Context/原intent与specificationHash冻结；allowedCreateTypes、read-only输入、单输出root、预算/deadline/lease/fencing、公司Runtime/toolchain/model/dataPolicy精确锁及maxAttempts必须在另行批准的执行profile中齐备。旧v1.0 WorkOrder、§25初始formal profile、D14 analysis、synthetic Runtime接受集不扩大。未获生成profile技术批准或部署可行性不READY/不dispatch。
+
+### 28.2 原意图与公共操作
+
+以下拟@1.0操作均同Project、共享Envelope；CREATE预分配OBJECT/zhiju.execution.file_processing_request，不重复payload里的CAS：
+
+| 操作 / mode | closed payload | closed data / purpose |
+|---|---|---|
+| execution.request_file_generation / CREATE | workScopeRef、fileId、planRef、constraintsRef | requestRef、submittedIntentRef、requestPayloadHash、receiptRef、disposition；execution.file_generation.request / HUMAN_ONLY；显式生成意图，不从scope Receipt自动创建 |
+| execution.submit_file_edit_request / CREATE | workScopeRef、fileId、planRef、reviewBasisRef、intentKind:EDIT/REVIEW_OLD_BASE_SUGGESTION/PLAN_OBJECTION、viewedRevisionRef、comment?、locations、sourceAttachmentRefs、markdownSuggestionRef?、declaredSuggestionBaseRef?、reviewIssueRefs | 同上；execution.file_edit.submit / HUMAN_ONLY；只当前文件，无caller Actor/执行profile/allowed scope |
+| execution.get_file_processing_request / AUTHORITATIVE Query | requestRef、originalIdempotencyKey、requestPayloadHash | originalTransportPayload、submittedIntentRef?、immutableIntent?、disposition、stepFacts、processingReport?、candidateRefs、currentEligibility、allowedActions、sourceWatermarks；execution.file_request.read |
+| execution.resume_file_processing_request / MUTATE 原request | originalIdempotencyKey、requestPayloadHash、action:CONTINUE_PENDING_STEP | 原requestRef/intentRef、真实stepFacts/disposition/receiptRef；execution.file_request.resume / HUMAN_ONLY；Envelope expectedAggregateVersion必填 |
+| execution.get_work_scope_file_directory / AUTHORITATIVE Query | workScopeRef、filter:{text?,state?,navigationLabel?}、page:{limit:1..100,cursor?} | workScopeRef/planRef、directoryVersion、totalFiles/filteredFiles、countsByFact、items、nextCursor?、sourceWatermarks；execution.file_directory.read |
+| execution.get_file_review_basis / AUTHORITATIVE Query | workScopeRef、fileId | reviewBasisRef:SNAPSHOT/zhiju.execution.file_review_basis、payload、currentEligibility/allowedActions/sourceWatermarks；execution.file_review.read |
+| execution.get_file_candidate_acceptance_binding / AUTHORITATIVE Query | acceptedFileResultRef、candidateOutputId | bindingPayload、bindingHash、currentEligibility/validUntil/sourceWatermarks；execution.file_candidate_binding.read，仅受信ART SERVICE |
+
+reviewBasis payload闭集为 basisId、projectRef/workScopeRef/fileId/planRef/reportRef/constraintsRef、artifactRef/branchId、currentRevisionRef/currentHeadVersion、activeRequestRef?、qualityBindings（只含已存在的exact Issue/RAS/ABS refs及各自current flags，空集合合法）、sourceWatermarks/observedAt/validUntil。它是server持久化短期观察快照；submit核当前owning数据，不把页面allowedActions当授权。普通EDIT/PLAN_OBJECTION要求viewedRevisionRef=currentRevisionRef且基准仍current；old-base分支保留declaredBase并要求viewedRevision=current submitted current，B可旧，但不能不核对S。linked Issues只引用QG真实原Issue；缺Issue读权不读取其内容。
+
+comment若存在≤16384 code points且非纯空白；locations≤100且ART逐项核exact viewed Revision/path/claim；sourceAttachmentRefs≤20、同Scope当前已接纳和可读取，不把draft attachment或新原料静默升级为confirmed fact；至少有comment或一份markdownSuggestion，单独引用位置不请求执行。suggestion必须IG READY、同file/B/S/bytes/security绑定，declaredBase在使用时必填、无suggestion时不得填。PLAN_OBJECTION不接suggestion，仅暂停本文件未来安排；有活跃Run时保留原执行事实并走独立取消门禁，不自动改成CANCELLED。同文件已经active/UNKNOWN request时拒重复，但允许私稿保存；每文件唯一占用与原request提交在TE同事务约束，其他文件不受影响。
+
+submittedIntent为SNAPSHOT/zhiju.execution.file_submitted_intent，closed {intentId,requestRef,originalCommandId,originalIdempotencyKey,requestPayloadHash,scopeRef,kind,originalPayload,fileSourceBindingRef,viewedRevisionRef?,submittedCurrentRevisionRef?,declaredSuggestionBaseRef?,submittedItems,actorRef,actorSnapshotRef,authorizationDecisionRef,submittedAt}。originalPayload原样保存；submittedItems用稳定itemId明确COMMENT、MARKDOWN_SUGGESTION、SOURCE_ATTACHMENT及对应原文/ref/location，不能由后来的typing替换。Hash按完整cv1排除自身hash/ref，不同于public requestPayloadHash；初次generation无未来Revision，绑定confirmed new-file identity。receipt/Audit/唯一占用/intent在单TE请求事务提交；不把下游ART/IG提交拉入事务。
+
+Query也核当前权限和原三字段；成功返回原传输hash/原intent+真实steps。只有当前同author且server私稿pendingSubmission与原三字段精确匹配、owning request+Receipt索引完整可确定零提交，才disposition=CONFIRMED_NOT_RECEIVED且无intent/成功refs；无权/不可见/错hash或依赖不可达不能返回未接收结论。commandId不同但同key/hash的重放返回首份Receipt；异payload同key冲突，历史duplicate不要求旧Run重新RUNNING，但仍须当次权限。
+
+### 28.3 逐步处理、候选事实与恢复
+
+CAPTURE_BINDING在原intent提交前完成并持久化，不依赖尚不存在的submittedIntent；失败保留个人草稿，成功binding随后被intent精确引用，不能在恢复时换binding。专用FileProcessingProcess只有固定steps：CAPTURE_BINDING（此时已提交）、CREATE_TASK、CREATE_WORK_ORDER、BUILD_CONTEXT、VALIDATE_FREEZE、CREATE_RUN、DISPATCH、ACCEPT_RESULT、CREATE_ARTIFACT、ACCEPT_CANDIDATE、MOVE_HEAD、REGISTER_MARKDOWN。step记录stepCode、稳定派生key、owning request/Receipt refs、status:NOT_STARTED/NOT_REQUIRED/PENDING/COMMITTED/FAILED/UNKNOWN、safeReasonCodes、observedAt；每个Root提交后才能记COMMITTED，不用Process自身状态代替owner事实。keys由requestId+step+固定target派生，不含时刻；支持记录不是通用工作流。
+
+NEW_OWNING_MAIN用既有artifact.create_artifact按原预分配ArtifactRef/确认definition创建，再受权get_artifact读回真实main Branch/emptyHead/headVersion=0；把创建Receipt/实际Branch作为Process不可变step事实，不回填旧fileSourceBinding。Artifact身份冲突不能按title合并或换target；保留PARTIAL等待核对。EXISTING分支CREATE_ARTIFACT=NOT_REQUIRED且给已核existingRef，不伪造create Receipt。candidate-binding提供actualArtifactCreationFact/actualBranchFact让ART独立复验；seal后MOVE_HEAD使用真实Branch的Envelope CAS，仍不自动前进或改绑定。
+
+disposition闭集为RECEIVED/PENDING/RUNNING/CANDIDATE_RETURNED/NEEDS_REVIEW/PAUSED_PLAN/PARTIAL/STALE/FAILED/UNKNOWN/CONFIRMED_NOT_RECEIVED。RECEIVED只有原intent持久化；RUNNING须TE真实Run RUNNING+IG原ack，CANDIDATE_RETURNED须ART accepted exact Revision及Head选取事实；未登记Representation单列导出pending/error。存在未知提交点优先UNKNOWN，已知成功steps始终保留；有成功但剩余明确失败为PARTIAL，FAILED仅无成功步骤。STALE/NEEDS_REVIEW可以带成功历史，但不能换binding继续执行。
+
+raw proposal在独立file-generation Result profile中是WorkspaceOutput，Result的businessOutputs=[]；TE接受原调用Result/Validation/Acceptance后，Artifact仍独立决定能否有Revision，COMPLETED空输出也不算候选/Completion。acceptedFileResultRef为CONTENT_ADDRESSED/zhiju.execution.file_candidate_result，payload闭集为 resultId、requestRef/submittedIntentRef/fileSourceBindingRef、runRef/contractRef/contextRef、agentResultRef/validationRef/resultAcceptanceRef、attemptRef/observationRef、outputProfileRef、candidateOutputs、processingReportRef/processingReportBytesSha256、acceptedAt。candidateOutputs首版恰一个 {candidateOutputId,rawMarkdownRef,rawBytesSha256,byteLength,identityMapRef,identityMapBytesSha256}，refs由IG原observation解析，不用caller locator。Hash按cv1，report原bytes hash独立；本事实仅建立ART可核验来源，不宣称内容通过。
+
+candidate-binding Query闭集为上述accepted result完整payload、originalIntent、FileSourceBinding完整payload/Hash、TE Result/Validation/Acceptance与IG原observation证明、actualArtifactCreationFact?、actualBranchFact、currentEligibility、validUntil/sourceWatermarks；actualArtifactCreationFact为新Root真实create command Receipt/ref与exactArtifact；actualBranchFact为ART受权Query读回的artifactRef/branchId/headRef?/headVersion/observedAt。独立核actual invocation/session/lease/fencing、原acceptedAt及时效、cancel/late隔离、source/constraint/当前Head状态，防新Run拿旧输出。Run terminal后历史来源仍可查，不借已过期执行Grant写新步骤；ART接纳仍有当前独立权限和有限binding期限。
+
+processingReport closed {requestRef,submittedIntentRef,submittedCurrentRevisionRef?,declaredSuggestionBaseRef?,candidateOutputId?,items,unresolvedIssues}；items恰覆盖所有submittedItemId，各含disposition:HANDLED/NOT_HANDLED/NEEDS_JUDGMENT、originalQuote?、proposedLocations、explanation。原文拆成多个子建议时还需parentItemId、原文精确半开codepoint range/quote；覆盖不完整不能报全HANDLED，未知item/位置/hash错配拒绝。仅source byte integrity不证明业务处理正确；ART及后续Human独立核内容。
+
+proposedLocations在raw报告阶段是CandidateLocation闭集 {candidateOutputId,sourceNodePath,claimedUnitId,claimHash}，node path来自本份identity map而非原文件行号；没有未来revisionRef。ART按已校验identity/整份parsed Canonical核每个unit/完整子树claimHash，失败不接纳；seal后TE受权回读ART的actualRevisionRef与对应真实Location用于derived处理视图，不回填原raw report或Result Hash。已有意见locations仍是原viewedRevision的ART Location，不能与CandidateLocation互换。
+
+旧基准复核固定B/M/S三份快照，新的候选Parent=S，完整S→C Diff在constraints内，S无关修改保持。冲突/超范围/保护→NEEDS_REVIEW，保留原请求与问题，不直接overwrite/rebase。partial handling只有在ART完整安全内容检查通过时可返回候选，未处理仍显式列出且Quality Issue不关闭。current变化或源失效停止未提交步骤；已seal的候选仅历史，不自动选为current。resume只原intent缺失步骤；新内容/基准/附件须Human核对后新key/新intent/Context/Run，terminal不resume，UNKNOWN不spawn第二次。
+
+目录item闭集为 fileId/title/code?/category/navigationLabels、planRef、constraintsRef?、artifactRef?、currentRevisionRef?/candidateAcceptanceRef?、requestRef?、fileEligibility、runFacts、exportFacts、safeReasonCodes。countsByFact分别按收到scope、真实Run、accepted current候选、阻塞/失败计数，集合可重叠，不相加猜完成率。cursor绑定workScope/plan/目录水位/filter/sort/当前许可、最后fileId；权限/水位变拒绝并重取，不把100项一页当全部。未selected文件不在目录分母，201文件能逐页完整查询。
+
+### 28.4 服务器个人草稿
+
+草稿为TE-owned技术支持记录，OBJECT/zhiju.execution.file_personal_draft，immutable snapshots为SNAPSHOT/zhiju.execution.file_personal_draft_snapshot；同HUMAN作者、Project、本workScope/file/viewedRevision隔离，不是领域Feedback或提交/执行授权。
+
+| 拟 @1.0 操作 / mode | closed payload | closed data / purpose |
+|---|---|---|
+| execution.create_file_personal_draft / CREATE | workScopeRef/fileId/viewedRevisionRef、content、clientEditId、recoveryOfSnapshotRef? | draftRef、draftSnapshotRef、aggregateVersion、clientEditId、receiptRef；execution.file_draft.create /本人HUMAN；recovery fork固定原版本，不自动采用winner |
+| execution.save_file_personal_draft / MUTATE | content、clientEditId | 同上；execution.file_draft.save /本人HUMAN，Envelope CAS；冲突零覆盖 |
+| execution.get_file_personal_draft / AUTHORITATIVE Query | draftRef、clientEditId? | draftRef、authorRef、currentSnapshotRef/currentContent/aggregateVersion、匹配editSnapshotRef?、sourceWatermarks；execution.file_draft.read /本人HUMAN |
+| execution.find_file_personal_drafts / AUTHORITATIVE Query | workScopeRef、fileId、viewedRevisionRef?、page:{limit:1..100,cursor?} | 仅本人draft refs/精确base/保存时间/recovery关系及pending request refs、nextCursor?；execution.file_draft.read |
+
+content闭集为 comment?、locations、sourceAttachmentRefs、draftAttachmentRefs、markdownSuggestionRef?、declaredSuggestionBaseRef?、reviewIssueRefs、pendingSubmission?；限制同§28.2，但空草稿合法。draftAttachmentRefs仅存intakeRef/真实状态，不得以未完成上传提交；inline upload token/rawbytes不进私稿。pendingSubmission闭集为requestRef、originalCommandId、originalIdempotencyKey、publicPayload、requestPayloadHash、queryBudgetStartedAt、queryAttemptCount；hash与target校验，Budget由server首次持久化开始累计≤10秒/3次，刷新不能重置。private snapshot保存所有content+精确scope/作者/base/clientEditId、serverSavedAt，cv1 hash排除自身Ref/hash，CAS pointer单调递增。
+
+作者仅由trusted Context取得，不能caller选择author；create/save/read/分页/恢复均当前授权且本人。自身草稿permission不自动赋予源附件/Revision读取权，依赖分别核验，撤权只返回统一安全错误不泄露附件/旧正文。两设备同CAS一winner、另一保存buffer或新独立recovery fork；原snapshot保留，不last-write-wins、不自动merge/换base。保存UNKNOWN用原target/key/editId核权回读，匹配exact snapshot才“已保存”；未到server的数据明确未保存。草稿默认不进Run/事件正文/项目共享视图，提交时只复制被选exact snapshot字段为原意图；新typing/附件另snapshot不并入原请求。
+
+私稿保留受项目数据retention/legal hold控制；用户清空是新空snapshot，不级联删历史或附件原件。后续实现需TE owner函数/RLS+作者谓词、immutable snapshots、CAS/唯一文件占用/幂等/rollback及跨设备真实验收，不由BFF Session存储替代。新增步骤/Query错误拟为EXECUTION_FILE_BINDING_INVALID、EXECUTION_FILE_REQUEST_ACTIVE、EXECUTION_FILE_REQUEST_STALE、EXECUTION_FILE_INTENT_MISMATCH、EXECUTION_FILE_DRAFT_CONFLICT、EXECUTION_FILE_DRAFT_NOT_SAVED；公开Scope/作者/Ref不匹配masked，依赖失败保持UNKNOWN，不捏造零提交。

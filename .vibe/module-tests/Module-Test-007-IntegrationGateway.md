@@ -241,3 +241,26 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-D12-001 | 新登记Markdown profile及完整支持Canonical Document；错version/input/Binding/输出checksum | 同input/version确定bytes；失败/UNKNOWN不能伪造成功Binding/Representation，旧OOXML profile不变 | 未登记/实现Markdown profile / NOT RUN |
 | IG-D12-002 | exact已提交Batch请求、staging/readback、DB rollback、finalize timeout、双Worker/过期fence、有Link orphan | Attempt稳定、UNKNOWN读原object/version、不盲目重做；过期Worker不发布AVAILABLE；关联对象不误删，技术诊断不泄密 | 无新ZIP Adapter/存储流程 / NOT RUN |
 | IG-D12-003 | 服务器下载响应/浏览器click冒充RawExternalReceipt，或新导出Attempt冒充formal Adapter Attempt | 不晋升FormalReceipt/成功发布/Completion；未调用客户发送Provider | 无新受控流组合 / NOT RUN |
+
+## Markdown 输入、真实原输出与表示设计场景（#259）
+
+权威为 [IG #259](../module-specs/Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)，真实Runner/Host acceptance与内容专业验收独立。
+
+| ID / 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|
+| IG-MF-001 / MF-01/02合法生成lock、exactinputs/Intent/Run→真实md/identityMap/report原输出 | Attempt提交后invoke，input只读/独立output；原三份bytes/hash/observations封存，TE/ART后续各自决定，不从exit或selfcheck造candidate | 未执行 / NOT RUN |
+| IG-MF-002 / MF-04单建议UTF-8 .md/.markdown边界10MiB、chunked超限/断流/异bytes重放/恶意HTML/path/伪base | 一个file/B/S/author/token绑定，完整readback后READY；失败/UNKNOWN保留原intake无重复上传/dispatch；安全隔离不变Revision | 未执行 / NOT RUN |
+| IG-MF-003 / MF-11错session/Run/lease/fencing/hash/manifest/JSON重复key、取消/到期late、第二final异hash | 原observation分域完整复验；错来源隔离/迟到仅历史，UNKNOWN不second invoke、不空final、不覆写raw | 未执行 / NOT RUN |
+| IG-MF-004 / MF-12合法legacy {request:RenderRequest}及新flat Markdown请求；wrong operation/profile/schema/digest/identityMap/inputHash、roundTrip/checksum/UNKNOWN | legacy在request_render@1.0按原renderPolicyRef/stableIdempotencyKey/requestedAt与支持集处理，在request_markdown_render@1.0拒shape；新Markdown只走新入口、送旧入口拒绝，无自动转换/fallback；新binding的真实originalOperation/原请求/hash与技术round-trip精确核，错误无success，ART才注册；旧消费者/分析profile不扩大 | 未执行 / NOT RUN |
+
+## 已实现的 Markdown Renderer 技术子用例（#270）
+
+实现权威为 [IG §已实现的确定性 Markdown Renderer](../module-specs/Module-Spec-007-IntegrationGateway.md#已实现的确定性-markdown-renderer270)。下表只把 #270 实际执行的技术子用例标为 PASS；IG-MF-001～004 的整行仍为 `NOT RUN`。
+
+| ID / 归属 | 输入 | 可核验预期 | 实际 / 结果 |
+|---|---|---|---|
+| IG-MF-004-T1 / Renderer 确定性 | 封闭 `artifact.markdown_document.schema@1.0` payload（标题、段落含 STRONG、分隔线、有序列表、含转义 pipe 与 blank cell 的表） | 同一 tree 两次渲染 bytes/checksum 相同，输出形状固定为 `## …`/`**…**`/`---`/`2. …`/`| … |` 与三连字符分隔行；`MARKDOWN_RENDERER_PROFILE` 冻结 | 已执行 / PASS |
+| IG-MF-004-T2 / Renderer 边界 | `renderMarkdownInline` 的控制字符、STRONG/EMPHASIS 组合、inline code fence 加长、`<br>` 硬换行、前导空白、`[^`/`](`/`![` 序列；checkbox 样式的列表项；非封闭 profile payload | 控制字符转义后语义不变；三重 marker 用 `***`；code 内反引号自动加长 fence；硬换行输出 `<br>`；前导空白返回 `INTEGRATION_MARKDOWN_RENDER_INVALID`；会读回成链接/图片/脚注的序列与 checkbox 列表项被转义；非法 payload 返回 `INTEGRATION_RENDER_INPUT_MISMATCH` | 已执行 / PASS |
+| IG-MF-004-T3 / 跨模块 round-trip | 已检入 procurement 快照与全部聚焦 fixture | ART `verifyMarkdownRoundTrip` 对 renderer 输出重新 `parse`，tree/身份/cv1 Hash 相等；不一致返回 `ARTIFACT_MARKDOWN_LOSSY` | 已执行 / PASS（`ART-MF-006-T2` 同批证据） |
+
+未执行：`request_markdown_suggestion_intake@1.0`、`get_markdown_suggestion_intake@1.0`、`request_markdown_render@1.0`、`get_markdown_render_binding@1.0`、原输出观察、Attempt/Binding/Representation 接线、真实 Host/Provider/object store/HTTP/browser 与人工验收。

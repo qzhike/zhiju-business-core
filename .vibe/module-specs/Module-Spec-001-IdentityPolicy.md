@@ -1145,3 +1145,26 @@ IP每项以服务自身ActorSnapshot/PolicySnapshot当前hash、完整Enterprise
 保存、读取、发布、撤回各自有独立当前 Decision；publication 保存原 Human 批准与实际执行者 provenance。保护读之前及事务提交/结果返回之前使用独立 READ COMMITTED 当前授权检查，失败回滚，不能用历史 Receipt 继续。公司存储使用专用 NOLOGIN/NOBYPASSRLS 角色及有效技术上下文，普通模块 app/dispatcher/projection 无权限；只追加 snapshot/publication/withdrawal、成功 Receipt 和审计。业务引用仍为 Platform scope={}，保留原生 identity.policy_snapshot identity，技术控制 Scope 不变成 Enterprise 公司发布权限。
 
 构建期共享 registry/closed validator 为唯一字段接受集；Module 内部组合提供 producer、resolver、publication 和 resolution Ports，不注册公开 HTTP/BFF 操作。未部署公司 allowlist/认证/来源存储时拒绝；受控测试批准与源材料只用于可重现 PostgreSQL trace，不成为真实公司发布或客户启动证明。实现修订的独立审查及人类技术批准另行取得。
+
+## Markdown 文件意图、本人草稿与下载授权提案（#259）
+
+状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。字段唯一见 [TE §28](Module-Spec-003-TaskExecution.md#28-整份生成单文件意见与个人草稿提案259)、[ART §13](Module-Spec-004-Artifact.md#13-markdown-候选定位与表示提案259)、[IG #259](Module-Spec-007-IntegrationGateway.md#markdown-建议生成原输出与渲染提案259)。下表是新purpose/接受集提案，不改变旧classification或自动授予Grant。
+
+| 动作 / purpose集合 | 主体、target与必要独立检查 |
+|---|---|
+| execution.file_constraint_review.prepare/read | HUMAN_ONLY；exactProject+已接收workScope/full file/plan及原准备request/key/hash；先当前Human与逐owner源/模板/保护内容读权，不要求未来Root/Revision/constraints；不可读则protected reads=0，Query不prepare/confirm/dispatch |
+| artifact.file_constraint_review.prepare/read | 固定TE/ART专用SERVICE各自当前producer/read权限及TE原准备意图、exact源/map/proposal读权；Human公开内容可读性独立检查，service许可不能提升Human权限；不授constraints.confirm或生成/Root创建权 |
+| execution.file_constraint_review_binding.read | 仅专用ART SERVICE读取TE原准备请求及Receipt，exactScope/file/plan/Hash；独立于Human公开prepare/read及ART自身producer权限，不借旧Human/Run Grant，不触发任何写入 |
+| artifact.file_constraints.confirm、execution.file_generation.request、execution.file_edit.submit、execution.file_request.resume | HUMAN_ONLY；exactProject+完整file/plan/current base/原intent+payload hash；当前Project成员/能力、ActorSnapshot/Decision；Scope receipt、草稿或历史Human Decision不等于当次执行授权 |
+| execution.file_draft.create/save/read | 当前HUMAN且draft.authorRef=trusted principal；同Enterprise+Project/workScope/file/base；Project read/admin权不能替代本人谓词；AGENT/SERVICE/RUNTIME/另一Human/actingFor全部拒绝私稿读取，protected reads=0 |
+| execution.file_request.read、execution.file_review.read、execution.file_directory.read、artifact.file_candidate.read/file_review.read/file_diff.read/file_locations.read | 当前Human或声明用途的专用SERVICE；exactScope及每个owner原source读权；原intent作者信息按项目权限裁剪，未提交私稿永不加入共享结果 |
+| artifact.file_constraints.read、execution.file_candidate_binding.read、artifact.file_candidate.accept | 固定ART/TE专用SERVICE各自当前read/write；跨owner Port分别独立Decision，禁止借原Human/Run授权；来源与目标payload hash、期限和精确selector均参与Decision |
+| integration.markdown_suggestion.intake/read | intake本人Human；消费为自身专用TE SERVICE；exact一个file/B/S/suggestion原bytes绑定；上传token不赋予source/revision/执行权 |
+| integration.render.request、integration.markdown_render_binding.read、artifact.markdown_representation.register | 固定服务自身Render/ART权限及独立Canonical bytes读权；exactRevision/format/profile/renderer/hash/Attempt，不借进程退出或Runner self-check |
+| artifact.markdown_download.read | 当前Human或显式获准的受限Agent读exchange bytes，exactRepresentation/Revision/checksum+Project；ticket≤60秒仍需stream时重新核当前权限；不授Approval/Release或写文件权 |
+
+create/save草稿和提交request各自独立authorize；同键replay/readback/resume也验当前Decision与本人/Scope，不因已有Receipt放过撤权。private pending snapshot可供本人原请求恢复，但其存在不证明请求已受理。公开不存在/错Scope/hash/作者统一安全错误，不通过Query区分别人私稿或隐藏文件；依赖不可用保持UNKNOWN，不能当未提交。
+
+当前权限先于对象/body/locator读取并在提交、Receipt返回或stream前重验；跨模块当前Grant/profile失效停止新步骤，历史Actor/授权/原意图保持。浏览器principal/actor header、Markdown伪签名、文件名、statement或Agent actingFor不能构造Human。Quality专业验证/Approval仍各自现有Human-only及职责分离，本提案不批准保护例外。真实授权/RLS/HTTP/stream及跨设备用例IP-MF-*均NOT RUN。
+
+首次候选的CREATE_ARTIFACT步骤仍须既有artifact.artifact.create自身授权和独立get_artifact读权；预分配identity/约束确认不赋Root创建或Branch写权。move_working_head各自artifact.branch.move_head及当前CAS，不借candidate.accept授权。后续生成profile必须显式覆盖这些受限service步骤，缺任何许可停止PARTIAL而不删已提交Root/Revision。
