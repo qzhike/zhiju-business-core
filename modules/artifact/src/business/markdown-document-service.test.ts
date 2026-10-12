@@ -661,6 +661,34 @@ describe('list line breaks and block boundaries', () => {
     ]);
   });
 
+  it('keeps an indented spaced thematic marker as THEMATIC_BREAK', () => {
+    for (const marker of ['* * *', '- - -', '***', '___']) {
+      for (const gap of ['', '\n']) {
+        const parsed = parseText(`- item\n${gap}  ${marker}\n`);
+        expect(parsed.content.body.units.map((unit) => markdownMetadata(unit).blockKind)).toEqual([
+          'LIST_ITEM',
+          'THEMATIC_BREAK',
+        ]);
+      }
+    }
+  });
+
+  it('still nests an indented sub-list that is not a thematic marker', () => {
+    const parsed = parseText('- parent\n  - child\n  * * x\n');
+    const items = parsed.content.body.units.filter(
+      (unit) => markdownMetadata(unit).blockKind === 'LIST_ITEM',
+    );
+    expect(items.map((unit) => unitText(unit))).toEqual(['parent', 'child', '* x']);
+    const parent = defined(
+      items.find((unit) => unitText(unit) === 'parent'),
+      'parent item',
+    );
+    for (const child of items.slice(1)) {
+      expect(child.parentUnitId).toBe(parent.unitId);
+      expect(markdownMetadata(child).listDepth).toBe(2);
+    }
+  });
+
   it('rejects a setext underline that directly follows a paragraph or list item', () => {
     expectCode(() => parseText('Title\n===\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');
     expectCode(() => parseText('Title\n---\n'), 'ARTIFACT_MARKDOWN_UNSUPPORTED');

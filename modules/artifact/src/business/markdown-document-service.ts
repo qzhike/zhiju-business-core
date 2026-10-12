@@ -593,6 +593,10 @@ class BlockScanner {
       if (current === undefined) break;
 
       if (marker !== null && indent > baseIndent) {
+        // A thematic break wins over a nested list at any indentation: it
+        // terminates this list and is emitted by the enclosing block scanner,
+        // so the scan always advances past the marker line.
+        if (THEMATIC_PATTERN.test(content)) break;
         const nested = this.#scanList(index, end, indent);
         current.children.push(nested.node);
         index = nested.next;

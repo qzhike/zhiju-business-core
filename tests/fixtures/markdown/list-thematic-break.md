@@ -6,3 +6,9 @@
 - item two
 
 ***
+
+- item three
+  * * *
+
+- item four
+  - - -

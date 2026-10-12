@@ -1,5 +1,60 @@
 # PR #275 独立实现审查
 
+## 第三轮复审：修复 head `e3901db`
+
+- 复审日期：2026-10-12（Asia/Shanghai）。
+- 当前角色与结论：`Reviewer / REQUEST_CHANGES`，新增 1 条阻塞发现 `R10 / P2`。
+- 已审 SHA：`e3901db795325ecd9ea31f77f3ea2739de7cac09`。
+- Base SHA：`ec3bd6db7dec7294519ead17ad4a9cf69fb7b8af`。
+- 上轮已审 SHA：`a2d40d41175f371d01fe6599d463c7edd61e1676`。
+- PR：<https://github.com/qzhike/zhiju-business-core/pull/275>；Issue：[#270](https://github.com/qzhike/zhiju-business-core/issues/270)。
+- 本轮已发表：[COMMENT review 5485597196](https://github.com/qzhike/zhiju-business-core/pull/275#pullrequestreview-5485597196)，2026-10-12 00:01:13 UTC；已读回 outcome、完整 body、state=COMMENTED 和精确 commit_id。发表前后远端 head 均未变。
+- R10 行内意见：[discussion_r4243790062](https://github.com/qzhike/zhiju-business-core/pull/275#discussion_r4243790062)；已独立读回 path、RIGHT line=569、body 和上述 commit_id。
+
+本轮独立读取最新 PR / Issue、实际修复 diff、相关 ART §13.2/13.6、Delta §3、Module-Test 与精确修订 CI。预期为：相邻普通分隔线保持 THEMATIC_BREAK，空行排版不改变语义，真实 setext 仍拒绝；列表与子列表扫描必须消费输入或把已识别的块交回 owning scanner，不能对同一行持续重入。复审范围为 R9 修复及其实际影响，延续首轮完整 Contract 字段对账，不重复读取无关历史或扩展业务范围。
+
+### 已报告发现的当前状态
+
+| 发现     | 本轮独立复验                                                                                                                                                                                                                     | 判定           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| R1–R8    | 合法 sidecar / round-trip、精确绑定与逐项 correspondence 拒绝、列表硬换行 / ATX、表格 Unit 上限、未知 selector / 非首行 header、未知扩展、CODE literal 与危险内容拒绝控制均通过当前源代码探针。                                  | 原反例保持修复 |
+| R9       | 原输入 `- item\n***\n` 得到 LIST_ITEM + THEMATIC_BREAK；`***`/`---`/`___`/`- - -`/`* * *` 的无空行与带空行列表对照均保留初次 tree、完整 round-trip 和 Hash。段落相邻 `***` 正常；段落 `---`/`===` 和列表项内缩进 setext 仍拒绝。 | 原反例已修复   |
+| R10 / P2 | 缩进两个空格的 spaced thematic marker 被递归送入空子列表，`next` 不前进，外层持续追加空 LIST 并重入，直到 deadline。                                                                                                             | 新增阻塞发现   |
+
+本修复没有变更 Contract Schema/类型、注册 selector、身份输入、IG renderer 或 cv1 Hash 接受集。ART 实现状态与 Module-Test 同步了 R9 的真实边界，新增 `list-thematic-break.md` 走跨模块管线；没有把未来操作或业务验收改成 PASS。前两轮正式记录现均已包含在 `e3901db`；后续历史段落中的“未提交”等语句只描述各轮发表时状态，当前结论以上方第三轮为准。
+
+### R10 / P2：缩进 spaced 分隔线导致列表扫描不前进
+
+位置：`modules/artifact/src/business/markdown-document-service.ts:569`（新增 thematic 优先级），递归调用及回写 `next` 在 `:595`。
+
+受支持的 15-byte 独立输入（第二行两个空格）：
+
+```text
+- item
+  * * *
+```
+
+把第二行换成 `  - - -` 也相同。外层 list scanner 先命中 `marker !== null && indent > baseIndent`，把该行递归给 `#scanList(index, end, indent)`。子 scanner 第一行现在命中新增的 THEMATIC_PATTERN break，返回 `items=[]` 和未改变的 `next=index`。外层追加空 LIST 后把 index 设回同一值，再次重入。该分支没有消费字符 / 行，真正的 Unit 计数也尚未开始；deadline 是此循环的退出条件。
+
+独立定向探针通过现有 `request.now` 注入约 100ms 的测试 deadline（`Date.now()-9900`），以免人为消耗完整 10 秒预算。两个输入均在约 100ms 后返回 `ARTIFACT_MARKDOWN_LIMIT`；同样注入下，`- item\n  ***\n` 得到真实 THEMATIC_BREAK，普通 `- outer\n  - inner\n` 子列表也正常解析且可 round-trip。短测试 deadline 仅用于控制复现成本；未声称实际测量默认 10 秒或 heap 峰值。代码检查独立确认了不前进的 next / 重入路径，因此不是把人工缩短 deadline 本身当产品缺陷。
+
+Delta §3 / ART §13.2 已支持普通分隔线、列表与缩进续行 / 子列表；spaced marker 也已被当前 THEMATIC_PATTERN 识别，不能因递归分支优先级把微小合法输入变成资源超限。修复应在递归子列表前处理 thematic 优先级，并保证返回的 scanner 位置消费了输入或正确终止外层列表；无需新规划或 grammar 扩展。加入两个 marker 的缩进初次 tree / round-trip 用例，保留未缩进分隔线、普通子列表和真实 setext 拒绝对照。
+
+### 本轮证据与交付边界
+
+| 证据             | 核对结果                                                                                                                                                                                                                                                    | 边界                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact revision   | `vibe repo --json` 为 qzhike/zhiju-business-core / `e3901db795325ecd9ea31f77f3ea2739de7cac09`；远端 head 一致，base 未变，PR OPEN / 非 Draft。本轮开始工作区干净。                                                                                          | 前两轮记录已经由实现修订保留；本轮增量在 head 之后新增。                                                                                      |
+| 配置 CI          | [run 38146461688](https://github.com/qzhike/zhiju-business-core/actions/runs/38146461688) 的 headSha 精确匹配；select/checks/persistence/verify 全部 SUCCESS。已核对 unchanged workflow 和实际 Verify code、clean build prerequisites、Verify persistence。 | 覆盖 ready PR 要求的 full，复用当前可信证据，没有重复本地 full；不替代本轮语义反例。                                                          |
+| 独立定向验证     | `node node_modules/vitest/vitest.mjs run tests/business/pr275-round3-probe.test.ts --reporter=default --reporter=json --outputFile=/private/tmp/pr275-round3-probe-results.json`；最终 1 file / 19 tests，18 PASS / 1 FAIL，1.40 秒。                       | 原 R1–R9、合法控制与 setext 控制均通过；唯一 FAIL 是两个缩进 spaced marker 的接纳预期，实际均为 LIMIT。这是语义诊断，不冒称 configured full。 |
+| 临时材料         | 最终源在 `/private/tmp/pr275-round3-probe.test.ts`，结果在 `/private/tmp/pr275-round3-probe-results.json`。                                                                                                                                                 | 探针已从仓库移除；没有更改产品、原测试、Contract 或 owning Spec。                                                                             |
+| 正式记录         | 本轮仅更新此 Review.md，保留各轮发现、证据及发表指针，并补入第三轮 review / R10 读回链接。                                                                                                                                                                  | 本轮增量未 commit/push，不属于 reviewed SHA 或其 CI。                                                                                         |
+| Focused 文档检查 | 单文件 Prettier、Markdown fence/conflict、R10 原始输入文本及工作区 `git diff --check HEAD` 均 PASS。                                                                                                                                                        | 只覆盖本轮正式记录，不冒称该增量已包含在 exact-head CI 或取得新的 full。                                                                      |
+
+本轮结论为 REQUEST_CHANGES。R10 修复后需复审新 head 与对应门禁；Issue #270 的 exact-revision Human 实现技术批准仍未提供，#269 的设计批准不能替代。未来 TE、候选封存 / Head、Attempt/Binding/Representation、公开 Diff/下载、Host/Runner/OIDC/HTTP、Browser 与独立人工内容验收继续保持本切片的 NOT IMPLEMENTED / NOT RUN。没有修复产品、commit、push 或 merge。
+
+已发表 COMMENT review 与 1 条 P2 行内意见，完整读回匹配本地准备的评论和精确 SHA；这不是 GitHub APPROVED / CHANGES_REQUESTED 事件。
+
 ## 第二轮复审：修复 head `a2d40d4`
 
 - 复审日期：2026-10-11。
