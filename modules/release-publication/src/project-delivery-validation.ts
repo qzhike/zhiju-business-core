@@ -215,9 +215,29 @@ function assertDeclaredScopeConsistency(
 }
 
 /**
+ * Legal Scope form per registered owning object type for the Artifact-owned
+ * `RevisionProvenance` members. `PROJECT` requires both Scope members and
+ * equality with this batch, because the owning Domain defines those objects with
+ * an Enterprise/Project Scope (Task, WorkOrder, Run, AgentResult, ContextSnapshot
+ * and project source material); `DECLARED` keeps the declared-member rule for
+ * Identity-owned principals and for Enterprise/Platform configuration such as a
+ * template baseline or a regulatory profile. An object type that is not listed
+ * here is not a machine-registered ownership fact, so only its declared members
+ * are compared instead of fabricating a Scope it may legally omit.
+ */
+const PROVENANCE_SCOPE_BY_OBJECT_TYPE: Readonly<Record<string, 'PROJECT' | 'DECLARED'>> = {
+  'zhiju.execution.task': 'PROJECT',
+  'zhiju.execution.work_order': 'PROJECT',
+  'zhiju.execution.run': 'PROJECT',
+  'zhiju.execution.agent_result': 'PROJECT',
+  'zhiju.execution.context_snapshot': 'PROJECT',
+  'zhiju.project.source_material': 'PROJECT',
+};
+
+/**
  * The RevisionProvenance members an entry stores. Artifact owns this definition,
- * so the entry consumes them as open references and only compares the Scope
- * members they actually declare.
+ * so the entry consumes them as open references; the D12 consumption boundary
+ * still requires the Scope form of each member's owning object type.
  */
 function entryProvenanceReferences(entry: Entry): readonly ReferenceIdentity[] {
   const provenance = entry.provenance.revisionProvenance;
@@ -328,10 +348,16 @@ function assertEntryStructure(entry: Entry, projectScope: Common.ScopeRef): void
 
   assertSharedScope(entryProjectReferences(entry), projectScope, code);
   // Provenance is read back from the Artifact-owned Revision and the
-  // EnterpriseProject-owned accepted reports: a declared Scope member must be
-  // this batch's Enterprise/Project, and a report snapshot is Project-scoped.
+  // EnterpriseProject-owned accepted reports. A Project-owned execution source
+  // must carry the full Project Scope of this batch; a member whose owning type
+  // is Identity- or Enterprise/Platform-scoped only has to keep the Scope
+  // members it declares consistent with this batch.
   for (const reference of entryProvenanceReferences(entry)) {
-    assertDeclaredScopeConsistency(reference, projectScope, code);
+    if (PROVENANCE_SCOPE_BY_OBJECT_TYPE[reference.objectType] === 'PROJECT') {
+      assertSharedScope([reference], projectScope, code);
+    } else {
+      assertDeclaredScopeConsistency(reference, projectScope, code);
+    }
   }
   for (const reportRef of entry.provenance.sourceReportRefs) {
     assertReference(reportRef, PROJECT_SCOPED_SNAPSHOT, code);
