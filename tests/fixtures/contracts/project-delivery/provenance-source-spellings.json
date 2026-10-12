@@ -2,7 +2,7 @@
   "provenance": {
     "synthetic": true,
     "source": "D12 / Q11 (#272) standalone structural fixture",
-    "description": "The published owning operation spellings for the Project-owned RevisionProvenance execution sources. `execution.record_run_result@1.0` (task-execution, FULL) declares `runRef` as OBJECT/execution.run and `agentResultRef` as CONTENT_ADDRESSED/execution.agent_result, so the D12 manifest must accept those exact refs with the full Project Scope and reject them when a Scope member is missing. The result instance is validated against the owning operation; it is not a committed Run or AgentResult."
+    "description": "The owning spellings of the Project-owned RevisionProvenance execution sources. `execution.record_run_result@1.0` (task-execution, FULL) declares `runRef` as OBJECT/execution.run and `agentResultRef` as CONTENT_ADDRESSED/execution.agent_result. `RevisionProvenance.contextSnapshotRef` is a `SnapshotRef<ProjectContext>`: the canonical identity is zhiju.execution.context_snapshot, while the shared API keeps zhiju.project.context_snapshot as the Core v1.0 historical read-back identity of the same Project-owned fact (historical fixture value; it must not be rewritten to the canonical name by objectId). The D12 manifest must accept those exact refs with the full Project Scope and reject each of them when a Scope member is missing. The owning operation/query instances assembled here only prove the registered shapes; no Run, AgentResult or ProjectContext Snapshot is claimed to exist."
   },
   "owningOperation": {
     "type": "execution.record_run_result",
@@ -34,6 +34,26 @@
       }
     }
   },
+  "owningContextQuery": {
+    "schemaRef": "https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_context_snapshot_payload",
+    "payload": {
+      "contextSnapshotRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.context_snapshot",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    }
+  },
   "projectOwnedSources": {
     "runRef": {
       "kind": "OBJECT",
@@ -56,6 +76,21 @@
         "algorithm": "SHA-256",
         "canonicalizationVersion": "1",
         "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    },
+    "historicalContextSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
     }
   }

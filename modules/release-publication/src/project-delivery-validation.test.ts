@@ -50,9 +50,14 @@ interface PublishedSpellingsFixture {
     readonly version: string;
     readonly result: unknown;
   };
+  readonly owningContextQuery: {
+    readonly schemaRef: string;
+    readonly payload: unknown;
+  };
   readonly projectOwnedSources: {
     readonly runRef: Common.ObjectRef;
     readonly agentResultRef: Common.ContentAddressedRef;
+    readonly historicalContextSnapshotRef: Common.SnapshotRef;
   };
 }
 
@@ -257,6 +262,32 @@ describe('D12 project-delivery structural validation (#272)', () => {
     const provenance = itemAt(injected.entries, 1).provenance.revisionProvenance;
     provenance.runRef = clone(spellingsFixture.projectOwnedSources.runRef);
     provenance.agentResultRef = clone(spellingsFixture.projectOwnedSources.agentResultRef);
+    provenance.contextSnapshotRef = clone(
+      spellingsFixture.projectOwnedSources.historicalContextSnapshotRef,
+    );
+    expect(() => {
+      validateProjectDeliveryManifest(injected);
+    }).not.toThrow();
+  });
+
+  it('accepts the historical ProjectContext identity of a Project-owned source', () => {
+    // `RevisionProvenance.contextSnapshotRef` is a `SnapshotRef<ProjectContext>`.
+    // The shared API keeps `zhiju.project.context_snapshot` as the Core v1.0
+    // historical read-back identity of that Project-owned fact, so a Revision
+    // recorded through that path must keep its full Project Scope instead of
+    // being rewritten to the canonical name (and must not lose a Scope member).
+    const registry = new ContractRegistry();
+    expect(
+      registry.validateCoreContract(
+        spellingsFixture.owningContextQuery.schemaRef,
+        spellingsFixture.owningContextQuery.payload,
+      ).valid,
+    ).toBe(true);
+
+    const injected = clone(MANIFEST);
+    itemAt(injected.entries, 1).provenance.revisionProvenance.contextSnapshotRef = clone(
+      spellingsFixture.projectOwnedSources.historicalContextSnapshotRef,
+    );
     expect(() => {
       validateProjectDeliveryManifest(injected);
     }).not.toThrow();

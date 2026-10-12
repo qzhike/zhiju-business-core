@@ -234,6 +234,13 @@ const PROJECT_OWNED_PROVENANCE_OBJECT_TYPES: Readonly<Record<string, true>> = {
   'execution.agent_result': true,
   'zhiju.execution.agent_result': true,
   'zhiju.execution.context_snapshot': true,
+  // `RevisionProvenance.contextSnapshotRef` is a `SnapshotRef<ProjectContext>`,
+  // and the shared API keeps `zhiju.project.context_snapshot` as the Core v1.0
+  // historical read-back identity of the same Project-owned fact (it is a
+  // historical fixture value and must not be rewritten to the canonical name by
+  // objectId). A Revision recorded through that path still carries a
+  // Project-owned ProjectContext source, not a platform configuration.
+  'zhiju.project.context_snapshot': true,
   'zhiju.project.source_material': true,
 };
 

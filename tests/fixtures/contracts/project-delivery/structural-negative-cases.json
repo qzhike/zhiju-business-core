@@ -202,6 +202,42 @@
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   },
   {
+    "description": "historical zhiju.project.context_snapshot source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "historical zhiju.project.context_snapshot source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
     "description": "accepted report snapshot carries another Project Scope",
     "path": "/entries/0/provenance/sourceReportRefs",
     "value": [
