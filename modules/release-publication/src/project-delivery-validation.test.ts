@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
-import type { Common, ReleasePublication } from '@zhiju/contracts';
+import { ContractRegistry, type Common, type ReleasePublication } from '@zhiju/contracts';
 import {
   archiveValidationHash,
   archiveDescriptorHash,
@@ -43,6 +43,22 @@ const structuralCases = fixture(
   'structural-negative-cases.json',
 ) as unknown as readonly MutationCase[];
 const archiveCases = fixture('archive-negative-cases.json') as unknown as readonly MutationCase[];
+
+interface PublishedSpellingsFixture {
+  readonly owningOperation: {
+    readonly type: string;
+    readonly version: string;
+    readonly result: unknown;
+  };
+  readonly projectOwnedSources: {
+    readonly runRef: Common.ObjectRef;
+    readonly agentResultRef: Common.ContentAddressedRef;
+  };
+}
+
+const spellingsFixture = fixture(
+  'provenance-source-spellings.json',
+) as unknown as PublishedSpellingsFixture;
 
 const MANIFEST = manifestValid.manifest as ReleasePublication.ProjectDeliveryManifest;
 const BATCH_REF = manifestValid.batchRef as ReleasePublication.ProjectDeliveryBatchRef;
@@ -221,6 +237,28 @@ describe('D12 project-delivery structural validation (#272)', () => {
     itemAt(withScopedSources.dependencyProof.ruleRefs, 1).scope.projectId = PROJECT_ID;
     expect(() => {
       validateProjectDeliveryManifest(withScopedSources);
+    }).not.toThrow();
+  });
+
+  it('accepts the published owning spellings of Project-owned execution sources', () => {
+    // `execution.record_run_result@1.0` (task-execution, FULL) declares
+    // `runRef` as OBJECT/execution.run and `agentResultRef` as
+    // CONTENT_ADDRESSED/execution.agent_result. The D12 entry must accept those
+    // exact owning refs with the full Project Scope instead of guessing a
+    // selector, and the same refs are rejected without it (see the structural
+    // negative set).
+    const registry = new ContractRegistry();
+    const owning = spellingsFixture.owningOperation;
+    expect(registry.validateOperationResult(owning.type, owning.version, owning.result).valid).toBe(
+      true,
+    );
+
+    const injected = clone(MANIFEST);
+    const provenance = itemAt(injected.entries, 1).provenance.revisionProvenance;
+    provenance.runRef = clone(spellingsFixture.projectOwnedSources.runRef);
+    provenance.agentResultRef = clone(spellingsFixture.projectOwnedSources.agentResultRef);
+    expect(() => {
+      validateProjectDeliveryManifest(injected);
     }).not.toThrow();
   });
 

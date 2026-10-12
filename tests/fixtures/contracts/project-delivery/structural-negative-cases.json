@@ -144,6 +144,64 @@
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   },
   {
+    "description": "published execution.run source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/runRef",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+      "scope": {}
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.run source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/runRef",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.agent_result source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef",
+    "value": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.agent_result source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef",
+    "value": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
     "description": "accepted report snapshot carries another Project Scope",
     "path": "/entries/0/provenance/sourceReportRefs",
     "value": [

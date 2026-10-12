@@ -1,0 +1,62 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "source": "D12 / Q11 (#272) standalone structural fixture",
+    "description": "The published owning operation spellings for the Project-owned RevisionProvenance execution sources. `execution.record_run_result@1.0` (task-execution, FULL) declares `runRef` as OBJECT/execution.run and `agentResultRef` as CONTENT_ADDRESSED/execution.agent_result, so the D12 manifest must accept those exact refs with the full Project Scope and reject them when a Scope member is missing. The result instance is validated against the owning operation; it is not a committed Run or AgentResult."
+  },
+  "owningOperation": {
+    "type": "execution.record_run_result",
+    "version": "1.0",
+    "result": {
+      "runRef": {
+        "kind": "OBJECT",
+        "objectType": "execution.run",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        }
+      },
+      "status": "RESULT_RECORDED",
+      "agentResultRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "execution.agent_result",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+        }
+      }
+    }
+  },
+  "projectOwnedSources": {
+    "runRef": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "agentResultRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    }
+  }
+}
