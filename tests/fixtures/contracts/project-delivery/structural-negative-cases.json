@@ -26,7 +26,7 @@
   {
     "description": "mixed Project Scope on an entry Release",
     "path": "/entries/0/releaseRef/scope/projectId",
-    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   },
   {
@@ -42,9 +42,109 @@
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   },
   {
+    "description": "packaged Representation declares a different Revision content hash",
+    "path": "/entries/0/representationRef/revision/contentHash/digest",
+    "value": "abababababababababababababababababababababababababababababababab",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "packaged Representation declares an immutable version the entry Revision does not",
+    "path": "/entries/0/representationRef/revision/immutableVersionId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d297",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
     "description": "packaged Representation belongs to a different Revision",
     "path": "/entries/0/representationRef/revision/objectId",
     "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance work order reference carries another Project Scope",
+    "path": "/entries/1/provenance/revisionProvenance/workOrderRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance agent result reference carries another Enterprise Scope",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance source material reference carries another Project Scope",
+    "path": "/entries/1/provenance/revisionProvenance/sourceMaterialRefs/0/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "QualityProfile ref belongs to another Enterprise",
+    "path": "/entries/0/qualityProfileRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Plan quality Policy rule belongs to another Enterprise",
+    "path": "/dependencyProof/ruleRefs/1/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Plan quality Policy rule carries another Project Scope",
+    "path": "/dependencyProof/ruleRefs/1/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "export Policy belongs to another Enterprise",
+    "path": "/exportPolicyRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "accepted report snapshot omits the Project Scope",
+    "path": "/entries/0/provenance/sourceReportRefs",
+    "value": [
+      {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.preparation_report",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d901",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d902",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d298"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "abababababababababababababababababababababababababababababababab"
+        }
+      }
+    ],
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages a DOCX representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.docx",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages an XLSX representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.xlsx",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages a PDF representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.pdf",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Markdown representation declares a non-Markdown media type",
+    "path": "/entries/0/representationRef/mediaType",
+    "value": "text/plain",
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   },
   {
@@ -115,6 +215,14 @@
     "description": "unsupported manifest version",
     "path": "/manifestVersion",
     "value": "project-delivery-batch-manifest/2.0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "RecipientScope snapshot omits the Project Scope",
+    "path": "/recipientScopeSnapshotRef/scope",
+    "value": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
     "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
   }
 ]

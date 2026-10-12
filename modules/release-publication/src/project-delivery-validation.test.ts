@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Common, ReleasePublication } from '@zhiju/contracts';
 import {
+  archiveValidationHash,
+  archiveDescriptorHash,
   PROJECT_DELIVERY_ARCHIVE_INVALID,
   PROJECT_DELIVERY_HASH_MISMATCH,
   PROJECT_DELIVERY_MANIFEST_INVALID,
@@ -31,6 +33,8 @@ interface MutationCase {
   readonly value?: unknown;
   readonly from?: string;
   readonly remove?: boolean;
+  readonly also?: readonly { readonly path: string; readonly value: unknown }[];
+  readonly recompute?: readonly ('validation' | 'descriptor')[];
 }
 
 const manifestValid = fixture('manifest-valid.json');
@@ -45,6 +49,8 @@ const BATCH_REF = manifestValid.batchRef as ReleasePublication.ProjectDeliveryBa
 const DESCRIPTOR = archiveValid.descriptor as ReleasePublication.ProjectDeliveryArchiveDescriptor;
 const VALIDATION = archiveValid.validation as ReleasePublication.ProjectDeliveryArchiveValidation;
 const ARCHIVE_REF = archiveValid.archiveRef as ReleasePublication.ProjectDeliveryArchiveRef;
+const ENTERPRISE_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d201';
+const PROJECT_ID = '018f22e2-7c15-7b2e-8d86-2de956a9d202';
 
 /** Deep-mutable view of a frozen contract value, used only for fixture mutation. */
 type Mutable<T> = T extends readonly (infer U)[]
@@ -79,13 +85,26 @@ function atPath(root: Record<string, unknown>, pointer: string): [Record<string,
 
 function mutate(base: Record<string, unknown>, mutation: MutationCase): Record<string, unknown> {
   const target = clone(base) as Record<string, unknown>;
+  setPath(target, mutation);
+  for (const extra of mutation.also ?? []) setPath(target, extra);
+  return target;
+}
+
+function setPath(
+  target: Record<string, unknown>,
+  mutation: {
+    readonly path: string;
+    readonly from?: string;
+    readonly remove?: boolean;
+    readonly value?: unknown;
+  },
+): void {
   const [parent, key] = atPath(target, mutation.path);
   if (mutation.remove === true) Reflect.deleteProperty(parent, key);
   else if (mutation.from !== undefined) {
     const [fromParent, fromKey] = atPath(target, mutation.from);
     parent[key] = clone(fromParent[fromKey]);
   } else parent[key] = clone(mutation.value);
-  return target;
 }
 
 function materials(
@@ -179,6 +198,32 @@ describe('D12 project-delivery structural validation (#272)', () => {
     }).not.toThrow();
   });
 
+  it('accepts declared reference forms that stay inside the batch Scope', () => {
+    // A Project-scoped accepted report snapshot is a legitimate source; an
+    // Artifact-owned provenance member is not forced to carry a projectId; and a
+    // Project-scoped Policy version stays legal when its Project is this batch.
+    const withScopedSources = clone(MANIFEST);
+    const entry = itemAt(withScopedSources.entries, 0);
+    entry.provenance.sourceReportRefs = [
+      {
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_report',
+        objectId: '018f22e2-7c15-7b2e-8d86-2de956a9d901',
+        snapshotId: '018f22e2-7c15-7b2e-8d86-2de956a9d902',
+        scope: { enterpriseId: ENTERPRISE_ID, projectId: PROJECT_ID },
+        contentHash: {
+          algorithm: 'SHA-256',
+          canonicalizationVersion: '1',
+          digest: 'ab'.repeat(32),
+        },
+      },
+    ];
+    itemAt(withScopedSources.dependencyProof.ruleRefs, 1).scope.projectId = PROJECT_ID;
+    expect(() => {
+      validateProjectDeliveryManifest(withScopedSources);
+    }).not.toThrow();
+  });
+
   it.each(structuralCases)('rejects the manifest mutation: $description', (mutation) => {
     const mutated = mutate(MANIFEST, mutation);
     expect(() => {
@@ -218,6 +263,18 @@ describe('D12 project-delivery structural validation (#272)', () => {
       zipBytes: archiveValid.zipBytes as string,
     } as unknown as Record<string, unknown>;
     const mutated = mutate(base, mutation);
+    // Recompute the outer identities for the cases that must fail on the
+    // intended binding rather than on a now-stale Descriptor/Archive hash.
+    const descriptor =
+      mutated.descriptor as Mutable<ReleasePublication.ProjectDeliveryArchiveDescriptor>;
+    const validation =
+      mutated.validation as Mutable<ReleasePublication.ProjectDeliveryArchiveValidation>;
+    const archiveRef = mutated.archiveRef as Mutable<ReleasePublication.ProjectDeliveryArchiveRef>;
+    for (const step of mutation.recompute ?? []) {
+      if (step === 'validation')
+        descriptor.validationFactRef.contentHash = archiveValidationHash(validation);
+      if (step === 'descriptor') archiveRef.contentHash = archiveDescriptorHash(descriptor);
+    }
     expect(() => {
       validateProjectDeliveryArchiveMaterials(
         mutated as unknown as Parameters<typeof validateProjectDeliveryArchiveMaterials>[0],

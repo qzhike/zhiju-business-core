@@ -2,7 +2,7 @@
   "provenance": {
     "synthetic": true,
     "source": "D12 / Q11 (#272) standalone structural fixture",
-    "description": "Legacy single-Revision `release-package-manifest/1.0` baseline: the frozen REL-801-style Package hash and payload hash that the D12 domains must never alter or absorb."
+    "description": "Legacy single-Revision `release-package-manifest/1.0` baseline: the frozen REL-801-style Package hash and payload hash that the D12 domains must never alter or absorb. It intentionally keeps its historical DOCX representation acceptance."
   },
   "packageDefinition": {
     "releaseRef": {

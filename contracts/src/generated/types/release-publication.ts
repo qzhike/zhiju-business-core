@@ -126,6 +126,8 @@ export namespace ReleasePublication {
   export type ProjectDeliveryArchiveDescriptorVersion = "project-delivery-archive/1.0";
   export type ProjectDeliveryZipProfileVersion = "project-delivery-zip/1.0";
   export type ProjectDeliveryExportMediaType = "application/zip";
+  export type ProjectDeliveryRepresentationFormat = "document.markdown";
+  export type ProjectDeliveryRepresentationMediaType = "text/markdown";
   export type ProjectDeliveryBatchStatus = "CONFIRMED";
   export type ProjectDeliveryCurrentUseStatus = "USABLE" | "BLOCKED" | "UNKNOWN";
   export type ProjectDeliveryArchiveValidationOutcome = "VERIFIED";
@@ -143,13 +145,19 @@ export namespace ReleasePublication {
   readonly revisionProvenance: ReleasePublication.RevisionProvenance;
   readonly sourceReportRefs: readonly Common.SnapshotRef[];
 }
-  export interface ProjectDeliveryDependencyProof {
-  readonly ruleRefs: readonly Common.VersionedRef[];
+  export type ProjectDeliveryDependencyProof = {
+  readonly ruleRefs: readonly (Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+})[];
   readonly requiredItemIds: readonly Common.UuidV7[];
   readonly coveredItemIds: readonly Common.UuidV7[];
   readonly associationSetHash: Common.ContentHash;
   readonly requirementSetHash: Common.ContentHash;
-}
+};
   export type ProjectDeliveryRepresentationRef = Common.RepresentationRef & {
   readonly revision?: Common.ContentAddressedRef & {
   readonly objectType?: "artifact.artifact_revision";
@@ -158,6 +166,8 @@ export namespace ReleasePublication {
   readonly projectId: Common.UuidV7;
 };
 };
+  readonly format?: ReleasePublication.ProjectDeliveryRepresentationFormat;
+  readonly mediaType?: ReleasePublication.ProjectDeliveryRepresentationMediaType;
 };
   export type ProjectDeliveryReleasePackageRef = Common.ReleasePackageRef & {
   readonly releaseRef?: Common.ObjectRef & {
@@ -262,7 +272,12 @@ export namespace ReleasePublication {
   readonly projectId: Common.UuidV7;
 };
 };
-  readonly recipientScopeSnapshotRef: Common.SnapshotRef;
+  readonly recipientScopeSnapshotRef: Common.SnapshotRef & {
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
   readonly destinations: readonly ReleasePublication.ReleaseDestinationDefinition[];
   readonly exportPolicyRef: Common.VersionedRef & {
   readonly objectType?: "zhiju.identity.policy";

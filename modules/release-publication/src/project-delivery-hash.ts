@@ -20,6 +20,9 @@ export const PROJECT_DELIVERY_ARCHIVE_DESCRIPTOR_VERSION = 'project-delivery-arc
 export const PROJECT_DELIVERY_ZIP_PROFILE_VERSION = 'project-delivery-zip/1.0';
 export const PROJECT_DELIVERY_EXPORT_MEDIA_TYPE = 'application/zip';
 export const PROJECT_DELIVERY_ARCHIVE_VALIDATION_OUTCOME = 'VERIFIED';
+/** The first version packages one registered Markdown representation per Artifact. */
+export const PROJECT_DELIVERY_REPRESENTATION_FORMAT = 'document.markdown';
+export const PROJECT_DELIVERY_REPRESENTATION_MEDIA_TYPE = 'text/markdown';
 
 /** The declared manifest/archive materials contradict each other or a domain. */
 export const PROJECT_DELIVERY_MANIFEST_INVALID = 'PROJECT_DELIVERY_MANIFEST_INVALID';
@@ -264,4 +267,27 @@ export function sameTypedIdentity(left: ReferenceIdentity, right: ReferenceIdent
 /** Full identity equality: kind, objectType, objectId and every Scope member. */
 export function sameObjectIdentity(left: ReferenceIdentity, right: ReferenceIdentity): boolean {
   return left.kind === right.kind && sameTypedIdentity(left, right);
+}
+
+export interface ContentAddressedReferenceIdentity extends ReferenceIdentity {
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}
+
+/**
+ * Exact CONTENT_ADDRESSED equality: kind, objectType, objectId, every Scope
+ * member, the declared `immutableVersionId` and every declared member of the
+ * content hash (compared by canonical identity, so no member is silently
+ * ignored). Comparing object identity alone would treat two different content
+ * declarations of the same Revision as one reference.
+ */
+export function sameContentAddressedIdentity(
+  left: ContentAddressedReferenceIdentity,
+  right: ContentAddressedReferenceIdentity,
+): boolean {
+  return (
+    sameObjectIdentity(left, right) &&
+    left.immutableVersionId === right.immutableVersionId &&
+    canonicalIdentity(left.contentHash) === canonicalIdentity(right.contentHash)
+  );
 }

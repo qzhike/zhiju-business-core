@@ -95,11 +95,21 @@ const enterpriseScope = {
   properties: { enterpriseId: uuid, projectId: uuid },
 } as const;
 
-function scopedReference(reference: JsonSchema, objectType: string, scope: unknown): JsonSchema {
+function scopedReference(
+  reference: JsonSchema,
+  objectType: string | undefined,
+  scope: unknown,
+): JsonSchema {
   return {
     allOf: [
       reference,
-      { type: 'object', properties: { objectType: { const: objectType }, scope } },
+      {
+        type: 'object',
+        properties: {
+          ...(objectType === undefined ? {} : { objectType: { const: objectType } }),
+          scope,
+        },
+      },
     ],
   };
 }
@@ -107,6 +117,20 @@ function scopedReference(reference: JsonSchema, objectType: string, scope: unkno
 function projectReference(reference: JsonSchema, objectType: string): JsonSchema {
   return scopedReference(reference, objectType, projectScope);
 }
+
+/** Policy versions keep the owning registered spelling and their enterprise Scope. */
+const policyReference = scopedReference(
+  versionedReference,
+  'zhiju.identity.policy',
+  enterpriseScope,
+);
+
+/**
+ * Project-scoped snapshot whose `objectType` stays an owning-resolution fact.
+ * The shared `scopeRef` leaves both members optional, so the D12 first version
+ * pins the Scope it actually requires.
+ */
+const projectScopedSnapshotReference = scopedReference(snapshotReference, undefined, projectScope);
 
 // =============================================================================
 // Enums (Module-Spec-006 §2)
@@ -406,6 +430,8 @@ const namedDefinitions = {
   projectDeliveryArchiveDescriptorVersion: { const: 'project-delivery-archive/1.0' },
   projectDeliveryZipProfileVersion: { const: 'project-delivery-zip/1.0' },
   projectDeliveryExportMediaType: { const: 'application/zip' },
+  projectDeliveryRepresentationFormat: { const: 'document.markdown' },
+  projectDeliveryRepresentationMediaType: { const: 'text/markdown' },
   projectDeliveryBatchStatus: { enum: ['CONFIRMED'] },
   projectDeliveryCurrentUseStatus: { enum: ['USABLE', 'BLOCKED', 'UNKNOWN'] },
   projectDeliveryArchiveValidationOutcome: { enum: ['VERIFIED'] },
@@ -445,7 +471,9 @@ const namedDefinitions = {
   projectDeliveryDependencyProof: object(
     ['ruleRefs', 'requiredItemIds', 'coveredItemIds', 'associationSetHash', 'requirementSetHash'],
     {
-      ruleRefs: array(versionedReference, { nonEmpty: true, unique: true }),
+      // Only real Policy versions, including the Plan quality Policy and the
+      // export Policy: a QualityProfile is not a Policy and cannot stand in.
+      ruleRefs: array(policyReference, { nonEmpty: true, unique: true }),
       requiredItemIds: array(uuid, { unique: true }),
       coveredItemIds: array(uuid, { unique: true }),
       associationSetHash: contentHash,
@@ -453,7 +481,12 @@ const namedDefinitions = {
     },
   ),
 
-  /** `RepresentationRef` with its nested Revision pinned to the owning spelling. */
+  /**
+   * `RepresentationRef` with its nested Revision pinned to the owning spelling
+   * and the D12 Markdown-only boundary: the first version packages one
+   * registered Markdown representation per Artifact and performs no
+   * DOCX/XLSX/PDF conversion.
+   */
   projectDeliveryRepresentationRef: {
     allOf: [
       representationReference,
@@ -461,6 +494,8 @@ const namedDefinitions = {
         type: 'object',
         properties: {
           revision: projectReference(contentAddressedReference, 'artifact.artifact_revision'),
+          format: localRef('projectDeliveryRepresentationFormat'),
+          mediaType: localRef('projectDeliveryRepresentationMediaType'),
         },
       },
     ],
@@ -555,16 +590,12 @@ const namedDefinitions = {
       // registered `const`, so the first version pins the reference kind and the
       // structural Project Scope and leaves the exact `objectType` to the owning
       // resolution instead of fabricating a selector.
-      recipientScopeSnapshotRef: snapshotReference,
+      recipientScopeSnapshotRef: projectScopedSnapshotReference,
       destinations: array(localRef('releaseDestinationDefinition'), {
         nonEmpty: true,
         unique: true,
       }),
-      exportPolicyRef: scopedReference(
-        versionedReference,
-        'zhiju.identity.policy',
-        enterpriseScope,
-      ),
+      exportPolicyRef: policyReference,
       dependencyProof: localRef('projectDeliveryDependencyProof'),
       entries: array(localRef('projectDeliveryEntry'), { nonEmpty: true, unique: true }),
     },

@@ -27,8 +27,11 @@ import {
   PROJECT_DELIVERY_HASH_MISMATCH,
   PROJECT_DELIVERY_MANIFEST_INVALID,
   PROJECT_DELIVERY_MANIFEST_VERSION,
+  PROJECT_DELIVERY_REPRESENTATION_FORMAT,
+  PROJECT_DELIVERY_REPRESENTATION_MEDIA_TYPE,
   PROJECT_DELIVERY_ZIP_PROFILE_VERSION,
   projectDeliveryBytesChecksum,
+  sameContentAddressedIdentity,
   sameObjectIdentity,
   sameTypedIdentity,
   type ReferenceIdentity,
@@ -191,6 +194,47 @@ function assertSharedScope(
   }
 }
 
+/**
+ * Every *declared* Scope member of a reference must agree with the batch Scope.
+ * Undeclared members are never fabricated: an Artifact-owned provenance member
+ * may legitimately be enterprise- or platform-scoped, and ownership is not a
+ * machine-registered fact in this contract family.
+ */
+function assertDeclaredScopeConsistency(
+  reference: unknown,
+  projectScope: Common.ScopeRef,
+  code: string,
+): void {
+  const scope = scopeOf(reference);
+  const enterpriseId = text(scope.enterpriseId);
+  const projectId = text(scope.projectId);
+  if (enterpriseId !== '' && enterpriseId !== text(projectScope.enterpriseId)) {
+    throw new Error(code);
+  }
+  if (projectId !== '' && projectId !== text(projectScope.projectId)) throw new Error(code);
+}
+
+/**
+ * The RevisionProvenance members an entry stores. Artifact owns this definition,
+ * so the entry consumes them as open references and only compares the Scope
+ * members they actually declare.
+ */
+function entryProvenanceReferences(entry: Entry): readonly ReferenceIdentity[] {
+  const provenance = entry.provenance.revisionProvenance;
+  return [
+    provenance.principal,
+    provenance.actingForRef,
+    provenance.taskRef,
+    provenance.workOrderRef,
+    provenance.runRef,
+    provenance.agentResultRef,
+    provenance.contextSnapshotRef,
+    provenance.templateBaselineRef,
+    provenance.regulatoryProfileRef,
+    ...provenance.sourceMaterialRefs,
+  ].filter((reference) => reference !== undefined);
+}
+
 function entryProjectReferences(entry: Entry): readonly ReferenceIdentity[] {
   return [
     entry.artifactRef,
@@ -228,6 +272,7 @@ function assertEntryStructure(entry: Entry, projectScope: Common.ScopeRef): void
     { kind: 'VERSIONED', objectType: 'quality.quality_profile', scope: 'ENTERPRISE_ONLY' },
     code,
   );
+  assertDeclaredScopeConsistency(entry.qualityProfileRef, projectScope, code);
   assertReference(
     entry.revisionAcceptanceSnapshotRef,
     { kind: 'SNAPSHOT', objectType: 'quality.revision_acceptance_snapshot', scope: 'PROJECT' },
@@ -261,8 +306,16 @@ function assertEntryStructure(entry: Entry, projectScope: Common.ScopeRef): void
   assertUniqueIdentities(entry.chapterBindings, code);
   assertUniqueIdentities(entry.provenance.sourceReportRefs, code);
 
-  // The packaged representation must belong to exactly the declared Revision.
-  if (!sameObjectIdentity(entry.representationRef.revision, entry.revisionRef)) {
+  // The packaged representation must be the entry's Markdown representation of
+  // exactly the declared Revision: the first version packages one registered
+  // Markdown file per Artifact and performs no DOCX/XLSX/PDF conversion.
+  assertDeclaredValue(entry.representationRef.format, PROJECT_DELIVERY_REPRESENTATION_FORMAT, code);
+  assertDeclaredValue(
+    entry.representationRef.mediaType,
+    PROJECT_DELIVERY_REPRESENTATION_MEDIA_TYPE,
+    code,
+  );
+  if (!sameContentAddressedIdentity(entry.representationRef.revision, entry.revisionRef)) {
     throw new Error(code);
   }
   // The frozen Package must be the Package of the entry's own Release.
@@ -274,6 +327,16 @@ function assertEntryStructure(entry: Entry, projectScope: Common.ScopeRef): void
   if (entry.archivePath !== expectedArchivePath(entry)) throw new Error(code);
 
   assertSharedScope(entryProjectReferences(entry), projectScope, code);
+  // Provenance is read back from the Artifact-owned Revision and the
+  // EnterpriseProject-owned accepted reports: a declared Scope member must be
+  // this batch's Enterprise/Project, and a report snapshot is Project-scoped.
+  for (const reference of entryProvenanceReferences(entry)) {
+    assertDeclaredScopeConsistency(reference, projectScope, code);
+  }
+  for (const reportRef of entry.provenance.sourceReportRefs) {
+    assertReference(reportRef, PROJECT_SCOPED_SNAPSHOT, code);
+    assertSharedScope([reportRef], projectScope, code);
+  }
 }
 
 function assertDestinations(manifest: Manifest, projectScope: Common.ScopeRef): void {
@@ -290,14 +353,17 @@ function assertDestinations(manifest: Manifest, projectScope: Common.ScopeRef): 
   }
 }
 
-function assertDependencyProof(manifest: Manifest): void {
+function assertDependencyProof(manifest: Manifest, projectScope: Common.ScopeRef): void {
   const code = PROJECT_DELIVERY_MANIFEST_INVALID;
   const { dependencyProof } = manifest;
   if (dependencyProof.ruleRefs.length === 0) throw new Error(code);
   assertUniqueIdentities(dependencyProof.ruleRefs, code);
   assertUniqueIdentities(dependencyProof.requiredItemIds, code);
   assertUniqueIdentities(dependencyProof.coveredItemIds, code);
-  for (const ruleRef of dependencyProof.ruleRefs) assertReference(ruleRef, POLICY, code);
+  for (const ruleRef of dependencyProof.ruleRefs) {
+    assertReference(ruleRef, POLICY, code);
+    assertDeclaredScopeConsistency(ruleRef, projectScope, code);
+  }
   // The export Policy is one of the delivered-companion rules; a QualityProfile
   // disguised as a Policy rule is rejected by the Policy expectation above.
   if (
@@ -337,6 +403,7 @@ export function validateProjectDeliveryManifest(manifest: Manifest): void {
   if (manifest.entries.length === 0 || manifest.destinations.length === 0) throw new Error(code);
 
   const projectScope = scopeOf(manifest.projectRef);
+  assertDeclaredScopeConsistency(manifest.exportPolicyRef, projectScope, code);
   const artifactIdentities = new Set<string>();
   const archivePaths = new Set<string>();
   for (const entry of manifest.entries) {
@@ -354,7 +421,7 @@ export function validateProjectDeliveryManifest(manifest: Manifest): void {
     code,
   );
   assertDestinations(manifest, projectScope);
-  assertDependencyProof(manifest);
+  assertDependencyProof(manifest, projectScope);
 }
 
 /**
@@ -473,8 +540,6 @@ export function validateProjectDeliveryArchiveMaterials(
   // OBJECT archive identity versus CONTENT_ADDRESSED archive identity: the two
   // share type/id/Scope by definition and their kinds are asserted above.
   if (!sameTypedIdentity(descriptor.archiveRef, archiveRef)) throw new Error(mismatch);
-  if (!sameTypedIdentity(descriptor.batchRef, manifest.batchRef)) throw new Error(mismatch);
-  if (!sameTypedIdentity(validation.batchRef, manifest.batchRef)) throw new Error(mismatch);
   if (
     text(scopeOf(archiveRef).enterpriseId) !== text(scopeOf(manifest.projectRef).enterpriseId) ||
     text(scopeOf(archiveRef).projectId) !== text(scopeOf(manifest.projectRef).projectId)
@@ -482,7 +547,16 @@ export function validateProjectDeliveryArchiveMaterials(
     throw new Error(mismatch);
   }
 
+  // Both declared Batch identities must bind this manifest: the same type/id/
+  // Scope *and* the same batchManifestHash. A hash-free identity comparison
+  // would accept one Batch identity carrying two different manifest hashes.
   const expectedBatchManifestHash = batchManifestHash(manifest);
+  for (const batchRef of [descriptor.batchRef, validation.batchRef]) {
+    if (!sameTypedIdentity(batchRef, manifest.batchRef)) throw new Error(mismatch);
+    if (!sameContentHash(batchRef.contentHash, expectedBatchManifestHash)) {
+      throw new Error(mismatch);
+    }
+  }
   if (!sameContentHash(descriptor.batchManifestHash, expectedBatchManifestHash)) {
     throw new Error(mismatch);
   }
@@ -544,6 +618,15 @@ export function validateProjectDeliveryArchiveMaterials(
   if (materials.zipBytes !== undefined) {
     const derived = projectDeliveryBytesChecksum(materials.zipBytes);
     if (!sameContentHash(derived, descriptor.zipChecksum)) throw new Error(mismatch);
+    // The supplied bytes must also prove the exact declared size, not only the
+    // checksum: a VERIFIED fact may not over- or under-declare its byte length.
+    const byteSize =
+      typeof materials.zipBytes === 'string'
+        ? Buffer.byteLength(materials.zipBytes, 'utf8')
+        : materials.zipBytes.byteLength;
+    if (byteSize !== descriptor.zipByteSize || byteSize !== validation.zipByteSize) {
+      throw new Error(mismatch);
+    }
   }
 }
 

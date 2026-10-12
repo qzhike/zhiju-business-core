@@ -82,6 +82,14 @@
   {
     "base": "manifest",
     "definition": "projectDeliveryManifest",
+    "path": "/entries/0/qualityProfileRef/scope/enterpriseId",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/entries/0/qualityProfileRef/scope"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
     "path": "/entries/0/releaseRef/scope",
     "value": {},
     "keyword": "required",
@@ -114,6 +122,86 @@
     ],
     "keyword": "required",
     "expectedPath": "/entries/0/provenance/sourceReportRefs/0"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.docx",
+    "keyword": "const",
+    "expectedPath": "/entries/0/representationRef/format"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.xlsx",
+    "keyword": "const",
+    "expectedPath": "/entries/0/representationRef/format"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.pdf",
+    "keyword": "const",
+    "expectedPath": "/entries/0/representationRef/format"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/representationRef/mediaType",
+    "value": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "keyword": "const",
+    "expectedPath": "/entries/0/representationRef/mediaType"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/representationRef/mediaType",
+    "value": "text/plain",
+    "keyword": "const",
+    "expectedPath": "/entries/0/representationRef/mediaType"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/dependencyProof/ruleRefs/1",
+    "value": {
+      "kind": "VERSIONED",
+      "objectType": "quality.quality_profile",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "keyword": "const",
+    "expectedPath": "/dependencyProof/ruleRefs/1/objectType"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/dependencyProof/ruleRefs/1/scope",
+    "value": {},
+    "keyword": "required",
+    "expectedPath": "/dependencyProof/ruleRefs/1/scope"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/recipientScopeSnapshotRef/scope",
+    "value": {},
+    "keyword": "required",
+    "expectedPath": "/recipientScopeSnapshotRef/scope"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/recipientScopeSnapshotRef/scope/projectId",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/recipientScopeSnapshotRef/scope"
   },
   {
     "base": "descriptor",
@@ -164,6 +252,14 @@
     "expectedPath": ""
   },
   {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/batchRef/contentHash",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/batchRef"
+  },
+  {
     "base": "validation",
     "definition": "projectDeliveryArchiveValidation",
     "path": "/outcome",
@@ -194,5 +290,13 @@
     "value": "project-delivery-archive/1.0",
     "keyword": "additionalProperties",
     "expectedPath": ""
+  },
+  {
+    "base": "validation",
+    "definition": "projectDeliveryArchiveValidation",
+    "path": "/batchRef/contentHash",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/batchRef"
   }
 ]

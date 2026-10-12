@@ -26,6 +26,49 @@
     "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
   },
   {
+    "description": "descriptor Batch identity carries another manifest hash",
+    "path": "/descriptor/batchRef/contentHash",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "abababababababababababababababababababababababababababababababab"
+    },
+    "recompute": ["validation", "descriptor"],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "validation Batch identity carries another manifest hash",
+    "path": "/validation/batchRef/contentHash",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"
+    },
+    "recompute": ["validation", "descriptor"],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor and validation Batch identities disagree with each other",
+    "path": "/descriptor/batchRef/contentHash",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "abababababababababababababababababababababababababababababababab"
+    },
+    "also": [
+      {
+        "path": "/validation/batchRef/contentHash",
+        "value": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"
+        }
+      }
+    ],
+    "recompute": ["validation", "descriptor"],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
     "description": "ZIP checksum substituted by the batch manifest hash",
     "path": "/descriptor/zipChecksum",
     "from": "/descriptor/batchManifestHash",
@@ -68,6 +111,32 @@
         }
       }
     ],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "declared ZIP byte size contradicts the supplied ZIP bytes",
+    "path": "/descriptor/zipByteSize",
+    "value": 47,
+    "also": [
+      {
+        "path": "/validation/zipByteSize",
+        "value": 47
+      }
+    ],
+    "recompute": ["validation", "descriptor"],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "declared ZIP byte size is short by one byte",
+    "path": "/descriptor/zipByteSize",
+    "value": 45,
+    "also": [
+      {
+        "path": "/validation/zipByteSize",
+        "value": 45
+      }
+    ],
+    "recompute": ["validation", "descriptor"],
     "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
   },
   {
