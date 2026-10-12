@@ -1,5 +1,63 @@
 # PR #275 独立实现审查
 
+## 人类实现技术批准与最终审查结论
+
+- 批准日期：2026-10-12（Asia/Shanghai）。
+- 当前 Reviewer 结论：`APPROVE`。
+- 已审并获批 SHA：`e41a6e8600e592f98709c0a8161e68dd565f682f`。
+- Base SHA：`ec3bd6db7dec7294519ead17ad4a9cf69fb7b8af`。
+- 人类批准来源：用户针对第四轮技术复审结论及其明确列出的精确修订人类技术门禁，在当前 Codex 对话中明确回复“批准”；本批准由 Codex 转录该用户决定。
+- GitHub 批准记录：[Human implementation technical approval / comment 6117295474](https://github.com/qzhike/zhiju-business-core/pull/275#issuecomment-6117295474)，2026-10-12 03:37:55 UTC；已完整读回 APPROVE、用户明确批准来源和精确 SHA，正文匹配本地准备的转录。发表前后远端 head 均未变。
+
+批准前已通过 `vibe repo --json` 和远端 PR 读回确认本地及 PR head 仍为上述 SHA；第四轮 [独立技术复审](https://github.com/qzhike/zhiju-business-core/pull/275#pullrequestreview-5486297442) 精确绑定该 SHA，R1–R10 的已报告反例已修复，19 个独立定向用例全部通过。[CI run 38193828114](https://github.com/qzhike/zhiju-business-core/actions/runs/38193828114) 再次读回 headSha 相同、conclusion=success，覆盖所需 full 门禁。没有产品修订变化，复用这些当前证据，没有重复执行相同验证。
+
+该用户决定满足 Issue #270 对此修订的 Human 实现技术批准门禁，取代下方第四轮发表时的 HUMAN_REVIEW_REQUIRED 结论；既有审查过程、发现、证据和当时事实均保留。批准范围为 #270 的 ART/IG/Contracts 闭口 Markdown 技术管线；未来 TE、候选封存 / Head、Attempt/Binding/Representation、公开 Diff/下载、Host/Runner/OIDC/HTTP、Browser 与独立人工内容验收仍按原切片边界保持 NOT IMPLEMENTED / NOT RUN。
+
+本轮只记录技术批准并更新正式记录；记录增量在 approved SHA 之后产生、未 commit/push，不属于该 SHA 或其 CI。没有合并 PR。
+
+批准附录及完整 Review.md 的单文件 Prettier、Markdown fence/conflict 与工作区 `git diff --check HEAD` 检查均 PASS；这些仅覆盖正式记录增量，没有改变或替代已获批 SHA 的 CI 证据。
+
+## 第四轮复审：修复 head `e41a6e8`
+
+- 复审日期：2026-10-12（Asia/Shanghai）。
+- 当前角色与结论：`Reviewer / HUMAN_REVIEW_REQUIRED`。
+- 独立技术判断：R1–R10 已报告反例均通过复验；本轮未发现剩余代码、Contract、范围或配置门禁阻塞项。剩余门禁为 Issue #270 明确要求的精确修订人类实现技术批准。
+- 已审 SHA：`e41a6e8600e592f98709c0a8161e68dd565f682f`。
+- Base SHA：`ec3bd6db7dec7294519ead17ad4a9cf69fb7b8af`。
+- 上轮已审 SHA：`e3901db795325ecd9ea31f77f3ea2739de7cac09`。
+- PR：<https://github.com/qzhike/zhiju-business-core/pull/275>；Issue：[#270](https://github.com/qzhike/zhiju-business-core/issues/270)。
+- 本轮已发表：[COMMENT review 5486297442](https://github.com/qzhike/zhiju-business-core/pull/275#pullrequestreview-5486297442)，2026-10-12 03:30:15 UTC；已读回 HUMAN_REVIEW_REQUIRED、完整 body、state=COMMENTED 和精确 commit_id，均匹配本地准备的评论。发表前后远端 head 均未变。
+
+本轮独立读取最新 PR / Issue、实际修复 diff、相关 ART / Module-Test 和当前 exact-revision CI，沿用已批准 ART §13.2 / Delta §3 的支持集与首轮完整 named Contract 字段对账。预期为 R10 两种缩进 spaced thematic marker 正确结束列表、产生真实 THEMATIC_BREAK，扫描必须消费输入；普通子列表保持 parent/depth，真实 setext 继续拒绝，受支持输入保持完整 tree、身份与 cv1 Hash。实现者的修复说明与临时探针报告仅作定位，不作为本轮验证证据。
+
+### 已报告发现的当前状态
+
+| 发现  | 本轮独立核对                                                                                                                                                                                                                    | 判定           |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| R1–R8 | 当前源代码上的合法绑定 / round-trip、Artifact/Project/output/raw/base/mapping 拒绝、node/column 完整对应拒绝、列表硬换行 / ATX、Unit 上限、未知 selector / 非首行 header、扩展拒绝与 CODE literal 控制均通过。                  | 原反例保持修复 |
+| R9    | 五种未缩进 thematic marker 的相邻 / 空行列表对照、段落相邻 `***`、真实 setext 拒绝与 canonical round-trip 均通过。                                                                                                              | 原反例保持修复 |
+| R10   | `- item\n  * * *\n` / `- item\n  - - -\n` 的正常时钟与约 100ms 测试 deadline、有 / 无空行各组均产出恰好 LIST_ITEM + THEMATIC_BREAK，省略 break text，无重复节点。与未缩进基准 canonicalJson 相等，完整 round-trip / Hash 通过。 | 原反例已修复   |
+
+代码在递归子列表之前判定 THEMATIC_PATTERN。根扫描入口已先处理 thematic，递归入口现在也只送入非 thematic 的合法 list marker；子 scanner 第一轮因此建立真实 item 并增加 index，不再返回零消费空 LIST。普通 `- parent\n  - child\n  * * x\n` 的 3 个真实项、child.parentUnitId 和 listDepth=2 均独立断言并通过 round-trip。本轮没有要求增加不可达的防御分支或扩大 grammar。
+
+新增测试和 `list-thematic-break.md` 确实覆盖两种缩进 marker 与普通子列表；ART §13.6 / Module-Test 同步了实现边界。此次实现增量仅 4 行 parser 优先级处理，没有变更机器 Schema/类型、registered selector、identity input、IG renderer、旧 profile / request_render@1.0 或 cv1 Hash。前三轮正式记录现在均已包含在 `e41a6e8`；以下保留其原始发表时事实，历史“未提交”等措辞不代表本轮初始工作区。
+
+### 本轮证据与人类技术门禁
+
+| 证据             | 核对结果                                                                                                                                                                                                                                                                                        | 边界                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Exact revision   | `vibe repo --json` 为 qzhike/zhiju-business-core / `e41a6e8600e592f98709c0a8161e68dd565f682f`；远端 head 一致，base 未变，PR OPEN / 非 Draft；本轮开始工作区干净。                                                                                                                              | 本轮正式记录增量在 reviewed head 之后新增。                                                                           |
+| 配置 CI          | [run 38193828114](https://github.com/qzhike/zhiju-business-core/actions/runs/38193828114) 的 headSha 精确匹配，select/checks/persistence/verify 全部 SUCCESS；实际 Verify code、Build persistence prerequisites、Verify persistence 和 aggregate 步骤全部成功，workflow / project config 未变。 | 覆盖 ready PR 要求的 full；复用当前证据，不重复本地 full，不推导未来 Markdown 业务链或人工验收已完成。                |
+| 独立定向验证     | `node node_modules/vitest/vitest.mjs run tests/business/pr275-round4-probe.test.ts --reporter=default --reporter=json --outputFile=/private/tmp/pr275-round4-probe-results.json`；1 file / 19 tests 全 PASS，1.15 秒。                                                                          | R1–R10 回归及正反控制通过；R10 同时使用正常时钟和前轮的短测试 deadline。这是独立语义诊断，不冒称配置 full。           |
+| 临时材料         | 最终源在 `/private/tmp/pr275-round4-probe.test.ts`，结果在 `/private/tmp/pr275-round4-probe-results.json`。                                                                                                                                                                                     | 探针已从仓库删除；未改产品代码、原测试、Contract 或 owning Spec。                                                     |
+| 正式记录         | 本轮仅更新此 Review.md，保留各轮发现、证据与发表链接，并补入第四轮 review 的完整读回指针。                                                                                                                                                                                                      | 本轮增量未 commit/push，不属于 reviewed SHA 或其 CI。                                                                 |
+| Focused 文档检查 | 单文件 Prettier、Markdown fence/conflict、历史 R10 原始输入文本及工作区 `git diff --check HEAD` 均 PASS。                                                                                                                                                                                       | 只覆盖正式记录增量，不冒称该页已包含在 current CI 或取得新的 full。                                                   |
+| GitHub 访问恢复  | 发表前沙箱 `gh pr view 275` 的 GraphQL 调用超时；host 最小只读 `gh api repos/qzhike/zhiju-business-core` 也报 `dial tcp 198.18.0.37:443: i/o timeout`。一次有界 host REST PR 读回恢复，随后 head / reviews / comments 核对、POST review 与完整读回均成功。                                      | 短暂外部连接失败，没有推断认证无效；保持 gh 路径，没有使用 Computer Use。不影响此前取得的当前修订 CI 或独立语义证据。 |
+
+[Issue #270 Verify](https://github.com/qzhike/zhiju-business-core/issues/270) 明确要求：“Require independent T2 implementation review and applicable exact-revision Human technical approval before delivery.” 当前 PR 的最新讨论仍明确记录实现人类技术批准待办；当前 reviews 未提供对此 head 的人类批准。PR #269 的 `d5ff5f0` 设计批准不能代替 `e41a6e8` 的实现技术批准。因此本轮独立技术复审通过，但 Reviewer outcome 为 HUMAN_REVIEW_REQUIRED，而非 APPROVE；这不是因普通合并授权待办而设置的门禁。
+
+本轮已以 COMMENT review 发表上述技术判断与精确 SHA，交由适用 Human 技术权威审查该实现；该事件不是 GitHub APPROVED，也不是人类技术批准。未来 TE、候选封存 / Head、Attempt/Binding/Representation、公开 Diff/下载、Host/Runner/OIDC/HTTP、Browser 与独立人工内容验收继续保持本切片的 NOT IMPLEMENTED / NOT RUN。没有修复产品、commit、push 或 merge。
+
 ## 第三轮复审：修复 head `e3901db`
 
 - 复审日期：2026-10-12（Asia/Shanghai）。
