@@ -54,6 +54,59 @@ const releasePackageRef = { $ref: `${common}releasePackageRef` } as const;
 const opaqueCursor = { $ref: `${common}opaqueCursor` } as const;
 const pageRequest = { $ref: `${common}pageRequest` } as const;
 const canonicalJson = {} as const;
+const nonNegativeInt = { type: 'integer', minimum: 0 } as const;
+const representationReference = { $ref: `${common}representationRef` } as const;
+
+// =============================================================================
+// D12 / Q11 project-delivery reference narrowing (#272)
+// =============================================================================
+//
+// `Common.scopeRef` leaves both Scope members optional, so every D12
+// Project-owned reference is narrowed explicitly, exactly like
+// `task-execution.schema.ts` narrows its Context / Task-readiness snapshots.
+// Enterprise-owned Profile/Policy references keep their own legal Scope instead
+// of copying the Project rule.
+
+const projectScope = {
+  type: 'object',
+  required: ['enterpriseId', 'projectId'],
+  properties: { enterpriseId: uuid, projectId: uuid },
+} as const;
+
+/**
+ * Enterprise-scoped aggregates (`quality.quality_profile`) cannot carry a
+ * projectId: the owning module rejects Project scope and its migration enforces
+ * `project_id IS NULL`.
+ */
+const enterpriseOnlyScope = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enterpriseId'],
+  properties: { enterpriseId: uuid },
+} as const;
+
+/**
+ * Policy versions require `enterpriseId`; `projectId` stays an owning-resolution
+ * fact because the Policy version decides which Scope form is legal.
+ */
+const enterpriseScope = {
+  type: 'object',
+  required: ['enterpriseId'],
+  properties: { enterpriseId: uuid, projectId: uuid },
+} as const;
+
+function scopedReference(reference: JsonSchema, objectType: string, scope: unknown): JsonSchema {
+  return {
+    allOf: [
+      reference,
+      { type: 'object', properties: { objectType: { const: objectType }, scope } },
+    ],
+  };
+}
+
+function projectReference(reference: JsonSchema, objectType: string): JsonSchema {
+  return scopedReference(reference, objectType, projectScope);
+}
 
 // =============================================================================
 // Enums (Module-Spec-006 §2)
@@ -340,6 +393,304 @@ const namedDefinitions = {
     snapshotAt: instant,
     sourceWatermarks: array({ $ref: `${common}sourceWatermark` }),
   }),
+
+  // --- D12 / Q11 project-delivery immutable contract (#272) -----------------
+  //
+  // Closed types for the ReleasePublication-owned immutable project-delivery
+  // contract approved in Module-Spec-006 §14.2. Publishing these definitions
+  // registers the type/identity surface only: it creates no business object,
+  // registers no public operation and makes no unimplemented D12 handler
+  // callable. Every embedded reference keeps its owning module's registered
+  // `objectType` and legal Scope.
+  projectDeliveryManifestVersion: { const: 'project-delivery-batch-manifest/1.0' },
+  projectDeliveryArchiveDescriptorVersion: { const: 'project-delivery-archive/1.0' },
+  projectDeliveryZipProfileVersion: { const: 'project-delivery-zip/1.0' },
+  projectDeliveryExportMediaType: { const: 'application/zip' },
+  projectDeliveryBatchStatus: { enum: ['CONFIRMED'] },
+  projectDeliveryCurrentUseStatus: { enum: ['USABLE', 'BLOCKED', 'UNKNOWN'] },
+  projectDeliveryArchiveValidationOutcome: { enum: ['VERIFIED'] },
+
+  /** Opaque controlled-object-storage locator (mirrors the artifact / IG pattern). */
+  objectLocator: {
+    type: 'string',
+    pattern: '^[a-z0-9][a-z0-9._-]*(?:/[A-Za-z0-9._-]+)+$',
+  },
+
+  projectDeliveryChapterBinding: object(['chapterCode', 'ordinal'], {
+    chapterCode: namespace,
+    ordinal: nonNegativeInt,
+  }),
+  projectDeliveryEntryChecksum: object(['archivePath', 'checksum'], {
+    archivePath: text,
+    checksum: contentHash,
+  }),
+
+  /**
+   * Reuses the Artifact-owned `RevisionProvenance` definition rather than
+   * restating its eleven fields: the entry stores the exact provenance of the
+   * immutable Artifact Revision it packages.
+   */
+  revisionProvenance: {
+    $ref: 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/revisionProvenance',
+  },
+  projectDeliveryProvenance: object(['revisionProvenance', 'sourceReportRefs'], {
+    revisionProvenance: localRef('revisionProvenance'),
+    // EnterpriseProject-owned accepted report snapshots. The D14 report
+    // `objectType` is still an unregistered proposal, so the first version
+    // pins the snapshot shape and accepts the legitimate empty collection
+    // instead of inventing a selector.
+    sourceReportRefs: array(snapshotReference, { unique: true }),
+  }),
+
+  projectDeliveryDependencyProof: object(
+    ['ruleRefs', 'requiredItemIds', 'coveredItemIds', 'associationSetHash', 'requirementSetHash'],
+    {
+      ruleRefs: array(versionedReference, { nonEmpty: true, unique: true }),
+      requiredItemIds: array(uuid, { unique: true }),
+      coveredItemIds: array(uuid, { unique: true }),
+      associationSetHash: contentHash,
+      requirementSetHash: contentHash,
+    },
+  ),
+
+  /** `RepresentationRef` with its nested Revision pinned to the owning spelling. */
+  projectDeliveryRepresentationRef: {
+    allOf: [
+      representationReference,
+      {
+        type: 'object',
+        properties: {
+          revision: projectReference(contentAddressedReference, 'artifact.artifact_revision'),
+        },
+      },
+    ],
+  },
+  projectDeliveryReleasePackageRef: {
+    allOf: [
+      releasePackageRef,
+      {
+        type: 'object',
+        properties: {
+          releaseRef: projectReference(objectReference, 'release.release'),
+          packageSnapshotRef: projectReference(snapshotReference, 'release.release_package'),
+        },
+      },
+    ],
+  },
+
+  projectDeliveryEntry: object(
+    [
+      'artifactRef',
+      'revisionRef',
+      'representationRef',
+      'deliveryItemIds',
+      'associationProofHash',
+      'chapterBindings',
+      'provenance',
+      'qualityProfileRef',
+      'revisionAcceptanceSnapshotRef',
+      'approvalBundleSnapshotRef',
+      'releaseRef',
+      'releasePackageRef',
+      'releaseReadinessSnapshotRef',
+      'releaseAuthorizationRef',
+      'archivePath',
+    ],
+    {
+      artifactRef: projectReference(objectReference, 'artifact.artifact'),
+      revisionRef: projectReference(contentAddressedReference, 'artifact.artifact_revision'),
+      representationRef: localRef('projectDeliveryRepresentationRef'),
+      deliveryItemIds: array(uuid, { nonEmpty: true, unique: true }),
+      associationProofHash: contentHash,
+      chapterBindings: array(localRef('projectDeliveryChapterBinding'), {
+        nonEmpty: true,
+        unique: true,
+      }),
+      provenance: localRef('projectDeliveryProvenance'),
+      qualityProfileRef: scopedReference(
+        versionedReference,
+        'quality.quality_profile',
+        enterpriseOnlyScope,
+      ),
+      revisionAcceptanceSnapshotRef: projectReference(
+        snapshotReference,
+        'quality.revision_acceptance_snapshot',
+      ),
+      approvalBundleSnapshotRef: projectReference(
+        snapshotReference,
+        'quality.approval_bundle_snapshot',
+      ),
+      releaseRef: projectReference(objectReference, 'release.release'),
+      releasePackageRef: localRef('projectDeliveryReleasePackageRef'),
+      releaseReadinessSnapshotRef: projectReference(
+        snapshotReference,
+        'quality.release_readiness_snapshot',
+      ),
+      releaseAuthorizationRef: projectReference(
+        contentAddressedReference,
+        'release.release_authorization',
+      ),
+      archivePath: text,
+    },
+  ),
+
+  projectDeliveryManifest: object(
+    [
+      'manifestVersion',
+      'batchRef',
+      'projectRef',
+      'deliveryPlanRef',
+      'recipientScopeSnapshotRef',
+      'destinations',
+      'exportPolicyRef',
+      'dependencyProof',
+      'entries',
+    ],
+    {
+      manifestVersion: localRef('projectDeliveryManifestVersion'),
+      batchRef: projectReference(objectReference, 'release.project_delivery_batch'),
+      projectRef: projectReference(objectReference, 'zhiju.project.project'),
+      deliveryPlanRef: projectReference(versionedReference, 'zhiju.project.delivery_plan'),
+      // The RecipientScope snapshot has two competing in-repo spellings and no
+      // registered `const`, so the first version pins the reference kind and the
+      // structural Project Scope and leaves the exact `objectType` to the owning
+      // resolution instead of fabricating a selector.
+      recipientScopeSnapshotRef: snapshotReference,
+      destinations: array(localRef('releaseDestinationDefinition'), {
+        nonEmpty: true,
+        unique: true,
+      }),
+      exportPolicyRef: scopedReference(
+        versionedReference,
+        'zhiju.identity.policy',
+        enterpriseScope,
+      ),
+      dependencyProof: localRef('projectDeliveryDependencyProof'),
+      entries: array(localRef('projectDeliveryEntry'), { nonEmpty: true, unique: true }),
+    },
+  ),
+
+  projectDeliveryBatchRef: projectReference(
+    contentAddressedReference,
+    'release.project_delivery_batch',
+  ),
+  projectDeliveryCurrentUse: object(['status', 'reasonCodes', 'checkedAt', 'sourceWatermarks'], {
+    status: localRef('projectDeliveryCurrentUseStatus'),
+    reasonCodes: array(reasonCode),
+    checkedAt: instant,
+    sourceWatermarks: array({ $ref: `${common}sourceWatermark` }),
+  }),
+  projectDeliveryBatchView: object(
+    [
+      'batchRef',
+      'manifest',
+      'status',
+      'confirmedAt',
+      'confirmingActorSnapshotRef',
+      'confirmingAuthorizationDecisionRef',
+      'confirmationReceiptRef',
+      'generationRequestRefs',
+      'currentUse',
+    ],
+    {
+      batchRef: localRef('projectDeliveryBatchRef'),
+      manifest: localRef('projectDeliveryManifest'),
+      status: localRef('projectDeliveryBatchStatus'),
+      confirmedAt: instant,
+      // Confirmation attribution. Their object types stay owning-resolution
+      // facts: IdentityPolicy publishes no registered actor-snapshot spelling in
+      // this contract family.
+      confirmingActorSnapshotRef: snapshotReference,
+      confirmingAuthorizationDecisionRef: contentAddressedReference,
+      confirmationReceiptRef: contentAddressedReference,
+      generationRequestRefs: array(
+        projectReference(objectReference, 'release.project_delivery_package_request'),
+      ),
+      currentUse: localRef('projectDeliveryCurrentUse'),
+    },
+  ),
+
+  projectDeliveryArchiveRef: projectReference(
+    contentAddressedReference,
+    'release.project_delivery_archive',
+  ),
+  projectDeliveryArchiveDescriptor: object(
+    [
+      'descriptorVersion',
+      'archiveRef',
+      'batchRef',
+      'batchManifestHash',
+      'manifestMarkdownChecksum',
+      'zipChecksum',
+      'entryChecksums',
+      'zipByteSize',
+      'mediaType',
+      'objectRef',
+      'storageVersion',
+      'archiveProfileVersion',
+      'validationFactRef',
+      'linkedAt',
+      'availableAt',
+    ],
+    {
+      descriptorVersion: localRef('projectDeliveryArchiveDescriptorVersion'),
+      // OBJECT archive identity: the descriptor must not embed its own
+      // CONTENT_ADDRESSED `ProjectDeliveryArchiveRef` or its own hash.
+      archiveRef: projectReference(objectReference, 'release.project_delivery_archive'),
+      batchRef: localRef('projectDeliveryBatchRef'),
+      batchManifestHash: contentHash,
+      manifestMarkdownChecksum: contentHash,
+      zipChecksum: contentHash,
+      entryChecksums: array(localRef('projectDeliveryEntryChecksum'), {
+        nonEmpty: true,
+        unique: true,
+      }),
+      zipByteSize: nonNegativeInt,
+      mediaType: localRef('projectDeliveryExportMediaType'),
+      objectRef: localRef('objectLocator'),
+      storageVersion: text,
+      archiveProfileVersion: localRef('projectDeliveryZipProfileVersion'),
+      validationFactRef: projectReference(
+        contentAddressedReference,
+        'release.project_delivery_archive_validation',
+      ),
+      linkedAt: instant,
+      availableAt: instant,
+    },
+  ),
+  projectDeliveryArchiveValidation: object(
+    [
+      'attemptRef',
+      'batchRef',
+      'objectRef',
+      'storageVersion',
+      'archiveProfileVersion',
+      'entryChecksums',
+      'manifestMarkdownChecksum',
+      'zipChecksum',
+      'zipByteSize',
+      'outcome',
+      'validatorVersion',
+      'validatedAt',
+    ],
+    {
+      attemptRef: projectReference(objectReference, 'release.project_delivery_export_attempt'),
+      batchRef: localRef('projectDeliveryBatchRef'),
+      objectRef: localRef('objectLocator'),
+      storageVersion: text,
+      archiveProfileVersion: localRef('projectDeliveryZipProfileVersion'),
+      entryChecksums: array(localRef('projectDeliveryEntryChecksum'), {
+        nonEmpty: true,
+        unique: true,
+      }),
+      manifestMarkdownChecksum: contentHash,
+      zipChecksum: contentHash,
+      zipByteSize: nonNegativeInt,
+      outcome: localRef('projectDeliveryArchiveValidationOutcome'),
+      validatorVersion: text,
+      validatedAt: instant,
+    },
+  ),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
 // =============================================================================

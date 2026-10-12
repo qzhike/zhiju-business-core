@@ -1,0 +1,198 @@
+[
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/manifestVersion",
+    "value": "project-delivery-batch-manifest/2.0",
+    "keyword": "const",
+    "expectedPath": "/manifestVersion"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries",
+    "value": [],
+    "keyword": "minItems",
+    "expectedPath": "/entries"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/destinations",
+    "value": [],
+    "keyword": "minItems",
+    "expectedPath": "/destinations"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/dependencyProof/ruleRefs",
+    "value": [],
+    "keyword": "minItems",
+    "expectedPath": "/dependencyProof/ruleRefs"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/artifactRef/kind",
+    "value": "SNAPSHOT",
+    "keyword": "const",
+    "expectedPath": "/entries/0/artifactRef/kind"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/artifactRef/objectType",
+    "value": "release.release",
+    "keyword": "const",
+    "expectedPath": "/entries/0/artifactRef/objectType"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/revisionRef/contentHash/digest",
+    "value": "3333",
+    "keyword": "pattern",
+    "expectedPath": "/entries/0/revisionRef/contentHash/digest"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/revisionRef",
+    "value": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "keyword": "type",
+    "expectedPath": "/entries/0/revisionRef"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/revisionRef/objectId",
+    "remove": true,
+    "keyword": "required",
+    "expectedPath": "/entries/0/revisionRef"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/qualityProfileRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "keyword": "additionalProperties",
+    "expectedPath": "/entries/0/qualityProfileRef/scope"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/releaseRef/scope",
+    "value": {},
+    "keyword": "required",
+    "expectedPath": "/entries/0/releaseRef/scope"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/deliveryItemIds",
+    "value": ["018f22e2-7c15-7b2e-8d86-2de956a9d240", "018f22e2-7c15-7b2e-8d86-2de956a9d240"],
+    "keyword": "uniqueItems",
+    "expectedPath": "/entries/0/deliveryItemIds"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/receivedAt",
+    "value": "2026-10-11T00:00:00Z",
+    "keyword": "additionalProperties",
+    "expectedPath": "/entries/0"
+  },
+  {
+    "base": "manifest",
+    "definition": "projectDeliveryManifest",
+    "path": "/entries/0/provenance/sourceReportRefs",
+    "value": [
+      {
+        "kind": "SNAPSHOT"
+      }
+    ],
+    "keyword": "required",
+    "expectedPath": "/entries/0/provenance/sourceReportRefs/0"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/mediaType",
+    "value": "application/x-tar",
+    "keyword": "const",
+    "expectedPath": "/mediaType"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/archiveRef/kind",
+    "value": "CONTENT_ADDRESSED",
+    "keyword": "const",
+    "expectedPath": "/archiveRef/kind"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/entryChecksums",
+    "value": [],
+    "keyword": "minItems",
+    "expectedPath": "/entryChecksums"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/zipByteSize",
+    "value": -1,
+    "keyword": "minimum",
+    "expectedPath": "/zipByteSize"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/objectRef",
+    "value": "objects",
+    "keyword": "pattern",
+    "expectedPath": "/objectRef"
+  },
+  {
+    "base": "descriptor",
+    "definition": "projectDeliveryArchiveDescriptor",
+    "path": "/downloadedAt",
+    "value": "2026-10-11T04:00:00Z",
+    "keyword": "additionalProperties",
+    "expectedPath": ""
+  },
+  {
+    "base": "validation",
+    "definition": "projectDeliveryArchiveValidation",
+    "path": "/outcome",
+    "value": "PARTIAL",
+    "keyword": "enum",
+    "expectedPath": "/outcome"
+  },
+  {
+    "base": "validation",
+    "definition": "projectDeliveryArchiveValidation",
+    "path": "/validatorVersion",
+    "value": "",
+    "keyword": "minLength",
+    "expectedPath": "/validatorVersion"
+  },
+  {
+    "base": "validation",
+    "definition": "projectDeliveryArchiveValidation",
+    "path": "/attemptRef/objectType",
+    "value": "release.project_delivery_batch",
+    "keyword": "const",
+    "expectedPath": "/attemptRef/objectType"
+  },
+  {
+    "base": "validation",
+    "definition": "projectDeliveryArchiveValidation",
+    "path": "/validationFactRef",
+    "value": "project-delivery-archive/1.0",
+    "keyword": "additionalProperties",
+    "expectedPath": ""
+  }
+]

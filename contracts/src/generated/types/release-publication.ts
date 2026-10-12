@@ -3,6 +3,7 @@
 
 import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
+import type { Artifact } from './artifact.js';
 
 export namespace ReleasePublication {
   export type ReleasePurpose = "CUSTOMER_DELIVERY" | "REGULATORY_SUBMISSION" | "INTERNAL_EFFECTIVE_USE" | "FEISHU_PUBLICATION" | "CONTROLLED_EXPORT";
@@ -121,6 +122,244 @@ export namespace ReleasePublication {
   readonly snapshotAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly Common.SourceWatermark[];
 }
+  export type ProjectDeliveryManifestVersion = "project-delivery-batch-manifest/1.0";
+  export type ProjectDeliveryArchiveDescriptorVersion = "project-delivery-archive/1.0";
+  export type ProjectDeliveryZipProfileVersion = "project-delivery-zip/1.0";
+  export type ProjectDeliveryExportMediaType = "application/zip";
+  export type ProjectDeliveryBatchStatus = "CONFIRMED";
+  export type ProjectDeliveryCurrentUseStatus = "USABLE" | "BLOCKED" | "UNKNOWN";
+  export type ProjectDeliveryArchiveValidationOutcome = "VERIFIED";
+  export type ObjectLocator = string;
+  export interface ProjectDeliveryChapterBinding {
+  readonly chapterCode: Common.NamespaceCode;
+  readonly ordinal: number;
+}
+  export interface ProjectDeliveryEntryChecksum {
+  readonly archivePath: Common.NonEmptyString;
+  readonly checksum: Common.ContentHash;
+}
+  export type RevisionProvenance = Artifact.RevisionProvenance;
+  export interface ProjectDeliveryProvenance {
+  readonly revisionProvenance: ReleasePublication.RevisionProvenance;
+  readonly sourceReportRefs: readonly Common.SnapshotRef[];
+}
+  export interface ProjectDeliveryDependencyProof {
+  readonly ruleRefs: readonly Common.VersionedRef[];
+  readonly requiredItemIds: readonly Common.UuidV7[];
+  readonly coveredItemIds: readonly Common.UuidV7[];
+  readonly associationSetHash: Common.ContentHash;
+  readonly requirementSetHash: Common.ContentHash;
+}
+  export type ProjectDeliveryRepresentationRef = Common.RepresentationRef & {
+  readonly revision?: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  export type ProjectDeliveryReleasePackageRef = Common.ReleasePackageRef & {
+  readonly releaseRef?: Common.ObjectRef & {
+  readonly objectType?: "release.release";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly packageSnapshotRef?: Common.SnapshotRef & {
+  readonly objectType?: "release.release_package";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  export type ProjectDeliveryEntry = {
+  readonly artifactRef: Common.ObjectRef & {
+  readonly objectType?: "artifact.artifact";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly representationRef: ReleasePublication.ProjectDeliveryRepresentationRef;
+  readonly deliveryItemIds: readonly Common.UuidV7[];
+  readonly associationProofHash: Common.ContentHash;
+  readonly chapterBindings: readonly ReleasePublication.ProjectDeliveryChapterBinding[];
+  readonly provenance: ReleasePublication.ProjectDeliveryProvenance;
+  readonly qualityProfileRef: Common.VersionedRef & {
+  readonly objectType?: "quality.quality_profile";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+};
+};
+  readonly revisionAcceptanceSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "quality.revision_acceptance_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly approvalBundleSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "quality.approval_bundle_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly releaseRef: Common.ObjectRef & {
+  readonly objectType?: "release.release";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly releasePackageRef: ReleasePublication.ProjectDeliveryReleasePackageRef;
+  readonly releaseReadinessSnapshotRef: Common.SnapshotRef & {
+  readonly objectType?: "quality.release_readiness_snapshot";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly releaseAuthorizationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "release.release_authorization";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly archivePath: Common.NonEmptyString;
+};
+  export type ProjectDeliveryManifest = {
+  readonly manifestVersion: ReleasePublication.ProjectDeliveryManifestVersion;
+  readonly batchRef: Common.ObjectRef & {
+  readonly objectType?: "release.project_delivery_batch";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly deliveryPlanRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.delivery_plan";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly recipientScopeSnapshotRef: Common.SnapshotRef;
+  readonly destinations: readonly ReleasePublication.ReleaseDestinationDefinition[];
+  readonly exportPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.identity.policy";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId?: Common.UuidV7;
+};
+};
+  readonly dependencyProof: ReleasePublication.ProjectDeliveryDependencyProof;
+  readonly entries: readonly ReleasePublication.ProjectDeliveryEntry[];
+};
+  export type ProjectDeliveryBatchRef = Common.ContentAddressedRef & {
+  readonly objectType?: "release.project_delivery_batch";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  export interface ProjectDeliveryCurrentUse {
+  readonly status: ReleasePublication.ProjectDeliveryCurrentUseStatus;
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly checkedAt: Common.UtcInstant;
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+}
+  export type ProjectDeliveryBatchView = {
+  readonly batchRef: ReleasePublication.ProjectDeliveryBatchRef;
+  readonly manifest: ReleasePublication.ProjectDeliveryManifest;
+  readonly status: ReleasePublication.ProjectDeliveryBatchStatus;
+  readonly confirmedAt: Common.UtcInstant;
+  readonly confirmingActorSnapshotRef: Common.SnapshotRef;
+  readonly confirmingAuthorizationDecisionRef: Common.ContentAddressedRef;
+  readonly confirmationReceiptRef: Common.ContentAddressedRef;
+  readonly generationRequestRefs: readonly (Common.ObjectRef & {
+  readonly objectType?: "release.project_delivery_package_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+})[];
+  readonly currentUse: ReleasePublication.ProjectDeliveryCurrentUse;
+};
+  export type ProjectDeliveryArchiveRef = Common.ContentAddressedRef & {
+  readonly objectType?: "release.project_delivery_archive";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  export type ProjectDeliveryArchiveDescriptor = {
+  readonly descriptorVersion: ReleasePublication.ProjectDeliveryArchiveDescriptorVersion;
+  readonly archiveRef: Common.ObjectRef & {
+  readonly objectType?: "release.project_delivery_archive";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly batchRef: ReleasePublication.ProjectDeliveryBatchRef;
+  readonly batchManifestHash: Common.ContentHash;
+  readonly manifestMarkdownChecksum: Common.ContentHash;
+  readonly zipChecksum: Common.ContentHash;
+  readonly entryChecksums: readonly ReleasePublication.ProjectDeliveryEntryChecksum[];
+  readonly zipByteSize: number;
+  readonly mediaType: ReleasePublication.ProjectDeliveryExportMediaType;
+  readonly objectRef: ReleasePublication.ObjectLocator;
+  readonly storageVersion: Common.NonEmptyString;
+  readonly archiveProfileVersion: ReleasePublication.ProjectDeliveryZipProfileVersion;
+  readonly validationFactRef: Common.ContentAddressedRef & {
+  readonly objectType?: "release.project_delivery_archive_validation";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly linkedAt: Common.UtcInstant;
+  readonly availableAt: Common.UtcInstant;
+};
+  export type ProjectDeliveryArchiveValidation = {
+  readonly attemptRef: Common.ObjectRef & {
+  readonly objectType?: "release.project_delivery_export_attempt";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly batchRef: ReleasePublication.ProjectDeliveryBatchRef;
+  readonly objectRef: ReleasePublication.ObjectLocator;
+  readonly storageVersion: Common.NonEmptyString;
+  readonly archiveProfileVersion: ReleasePublication.ProjectDeliveryZipProfileVersion;
+  readonly entryChecksums: readonly ReleasePublication.ProjectDeliveryEntryChecksum[];
+  readonly manifestMarkdownChecksum: Common.ContentHash;
+  readonly zipChecksum: Common.ContentHash;
+  readonly zipByteSize: number;
+  readonly outcome: ReleasePublication.ProjectDeliveryArchiveValidationOutcome;
+  readonly validatorVersion: Common.NonEmptyString;
+  readonly validatedAt: Common.UtcInstant;
+};
   /** Payload of `release.create_release_draft` (COMMAND). */
   export interface ReleaseCreateReleaseDraftPayload {
   readonly definition: ReleasePublication.ReleaseDraftDefinition;

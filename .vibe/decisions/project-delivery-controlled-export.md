@@ -1,10 +1,10 @@
 # 项目交付批次与受控下载 Spec Delta（D12 / Q11）
 
 日期：2026-10-10
-状态：`T2 / DESIGN APPROVED / INDEPENDENT REVIEW PASSED / HUMAN DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`
+状态：`T2 / DESIGN APPROVED / INDEPENDENT REVIEW PASSED / HUMAN DESIGN APPROVED / §14.2 封闭类型与 §14.4 Hash 域已由 #272 注册并实现 / 8 个公开操作 NOT REGISTERED / 运行链路 NOT IMPLEMENTED`
 工作项：[Issue #260](https://github.com/qzhike/zhiju-business-core/issues/260)。
 
-本增量承接已批准的[项目汇总、分批交付和外部发送边界](workspace-mvp-human-agent.md#410-正式交付包与人工发送)。发现基线为 Issue 指定的 main@15c085354056ab327e03352c32020010cc11285b；设计工作基线 main@9611faff0af25a7d256e6cba7538e3fb71dabfe1 保留相同单 Revision 发布与 Human-only 不变量。独立设计复审及明确的人类技术设计批准均绑定 e87e9610a2524ff7317f59d0f76f68a27388dc84，见[正式审查记录](../reviews/pr-271/Review.md)及[批准证据](https://github.com/qzhike/zhiju-business-core/pull/271#issuecomment-6094594569)；[PR #271](https://github.com/qzhike/zhiju-business-core/pull/271) 已合并。本文作为已批准的后续实现设计基线，操作/类型仍未注册、运行链路仍未实现；设计批准不自动使整条依赖实现 READY。[Issue #272](https://github.com/qzhike/zhiju-business-core/issues/272) 仅承接当前独立可执行的封闭类型、引用校验与 Hash 基础，完整 owning Handler/Policy/Renderer/存储/公开流接入仍须按 §6 复核实施范围与门禁。
+本增量承接已批准的[项目汇总、分批交付和外部发送边界](workspace-mvp-human-agent.md#410-正式交付包与人工发送)。发现基线为 Issue 指定的 main@15c085354056ab327e03352c32020010cc11285b；设计工作基线 main@9611faff0af25a7d256e6cba7538e3fb71dabfe1 保留相同单 Revision 发布与 Human-only 不变量。独立设计复审及明确的人类技术设计批准均绑定 e87e9610a2524ff7317f59d0f76f68a27388dc84，见[正式审查记录](../reviews/pr-271/Review.md)及[批准证据](https://github.com/qzhike/zhiju-business-core/pull/271#issuecomment-6094594569)；[PR #271](https://github.com/qzhike/zhiju-business-core/pull/271) 已合并。本文作为已批准的后续实现设计基线：类型/身份拼写面已由 [#272](https://github.com/qzhike/zhiju-business-core/issues/272) 按 §14.2/§14.4 注册并实现封闭 Schema、结构校验与 Hash 域，8 个公开操作仍未注册、运行链路仍未实现；设计批准不自动使整条依赖实现 READY。[Issue #272](https://github.com/qzhike/zhiju-business-core/issues/272) 仅承接当前独立可执行的封闭类型、引用校验与 Hash 基础，完整 owning Handler/Policy/Renderer/存储/公开流接入仍须按 §6 复核实施范围与门禁。
 
 ## 1. 交付目标与首版限制
 
@@ -32,7 +32,7 @@
 
 ## 3. Owning 字段、Hash 与能力入口
 
-完整拟字段、Hash 域、操作名/授权目的及转换只在 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 定义；Quality、Artifact、EP、IG、UI 的对应 D12 专节约束各自输入与消费。新名称均 NOT REGISTERED，不扩展现行 Schema、Catalog 接受集合、Registry、数据库或 HTTP route。
+完整拟字段、Hash 域、操作名/授权目的及转换只在 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 定义；Quality、Artifact、EP、IG、UI 的对应 D12 专节约束各自输入与消费。#272 已注册 §14.2 的封闭类型与批次/归档 `objectType`（见 [REL §14.8](../module-specs/Module-Spec-006-ReleasePublication.md#148-272-已注册的封闭类型结构校验与-hash-域) 与 [Catalog D12 段](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#d12--q11-批次类型与操作候选路由260)），但这只发布类型/身份面：8 个公开操作、请求/生成/下载转换、Registry operation 计数、数据库与 HTTP route 均未新增。
 
 批次清单包含同计划的逐文件关联/章节、完整 exact Revision/Representation/Quality/Release refs、版本化配套规则和来源。不同轮次只保存来源，不能要求按轮分别打包。清单、清单 Markdown bytes、每份 Markdown checksum、ZIP checksum 和旧 packageHash 分域，无自引用；再次下载读取同一已验证归档，不能按实时候选重新渲染。
 

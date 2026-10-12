@@ -1,0 +1,127 @@
+[
+  {
+    "description": "different descriptor payload under the same CONTENT_ADDRESSED archive identity",
+    "path": "/archiveRef/contentHash",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "abababababababababababababababababababababababababababababababab"
+    },
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "archive identity objectId taken from the validation fact",
+    "path": "/archiveRef/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d281",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor batch manifest hash replaced",
+    "path": "/descriptor/batchManifestHash",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"
+    },
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "ZIP checksum substituted by the batch manifest hash",
+    "path": "/descriptor/zipChecksum",
+    "from": "/descriptor/batchManifestHash",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "manifest Markdown checksum substituted by the ZIP checksum",
+    "path": "/descriptor/manifestMarkdownChecksum",
+    "from": "/descriptor/zipChecksum",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor entry checksum contradicts the packaged Representation checksum",
+    "path": "/descriptor/entryChecksums/0/checksum",
+    "value": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad"
+    },
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor omits one packaged file checksum",
+    "path": "/descriptor/entryChecksums",
+    "value": [
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d211/018f22e2-7c15-7b2e-8d86-2de956a9d221.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        }
+      },
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d212/018f22e2-7c15-7b2e-8d86-2de956a9d222.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+        }
+      }
+    ],
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "validation fact declares a different ZIP byte size",
+    "path": "/validation/zipByteSize",
+    "value": 4097,
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "validation fact declares a different storage version",
+    "path": "/validation/storageVersion",
+    "value": "storage-v2",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "validation fact bound to a different batch identity",
+    "path": "/validation/batchRef/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor validation fact points at the descriptor hash itself",
+    "path": "/descriptor/validationFactRef/contentHash",
+    "from": "/archiveRef/contentHash",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "descriptor holds its own CONTENT_ADDRESSED archive identity",
+    "path": "/descriptor/archiveRef/kind",
+    "value": "CONTENT_ADDRESSED",
+    "expectedError": "PROJECT_DELIVERY_ARCHIVE_INVALID"
+  },
+  {
+    "description": "descriptor entry checksum path is the reserved manifest entry",
+    "path": "/descriptor/entryChecksums/0/archivePath",
+    "value": "manifest.md",
+    "expectedError": "PROJECT_DELIVERY_ARCHIVE_INVALID"
+  },
+  {
+    "description": "validation outcome is not VERIFIED",
+    "path": "/validation/outcome",
+    "value": "PARTIAL",
+    "expectedError": "PROJECT_DELIVERY_ARCHIVE_INVALID"
+  },
+  {
+    "description": "supplied manifest Markdown bytes do not match the declared checksum",
+    "path": "/manifestMarkdownBytes",
+    "value": "# Project delivery manifest\n",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  },
+  {
+    "description": "supplied ZIP bytes do not match the declared checksum",
+    "path": "/zipBytes",
+    "value": "PK\u0003\u0004other-zip-bytes",
+    "expectedError": "PROJECT_DELIVERY_HASH_MISMATCH"
+  }
+]

@@ -139,19 +139,37 @@ WI-07 的最小可交付验证顺序为：先执行 Contract/Unit 的 Human-only
 
 ## D12 / Q11 批次与受控下载设计场景（#260）
 
-状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 与 [TR-260](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。这些是未来运行用例，当前无新运行输出；docs/static只检查定义，不能借用旧REL-801 PASS。
+状态：`PROPOSED / FUTURE DESIGN / 8 个公开操作 NOT REGISTERED / 运行链路 NOT IMPLEMENTED / §14.2 封闭类型、结构校验与 §14.4 Hash 域已实现（#272）`。对应 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 与 [TR-260](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。RP-D12-003/006 的 scoped 结构/兼容/Hash 子用例已由 #272 执行（见下节子用例），其余运行用例与全部 prospective 场景仍无运行输出；docs/static 只检查定义，不能借用旧 REL-801 PASS。
 
 | ID | 层级 / 输入 | 预期输出与必须保留的事实 | 当前实际输出 / 结果 |
 |---|---|---|---|
 | RP-D12-001 | Contract/E2E；TR-260-01 三份跨轮次exact获批表示及逐文件PKG/RRS/AUTH，独立M处理中 | 一个Project/Plan章节批次与三个单Revision Package；一次确认全部精确refs；M不受影响，无Release/Project Completion | 无Batch实现 / NOT RUN |
 | RP-D12-002 | Unit/Contract；缺强制F、配套跨Project、unknown依赖分类、F只有ABS或缺独立Release授权 | 确认拒绝；零新Batch/归档/许可，不自动选项/放宽required；先前下载不满足配套 | 无配套Evaluator / NOT RUN |
-| RP-D12-003 | Contract/Compatibility；wrong Scope/Hash/RRS/renderer；将多Revision装入旧ReleasePackageDefinition | 逐层masked/绑定拒绝；旧package-hash golden与Schema接受集完全不变；新batch/archive类型不能冒充ReleasePackageRef | 无新Schema/fixture / NOT RUN |
+| RP-D12-003 | Contract/Compatibility；wrong Scope/Hash/RRS/renderer；将多Revision装入旧ReleasePackageDefinition | 逐层masked/绑定拒绝；旧package-hash golden与Schema接受集完全不变；新batch/archive类型不能冒充ReleasePackageRef | `PASS — scoped Contract/Hash subcases (#272)`：封闭 `$defs` 拒绝错 kind/objectType/Scope/hash 与 digest-only 替代，结构校验拒绝混合 Scope、伪造 Profile Project Scope、Package/Revision 错绑；旧 package-hash golden 与 240/240 Catalog/Registry、200 项 compatibility baseline 不变。运行期 masked/binding 拒绝与 renderer 仍 `NOT RUN` |
 | RP-D12-004 | Unit/Persistence；确认前、Worker开始、Link→AVAILABLE及许可/流前撤Approval/Gate/Role/Decision、Recall或新RRS | 各新边界fail-closed；原CONFIRMED/历史Snapshot/旧响应保留；新AVAILABLE/许可/后续bytes禁止，无失败连带重置 | 无新Current/Impact组合 / NOT RUN |
 | RP-D12-005 | Unit/Race；inspect后Plan/关联/selected entry/配套或current Snapshot变化；确认后新未批准候选 | 前者selectionHash不符/STALE；不换新Ref；后者不改旧清单/ZIP，不凭新候选自动撤销仍有效旧Approval | 无selection/recheck实现 / NOT RUN |
-| RP-D12-006 | Unit/Hash；集合重排、同Hash不同kind/Scope；preparedAt变化；自Hash、URL/下载时间；篡改任一ZIP entry | 按每域固定排序得唯一Hash；旧Hash域不混入批次；重复拒绝；文件/清单/ZIP/Descriptor分别验；错误bytes不得AVAILABLE | 仅设计公式 / NOT RUN |
+| RP-D12-006 | Unit/Hash；集合重排、同Hash不同kind/Scope；preparedAt变化；自Hash、URL/下载时间；篡改任一ZIP entry | 按每域固定排序得唯一Hash；旧Hash域不混入批次；重复拒绝；文件/清单/ZIP/Descriptor分别验；错误bytes不得AVAILABLE | `PASS — scoped Hash subcases (#272)`：`batchManifestHash`/`archiveValidationHash`/`archiveDescriptorHash`/字节 checksum 分域，集合重排后 Hash 不变、任一域字段变化后 Hash 改变、重复 identity/path 与自 Hash 环拒绝、清单 Markdown/ZIP bytes 与 entry checksum 逐项绑定。真实 ZIP 生产、存储与 AVAILABLE 判定仍 `NOT RUN` |
 | RP-D12-007 | Persistence/Race；确认timeout、同键同/异payload、双Worker、staging后DB fault、finalize UNKNOWN/lease失效 | 同意图一Batch/固定archive；异输入冲突；Receipt/Audit/Link原子；UNKNOWN按原Attempt恢复；过期fence零成功发布；有Link不当orphan删 | 无新表/Worker / NOT RUN |
 | RP-D12-008 | Integration；AVAILABLE后重复下载、更新其他候选、再次新批次 | 原archive对象version/三份bytes/manifest/ZIP checksum不变；新批次独立；新renderer/checksum不得改旧archive | 无真实存储/renderer / NOT RUN |
 | RP-D12-009 | Security/HTTP；wrong Human/Session/Scope、Agent/actingFor、过期许可、撤权、stream failure/观察写失败/Range | 流前拒绝零bytes；流中失权停止并保留真实部分事实；expiry≤5分钟且≤Session/Decision；UNKNOWN不伪造RESPONSE_SENT；Range不支持 | 无OIDC/HTTP/stream / NOT RUN |
 | RP-D12-010 | E2E/Manual；click、复制、响应已发送、外部人工发送与旧正式发布链对照 | 新受控观察均不进入FormalReceipt/PublicationSucceeded/ReleaseCompleted/EffectiveBinding/DeliveryItem/Project Completion；无sent marker | 无独立人验/客户送达证据 / NOT RUN |
 | RP-D12-011 | Contract/E2E；TR-260-09，仅Project/Plan入口，经EP ENUMERATE→ART发现→EP VERIFY→exact ART/QG及REL关联；无Release的内部获批文件、shared/R1/R2/Human来源、无权文件 | 零预知Artifact refs也能列出真实文件及精确版本/Markdown；缺Release显示内部获批与等待原因，不伪造PKG/RRS/AUTH；shared合并，隐藏项不泄漏；权威重验不符则阻断，不从客户端清单/他方Repository补数据 | 无新候选组合 / NOT RUN |
 | RP-D12-012 | Pagination/Contract；TR-260-10，EP/ART与外层候选不同页边界、多个Revision、空中间页、游标Scope/Plan/filters/源变化；页Hash或部分VERIFY冒充全required集合 | REL own cursor沿稳定Artifact/Revision位置续页，全部合法候选无漏项/重复；有nextCursor不判空；旧cursor拒绝刷新且保留选择/Batch；确认只接受完整exact VERIFY闭包，隐藏/失效required项不能省略 | 无新候选游标/闭包组合 / NOT RUN |
+
+### #272 已执行子用例（封闭类型、结构校验与 Hash 域）
+
+状态：`CONTRACT AND PURE VALIDATION IMPLEMENTED / OPERATIONS NOT REGISTERED / RUNTIME NOT IMPLEMENTED / PRODUCTION NOT RUN`。输入为 `tests/fixtures/contracts/project-delivery/` 的已签入 fixture；执行入口为封闭 `$defs`（`ContractRegistry.validateCoreContract`）、`modules/release-publication/src/project-delivery-hash.ts` 与 `project-delivery-validation.ts`。真实材料、真实 ZIP/清单 Markdown 生产、对象存储、Provider、PostgreSQL 与本模块业务链均不在本轮。
+
+| ID | 层级 | 输入 | 预期输出 | 当前实际输出 | 结果 |
+|---|---|---|---|---|---|
+| RP-D12-272-U-001 | Unit/Schema | `manifest-valid`（三文件跨轮次、共享 Item 合并、Human-only provenance、合法空 `sourceReportRefs`）与 `archive-materials-valid` 的 Manifest/BatchRef/ArchiveRef/Descriptor/Validation | 全部通过 closed `$defs`；OBJECT 目标与 CONTENT_ADDRESSED 身份各自成立 | 5 个实例全部 `valid=true`；OBJECT/CONTENT_ADDRESSED 身份由结构校验按 type/id/Scope 对齐 | `PASS — closed schema` |
+| RP-D12-272-U-002 | Unit/Schema | `schema-negative-cases.json` 24 项：未知字段、空集合、错 kind/objectType/Scope/hash、digest-only 替代、缺失 required、Descriptor 自引用、越界大小 | Ajv 以预期 `keyword`/`instancePath` 拒绝 | 24/24 拒绝且 keyword/instancePath 与 fixture 断言一致 | `PASS` |
+| RP-D12-272-U-003 | Unit/Structural | `structural-negative-cases.json` 17 项：重复 Artifact 身份/路径、非派生与绝对路径、混合 Project Scope、Enterprise-owned Profile 伪造 Project Scope、Representation/Revision 与 Package/Release 错绑、未覆盖配套、非 Policy 规则、QualityProfile 冒充 Policy、Destination Policy 不一致、重复声明集合、错误版本 | 稳定拒绝 `PROJECT_DELIVERY_MANIFEST_INVALID` | 17/17 以该码拒绝；正例 Manifest 与材料均通过 | `PASS` |
+| RP-D12-272-U-004 | Unit/Hash | 正例 Hash 向量；集合重排后的等价 Manifest；9 个 hash 域字段变更；重复声明身份；五类域取值 | 与 fixture 向量一致；重排后 Hash 相同；任一域字段变化后 Hash 改变；重复被拒；manifest/Markdown/representation/ZIP/archive 五域互不相等 | `batchManifestHash`=`3f461576…1738`、descriptor=`ad245540…c6f2`、validation=`59636a2a…5736`；9/9 变更均改变 Hash；`normalizeProjectDeliveryManifest` 对重排输入深相等；5 域集合大小 8（3 entry） | `PASS` |
+| RP-D12-272-U-005 | Unit/Archive | `archive-negative-cases.json` 16 项：同身份不同 payload、Descriptor/Validation 字段不一致、entry checksum 与表示 checksum 矛盾、缺一项 entry、清单 Markdown/ZIP bytes 不符、ZIP 域被 Manifest Hash 替换、Validation 指向 Descriptor Hash 的自环、Descriptor 持有自身 CONTENT_ADDRESSED 身份 | 稳定拒绝 `PROJECT_DELIVERY_HASH_MISMATCH` 或 `PROJECT_DELIVERY_ARCHIVE_INVALID` | 16/16 以预期码拒绝；正例材料（含 bytes 绑定）通过 | `PASS` |
+| RP-D12-272-C-001 | Contract/Compatibility | 8 个 D12 操作候选名、`legacy-package-golden` 旧单 Revision 向量、Catalog/Registry 计数 | 候选未注册；旧 `packageHash`/`packagePayloadHash`/canonical manifest 不变；`catalog=240 registry=240` | `getOperation` 全部 `undefined`，`publicApiOperations` 无 `project_delivery` 条目；旧向量与 `contracts:check` 输出（含 200 项 baseline、`minor=219`）保持通过 | `PASS` |
+| RP-D12-272-C-002 | Contract | 结构有效但 Release 授权/ABS 引用被替换为其他合法形状的 exact ref | 纯结构校验仍通过：不认证当前批准、Policy 适用性、配套完整性、授权或对象存在性 | `validateProjectDeliveryManifest` 对替换后的 Manifest 通过，证明该校验未越权认证 owning 事实 | `PASS` — 无 owning 读取 |
+
+聚焦命令与结果：`pnpm exec vitest run modules/release-publication/src/project-delivery-hash.test.ts modules/release-publication/src/project-delivery-validation.test.ts contracts/src/operations/release-publication.schema.test.ts --no-file-parallelism --reporter=dot` → `3 files / 103 tests PASS`。配置目标 `code`（Draft 非持久化）与 `full`（ready 非文档 PR）结果记录在 PR；PostgreSQL 门禁只证明既有仓库 Gate，不升级任何外部边界。
+
+仍未执行：8 个公开操作的注册与 Handler、ART/EP/QG 当前读取与 VERIFY 闭包、有限导出 Policy/Renderer profile、批次/Attempt/归档业务持久化与迁移、真实 ZIP/清单 Markdown 生产、对象存储与受控 stream transport、OIDC/公开 HTTP、UI/BFF、客户发送、部署后验证与独立人工验收。

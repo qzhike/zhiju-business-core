@@ -1,0 +1,120 @@
+[
+  {
+    "description": "duplicate Artifact identity from another entry",
+    "path": "/entries/1/artifactRef",
+    "from": "/entries/0/artifactRef",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate archive path",
+    "path": "/entries/1/archivePath",
+    "from": "/entries/0/archivePath",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "archive path not derived from Artifact and Revision identity",
+    "path": "/entries/0/archivePath",
+    "value": "files/018f22e2-7c15-7b2e-8d86-2de956a9d999/018f22e2-7c15-7b2e-8d86-2de956a9d998.md",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "absolute archive path",
+    "path": "/entries/0/archivePath",
+    "value": "/files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "mixed Project Scope on an entry Release",
+    "path": "/entries/0/releaseRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "fabricated Project Scope on the Enterprise-owned QualityProfile ref",
+    "path": "/entries/0/qualityProfileRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry Package belongs to a different Release",
+    "path": "/entries/0/releasePackageRef/releaseRef/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d399",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "packaged Representation belongs to a different Revision",
+    "path": "/entries/0/representationRef/revision/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "declared Required companion Item is not covered",
+    "path": "/dependencyProof/requiredItemIds/0",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d244",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry DeliveryItem is not covered by the dependency proof",
+    "path": "/entries/0/deliveryItemIds/0",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d244",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate DeliveryItem association inside one entry",
+    "path": "/entries/0/deliveryItemIds/1",
+    "from": "/entries/0/deliveryItemIds/0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate chapter binding inside one entry",
+    "path": "/entries/0/chapterBindings/1",
+    "from": "/entries/0/chapterBindings/0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "export Policy missing from the dependency rule set",
+    "path": "/dependencyProof/ruleRefs/0",
+    "value": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d208",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d209",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "QualityProfile disguised as a Policy dependency rule",
+    "path": "/dependencyProof/ruleRefs/1",
+    "value": {
+      "kind": "VERSIONED",
+      "objectType": "quality.quality_profile",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Destination delivery Policy differs from the export Policy",
+    "path": "/destinations/0/deliveryPolicyRef/versionId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "batchRef declared with the archive object type",
+    "path": "/batchRef/objectType",
+    "value": "release.project_delivery_archive",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "unsupported manifest version",
+    "path": "/manifestVersion",
+    "value": "project-delivery-batch-manifest/2.0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  }
+]
