@@ -1,5 +1,16 @@
 # PR #289 独立实现审查
 
+## 当前 main 集成复审与人类实施技术批准：8ce4665
+
+- 日期：2026-10-13（Asia/Shanghai）；本轮结论：`Reviewer / APPROVE`。本轮独立审查绑定 `8ce4665b0d7516d01ca5dc77ca5c90ad39bed0d0`；本地与 GitHub head 一致，base 为 `55af2e84c7d2e762a7a8f2c29b12a272e6d4b912`。该修订整合当前 main，包含生产工作台/ZIP 页面与 #279 阅读路由的组合；不把旧 `97de915` 的批准或 full 当作本轮证据。
+- 用户在明确绑定上述新 head 的技术批准问题中回复“批准新修订的实施技术变更”。本条记录适用于该精确实现修订的 Human 实施技术批准；既有合并、关闭 #279 和删除对应分支的授权保持有效，#286 不因此关闭。
+- 独立依据 Issue #279、UI01 exact source/会话边界及 ART/IG/IP 权威约束复核四处冲突组合和自动合并结果。`TrustedApp` 同时保留 main 工作台、ZIP 页面及 #279 精确阅读路由；`reviewScopeKey` 保留 exact pathname + binding，当前会话/主体/Scope guard 继续过滤迟到结果。`WorkbenchNavigation` 只保留导航引用，不保存正文或意见。静态服务器保留两类页面路径和固定 Markdown stream；代理取消/中断处理未被回退。七项操作的 Schema、owning 服务和迁移未因本次 main 集成改变，既有字段对账仍适用。
+- 独立读取本轮 full 已生成的新 production build，未并发改写构建目录。受控 HTTP + built Chromium **11 场景 PASS**：原 10 项恢复/拒绝场景继续通过；新增导航取消保留意见、确认离开清空受保护阅读状态、exact 深链接重开意见为空。持续 401/403/404 及 current/baseline 拒绝后 500ms 内无自动后续请求，显式重试恰一轮，恢复后可读取。材料位于 `/private/tmp/pr289-integration-browser-probe.mjs` 与 `/private/tmp/pr289-integration-browser-probe-results.json`；该受控呈现证据不替代 owning PostgreSQL/OIDC/Core/BFF 授权验收。
+- 独立读取完整本轮宿主日志 `/private/tmp/zhiju-full-8ce4665.log`，核对仓库、exact implementation SHA、配置命令及最终 `status=PASS / target=full / exit_code=0`。文件含导出 header 共 1,048,924 bytes，SHA-256 为 `6b03e4015d16e504e370dfec68bed8e2740816a04f39e4f9d22956c648ac59b4`。普通检查 **120 files / 2,523 tests PASS**，PostgreSQL **58 files / 709 tests PASS**；生产/fixture 构建、4 个 production 工作台浏览器用例、13 个 fixture 用例、architecture、247-operation Catalog 与兼容门禁均通过。已逐项读到 #279 六项真实 built-browser、双下载/拒绝/撤权、四项 observed-output 有界恢复及读后/锁等待授权重验的 passed 行。数据库阶段 1,750.72 秒，二次迁移 no-op，gate passed 且容器已删除。
+- 本轮静态检查及独立浏览器未发现新的实现阻塞；R1–R5 修复保持有效。新 exact head 的人类技术批准与必需 full 已满足，独立结论为 APPROVE。GitHub run `38402940919` 在审查时仍有 persistence pending；本结论采用完整本地 full，不将尚未完成的 CI 冒记成功，也未重复运行 full。
+- 独立审查待交付的 roadmap 两处 Markdown 修订：D12 未交付能力限定为批次资格/接入，#279 已交付能力限定为现有授权 sealed Revision 的单文件技术审阅/下载；保持 #286、意见提交/私人草稿、TE 准备/确认、D12 批次及 IM-UI-01 Current 边界。这一 roadmap 与本 Review.md 的增量为后续单独文档交付，不包含在上述 implementation SHA 的 full 中；须保留不同交付 SHA 与最终 PR CI 状态，不能把 mixed PR 降级为 docs-only 验证。
+- 生产部署、实际 Windows/macOS Chrome/Edge 全矩阵与独立 Human 内容验收仍 NOT RUN。本次 Reviewer 未修改产品源码、commit、push 或 merge；已授权交付仍须检查最终文档修订和 PR 门禁。
+
 ## 人类实施技术批准与最终结论：97de915
 
 - 日期：2026-10-13（Asia/Shanghai）；当前角色结论：`Reviewer / APPROVE`。
