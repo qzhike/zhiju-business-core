@@ -340,4 +340,6 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，SERVICE render/register 不在公共 allowlist。下载经 ticket、CSRF、当前 Session、可信 peer、Core 当前权限与完整 checksum 核验，浏览器收齐并核 SHA-256 后才交给保存流程。所有层 no-store/nosniff，票据只进 header/内存，不进入 Link、storage 或日志。Principal/Scope/session generation、登出、bfcache 与失权清理沿 #266；迟到响应不恢复旧内容，objectURL 在清理时撤销。
 
+分页或下载的鉴权相关失败须复核全部保留的 exact Revision（包括基线），不能仅凭当前版本可读而保留已失权的旧正文或 before-values。确认任一来源读取权丢失时清空比较页和意见。资源 403/404 本身不触发 Session 重载；清理后停在稳定不可用状态，显式重读重新授权，会话失败提供显式会话检查入口，避免同一拒绝绑定自动循环。
+
 受控 built Chromium 验收覆盖 36 项/9 章、完整 12 列表格与两次相同已登记字节下载。Windows/macOS Chrome/Edge 全矩阵、生产环境与独立 Human 内容判断仍 NOT RUN，不以自动化读取/下载替代批准。

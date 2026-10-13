@@ -31,6 +31,10 @@ export function MarkdownReview(props: Props) {
   const route = useLocation();
   const [loaded, setLoaded] = useState<MarkdownReviewData | null>(null);
   const [error, setError] = useState('');
+  const [sessionRequired, setSessionRequired] = useState(false);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const currentAttempt = useRef(readAttempt);
+  currentAttempt.current = readAttempt;
   const [downloadStatus, setDownloadStatus] = useState('');
   const [directoryStatus, setDirectoryStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,43 +56,60 @@ export function MarkdownReview(props: Props) {
     }
   }, [route.search, artifactId, revisionId, projectId]);
   const accepts = () =>
-    acceptsResponse(props.guardRef.current, tag) && !controller.current?.signal.aborted;
+    acceptsResponse(props.guardRef.current, tag) &&
+    currentAttempt.current === readAttempt &&
+    !controller.current?.signal.aborted;
   function fail(cause: unknown) {
     if (!accepts()) return;
     const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
     setLoaded(null);
-    setError('当前无法读取此精确版本，请确认链接与当前权限。');
+    setSessionRequired(failure.httpStatus === 401);
+    setError(
+      failure.httpStatus === 401
+        ? '当前会话无法读取此文件，请重新检查会话。'
+        : '当前无法读取此精确版本或基线，请确认链接与当前权限。',
+    );
     setDirectoryStatus('');
-    if ([401, 403, 404].includes(failure.httpStatus)) {
-      props.onSessionFailure();
-    }
+    setDownloadStatus('');
+    setBusy(false);
+    controller.current?.abort();
+    for (const url of objectUrls.current) URL.revokeObjectURL(url);
+    objectUrls.current.clear();
   }
-  async function canonicalReadPermission(): Promise<
+  async function retainedReadPermission(): Promise<
     { state: 'ALLOWED' } | { state: 'DENIED'; cause: unknown } | { state: 'UNKNOWN' }
   > {
     const currentLink = link;
     const currentController = controller.current;
     if (!currentLink || !currentController || currentController.signal.aborted)
       return { state: 'UNKNOWN' };
-    try {
-      parseReviewContent(
-        await readExactQuery(
-          'artifact.get_file_review_content',
-          currentLink.revisionRef.scope,
-          { revisionRef: currentLink.revisionRef },
-          props.csrfToken,
-          currentController.signal,
-        ),
-        currentLink,
-      );
-      return accepts() ? { state: 'ALLOWED' } : { state: 'UNKNOWN' };
-    } catch (cause) {
+    let unknown = false;
+    const revisions = [
+      currentLink.revisionRef,
+      ...(currentLink.fromRevisionRef ? [currentLink.fromRevisionRef] : []),
+    ];
+    for (const revisionRef of revisions) {
+      try {
+        parseReviewContent(
+          await readExactQuery(
+            'artifact.get_file_review_content',
+            revisionRef.scope,
+            { revisionRef },
+            props.csrfToken,
+            currentController.signal,
+          ),
+          currentLink,
+          revisionRef,
+        );
+      } catch (cause) {
+        if (!accepts()) return { state: 'UNKNOWN' };
+        const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
+        if ([401, 403, 404].includes(failure.httpStatus)) return { state: 'DENIED', cause };
+        unknown = true;
+      }
       if (!accepts()) return { state: 'UNKNOWN' };
-      const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
-      return [401, 403, 404].includes(failure.httpStatus)
-        ? { state: 'DENIED', cause }
-        : { state: 'UNKNOWN' };
     }
+    return unknown ? { state: 'UNKNOWN' } : { state: 'ALLOWED' };
   }
   useEffect(() => {
     const abort = new AbortController();
@@ -96,7 +117,9 @@ export function MarkdownReview(props: Props) {
     const untrack = props.readBoundary.track(abort);
     setLoaded(null);
     setError('');
+    setSessionRequired(false);
     setDirectoryStatus('');
+    setDownloadStatus('');
     if (!link) {
       setError('文件链接不完整或版本绑定无效。');
       return () => {
@@ -161,6 +184,7 @@ export function MarkdownReview(props: Props) {
     props.readBoundary,
     props.csrfToken,
     tag,
+    readAttempt,
   ]);
   async function more() {
     if (!link || !loaded?.changes.nextCursor || !controller.current) return;
@@ -194,7 +218,7 @@ export function MarkdownReview(props: Props) {
       if (!accepts()) return;
       const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
       if ([401, 403, 404].includes(failure.httpStatus)) {
-        const permission = await canonicalReadPermission();
+        const permission = await retainedReadPermission();
         if (!accepts()) return;
         if (permission.state === 'DENIED') {
           fail(permission.cause);
@@ -295,7 +319,7 @@ export function MarkdownReview(props: Props) {
       if (accepts()) {
         const failure = failureFromUnknown(cause, 'DOWNLOAD_UNAVAILABLE');
         if ([401, 403, 404].includes(failure.httpStatus)) {
-          const permission = await canonicalReadPermission();
+          const permission = await retainedReadPermission();
           if (!accepts()) return;
           if (permission.state === 'DENIED') {
             fail(permission.cause);
@@ -318,6 +342,17 @@ export function MarkdownReview(props: Props) {
       <section className="panel" role="alert">
         <h1>文件检查</h1>
         <p>{error}</p>
+        {sessionRequired ? (
+          <button onClick={props.onSessionFailure}>重新检查会话</button>
+        ) : (
+          <button
+            onClick={() => {
+              setReadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            重新读取文件
+          </button>
+        )}
       </section>
     );
   if (!visible || !link)

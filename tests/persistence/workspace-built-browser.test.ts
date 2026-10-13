@@ -35,7 +35,13 @@ import { fileURLToPath } from 'node:url';
 import { NestFactory } from '../../apps/api/node_modules/@nestjs/core/index.js';
 import { FastifyAdapter } from '../../apps/api/node_modules/@nestjs/platform-fastify/index.js';
 import fastify from '../../apps/api/node_modules/fastify/fastify.js';
-import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Request as BrowserRequest,
+} from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../../apps/api/src/app.module.js';
@@ -670,6 +676,139 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     await page.setViewportSize(VIEWPORT);
     await note.fill('');
   }, 120_000);
+  it('clears the comparison when only the baseline is denied and recovers only on explicit retry', async () => {
+    const fixture = requiredValue(stack.markdown);
+    const contentPath = '/bff/queries/artifact.get_file_review_content/1.0';
+    const directoryPath = '/bff/queries/artifact.get_file_change_directory/1.0';
+    const contentUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === contentPath;
+    const directoryUrl = (url: URL) =>
+      url.origin === stack.webOrigin && url.pathname === directoryPath;
+    let denyBaseline = false;
+    const probes: string[] = [];
+    const requests = { session: 0, content: 0, directory: 0 };
+    const track = (request: BrowserRequest) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/bff/session') requests.session += 1;
+      if (path === contentPath) requests.content += 1;
+      if (path === directoryPath) requests.directory += 1;
+    };
+    page.on('request', track);
+    await page.route(contentUrl, async (route) => {
+      const envelope = JSON.parse(route.request().postData() ?? '{}') as {
+        payload: { revisionRef: { objectId: string } };
+      };
+      if (denyBaseline) probes.push(envelope.payload.revisionRef.objectId);
+      if (
+        denyBaseline &&
+        envelope.payload.revisionRef.objectId === fixture.from.revisionRef.objectId
+      ) {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      } else {
+        await route.continue();
+      }
+    });
+    try {
+      await page.goto(`${stack.webOrigin}${fixture.link}`);
+      await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      const note = page.getByRole('textbox', { name: '意见草稿' });
+      await note.fill('基线失权后必须清除的本页意见。');
+      expect(await page.locator('.markdown-before').innerText()).toContain('原有要求');
+      denyBaseline = true;
+      await page.route(directoryUrl, async (route) => {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      });
+      await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+      const retry = page.getByRole('button', { name: '重新读取文件', exact: true });
+      await retry.waitFor();
+      await note.waitFor({ state: 'detached' });
+      expect(probes).toEqual([fixture.to.revisionRef.objectId, fixture.from.revisionRef.objectId]);
+      const body = await page.locator('body').innerText();
+      expect(body).not.toContain('原有要求');
+      expect(body).not.toContain('更新要求');
+      expect(body).not.toContain('基线失权后必须清除');
+      const stopped = { ...requests };
+      await page.waitForTimeout(500);
+      expect(requests).toEqual(stopped);
+      await retry.click();
+      await expect.poll(() => probes.length).toBe(4);
+      await retry.waitFor();
+      expect(probes).toEqual([
+        fixture.to.revisionRef.objectId,
+        fixture.from.revisionRef.objectId,
+        fixture.to.revisionRef.objectId,
+        fixture.from.revisionRef.objectId,
+      ]);
+      const retried = { ...requests };
+      await page.waitForTimeout(500);
+      expect(requests).toEqual(retried);
+      denyBaseline = false;
+      await page.unroute(directoryUrl);
+      await retry.click();
+      await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      expect(await page.getByRole('textbox', { name: '意见草稿' }).inputValue()).toBe('');
+    } finally {
+      page.off('request', track);
+      await page.unroute(contentUrl);
+      await page.unroute(directoryUrl);
+    }
+  }, 30_000);
+  it.each([401, 403, 404])(
+    'stops persistent %i reads with the same ALLOWED session until explicit retry',
+    async (status) => {
+      const fixture = requiredValue(stack.markdown);
+      const contentPath = '/bff/queries/artifact.get_file_review_content/1.0';
+      const contentUrl = (url: URL) =>
+        url.origin === stack.webOrigin && url.pathname === contentPath;
+      const readSession = () =>
+        page.evaluate(async () => {
+          const session = (await (await fetch('/bff/session', { cache: 'no-store' })).json()) as {
+            accessState: string;
+            sessionGeneration: string;
+          };
+          return { accessState: session.accessState, sessionGeneration: session.sessionGeneration };
+        });
+      const before = await readSession();
+      expect(before.accessState).toBe('ALLOWED');
+      const requests = { session: 0, content: 0 };
+      const track = (request: BrowserRequest) => {
+        const path = new URL(request.url()).pathname;
+        if (path === '/bff/session') requests.session += 1;
+        if (path === contentPath) requests.content += 1;
+      };
+      page.on('request', track);
+      await page.route(contentUrl, async (route) => {
+        await route.fulfill({ status, contentType: 'application/json', body: '{}' });
+      });
+      try {
+        await page.goto(`${stack.webOrigin}${fixture.link}`);
+        const retry = page.getByRole('button', {
+          name: status === 401 ? '重新检查会话' : '重新读取文件',
+          exact: true,
+        });
+        await retry.waitFor();
+        expect(await page.locator('.canonical-document').count()).toBe(0);
+        expect(await page.getByRole('textbox', { name: '意见草稿' }).count()).toBe(0);
+        expect(await readSession()).toEqual(before);
+        expect(requests.content).toBe(1);
+        const stopped = { ...requests };
+        await page.waitForTimeout(500);
+        expect(requests).toEqual(stopped);
+        await retry.click();
+        await expect.poll(() => requests.content).toBe(2);
+        await retry.waitFor();
+        const retried = { ...requests };
+        await page.waitForTimeout(500);
+        expect(requests).toEqual(retried);
+        await page.unroute(contentUrl);
+        await retry.click();
+        await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      } finally {
+        page.off('request', track);
+        await page.unroute(contentUrl);
+      }
+    },
+    30_000,
+  );
   it('refuses cross-scope and unregistered Service routes, and clears content after permission revocation', async () => {
     const fixture = requiredValue(stack.markdown);
     const results = await page.evaluate(
@@ -719,6 +858,31 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     await note.waitFor({ state: 'detached' });
     expect(await page.locator('body').innerText()).not.toContain('撤权后需要清除');
     expect(await page.locator('body').innerText()).not.toContain('更新要求');
+    const session = await page.evaluate(
+      async () =>
+        (await (await fetch('/bff/session', { cache: 'no-store' })).json()) as {
+          accessState: string;
+        },
+    );
+    expect(session.accessState).toBe('ALLOWED');
+    const requests = { session: 0, content: 0 };
+    const track = (request: BrowserRequest) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/bff/session') requests.session += 1;
+      if (path === '/bff/queries/artifact.get_file_review_content/1.0') requests.content += 1;
+    };
+    page.on('request', track);
+    try {
+      await page.waitForTimeout(500);
+      expect(requests).toEqual({ session: 0, content: 0 });
+      await page.getByRole('button', { name: '重新读取文件', exact: true }).click();
+      await expect.poll(() => requests.content).toBe(1);
+      await page.getByRole('button', { name: '重新读取文件', exact: true }).waitFor();
+      await page.waitForTimeout(500);
+      expect(requests).toEqual({ session: 0, content: 1 });
+    } finally {
+      page.off('request', track);
+    }
     await page.unroute(streamUrl);
   }, 30_000);
 });
