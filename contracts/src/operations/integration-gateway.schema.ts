@@ -695,7 +695,154 @@ const namedDefinitions = {
 // Operation payload / result schemas (Module-Spec-007 §3 / §4 / §5)
 // =============================================================================
 
+const { markdownRenderDefinitions, markdownRenderOperations } = (() => {
+  const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
+  const art = 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/';
+  const ig = 'https://schemas.zhiju.local/modules/integration-gateway/1.0#/$defs/';
+  const ref = (name: string) => ({ $ref: `${common}${name}` });
+  const local = (name: string) => ({ $ref: `${art}${name}` });
+  const list = (items: unknown) => ({ type: 'array', items });
+  const object = (required: string[], properties: Record<string, unknown>): JsonSchema => ({
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties,
+  });
+  const hash = ref('contentHash');
+  const revision = {
+    allOf: [
+      ref('contentAddressedRef'),
+      {
+        type: 'object',
+        properties: {
+          objectType: { const: 'artifact.artifact_revision' },
+          scope: {
+            type: 'object',
+            required: ['enterpriseId', 'projectId'],
+            properties: { enterpriseId: ref('uuidV7'), projectId: ref('uuidV7') },
+          },
+        },
+      },
+    ],
+  };
+  const watermarks = list(ref('sourceWatermark'));
+  const markdownRenderRequest = object(
+    [
+      'revisionRef',
+      'canonicalContentRef',
+      'inputHash',
+      'outputFormat',
+      'rendererId',
+      'rendererVersion',
+      'markdownProfileRef',
+      'structureSchemaRef',
+      'rendererDigest',
+      'identityMapHash',
+    ],
+    {
+      revisionRef: revision,
+      canonicalContentRef: local('objectLocator'),
+      inputHash: hash,
+      outputFormat: { const: 'zhiju.markdown' },
+      rendererId: { const: 'zhiju.renderer.markdown.canonical' },
+      rendererVersion: { const: '1.0.0' },
+      markdownProfileRef: ref('versionedRef'),
+      structureSchemaRef: ref('versionedRef'),
+      rendererDigest: hash,
+      identityMapHash: hash,
+    },
+  );
+  const status = { enum: ['CREATED', 'SUCCEEDED', 'FAILED', 'UNKNOWN'] };
+  const markdownRenderDefinitions = {
+    markdownRenderRequest,
+    markdownValidation: object(
+      [
+        'profileRef',
+        'structureSchemaRef',
+        'rendererDigest',
+        'identityMapHash',
+        'inputContentHash',
+        'roundTripContentHash',
+        'outputBytesSha256',
+        'outputByteLength',
+        'validatorRef',
+        'outcome',
+      ],
+      {
+        profileRef: ref('versionedRef'),
+        structureSchemaRef: ref('versionedRef'),
+        rendererDigest: hash,
+        identityMapHash: hash,
+        inputContentHash: hash,
+        roundTripContentHash: hash,
+        outputBytesSha256: hash,
+        outputByteLength: { type: 'integer', minimum: 1, maximum: 10485760 },
+        validatorRef: object(['validatorId', 'version'], {
+          validatorId: { const: 'artifact.markdown_round_trip' },
+          version: { const: '1.0' },
+        }),
+        outcome: { const: 'PASS' },
+      },
+    ),
+    markdownRenderBinding: {
+      ...object(
+        [
+          'attemptRef',
+          'status',
+          'originalOperation',
+          'originalRequest',
+          'requestPayloadHash',
+          'sourceWatermarks',
+        ],
+        {
+          attemptRef: ref('objectRef'),
+          status,
+          originalOperation: object(['type', 'version'], {
+            type: { const: 'integration.request_markdown_render' },
+            version: { const: '1.0' },
+          }),
+          originalRequest: { $ref: `${ig}markdownRenderRequest` },
+          requestPayloadHash: hash,
+          succeededResult: { $ref: `${ig}renderSucceededPayload` },
+          rawReceiptRef: ref('contentAddressedRef'),
+          markdownValidation: { $ref: `${ig}markdownValidation` },
+          sourceWatermarks: watermarks,
+        },
+      ),
+      allOf: [
+        {
+          if: { properties: { status: { const: 'SUCCEEDED' } } },
+          then: {
+            required: ['succeededResult', 'rawReceiptRef', 'markdownValidation'],
+            properties: { succeededResult: {}, rawReceiptRef: {}, markdownValidation: {} },
+          },
+          else: {
+            properties: { succeededResult: false, rawReceiptRef: false, markdownValidation: false },
+          },
+        },
+      ],
+    },
+  } as const;
+  const markdownRenderOperations = {
+    'integration.request_markdown_render': {
+      payload: markdownRenderRequest,
+      result: object(['attemptRef', 'receiptRef', 'status'], {
+        attemptRef: ref('objectRef'),
+        receiptRef: ref('objectRef'),
+        status,
+      }),
+    },
+    'integration.get_markdown_render_binding': {
+      payload: object(['attemptRef'], { attemptRef: ref('objectRef') }),
+      result: { $ref: `${ig}markdownRenderBinding` },
+    },
+  } as const;
+
+  return { markdownRenderDefinitions, markdownRenderOperations };
+})();
+
 const operationSchemas = {
+  ...markdownRenderOperations,
   // --- Commands ------------------------------------------------------------
   'integration.accept_inbound_envelope': {
     payload: object(['submission'], {
@@ -1084,6 +1231,7 @@ export const integrationGatewaySchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $defs: {
     ...namedDefinitions,
+    ...markdownRenderDefinitions,
     ...operationDefinitions,
   },
 } as const satisfies JsonSchema;

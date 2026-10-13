@@ -549,11 +549,30 @@ export class ArtifactRepository {
     trx: ArtifactTransaction,
     input: ArtifactRepresentationInsert,
   ): Promise<ArtifactRepresentationCreateResult> {
+    return this.registerRepresentationUsing(trx, input, 'artifact.register_representation');
+  }
+
+  async registerMarkdownRepresentation(
+    trx: ArtifactTransaction,
+    input: ArtifactRepresentationInsert,
+  ): Promise<ArtifactRepresentationCreateResult> {
+    return this.registerRepresentationUsing(
+      trx,
+      input,
+      'artifact.register_markdown_representation',
+    );
+  }
+
+  private async registerRepresentationUsing(
+    trx: ArtifactTransaction,
+    input: ArtifactRepresentationInsert,
+    operation: 'artifact.register_representation' | 'artifact.register_markdown_representation',
+  ): Promise<ArtifactRepresentationCreateResult> {
     const result = await sql<{
       outcome: ArtifactRepresentationCreateOutcome;
       representation_id: string | null;
     }>`
-      SELECT * FROM artifact.register_representation(
+      SELECT * FROM ${sql.raw(operation)}(
         CAST(${input.representationId} AS uuid),
         CAST(${input.artifactId} AS uuid),
         CAST(${input.revisionId} AS uuid),

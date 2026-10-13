@@ -6,6 +6,7 @@ import type { Kysely } from 'kysely';
 import {
   getContractRegistry,
   isExecutionDocumentSchema,
+  isMarkdownDocumentSchema,
   type Artifact,
   type Common,
 } from '@zhiju/contracts';
@@ -168,7 +169,8 @@ function validatedSchemaRef(
   const scope = record(schemaRef.scope);
   const enterpriseId = scope.enterpriseId;
   const projectId =
-    isExecutionDocumentSchema(payload.schemaRef, context.enterpriseId) &&
+    (isExecutionDocumentSchema(payload.schemaRef, context.enterpriseId) ||
+      isMarkdownDocumentSchema(payload.schemaRef, context.enterpriseId)) &&
     envelope.projectId !== undefined &&
     context.allowedProjectIds.includes(envelope.projectId)
       ? envelope.projectId
@@ -209,7 +211,9 @@ function validateCanonicalContent(
   envelope: CommandEnvelope,
   declaredContentHash: unknown,
 ): ValidatedCanonicalContent {
-  const validation = registry.validateCanonicalContent(payload);
+  const validation = isMarkdownDocumentSchema(record(payload).schemaRef, context.enterpriseId)
+    ? registry.validateMarkdownDocumentContent(payload)
+    : registry.validateCanonicalContent(payload);
   if (!validation.valid) {
     throw new ArtifactBusinessError(
       ARTIFACT_CONTENT_SCHEMA_INVALID,

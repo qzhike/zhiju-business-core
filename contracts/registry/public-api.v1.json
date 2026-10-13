@@ -2659,6 +2659,78 @@
       "authorizationPurpose": "project.workspace.discover",
       "dataClassification": "INTERNAL",
       "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "artifact.get_file_review_content",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.file_review.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "artifact.get_file_change_directory",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.file_diff.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "artifact.resolve_file_review_locations",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.file_locations.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "artifact.register_markdown_representation",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.markdown_representation.register",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "concurrencyMode": "CREATE",
+      "targetObjectType": "artifact.representation"
+    },
+    {
+      "type": "artifact.get_markdown_download",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "artifact",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "artifact.markdown_download.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
+    },
+    {
+      "type": "integration.request_markdown_render",
+      "version": "1.0",
+      "kind": "COMMAND",
+      "owner": "integration-gateway",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "integration.render.request",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "concurrencyMode": "CREATE",
+      "targetObjectType": "integration.render_attempt"
+    },
+    {
+      "type": "integration.get_markdown_render_binding",
+      "version": "1.0",
+      "kind": "QUERY",
+      "owner": "integration-gateway",
+      "schemaStatus": "FULL",
+      "authorizationPurpose": "integration.markdown_render_binding.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "allowedConsistency": ["AUTHORITATIVE"]
     }
   ]
 }

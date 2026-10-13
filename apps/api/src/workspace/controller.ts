@@ -22,7 +22,8 @@
 // exercised without a database or an identity provider. Every failure is
 // projected through the frozen `errors.ts` table.
 
-import { Controller, Inject, Param, Post, Put, Req, Res } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Post, Put, Req, Res } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { VerifiedOidcContextInput } from '@zhiju/identity-policy';
 import type { Common } from '@zhiju/contracts';
@@ -62,6 +63,7 @@ const WORKSPACE_ROUTE_PREFIXES: readonly string[] = Object.freeze([
   '/api/queries/',
   '/api/commands/',
   '/api/customer-intakes/',
+  '/api/markdown-representations/',
 ]);
 
 /** One verified access token plus the trusted BFF session binding. */
@@ -91,6 +93,12 @@ export interface WorkspaceDispatchResponse {
   readonly payload: unknown;
 }
 
+export interface WorkspaceMarkdownStreamRequest extends WorkspaceVerifiedAccess {
+  readonly representationId: string;
+  readonly ticket: string;
+  readonly signal: AbortSignal;
+}
+
 /**
  * The trusted runtime behind the HTTP surface. Every method fails closed: it
  * either returns a verified result or throws `WorkspaceCoreError` with a code
@@ -106,6 +114,12 @@ export interface WorkspaceTransportRuntime {
   }): Promise<WorkspaceVerifiedAccess>;
   bootstrapHuman(access: WorkspaceVerifiedAccess): Promise<WorkspaceHumanBootstrap>;
   dispatch(request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse>;
+  streamMarkdown?(request: WorkspaceMarkdownStreamRequest): Promise<{
+    bytes: AsyncIterable<Buffer>;
+    byteLength: number;
+    mediaType: string;
+    safeFilename: string;
+  }>;
 }
 
 /** Per-request correlation id; a WeakMap keeps it off the Fastify request shape. */
@@ -273,6 +287,47 @@ export class WorkspaceController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     await reject(reply, correlationOf(request), CORE_ERROR_CODE.NOT_FOUND);
+  }
+
+  @Get('api/markdown-representations/:representationId/content')
+  async markdownContent(
+    @Param('representationId') representationId: string,
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const abort = new AbortController();
+    reply.raw.once('close', () => {
+      abort.abort();
+    });
+    try {
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          representationId,
+        ) ||
+        request.url.includes('%') ||
+        request.url.includes('?')
+      )
+        throw new WorkspaceCoreError(CORE_ERROR_CODE.NOT_FOUND);
+      const access = await this.authenticate(request);
+      const ticket = headerValue(request, 'x-markdown-download-ticket');
+      if (!ticket || ticket.length > 16384) throw new WorkspaceCoreError(CORE_ERROR_CODE.NOT_FOUND);
+      if (!this.runtime.streamMarkdown)
+        throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
+      const output = await this.runtime.streamMarkdown({
+        ...access,
+        representationId,
+        ticket,
+        signal: abort.signal,
+      });
+      reply.header('Content-Type', 'text/markdown; charset=utf-8');
+      reply.header('Content-Disposition', `attachment; filename="${output.safeFilename}"`);
+      reply.header('Content-Length', output.byteLength);
+      await reply.send(Readable.from(output.bytes));
+    } catch (error) {
+      abort.abort();
+      if (reply.raw.headersSent) reply.raw.destroy();
+      else await this.fail(reply, error, correlationOf(request));
+    }
   }
 
   private async dispatchRoute(

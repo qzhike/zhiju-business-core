@@ -3,6 +3,7 @@
 
 import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
+import type { Artifact } from './artifact.js';
 
 export namespace IntegrationGateway {
   export type AdapterKind = "FEISHU_CHANNEL" | "RUNTIME" | "RENDERER" | "OBJECT_STORAGE" | "EXTERNAL_AUTHORITY";
@@ -251,6 +252,53 @@ export namespace IntegrationGateway {
   readonly rendererId: Common.NamespaceCode;
   readonly rendererVersion: Common.NonEmptyString;
 }
+  export type MarkdownRenderRequest = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly canonicalContentRef: Artifact.ObjectLocator;
+  readonly inputHash: Common.ContentHash;
+  readonly outputFormat: "zhiju.markdown";
+  readonly rendererId: "zhiju.renderer.markdown.canonical";
+  readonly rendererVersion: "1.0.0";
+  readonly markdownProfileRef: Common.VersionedRef;
+  readonly structureSchemaRef: Common.VersionedRef;
+  readonly rendererDigest: Common.ContentHash;
+  readonly identityMapHash: Common.ContentHash;
+};
+  export interface MarkdownValidation {
+  readonly profileRef: Common.VersionedRef;
+  readonly structureSchemaRef: Common.VersionedRef;
+  readonly rendererDigest: Common.ContentHash;
+  readonly identityMapHash: Common.ContentHash;
+  readonly inputContentHash: Common.ContentHash;
+  readonly roundTripContentHash: Common.ContentHash;
+  readonly outputBytesSha256: Common.ContentHash;
+  readonly outputByteLength: number;
+  readonly validatorRef: {
+  readonly validatorId: "artifact.markdown_round_trip";
+  readonly version: "1.0";
+};
+  readonly outcome: "PASS";
+}
+  export type MarkdownRenderBinding = {
+  readonly attemptRef: Common.ObjectRef;
+  readonly status: "CREATED" | "SUCCEEDED" | "FAILED" | "UNKNOWN";
+  readonly originalOperation: {
+  readonly type: "integration.request_markdown_render";
+  readonly version: "1.0";
+};
+  readonly originalRequest: IntegrationGateway.MarkdownRenderRequest;
+  readonly requestPayloadHash: Common.ContentHash;
+  readonly succeededResult?: IntegrationGateway.RenderSucceededPayload;
+  readonly rawReceiptRef?: Common.ContentAddressedRef;
+  readonly markdownValidation?: IntegrationGateway.MarkdownValidation;
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+};
   /** Payload of `integration.accept_inbound_envelope` (COMMAND). */
   export interface IntegrationAcceptInboundEnvelopePayload {
   readonly submission: IntegrationGateway.InboundEnvelopeSubmission;
@@ -469,4 +517,35 @@ export namespace IntegrationGateway {
   readonly rendererId: Common.NamespaceCode;
   readonly rendererVersion: Common.NonEmptyString;
 }
+  /** Payload of `integration.request_markdown_render` (COMMAND). */
+  export type IntegrationRequestMarkdownRenderPayload = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly canonicalContentRef: Artifact.ObjectLocator;
+  readonly inputHash: Common.ContentHash;
+  readonly outputFormat: "zhiju.markdown";
+  readonly rendererId: "zhiju.renderer.markdown.canonical";
+  readonly rendererVersion: "1.0.0";
+  readonly markdownProfileRef: Common.VersionedRef;
+  readonly structureSchemaRef: Common.VersionedRef;
+  readonly rendererDigest: Common.ContentHash;
+  readonly identityMapHash: Common.ContentHash;
+};
+  /** Result of `integration.request_markdown_render` (COMMAND). */
+  export type IntegrationRequestMarkdownRenderResult = {
+  readonly attemptRef: Common.ObjectRef;
+  readonly receiptRef: Common.ObjectRef;
+  readonly status: "CREATED" | "SUCCEEDED" | "FAILED" | "UNKNOWN";
+};
+  /** Payload of `integration.get_markdown_render_binding` (QUERY). */
+  export interface IntegrationGetMarkdownRenderBindingPayload {
+  readonly attemptRef: Common.ObjectRef;
+}
+  /** Result of `integration.get_markdown_render_binding` (QUERY). */
+  export type IntegrationGetMarkdownRenderBindingResult = IntegrationGateway.MarkdownRenderBinding;
 }

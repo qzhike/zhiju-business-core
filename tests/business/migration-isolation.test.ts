@@ -89,6 +89,12 @@ const COMPANY_STARTUP_ALLOCATIONS = new Map([
   [7017, 'enterprise_project'],
 ]);
 
+// Issue #279 requires two owning forward migrations for exact Markdown download.
+const MARKDOWN_REVIEW_ALLOCATIONS = new Map([
+  [7018, 'integration_gateway'],
+  [7019, 'artifact'],
+]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -115,6 +121,14 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const markdownOwner = MARKDOWN_REVIEW_ALLOCATIONS.get(version);
+  if (markdownOwner) {
+    return directory === markdownOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${markdownOwner} Markdown review`,
+        ];
+  }
   const companyOwner = COMPANY_STARTUP_ALLOCATIONS.get(version);
   if (companyOwner) {
     return directory === companyOwner
@@ -294,6 +308,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
         ]);
     }
     expect(validateMigrationEntry('integration_gateway', 'V7010__next.sql')).toEqual([]);
+    for (const [version, owner] of MARKDOWN_REVIEW_ALLOCATIONS) {
+      expect(validateMigrationEntry(owner, `V${version}__markdown_review.sql`)).toEqual([]);
+      for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+        (value) => value !== owner,
+      ))
+        expect(validateMigrationEntry(directory, `V${version}__markdown_review.sql`)).toEqual([
+          `'${directory}/V${version}__markdown_review.sql': version ${version} reserved for ${owner} Markdown review`,
+        ]);
+    }
     for (const [version, owner] of RUN_CANCELLATION_ALLOCATIONS) {
       expect(validateMigrationEntry(owner, `V${version}__cancellation.sql`)).toEqual([]);
       for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(

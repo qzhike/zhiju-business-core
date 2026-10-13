@@ -361,6 +361,9 @@ describe('session probe and safe entry', () => {
     expect(safeReturnTo('/projects/../../etc/passwd')).toBe('/workbench');
     expect(safeReturnTo('/projects/A/analysis/B#x')).toBe('/workbench');
     expect(safeReturnTo(`/${'a'.repeat(240)}`)).toBe('/workbench');
+    const exactLink = `/projects/${'a'.repeat(36)}/artifacts/${'b'.repeat(36)}/revisions/${'c'.repeat(36)}?binding=${'x'.repeat(2000)}`;
+    expect(safeReturnTo(exactLink)).toBe(exactLink);
+    expect(safeReturnTo(`${exactLink}&redirect=https://evil.invalid`)).toBe('/workbench');
     expect(signInHref('/workbench')).toBe('/bff/auth/login?returnTo=%2Fworkbench');
     expect(signInHref('https://evil.invalid')).toBe('/bff/auth/login?returnTo=%2Fworkbench');
   });

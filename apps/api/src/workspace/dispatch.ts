@@ -59,12 +59,22 @@ import {
   type CoreErrorCode,
 } from './errors.js';
 import type { WorkspaceDispatchRequest, WorkspaceDispatchResponse } from './controller.js';
+import type { WorkspaceMarkdownStreamRequest } from './controller.js';
+import {
+  createMarkdownReviewEntry,
+  type MarkdownReviewEntryConfig,
+} from '../composition/markdown-review-entry.js';
+import { MARKDOWN_REVIEW_PURPOSES, type MarkdownReviewOperation } from '@zhiju/identity-policy';
 
 /** The six trusted capability codes the three reads resolve. */
 export type WorkspaceDispatchCapabilityCodes = WorkspaceDirectoryCapabilityCodes &
   WorkspaceBoardCapabilityCodes;
 
 export interface WorkspaceDispatchConfig {
+  readonly markdown?: Pick<
+    MarkdownReviewEntryConfig,
+    'review' | 'representations' | 'capabilityCodes'
+  >;
   readonly identity: {
     readonly db: Kysely<IdentityPolicyDb>;
     readonly repo: IdentityPolicyRepository;
@@ -84,10 +94,14 @@ export interface WorkspaceDispatchConfig {
 
 export interface WorkspaceDispatch {
   execute(request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse>;
+  stream(
+    request: WorkspaceMarkdownStreamRequest,
+  ): ReturnType<ReturnType<typeof createMarkdownReviewEntry>['stream']>;
 }
 
 /** The closed implemented read table; no command and no wildcard is present. */
 const IMPLEMENTED_QUERIES: ReadonlySet<string> = new Set([
+  ...Object.keys(MARKDOWN_REVIEW_PURPOSES).map((operation) => `${operation}@1.0`),
   `${WORKSPACE_DIRECTORY_QUERY}@${WORKSPACE_DIRECTORY_QUERY_VERSION}`,
   `${PROJECT_BOARD_SLICE_QUERY}@${PROJECT_BOARD_SLICE_QUERY_VERSION}`,
   `${TASK_BOARD_SLICE_QUERY}@${TASK_BOARD_SLICE_QUERY_VERSION}`,
@@ -132,6 +146,9 @@ const BOOTSTRAP_PRINCIPAL_ID = '00000000-0000-7000-8000-000000000001';
 
 /** Internal owning codes projected onto the frozen public table. */
 const PUBLIC_CODE_BY_INTERNAL: Readonly<Record<string, CoreErrorCode>> = Object.freeze({
+  ARTIFACT_QUERY_NOT_FOUND: CORE_ERROR_CODE.NOT_FOUND,
+  ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID: CORE_ERROR_CODE.NOT_FOUND,
+  ARTIFACT_CONTENT_READBACK_MISMATCH: CORE_ERROR_CODE.NOT_FOUND,
   API_VALUE_INVALID: CORE_ERROR_CODE.API_VALUE_INVALID,
   API_CONTRACT_TYPE_UNKNOWN: CORE_ERROR_CODE.NOT_FOUND,
   API_PAYLOAD_HASH_MISMATCH: CORE_ERROR_CODE.API_VALUE_INVALID,
@@ -196,6 +213,13 @@ function bootstrapContext(params: {
 }
 
 export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): WorkspaceDispatch {
+  const markdown = config.markdown
+    ? createMarkdownReviewEntry({
+        ...config.markdown,
+        identity: config.identity,
+        ...(config.now ? { now: config.now } : {}),
+      })
+    : undefined;
   const now = config.now ?? ((): Date => new Date());
   const directoryEntry = createWorkspaceDirectoryEntry({
     identity: config.identity,
@@ -290,6 +314,10 @@ export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): Worksp
       resolution,
       request.correlationId,
     );
+    if (Object.hasOwn(MARKDOWN_REVIEW_PURPOSES, request.operation)) {
+      if (!markdown) throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
+      return markdown.query(request.operation as MarkdownReviewOperation, envelope, session);
+    }
     if (key === `${WORKSPACE_DIRECTORY_QUERY}@${WORKSPACE_DIRECTORY_QUERY_VERSION}`) {
       return directoryEntry.findWorkspaceProjects(envelope, session);
     }
@@ -300,6 +328,25 @@ export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): Worksp
   }
 
   return {
+    async stream(request) {
+      try {
+        if (!markdown) throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
+        const resolution = await resolveHuman(request.context);
+        return await markdown.stream(
+          {
+            context: request.context,
+            sessionBinding: request.sessionBinding,
+            authenticationContextHash: resolution.authenticationContextHash,
+            principalRef: resolution.principalRef,
+          },
+          request.representationId,
+          request.ticket,
+          request.signal,
+        );
+      } catch (error) {
+        throw toWorkspaceCoreError(error);
+      }
+    },
     async execute(request) {
       try {
         const body = record(request.body);

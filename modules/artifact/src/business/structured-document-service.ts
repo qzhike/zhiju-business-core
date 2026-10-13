@@ -138,7 +138,7 @@ export interface StructuredDocumentDiffResult {
   readonly rightCanonicalBytes: string;
 }
 
-interface ExactRevisionFacts {
+export interface ExactRevisionFacts {
   readonly ref: Common.ContentAddressedRef;
   readonly revision: ArtifactRevisionTable;
   readonly root: {
@@ -868,6 +868,28 @@ async function readStructuredDocument(
     canonicalBytes,
     contentHash: calculatedHash,
   };
+}
+
+/** Owning immutable read shared by the public Markdown review and renderer ports. */
+export async function readFrozenStructuredRevision(
+  db: Kysely<ArtifactDb>,
+  context: ArtifactTransactionContext,
+  storage: ObjectStoragePort,
+  revisionRef: Common.ContentAddressedRef,
+) {
+  const facts = await readExactRevisionFacts(db, context, revisionRef, false, false);
+  const content = await readStructuredDocument(storage, context, facts);
+  if (
+    content.canonicalBytes.byteLength !== Number(facts.contentObject.byte_size) ||
+    content.canonicalBytes.byteLength !== Number(facts.revision.byte_size) ||
+    facts.contentObject.finalization_state !== 'FINALIZED'
+  ) {
+    throw new ArtifactBusinessError(
+      ARTIFACT_CONTENT_READBACK_MISMATCH,
+      'Frozen content integrity mismatch',
+    );
+  }
+  return { facts, content };
 }
 
 async function readContentObject(

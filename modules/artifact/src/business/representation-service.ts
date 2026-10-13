@@ -603,7 +603,7 @@ function registrationForRow(
   };
 }
 
-function representationViewForRow(
+export function representationViewForRow(
   row: NonNullable<Awaited<ReturnType<ArtifactRepository['getRepresentationById']>>>,
 ): Artifact.RepresentationView {
   const registration = registrationForRow(row);

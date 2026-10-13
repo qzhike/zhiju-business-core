@@ -185,3 +185,9 @@ reviewer and timestamp
 | UI-MF-005 / MF-09真实server cross-device/CAS/save failure、processing时新text/attachment | 仅本人私稿，saved receipt exact匹配；一winner/fork保留差异，无自动merge/换base/发送；未保存状态真实可见 | 未执行 / NOT RUN |
 | UI-MF-006 / MF-05/10plan objection/partial handling/linked Blocking Issue | 只该文件暂停、其他候选/草稿/批准不改；未处理明确、Issue不自解，反馈/导航不当Approval | 未执行 / NOT RUN |
 | UI-MF-007 / MF-12Head成功但render UNKNOWN、exactdownload/撤权/恶意内容与filename | canonical可看/导出分别表达；未登记不下载raw成果，ticket header/no-store/安全编码/失权清理；下载不送达 | 未执行 / NOT RUN |
+
+## 精确 Markdown built Browser 技术验收（#279）
+
+`tests/persistence/workspace-built-browser.test.ts` 的 #279 场景复用真实 PostgreSQL、合成 OIDC HTTP、Core/BFF 与 production build artifact server。合法 owning Human setup 封存两个 exact Revision，先真实渲染登记，再用深链接登录并读取。检查 36/9 分母、逐处前后/章节搜索跳转、意见保留、全文与 12 列/空 cell/0、窄屏意见切换、禁用未实现提交/批准、两次实际 browser download 完整字节及 SHA-256 等于注册 checksum、跨 Scope、禁止 SERVICE 公共路由与撤权清空。
+
+本用例覆盖 UI-MF-002/007 的自动化技术切片；实际 Chrome/Edge 的 Windows/macOS 矩阵、真实客户文件内容判断与独立 Human acceptance 仍 NOT RUN。截图只为布局 QA，不是批准或接收事实。

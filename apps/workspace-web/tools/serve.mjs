@@ -17,7 +17,7 @@ if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || ups
   throw new Error('Invalid fixed BFF upstream.');
 }
 const page =
-  /^(?:\/|\/workbench|\/projects\/new|\/projects\/[A-Za-z0-9_-]+\/(?:intake|(?:analysis|startup|executions)\/[A-Za-z0-9_-]+))$/u;
+  /^(?:\/|\/workbench|\/projects\/new|\/projects\/[A-Za-z0-9_-]+\/(?:intake|(?:analysis|startup|executions)\/[A-Za-z0-9_-]+|artifacts\/[A-Za-z0-9_-]+\/revisions\/[A-Za-z0-9_-]+))$/u;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -33,7 +33,11 @@ const server = createServer(async (req, res) => {
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'",
   );
   const path = (req.url ?? '/').split('?')[0];
-  if (path?.startsWith('/bff/') || path === '/bff') {
+  if (
+    path?.startsWith('/bff/') ||
+    path === '/bff' ||
+    /^\/api\/markdown-representations\/[0-9a-f-]+\/content$/.test(path ?? '')
+  ) {
     const send = upstream.protocol === 'https:' ? httpsRequest : httpRequest;
     const proxy = send(
       new URL(req.url ?? '/', upstream),
@@ -53,10 +57,16 @@ const server = createServer(async (req, res) => {
           delete headers[hopByHop];
         }
         res.writeHead(response.statusCode ?? 502, headers);
+        response.on('aborted', () => res.destroy());
+        response.on('error', () => res.destroy());
         response.pipe(res);
       },
     );
     const unavailable = () => {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
       if (!res.headersSent) res.writeHead(503, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({ code: 'UI_SERVICE_UNAVAILABLE', message: '服务暂不可用，请稍后重试。' }),
@@ -64,6 +74,7 @@ const server = createServer(async (req, res) => {
     };
     proxy.on('timeout', () => proxy.destroy());
     proxy.on('error', unavailable);
+    res.on('close', () => proxy.destroy());
     req.pipe(proxy);
     return;
   }

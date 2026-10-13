@@ -16,6 +16,10 @@ type MutableJson = ColumnType<unknown, string, string>;
 type Int8 = ColumnType<string, string | number, string | number>;
 
 export interface RenderAttemptTable {
+  original_operation: Generated<
+    'integration.request_render' | 'integration.request_markdown_render'
+  >;
+  source_command_id: string | null;
   attempt_id: string;
   enterprise_id: string;
   project_id: string | null;
@@ -204,6 +208,22 @@ export interface RenderOutboxEventTable {
 }
 
 export interface IntegrationRendererDb {
+  'integration_gateway.markdown_render_work': {
+    attempt_id: string;
+    enterprise_id: string;
+    project_id: string;
+    started_at: Date;
+    deadline_at: Date;
+  };
+  'integration_gateway.markdown_render_output': {
+    attempt_id: string;
+    enterprise_id: string;
+    project_id: string;
+    storage_reference: Json;
+    receipt_storage_reference: Json;
+    validation: Json;
+    observed_at: Date;
+  };
   'integration_gateway.command_receipt': RenderCommandReceiptTable;
   'integration_gateway.audit_record': RenderAuditRecordTable;
   'integration_gateway.reference_edge': RenderReferenceEdgeTable;

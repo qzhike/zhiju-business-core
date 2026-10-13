@@ -1,5 +1,296 @@
 @import 'tailwindcss';
 
+.markdown-review {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 130px);
+  min-height: 480px;
+}
+.markdown-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.markdown-review-header h1 {
+  font-size: 23px;
+}
+.markdown-review-header p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.markdown-review-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 270px;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+.markdown-chapters,
+.markdown-reader,
+.markdown-opinion {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+}
+.markdown-chapters {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 12px;
+  min-height: 0;
+}
+.markdown-directory-summary strong {
+  font-size: 25px;
+  color: var(--purple);
+  font-variant-numeric: tabular-nums;
+}
+.markdown-directory-summary span,
+.markdown-chapters small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.markdown-chapter-list {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  overscroll-behavior: contain;
+}
+.markdown-chapter-list summary {
+  cursor: pointer;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+}
+.markdown-chapter-list summary span {
+  float: right;
+  color: var(--muted);
+  font-weight: 400;
+}
+.markdown-chapter-list button {
+  display: flex;
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  margin: 4px 0;
+  padding: 10px 6px;
+}
+.markdown-chapter-list button span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.markdown-chapter-list button[aria-current='step'] {
+  background: var(--soft);
+  color: var(--purple);
+}
+.markdown-reader {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.markdown-reader-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.markdown-reader-toolbar button[aria-pressed='true'] {
+  background: var(--soft);
+  color: var(--purple);
+}
+.markdown-reading-scroll {
+  overflow: auto;
+  padding: 26px;
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.markdown-change h2 {
+  margin: 8px 0 20px;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.markdown-before,
+.markdown-after {
+  padding: 16px;
+  margin-top: 16px;
+  border-left: 3px solid #aaa;
+  background: #fafafa;
+}
+.markdown-before {
+  border-color: #bc766d;
+  background: #fcf5f3;
+}
+.markdown-after {
+  border-color: var(--green);
+  background: #f1f8f4;
+}
+.markdown-before h3,
+.markdown-after h3 {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.markdown-location-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.canonical-document {
+  line-height: 1.95;
+  overflow-wrap: anywhere;
+}
+.markdown-heading {
+  font-size: 19px;
+  font-weight: 650;
+  margin: 28px 0 14px;
+}
+.markdown-h2 {
+  font-size: 17px;
+}
+.markdown-h3,
+.markdown-h4,
+.markdown-h5,
+.markdown-h6 {
+  font-size: 15px;
+}
+.markdown-paragraph {
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+.markdown-list-item {
+  margin: 5px 0 5px 15px;
+  white-space: pre-wrap;
+}
+.markdown-wide-table {
+  overflow: auto;
+  max-width: 100%;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+}
+.markdown-wide-table table {
+  min-width: 100%;
+  border-collapse: collapse;
+  width: max-content;
+  max-width: none;
+}
+.markdown-wide-table th,
+.markdown-wide-table td {
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  min-width: 110px;
+  max-width: 330px;
+  white-space: pre-wrap;
+  text-align: left;
+}
+.markdown-wide-table th {
+  background: #f4f4f8;
+}
+.markdown-opinion {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  gap: 12px;
+}
+.markdown-opinion h2 {
+  font-size: 17px;
+}
+.markdown-opinion .muted,
+.markdown-opinion [role='status'] {
+  font-size: 12px;
+  color: var(--muted);
+}
+.markdown-opinion textarea {
+  resize: vertical;
+  flex: 1;
+  min-height: 130px;
+}
+.markdown-mobile-tabs {
+  display: none;
+}
+.markdown-download-status {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 25px;
+  padding-top: 6px;
+}
+@media (max-width: 1200px) {
+  .markdown-review-layout {
+    grid-template-columns: 200px minmax(0, 1fr) 220px;
+  }
+  .markdown-reading-scroll {
+    padding: 18px;
+  }
+}
+@media (max-width: 900px) {
+  .markdown-review {
+    min-height: 600px;
+    height: calc(100dvh - 145px);
+  }
+  .markdown-review-layout {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+  .markdown-mobile-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .markdown-review[data-pane='document'] .markdown-opinion {
+    display: none;
+  }
+  .markdown-review[data-pane='opinion'] .markdown-reader,
+  .markdown-review[data-pane='opinion'] .markdown-chapters {
+    display: none;
+  }
+  .markdown-review[data-pane='opinion'] .markdown-opinion {
+    grid-column: 1 / -1;
+  }
+  .markdown-review-header {
+    align-items: flex-start;
+  }
+  .markdown-review-header h1 {
+    font-size: 20px;
+  }
+}
+@media (max-width: 560px) {
+  .markdown-review-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 145px minmax(0, 1fr);
+  }
+  .markdown-chapters {
+    padding: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .markdown-chapter-list {
+    grid-column: 1 / -1;
+  }
+  .markdown-chapters > small {
+    display: none;
+  }
+  .markdown-review-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .markdown-review[data-pane='opinion'] .markdown-opinion {
+    grid-row: 1 / -1;
+  }
+  .markdown-reading-scroll {
+    padding: 12px;
+  }
+  .markdown-before,
+  .markdown-after {
+    padding: 10px;
+  }
+}
+
 :root {
   --ink: #282d40;
   --muted: #5b6375;

@@ -315,7 +315,7 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 ## Markdown 检查、单意见区与草稿接续提案（#259）
 
-状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。沿用[已批准交互](../decisions/workspace-mvp-human-agent.md#44-已确认的逐文件检查交互)，字段/流程见 [Markdown Delta](../decisions/markdown-file-feedback.md)。不新增聊天助手、逐change输入框、批量改稿或第二次“开始修改”动作。
+状态：T2 / APPROVED DESIGN；#279 已实现精确 Revision 阅读/变化导航/下载切片，其余提案仍 NOT IMPLEMENTED。沿用[已批准交互](../decisions/workspace-mvp-human-agent.md#44-已确认的逐文件检查交互)，字段/流程见 [Markdown Delta](../decisions/markdown-file-feedback.md)。不新增聊天助手、逐change输入框、批量改稿或第二次“开始修改”动作。
 
 首份文件在无Root/Revision/constraints时使用TE §28.0的确认前入口：在已有整份计划核对页显式prepare，按原request/key/hash只读查询，展示完整基线Canonical/nodeMap、精确来源/Hash、完整change/KEEP/allowed/protected提案和当前资格。MAPPING_REQUIRED时在同核对页明确已有位置映射后以新准备意图提交，READY且mayConfirm才确认exact proposalRef；失权、错Scope/hash、过期或未知准备状态不得盲确认。prepare/get/confirm都不自动generation或dispatch，确认后另显式生成。此时不调用要求current Revision的review_basis，也不暴露service producer或以Browser Diff代替完整映射。
 
@@ -328,3 +328,16 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 7. Markdown下载必须ART registered Representation与即时授权，ticket放header、短时且不持久化；raw proposal/source下载与受控成果明显区分，未注册public stream则功能不可用。CSP、安全编码/no-store、当前Session/CSRF/Scope、迟到响应generation与失权清理沿既有基线。Quality ReviewIssue/Gate/RAS/Approval/Release分别显示，不把HANDLED或看完changes当已批准。
 
 所需BFF仅finite已注册transport projection和受权Query组合；service-only producer/acceptance/render不进Browser allowlist。原型sessionStorage/36-change导航/UNKNOWN演示仅设计输入；真实server persistence、OIDC/HTTP/browser矩阵、Host/Runner及独立人工内容验收UI-MF-*均NOT RUN。
+
+
+## 已实现的精确 Markdown 阅读切片（#279）
+
+`MarkdownReviewPage` 为 #279 与 #286 共用的类型化展示组件，承接已批准页面的导航、完整正文与单一意见区；`MarkdownReview` 适配 owning 内容/变化、当前会话边界与下载动作。#286 在同一组件继续完善页面能力，不另建生产/演示审阅页，也不以页面工程证据替代 #279 的真实服务验收。
+
+已实现受保护深链接 `/projects/:projectId/artifacts/:artifactId/revisions/:revisionId?binding=...`。binding 为已合法读回的 exact Artifact/Revision refs、可选明确 baseline 和 RepresentationRef 的 base64url 编码，不含票据/凭证。Core owning 读重新校验全部身份，不因 URL 声明获得权限。该入口不依赖未实现的 TE 文件目录或成果生成；无注册表示时明确下载不可用。
+
+页面沿用已批准固定高度章节目录、单处变化/全文阅读和单一意见区：显示完整 server 分母与已加载数，支持章节搜索、展开直达、前后导航；新旧内容来自各自 exact Revision，宽表保留全部列、空格与 0。当前页版本不随候选更新自动替换。意见只留在当前受权页面，明确未保存，离开链接/关页提示；反馈提交、跨设备草稿和批准均禁用。导航/切全文/窄屏切意见保留本页输入。
+
+BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，SERVICE render/register 不在公共 allowlist。下载经 ticket、CSRF、当前 Session、可信 peer、Core 当前权限与完整 checksum 核验，浏览器收齐并核 SHA-256 后才交给保存流程。所有层 no-store/nosniff，票据只进 header/内存，不进入 Link、storage 或日志。Principal/Scope/session generation、登出、bfcache 与失权清理沿 #266；迟到响应不恢复旧内容，objectURL 在清理时撤销。
+
+受控 built Chromium 验收覆盖 36 项/9 章、完整 12 列表格与两次相同已登记字节下载。Windows/macOS Chrome/Edge 全矩阵、生产环境与独立 Human 内容判断仍 NOT RUN，不以自动化读取/下载替代批准。
