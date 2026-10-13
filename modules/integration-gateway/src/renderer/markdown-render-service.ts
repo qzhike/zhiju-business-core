@@ -150,7 +150,7 @@ export class MarkdownRenderService {
     if (this.now() > deadline) throw new Error('Markdown external outcome unknown');
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await Promise.race([
+      return await Promise.race([
         operation(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
@@ -161,8 +161,6 @@ export class MarkdownRenderService {
           );
         }),
       ]);
-      if (this.now() > deadline) throw new Error('Markdown external outcome unknown');
-      return result;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -486,6 +484,7 @@ export class MarkdownRenderService {
         );
         if (!claimed) return await this.getBinding(authority, ref);
         const source = await this.bounded(() => this.verifySource(request), deadline);
+        if (this.now() > deadline) return invalid();
         const rendered = renderMarkdownDocument(source.content);
         const reference = await this.bounded(
           () =>
@@ -521,7 +520,8 @@ export class MarkdownRenderService {
             }),
           deadline,
         );
-        if (!isDeepStrictEqual(roundTrip, request.inputHash)) return invalid();
+        if (this.now() > deadline || !isDeepStrictEqual(roundTrip, request.inputHash))
+          return invalid();
         const validation: IntegrationGateway.MarkdownValidation = {
           profileRef: request.markdownProfileRef,
           structureSchemaRef: request.structureSchemaRef,
@@ -598,6 +598,7 @@ export class MarkdownRenderService {
       }
       const commonDeadline = deadline;
       const source = await this.bounded(() => this.verifySource(request), commonDeadline);
+      if (this.now() > commonDeadline) return invalid();
       const actual = await this.bounded(() => this.config.storage.read(reference), commonDeadline);
       const receipt = await this.bounded(
         () => this.config.storage.read(receiptReference),
@@ -613,6 +614,7 @@ export class MarkdownRenderService {
         }),
       );
       if (
+        this.now() > commonDeadline ||
         actual.byteSize !== actual.bytes.length ||
         actual.bytes.length !== validation.outputByteLength ||
         actual.mediaType !== mediaType ||
@@ -629,9 +631,12 @@ export class MarkdownRenderService {
           }),
         commonDeadline,
       );
-      if (!isDeepStrictEqual(roundTrip, request.inputHash)) return invalid();
+      if (this.now() > commonDeadline || !isDeepStrictEqual(roundTrip, request.inputHash))
+        return invalid();
       await this.bounded(() => this.config.storage.finalize(reference), commonDeadline);
+      if (this.now() > commonDeadline) throw new Error('Markdown external outcome unknown');
       await this.bounded(() => this.config.storage.finalize(receiptReference), commonDeadline);
+      if (this.now() > commonDeadline) throw new Error('Markdown external outcome unknown');
       await this.authorize(authority, OPERATION, request.revisionRef);
       const receiptId = newUuidV7();
       const recordedAt = new Date(this.now());
