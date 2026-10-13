@@ -587,6 +587,13 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     expect(html).not.toContain(CLIENT_SECRET);
     expect(html).not.toContain('downloadTicket');
     await page.setViewportSize({ width: 390, height: 844 });
+    const downloadBounds = requiredValue(
+      await page.getByRole('button', { name: '下载 Markdown', exact: true }).boundingBox(),
+    );
+    const tabBounds = requiredValue(
+      await page.getByRole('button', { name: '阅读文件', exact: true }).boundingBox(),
+    );
+    expect(downloadBounds.y + downloadBounds.height).toBeLessThanOrEqual(tabBounds.y);
     await page.getByRole('button', { name: '本文件意见', exact: true }).click();
     expect(await note.isVisible()).toBe(true);
     expect(await note.inputValue()).toContain('未提交');

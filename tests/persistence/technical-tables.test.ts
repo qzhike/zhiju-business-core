@@ -293,6 +293,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'outbox_probe',
     // IM-05 WI-05 (issue #125): owning Renderer business facts.
     'render_attempt',
+    'markdown_render_work',
+    'markdown_render_output',
     'raw_external_receipt',
     'runtime_attempt',
     'runtime_attempt_observation',
