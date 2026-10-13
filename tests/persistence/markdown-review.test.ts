@@ -494,7 +494,11 @@ describe.skipIf(!databaseUrl)('exact Markdown review and download #279 (real Pos
       }
       lockClient.release();
       if (pending) await pending;
-      await observer.end();
+      try {
+        await observer.end();
+      } finally {
+        await fixture.grant(operation);
+      }
     }
   }, 30_000);
   it('refuses late results and cannot promote a failed Attempt to success', async () => {
