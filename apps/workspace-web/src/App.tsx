@@ -23,6 +23,24 @@ const FixtureWorkbench = lazy(() => {
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
 
+const FixtureIntakeProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/intake.js').then((module) => ({
+      default: module.FixtureIntakeProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureNewProject = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/intake.js').then((module) => ({ default: module.FixtureNewProject }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureIntake = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/intake.js').then((module) => ({ default: module.FixtureIntake }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+
 const projectId = 'DEMO-PROJECT-01';
 const initialReportId = 'DEMO-STARTUP-REPORT-01';
 const reportPath = (reportId = initialReportId) => `/projects/${projectId}/analysis/${reportId}`;
@@ -148,50 +166,53 @@ function FixtureApp() {
               >
                 <WorkbenchNavigation>
                   <FixtureWorkbenchProvider>
-                    <FixturePageFocus />
-                    <Routes>
-                      <Route path="/" element={<Navigate to="/workbench" replace />} />
-                      <Route path="/workbench" element={<FixtureWorkbench />} />
-                      <Route path="/projects/new" element={<NewProject />} />
-                      <Route path="/projects/:projectId/intake" element={<Intake />} />
-                      <Route
-                        path="/projects/:projectId/analysis/:reportId"
-                        element={<ReportPage data={query.data} />}
-                      />
-                      <Route
-                        path="/projects/:projectId/startup/:reportId"
-                        element={<Startup data={query.data} key={location.pathname} />}
-                      />
-                      <Route
-                        path="/projects/:projectId/executions/:requestId"
-                        element={<Execution data={query.data} />}
-                      />
-                      <Route
-                        path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                        element={
-                          <UnavailablePage
-                            title="检查文件"
-                            reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
-                          />
-                        }
-                      />
-                      <Route
-                        path="/projects/:projectId/delivery"
-                        element={
-                          <UnavailablePage
-                            title="项目交付"
-                            reason="项目交付页面尚未交付；此处未生成交付包。"
-                          />
-                        }
-                      />
-                      <Route
-                        path="/projects/:projectId/tasks/:taskId"
-                        element={
-                          <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
-                        }
-                      />
-                      <Route path="*" element={<Missing />} />
-                    </Routes>
+                    <FixtureIntakeProvider>
+                      <FixturePageFocus />
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/workbench" replace />} />
+                        <Route path="/workbench" element={<FixtureWorkbench />} />
+                        <Route path="/projects/new" element={<FixtureNewProject />} />
+                        <Route path="/projects/:projectId/intake" element={<FixtureIntake />} />
+                        <Route path="/initial-analysis" element={<FixtureIntake />} />
+                        <Route
+                          path="/projects/:projectId/analysis/:reportId"
+                          element={<ReportPage data={query.data} />}
+                        />
+                        <Route
+                          path="/projects/:projectId/startup/:reportId"
+                          element={<Startup data={query.data} key={location.pathname} />}
+                        />
+                        <Route
+                          path="/projects/:projectId/executions/:requestId"
+                          element={<Execution data={query.data} />}
+                        />
+                        <Route
+                          path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                          element={
+                            <UnavailablePage
+                              title="检查文件"
+                              reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
+                            />
+                          }
+                        />
+                        <Route
+                          path="/projects/:projectId/delivery"
+                          element={
+                            <UnavailablePage
+                              title="项目交付"
+                              reason="项目交付页面尚未交付；此处未生成交付包。"
+                            />
+                          }
+                        />
+                        <Route
+                          path="/projects/:projectId/tasks/:taskId"
+                          element={
+                            <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
+                          }
+                        />
+                        <Route path="*" element={<Missing />} />
+                      </Routes>
+                    </FixtureIntakeProvider>
                   </FixtureWorkbenchProvider>
                 </WorkbenchNavigation>
               </Suspense>
@@ -209,202 +230,6 @@ function FixturePageFocus() {
     document.querySelector<HTMLElement>('#main h1')?.focus();
   }, [location.pathname]);
   return null;
-}
-
-function NewProject() {
-  const navigate = useNavigate();
-  const [enterprise, setEnterprise] = useState('');
-  const [project, setProject] = useState('');
-  const [error, setError] = useState(false);
-  const errorRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">项目准备</p>
-          <h1 tabIndex={-1}>新建项目</h1>
-          <p className="muted">明确客户与项目，再准备首轮资料</p>
-        </div>
-      </div>
-      <form
-        className="panel form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!enterprise.trim() || !project.trim()) {
-            setError(true);
-            return;
-          }
-          void navigate(`/projects/${projectId}/intake`);
-        }}
-        noValidate
-      >
-        {error && (
-          <div className="error" ref={errorRef} tabIndex={-1} role="alert">
-            请填写客户企业名称与项目名称。
-          </div>
-        )}
-        <label>
-          客户企业名称
-          <input
-            value={enterprise}
-            onChange={(event) => {
-              setEnterprise(event.target.value);
-            }}
-            autoComplete="off"
-            aria-required="true"
-          />
-        </label>
-        <label>
-          项目名称
-          <input
-            value={project}
-            onChange={(event) => {
-              setProject(event.target.value);
-            }}
-            autoComplete="off"
-            aria-required="true"
-          />
-        </label>
-        <p className="muted">
-          开发模式只打开青禾制造的固定匿名示例，不创建企业或项目事实，输入不会上传。
-        </p>
-        <button className="primary" type="submit">
-          进入演示资料准备
-        </button>
-      </form>
-    </>
-  );
-}
-
-function Intake() {
-  const params = useParams();
-  const navigate = useNavigate();
-  const [fileName, setFileName] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const errorRef = useRef<HTMLDivElement>(null);
-  useEffect(
-    () => () => {
-      clearTimeout(timer.current);
-    },
-    [],
-  );
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-  if (params.projectId === 'DEMO-PROJECT-02')
-    return (
-      <UnavailablePage title="准备首轮客户资料" reason="此项目尚无资料接入场景；未上传文件。" />
-    );
-  if (params.projectId !== projectId) return <Missing />;
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">青禾制造 · 体系文件升级</p>
-          <h1 tabIndex={-1}>准备首轮客户资料</h1>
-          <p className="muted">客户现有文件 → 分析报告 → 明确本轮范围</p>
-        </div>
-      </div>
-      <section className="panel intake">
-        <div className="upload-zone">
-          <span className="upload-icon" aria-hidden="true">
-            ↑
-          </span>
-          <h2>把客户现有体系文件放进一个 ZIP</h2>
-          <p>无需先逐份匹配模板</p>
-          <label className="button">
-            选择 ZIP 文件名
-            <input
-              type="file"
-              accept=".zip,application/zip"
-              disabled={loading}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file && !file.name.toLowerCase().endsWith('.zip')) {
-                  setError('请选择 ZIP 包；文件内容不会读取或上传。');
-                  return;
-                }
-                setFileName(file?.name ?? '');
-                setError('');
-              }}
-            />
-          </label>
-          <p className="muted">
-            只展示本地文件名，不读取、解包或上传内容；下一步始终为固定匿名报告。
-          </p>
-        </div>
-        {fileName && (
-          <div className="file-brief">
-            <span className="status-tag">ZIP · 未上传</span>
-            <strong>{fileName}</strong>
-            <button
-              disabled={loading}
-              onClick={() => {
-                setFileName('');
-              }}
-            >
-              移除
-            </button>
-          </div>
-        )}
-        {error && (
-          <div ref={errorRef} tabIndex={-1} className="error" role="alert">
-            {error}
-          </div>
-        )}
-        <label>
-          补充说明（选填，仅页面内保留）
-          <textarea rows={3} disabled={loading} placeholder="例如：保留企业现行组织与流程" />
-        </label>
-        <div className="work-footer">
-          <p role="status">{loading ? '正在载入固定演示报告…' : '报告与进度均为合成示例'}</p>
-          <button
-            className="primary"
-            disabled={!fileName || loading}
-            onClick={() => {
-              setLoading(true);
-              setError('');
-              timer.current = setTimeout(() => {
-                setLoading(false);
-                if (failed) setError('演示报告加载失败。所选文件名保留，请关闭失败选项后重试。');
-                else void navigate(reportPath());
-              }, 400);
-            }}
-          >
-            {loading ? '正在载入…' : '载入演示分析报告'}
-          </button>
-        </div>
-      </section>
-      <div className="fixture-options">
-        <button
-          disabled={loading}
-          onClick={() => {
-            setFileName('匿名客户体系文件.zip');
-            setError('');
-          }}
-        >
-          带入演示 ZIP 包
-        </button>
-        <label>
-          <input
-            type="checkbox"
-            checked={failed}
-            disabled={loading}
-            onChange={(event) => {
-              setFailed(event.target.checked);
-            }}
-          />
-          演示加载失败
-        </label>
-      </div>
-    </>
-  );
 }
 
 function getReport(data: WorkspaceData, params: { projectId?: string; reportId?: string }) {

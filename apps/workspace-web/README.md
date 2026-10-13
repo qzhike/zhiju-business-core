@@ -68,8 +68,16 @@ fixture mode is supplied with `NODE_ENV=production`.
 The anonymous JSON/Markdown materials in `src/fixtures` originate from the
 approved `.vibe/prototypes/workspace-mvp` baseline. They remain development/test
 materials and are not production wire contracts. Local ZIP bytes are never read,
-uploaded or unpacked. The next report is always the fixed anonymous fixture,
-independent of the selected filename. Demo selections and exact request references
+uploaded or unpacked. The reusable creation and intake pages live in `src/intake`. Production uses
+only the authorized directory and explains unavailable creation/upload operations.
+`src/fixtures/intake.tsx` supplies isolated in-memory presentation actions. Only
+explicitly importing the fixed ZIP scenario into `DEMO-PROJECT-01` can return
+its fixed report; arbitrary ZIP selections and newly created demonstration
+projects stop at a synthetic waiting receipt. Inputs freeze on submission,
+UNKNOWN never resubmits, and status updates never navigate automatically.
+Creation requires explicit existing-customer ID selection or NEW mode; names
+never establish identity. This onboarding state resets on reload and does not
+claim saved drafts or real creation/upload success. Demo selections and exact request references
 use a separate, validated tab-local sessionStorage key; this is not server-backed
 personal draft or business persistence. Clearing the key clears only demo state.
 

@@ -9,6 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { ContentBoundary, Missing } from './shell.js';
 import { DIRECTORY_SCOPE_KEY } from './trusted/protocol.js';
+import { NewProjectPage } from './intake/Pages.js';
+import { TrustedIntake } from './intake/TrustedIntake.js';
 import { TrustedWorkbench } from './workbench/TrustedWorkbench.js';
 import { WorkbenchNavigation, UnavailablePage } from './workbench/navigation.js';
 import { selectedProjectKey } from './workbench/model.js';
@@ -219,18 +221,37 @@ export function TrustedApp() {
                   <Route
                     path="/projects/new"
                     element={
-                      <UnavailablePage
-                        title="新建项目"
-                        reason="资料准备（D14）公开操作尚未注册，不能创建企业或项目事实。"
+                      <NewProjectPage
+                        customers={[]}
+                        unavailable="客户搜索与资料准备（D14）公开操作尚未注册，不能创建客户或项目。"
                       />
                     }
                   />
                   <Route
                     path="/projects/:projectId/intake"
                     element={
-                      <UnavailablePage
-                        title="准备首轮客户资料"
-                        reason="ZIP 接收与分析报告接纳的公开操作尚未注册；本页不会读取或上传任何文件。"
+                      <TrustedIntake
+                        sessionGeneration={sessionGeneration}
+                        principalId={principalId ?? ''}
+                        csrfToken={csrfToken}
+                        generation={guard.generation}
+                        guardRef={guardRef}
+                        readBoundary={readBoundary}
+                        onSessionFailure={onSessionFailure}
+                      />
+                    }
+                  />
+                  <Route
+                    path="/initial-analysis"
+                    element={
+                      <TrustedIntake
+                        sessionGeneration={sessionGeneration}
+                        principalId={principalId ?? ''}
+                        csrfToken={csrfToken}
+                        generation={guard.generation}
+                        guardRef={guardRef}
+                        readBoundary={readBoundary}
+                        onSessionFailure={onSessionFailure}
                       />
                     }
                   />

@@ -212,3 +212,15 @@ reviewer and timestamp
 | UI-MF-005 / MF-09真实server cross-device/CAS/save failure、processing时新text/attachment | 仅本人私稿，saved receipt exact匹配；一winner/fork保留差异，无自动merge/换base/发送；未保存状态真实可见 | 未执行 / NOT RUN |
 | UI-MF-006 / MF-05/10plan objection/partial handling/linked Blocking Issue | 只该文件暂停、其他候选/草稿/批准不改；未处理明确、Issue不自解，反馈/导航不当Approval | 未执行 / NOT RUN |
 | UI-MF-007 / MF-12Head成功但render UNKNOWN、exactdownload/撤权/恶意内容与filename | canonical可看/导出分别表达；未登记不下载raw成果，ticket header/no-store/安全编码/失权清理；下载不送达 | 未执行 / NOT RUN |
+
+## 新建项目与首轮 ZIP 页面验收（#282）
+
+| ID | 场景 | 可观察结果 |
+|---|---|---|
+| UI-INTAKE-001 | 同名客户、键盘搜索、NEW、待定/错回执 | 名称不绑定身份；显式选 ID；保留输入；匹配回执才导航，创建不分析 |
+| UI-INTAKE-002 | 固定/跨项目入口、无权/目录失败、迟到选择/响应 | 固定项目；跨项目初始不选；读取失败不冒充空；旧结果不串项目 |
+| UI-INTAKE-003 | 单 ZIP/取消/非法选择、note、双击提交 | 旧选择保留；一次意图；提交后原 ZIP/note 不可变；任意文件无合成报告 |
+| UI-INTAKE-004 | 各阶段、准备失败/替换、分析失败/许可重试、UNKNOWN | 同页真实区分状态，无自动跳转；原输入/失败可检查；UNKNOWN 不重发 |
+| UI-INTAKE-005 | 构建后键盘/焦点、桌面三视口、360/320、axe、生产开关 | 有界滚动/无横向溢出；生产剔除 adapter，无模拟成功回退 |
+
+组件/受控 Chromium 证据归 PR。真实创建、ZIP 接收、Runner、持久化、Windows/macOS Chrome/Edge 完整矩阵、独立 exact-head review 及人工验收需单独证据；未执行层 NOT RUN。
