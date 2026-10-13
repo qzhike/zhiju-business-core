@@ -76,3 +76,29 @@
 - 本次审查只产生本正式 Review.md。业务实现、Registry、迁移/持久化、对象存储/上传、生产发布、公开 HTTP/Browser、TE/Runner 和独立人工业务验收全部 `NOT RUN`。
 
 R1–R3 修复后须提交新精确 head 供独立复审；当前结论不覆盖后续修订。修复与独立复审通过后，仍须精确修订的显式 Human 技术批准，依赖实现才可重新判断 READY。Reviewer 未 commit、push、merge、发布 GitHub 评论或正式 review；GitHub 审查交付由主线程在适用授权内完成。
+
+## 新修订独立复审：f7c828fa
+
+- Reviewed SHA：`f7c828fa85353c84d8865d9440d3c530442751d7`，本轮 `vibe repo --json` 与 GitHub PR head 均精确匹配。
+- 前次 reviewed SHA：`45aee27c1915ccefc2512dc60260169f6b76f74f`；上方 R1–R3 和 `REQUEST_CHANGES` 保留为该历史修订的结论。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。
+- 独立 agent 设计审查：R1–R3 已在 owning 设计与未来接受场景中闭合，本轮未发现新的阻塞项。
+- 精确修订 Human 技术批准：`PENDING / NOT PROVIDED`。
+
+本轮重新执行 GitHub 只读探针并读取最新 Issue/评论、PR/head/状态、初审以来的实际差异和相关 authority。Issue 的 Goal/Acceptance/Scope 未变；PR 仍 Draft。初审以来修改恰为 8 份 EP/IP/IG/UI Spec/Test，另纳入原正式审查记录；完整 PR 为 21 份 `.vibe/` Markdown。没有业务代码、Registry/compatibility metadata、SQL、迁移或无关模块改动。本复审依据实际字段/场景重新核对，不将 Implementer 的修复说明作为正确性证明；以下追加本身尚不属于本次 reviewed SHA。
+
+### R1–R3 原反例复核
+
+| 初审问题 | 本修订 producer → consumer 与拒绝边界 | 复审结论 |
+|---|---|---|
+| R1：首次 intake policy 无公开来源 | EP `find_preparation_enterprises.entryBinding` 增加 `intakePolicyRef/intakePolicyHash`；原 preparation request result/query 也必填同一形状，来源为原请求锁定 exact preset 的 `intakePolicy`，不能随当前全局选择换值。UI 首次进入/重登均消费该原请求结果；IG 的现有 binding read 校验原 preset/policy tuple。撤回仍可受权读历史 tuple，但不许可新 intake。EP-277-001、IG-277-001、UI-277-002/003 增加公开结果独立构造、换全局选择与伪造 tuple 的场景。 | 已闭合。浏览器可仅靠允许的公开结果填齐必填字段，没有新增配置 API、默认注入或员工设置。 |
+| R2：首次 restart 无当前 CAS | IG 两种原 intake Query selector 的 result 必填真实 `aggregateVersion`，与 uploadState 及本 intake 许可条件来自同次 AUTHORITATIVE 观察。UI 分别把该版本与 generation 放入 Envelope CAS / payload generation；提交仍当前授权、readback 与双重比较。已提交 restart 继续原样 replay 保存的 restartCommand，不以新查询版本改原命令。IG-277-002/003、UI-277-005 明确 CREATE 响应丢失→重登→首次 restart 及查询后版本变化的反例。 | 已闭合。共享 API §6.3 的可变 Query 版本要求得到满足，generation 不充当 CAS，查询未承诺跨 Owner 原子资格。 |
+| R3：旧创建 Purpose 不匹配 | IP 新段落分别使用 `enterprise.project.create_enterprise` / `enterprise.project.create_project`；本轮再次逐字核对冻结 metadata，两者一致。operation/version、注册 Purpose、内部 action、配置 capabilityCode 明确分列语义；旧短拼写仅出现在拒绝说明/负例。IP-277-001/002 保留原生 Purpose 正例及别名/action 冒充拒绝。 | 已闭合。仅修正本提案复用映射，旧契约和历史兼容 bytes 未变。 |
+
+已复核修改没有扩大登录/空 Scope 的权限、没有令 Enterprise Grant 覆盖 Project、没有跳过创建后逐项 provisioning，也未改变原 note/ANALYZE、一次重传、UNKNOWN readback、manifest→EP→TE 的所有权与真实回执边界。23 个未来场景继续 `NOT RUN`；文档中的正向路径没有被标为运行 PASS。此次无新增设计选择超出 #277，四项待 Human 批准的预设、准入、handoff 与有界重传选择继续保持提案状态。
+
+### 本修订验证与剩余门禁
+
+本轮 required target 仍为 `docs`。已独立读回 [CI run 38348685065](https://github.com/qzhike/zhiju-business-core/actions/runs/38348685065)：headSha 为本次 reviewed SHA，整体 `SUCCESS`；`select/checks/verify` 与 `Verify documentation` step 均成功，`persistence` 为文档路由的预期 `SKIPPED`。复用该精确修订的配置目标证据；本节追加后的本地文档检查另行执行，不以 Markdown 检查代替语义审查或运行证据。
+
+Issue #277 明确要求独立设计审查与最终修订的显式 Human 技术批准。R1–R3 已解决，但尚无该 Human 决定，因此角色结论为 `HUMAN_REVIEW_REQUIRED`；不升级为 `APPROVE` 或依赖实现 READY。部署中的真实 preset/membership/Policy/公司规则发布及服务权限、上传/持久化、公开 HTTP/Browser、TE/Runner 与独立人工业务验收仍无本任务执行证据。Reviewer 仅追加正式记录，未 commit、push、merge 或发布 GitHub 消息。

@@ -933,7 +933,7 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 ## #277 准备入口预设与原请求交接提案
 
-状态：`T2 / PROPOSED / REVIEW AND HUMAN APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；实现前须批准整个修订。
+状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；实现前须批准整个修订。
 
 ### 技术预设的唯一生产与精确选择
 

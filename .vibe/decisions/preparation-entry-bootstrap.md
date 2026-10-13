@@ -1,8 +1,8 @@
 # 准备项目入口与 ZIP 交接 Spec Delta（#277）
 
-状态：`T2 / PROPOSED / DESIGN REVIEW PENDING / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
 
-交付 [Issue #277](https://github.com/qzhike/zhiju-business-core/issues/277)，对照 `b28a004a48c60decb975494f4d7ecbebff9f46b8`。本文只拥有本次选择、跨 Owner trace 与后续 readiness；字段和失败条件分别归 [EP](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)、[UI](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。不把本提案写成已批准基准。
+交付 [Issue #277](https://github.com/qzhike/zhiju-business-core/issues/277)，对照 `b28a004a48c60decb975494f4d7ecbebff9f46b8`。本文只拥有本次选择、跨 Owner trace 与后续 readiness；字段和失败条件分别归 [EP](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)、[UI](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。不把本提案写成已批准基准。独立审查与复审结论见 [PR #288 正式记录](../reviews/pr-288/Review.md)；人类技术批准仍须绑定最终审阅修订。
 
 #253/#255 的准备状态、ZIP 安全上限、三组启动核对和整份选择，#258/#263 的可信 Session 与有限 transport，#257/#262 的公司清单及 #267/#268 的发布基础均保持各自批准。此处仅替换 D14 未注册准备入口的未闭合字段，显式新增 bootstrap 接受集和一次重传操作；不变更旧 create_project、ACTIVE Task、历史 Hash、公司发布 registry 或既有目录权限。二字段仍是客户与项目标题，ZIP 页仍是一个包、可选说明、一次“提交并分析”。
 

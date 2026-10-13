@@ -1014,7 +1014,7 @@ cursor authorizationSourceHash由IP owning Port返回：canonical排序后的act
 
 ## #277 准备入口准入与显式项目授权提案
 
-状态：`T2 / PROPOSED / REVIEW AND HUMAN APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
+状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
 
 ### 现有能力与必须新增的准入
 
