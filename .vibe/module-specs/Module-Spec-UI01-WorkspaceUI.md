@@ -354,3 +354,9 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 7. Markdown下载必须ART registered Representation与即时授权，ticket放header、短时且不持久化；raw proposal/source下载与受控成果明显区分，未注册public stream则功能不可用。CSP、安全编码/no-store、当前Session/CSRF/Scope、迟到响应generation与失权清理沿既有基线。Quality ReviewIssue/Gate/RAS/Approval/Release分别显示，不把HANDLED或看完changes当已批准。
 
 所需BFF仅finite已注册transport projection和受权Query组合；service-only producer/acceptance/render不进Browser allowlist。原型sessionStorage/36-change导航/UNKNOWN演示仅设计输入；真实server persistence、OIDC/HTTP/browser矩阵、Host/Runner及独立人工内容验收UI-MF-*均NOT RUN。
+
+## 新建项目与首轮 ZIP 页面组件（#282）
+
+页面工程复用同一 React 组件与 typed presentation actions，不注册 wire Contract。客户搜索必须显式选择独立 ID，NEW 原位切换；匹配原意图的创建回执才进入精确项目。ZIP 页固定项目，跨项目入口先显式选择；本地选择只保留文件引用/名称，不读取、解包或分析。无公开创建/上传能力时生产明确不可用。
+
+提交冻结 ZIP 与说明；重复点击仅一个意图。状态由 adapter 提供，接收、准备、等待安排、Runner 分析、报告核验、报告就绪、失败和 UNKNOWN 分别显示。后台更新不导航。准备失败允许替换，分析失败只有 adapter 明确许可才显示重试；原输入与失败历史保留。固定开发场景显式带入，任意本地 ZIP 不返回合成报告；新建演示项目只到等待安排，不借用其他项目报告。状态仅在当前身份边界内存保留，不承诺刷新/跨设备保存；退出/身份变化清理，离开项目的迟到选择与响应丢弃。真实服务、Runner、持久化、完整平台矩阵及人工验收仍 NOT RUN。

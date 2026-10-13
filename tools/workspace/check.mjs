@@ -59,6 +59,8 @@ async function checkProductionBundle() {
       '@zhiju/artifact',
       '@zhiju/contracts',
       'loadFixture',
+      'DEVELOPMENT_INTAKE_ADAPTER_ONLY',
+      'DEMO-CREATED-',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);
     }

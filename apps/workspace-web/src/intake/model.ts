@@ -1,0 +1,76 @@
+// Presentation types only; these are not registered public wire contracts.
+export interface Customer {
+  id: string;
+  name: string;
+  code: string;
+}
+export interface IntakeProject {
+  id: string;
+  customer: Customer;
+  title: string;
+}
+export type CustomerIntent =
+  { kind: 'EXISTING'; customer: Customer } | { kind: 'NEW'; name: string };
+export interface CreationIntent {
+  id: string;
+  customer: CustomerIntent;
+  title: string;
+}
+export interface CreationReceipt {
+  intent: CreationIntent;
+  project: IntakeProject;
+}
+export function matchesCreation(intent: CreationIntent, receipt: CreationReceipt): boolean {
+  return (
+    receipt.intent.id === intent.id &&
+    receipt.intent.title === intent.title &&
+    receipt.project.title === intent.title &&
+    receipt.project.id.length > 0 &&
+    (intent.customer.kind === 'EXISTING'
+      ? receipt.intent.customer.kind === 'EXISTING' &&
+        receipt.intent.customer.customer.id === intent.customer.customer.id &&
+        receipt.project.customer.id === intent.customer.customer.id
+      : receipt.intent.customer.kind === 'NEW' &&
+        receipt.intent.customer.name === intent.customer.name &&
+        receipt.project.customer.name === intent.customer.name)
+  );
+}
+export type IntakeStage =
+  | 'RECEIVING'
+  | 'PREPARING'
+  | 'WAITING'
+  | 'ANALYZING'
+  | 'VALIDATING'
+  | 'READY'
+  | 'PREPARATION_FAILED'
+  | 'ANALYSIS_FAILED'
+  | 'UNKNOWN';
+export const stageLabels: Record<IntakeStage, string> = {
+  RECEIVING: '正在接收资料',
+  PREPARING: '正在准备资料',
+  WAITING: '已接收，等待安排',
+  ANALYZING: 'Runner 正在分析',
+  VALIDATING: '正在核验分析报告',
+  READY: '分析报告已就绪',
+  PREPARATION_FAILED: '资料准备失败',
+  ANALYSIS_FAILED: '分析失败',
+  UNKNOWN: '提交结果待核验（UNKNOWN）',
+};
+export interface ZipSelection {
+  name: string;
+  file?: File;
+  fixedScenario?: boolean;
+}
+export interface Submission {
+  id: string;
+  projectId: string;
+  zip: ZipSelection;
+  note: string;
+}
+export interface IntakeReceipt {
+  input: Submission;
+  stage: IntakeStage;
+  failures: readonly string[];
+  retryAllowed: boolean;
+  reportId?: string;
+}

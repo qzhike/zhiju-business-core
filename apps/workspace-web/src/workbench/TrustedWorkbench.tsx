@@ -21,7 +21,7 @@ import { Workbench } from './Workbench.js';
 import { boardCards, chainNotice, directoryProject } from './trusted-adapter.js';
 import type { PageChain } from '../trusted/hooks.js';
 
-interface TrustedProps {
+export interface TrustedProps {
   sessionGeneration: string;
   principalId: string;
   csrfToken: string;
