@@ -205,6 +205,19 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 
 未来实现 required full，实际原 Driver invocation、immutable sources、权限与数据库 guard 结果分别记录在 Issue/PR；旧 FINAL/REC/COMP/CANCEL 证据和外部/人工 NOT RUN 不因本设计重标。
 
+## #277 ZIP 原提交与一次重传设计场景
+
+状态：`PROPOSED / NOT RUN`。字段见 [IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。以下均需受控真实流/对象/owning Source Receipt；保留 IG-D14 安全测试与执行证据边界。
+
+| ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IG-277-001 | 已授权NEW/EXISTING准备请求，一ZIP+多行note，重复click/同request不同intake target | 唯一原intake/Receipt、原文/hash/ANALYZE绑定；第二target拒绝；Query两selector读回同结果，零Query写/签token/分析 | 未执行 / NOT RUN |
+| IG-277-002 | 首ticket响应丢失/连接中断/token到期；owner证实CLOSED_NO_OBJECT后restart | 当前权限与hash/原key/CAS检查；同intake仅generation2、原内容byte0上传；原票据/fencing失效；replay同代同token原expiry | 未执行 / NOT RUN |
+| IG-277-003 | 旧流未停/对象状态UNKNOWN/已STAGED或已有link；双restart并发；代2失败；旧finish迟到；restart响应丢失 | UNKNOWN/STAGED/link拒绝重传；并发一winner，代次不超过2；旧finish不commit，响应丢失不增加次数；token密文不可用安全失败、过期不可返回 | 未执行 / NOT RUN |
+| IG-277-004 | 有效DOCX+MD+不支持条目/坏DOCX；零可分析entry但有note；unsafe路径/bomb/DOCX二级预算超限 | 安全部分源/原bytes/逐entry限制保留；零有效ZIP entry拒分析；unsafe零manifest Event/dispatch，不以说明或technical extraction伪造可读报告 | 未执行 / NOT RUN |
+| IG-277-005 | object写成功link失败、entry或note accept后crash；manifest提交前失败 | 原step IDs/key/Receipt续接，无重复源；已link资料不可cleanup；manifest未commit不READY，说明未接纳不能丢弃后handoff | 未执行 / NOT RUN |
+| IG-277-006 | manifest/Receipt/Event任一写点失败/提交后重复投递；EP暂不可用；TE已接收但无Run | IG同事务回滚或真实完整提交；EP原Eventreadback去重；custody不丢，analysis独立PENDING/UNKNOWN；不将202/Task/Request说成Runner启动 | 未执行 / NOT RUN |
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。

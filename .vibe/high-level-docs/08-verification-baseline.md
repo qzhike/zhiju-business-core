@@ -559,6 +559,8 @@ EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存
 
 ## D14 / RD-01 设计与真实链路证据边界
 
+[#277 准备入口补充](../decisions/preparation-entry-bootstrap.md) 的接受集追加于 `IP-277-001–006`、`EP-277-001–006`、`IG-277-001–006`、`UI-277-001–005`，既有 D14/#258/#257 用例与批准不被替代。检查 NEW/EXISTING、精确preset/规则发布、无Project前的受控Scope、创建后缺权、同请求response-loss、说明与ANALYZE、一次完整重传/UNKNOWN/迟到流、unsafe/部分合法ZIP、manifest可靠交接及缺TE/Runner的诚实状态。这里只索引未来设计验收，所有新增运行用例 NOT RUN；严格Markdown仍用 docs，未来注册/持久化贯通实现须 full，保持既有验证路由。独立Review与精确修订Human技术批准未完成前，该补充不使依赖实现READY。
+
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`；保持现有 verify targets/路由/结果协议不变。严格 `.vibe/` Markdown 设计分支用 `vibe verify docs --json`，其 PASS 只表示配置文档检查，不能替代 T2 独立设计审查和精确修订人类技术批准；具体 Runtime/规则 lock 决定前依赖实现不 READY。
 
 新 owning traces 位于 Module-Test 001 `IP-D14-*`、002 `EP-D14-*`、003 `TE-D14-*`、007 `IG-D14-*`、UI01 `UI-RD01-*` 与 Runtime Test `RA-D14-*`。后续分别执行：真实 PostgreSQL/full（历史迁移、唯一 start、RLS/CAS/幂等/rollback/部分提交）、独立 Runner output（只证明该锁定执行实际产物）、Host IG→TE→EP acceptance（真实来源与当前可用性）、公开 OIDC/HTTP/Browser（Session/CSRF/撤权/原意图恢复）和独立顾问业务验收。所有新 runtime/持久化/public/manual 场景仍 NOT RUN；既有 v0.1 standalone/原型/外壳不升级其结果。

@@ -658,6 +658,14 @@ Cursor公开表示严格遵守共享OpaqueCursor正则`^[A-Za-z0-9_-]{16,512}$`�
 
 [安全 HTTP 映射](../decisions/d14-rd01-first-customer-flow.md#6-兼容迁移与安全-http-映射) 是未来 transport proposal，未改变本 API Contract 的传输无关定位；BFF 只能组合已注册 owner 操作。新增 schema/type/result/event、selector/compatibility approval 与正负 fixtures 留给获批后实施，旧 @1.0/@2.0、Catalog/200 历史 bytes 保持。
 
+## #277 准备入口字段与 transport 补充提案
+
+状态：`T2 / PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。[EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案) 明确 VERSIONED preparationPresetRef 与独立 canonical preparationPresetHash；不把 contentHash 塞进 VersionedRef。原 request Envelope 的完整预分配 Scope/target/operation/key/hash 保持，Core 从 IP 独立准入事实取得当次 scoped Actor/Decision，不改原 payload。新增 self-only EP find_preparation_enterprises 接受集与创建前 admission 不扩旧目录/普通空 Scope 的权限；具体 IP Ports/Policy 是独立待审增量。
+
+新公开 Command `integration.restart_customer_zip_upload@1.0` 及 IG 原 intake 的 required preparation request/key/preset-policy hashes/note/ANALYZE、Query 两种 tagged selector/result，EP entry result、PREPARING board 可选 preparationEntry 均以 owning Spec 为唯一字段定义。这些对未注册 proposal 的补充需后续统一生成 schemas/resultSchemas/正负 fixtures；旧已注册 board 只做明确 additive 可选结果/selector扩展，不静默容许其他新字段。Catalog/Registry 当前计数及历史 compatibility bytes 不在设计任务修改。
+
+共享 CommandResult status 不增加；custody/analysis/access 是不同 owner 的结果轴，COMMITTED/DUPLICATE 只证明 owning request Receipt。所有缺省字段省略不填 null/伪 Ref，hash 分域；敏感 note/token 不进入 Event/错误。有限 BFF route 仅增 restart，PUT 仍原 intake route，缺任一 Registry/handler/current permission 即不可用。Query 不能签新 upload token、写 admission 或安排分析；相同 Command 的当前授权 replay 才可返回仍有效的同代 ticket。独立设计审查/精确修订 Human 批准前不得注册或声明依赖 READY。
+
 ## Workspace public transport 与 self-discovery 提案（#258）
 
 状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED (#266) / IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / PRODUCTION NOT RUN`。[Session Delta §5](../decisions/workspace-trusted-session-public-access.md#5-有限公开路由与-envelope-映射) 定义有限operation@version allowlist及Browser输入到受信Core Envelope的字段投影。Browser/BFF不能提交actor/requester/authenticationContextRef/authorizationDecisionRef；Core独立验证实际token、解析IP身份，产生当次授权后补全共享Envelope。未知身份字段拒绝而非接受后替换。已有完整Command/Query Envelope、Result、cv1 payloadHash、target/CAS、幂等及安全错误Schema不改，transport projection不是第八模块业务合同。

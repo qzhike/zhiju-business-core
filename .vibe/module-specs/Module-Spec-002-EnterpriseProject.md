@@ -931,6 +931,65 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 当前taskDefinition不可变关联保证历史一致性，不证明TE当前USABLE；没有Task invalidation事件时不虚称失效闭环。Module-Test 002 #237定义上述正反例、late/replay与事务effects；实现入口为 `createExactDeliveryCompletionConsumer`、`handleEvaluateExactDeliveryItemCompletion`、`createDeliveryItemCompletionReadbackPort`，持久化为 `V7012__exact_delivery_completion.sql`；具体运行层级见该矩阵，未执行子项保持 NOT RUN。
 
+## #277 准备入口预设与原请求交接提案
+
+状态：`T2 / PROPOSED / REVIEW AND HUMAN APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；实现前须批准整个修订。
+
+### 技术预设的唯一生产与精确选择
+
+EP 内部 `PreparationPresetPublisher@1.0` / `PreparationPresetResolver@1.0` 拥有公司技术配置，不复用 IP CompanyRuleSnapshotProducer 的三 profile registry。`preparationPresetRef={kind:VERSIONED,objectType:zhiju.project.preparation_preset,objectId,versionId,scope:{}}`；UUIDv7 身份由受权发布流程实际产生。同 `presetCode+presetVersion` 唯一绑定完整 payload；VERSIONED 不增加 contentHash，调用者必须另带 `preparationPresetHash=SHA-256(cv1(payload))`。自身 ref/hash、publication 和可变 useStatus 不参加 payload hash，引用的完整 ref/hash 必须参加。
+
+| `ep.preparation_entry@1.0` 封闭 payload | 必填值 / 解析者 |
+|---|---|
+| `profile; presetCode; presetVersion` | profile 固定 `ep.preparation_entry@1.0`；code 非空 NamespaceCode，version 精确 SemVer；不存在“默认生产版本” |
+| `creation` | `{mode:PREPARATION,status:PREPARING,enterpriseInitialStatus:ACTIVE,objective,enterpriseCodePrefix,projectCodePrefix}`；objective 为公司发布的非空原文；prefix 各 1..16 个大写 ASCII 字母/数字，编号为 `prefix + '-' + 完整target UUIDv7`，与名称无关，不按时间/计数器重试换号 |
+| `memberPolicyTemplate` | IP `PreparationMembershipTemplate` 的完整 VERSIONED `identity.policy` Platform ref + 独立 payloadHash；包含 [IP #277](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 的封闭必需权限和实际 PolicySnapshot 绑定，由 IP 精确 resolver 验证；不是一个适用于所有 Enterprise 的已实例化 memberPolicyRef |
+| `intakePolicy` | 精确 VERSIONED `zhiju.integration.customer_zip_policy` Platform ref + payloadHash；IG owning `zip-intake-limits@1` 的已批准全部数值/格式规则，不允许 Browser 修改 |
+| `companyRules` | 精确 `ruleBundleRef,startupRulesRef,vocabularyRef,publicationRef`；由已实现 CompanyRuleResolutionPort 返回 USABLE；EP 校验其模板/requirement refs。业务值仍归 #257，不在预设复制清单 |
+| `analysisHandoff` | `{intent:ANALYZE,analysisProfileRef,expectedReportProfileRef}`，VERSIONED 精确锁定 D14 `d14.analysis@1` 与其批准报告 profile；这里只声明接口 selector，不填 runtime/model/CLI 或伪执行锁 |
+
+发布输入闭集 `{presetId,versionId,payload,effectiveFrom,supersedesPublicationRef?}`；具权限 HUMAN 显式批准同一 payloadHash，EP 单事务保存不可变版本、`CONTENT_ADDRESSED/zhiju.project.preparation_preset_publication`、真实 Actor/Decision、Receipt。publication payload 为 `{preparationPresetRef,preparationPresetHash,effectiveFrom,actorSnapshotRef,authorizationDecisionRef,supersedesPublicationRef?}`；撤回通过内部 `PreparationPresetWithdrawal@1.0` 追加 `{publicationRef,effectiveFrom,reasonCode,actorSnapshotRef,authorizationDecisionRef}` 及 Receipt，不改版本。IP 的 preset publish/withdraw 权限独立于 company rule publish。发布只要求 profile/依赖引用结构及可解析的真实 policy/rule facts，不要求 Runner 已安装；Runtime 不可用不能被“预设发布成功”覆盖。
+
+resolver 输入 `{preparationPresetRef,preparationPresetHash,publicationRef}`，输出 `{payload,publicationRef,useStatus:USABLE|NOT_YET_EFFECTIVE|SUPERSEDED|WITHDRAWN,checkedAt,sourceWatermarks}`；重算 hash、核验 publication 对应版本/hash、当前 withdrawal/同 code 单后继无环 supersession。新并行版本不自动停旧版；只有实际取代生效/撤回才失效。所有受保护读取前/返回前重验权限。缺失/错 hash/错 profile 拒绝；依赖故障不冒充缺失。真实 publisher/resolver/grants/PolicySnapshot/refs/hashes 是部署输入，测试自有 fixture 不成为生产 publication。
+
+服务端显式安装唯一 `PreparationEntrySelection={preparationPresetRef,preparationPresetHash,publicationRef}`，由 EP resolver 校验。不是员工设置，不从版本排序挑 latest；选择变更不改已有 request/project。EP `find_preparation_enterprises@1.0` 在原 Page 外增加 `entryBinding:{preparationPresetRef,preparationPresetHash,publicationRef}; newCustomerAllowed:boolean`；payload 仍 `{searchText,page:{limit:1..50,cursor?}}`，searchText UTF-8 ≤512 bytes，空串表示本人候选第一页。无配置/无可用发布返回明确依赖/资格错误，不回空成功。IP self 候选新增接受集见 IP #277；EP 逐 Enterprise 当前 select Decision + RLS 后返回安全名称，不枚举整个企业库。page cursor 绑定 Principal/session、filter、preset选择、IP/EP 水位，扫描预算 200 项/5秒，空页+cursor 继续，旧 cursor 失效不误判 EMPTY。
+
+### 原准备请求、预创建 Scope 与恢复
+
+Browser 固定 request target UUIDv7 和 project UUIDv7；NEW 再固定 enterprise UUIDv7，EXISTING 使用精确已选 Enterprise。共享 ScopeRef/targetRef.scope 均为完整 enterpriseId+projectId，requestRef.objectId=request target。预分配 ID 只是候选；IP admission 才授权该精确 CREATE Context。不能因 Browser 提供 Scope 而查询任何客户数据。名称/title UTF-8 各 ≤512 bytes，至少一个非空白字符；保留提交原字符串参加 hash，不从原型推业务去重。
+
+request payload 闭集为 D14 表中四个业务字段（customer 为 tagged union）；Enterprise/Project ID 位于已绑定 Envelope Scope，不再从服务端替换。NEW 名称不含 enterpriseRef，EXISTING Ref 的 objectId 必须等于 Scope.enterpriseId。原键为 `project.request_project_preparation:1.0:<requestId>`。Core 先验证原 payload/hash/target/Scope，再调用 IP 专用 admission；EP 保存 `{originalCommandId,originalKey,originalPayload,payloadHash,scopeRef,targetRef,creatorRef,admissionRef,admissionReceiptRef,preparationPresetRef,preparationPresetHash,publicationRef,stepTargets}`，不可改写。另保存完整 `originalCommand:WorkspaceCommandInput`（#258 已批准封闭 public transport projection，含原 commandId/type/version/Scope/target/key/payload/integrity 及原时间/关联字段，无 Actor/token），并在当前获权原作者的恢复结果原样返回；与所有 promoted key/hash/Scope字段必须逐项相等，重登只重新取得认证和授权。stepTargets 固定 Enterprise/Project/memberPolicy/provisioning 身份；下游 commandId/key 从本 request+step+target 固定保存，不随重试重生。
+
+EP request 事务保存 `PreparationRequestScopeReservation`、原 intent/Receipt；这不是 ProjectScopeClaim，不宣称企业/项目已存在。NEW 后续单独执行既有 `project.create_enterprise`，精确绑定预分配 Enterprise；调用旧入口时按其 native objectType 形成受控 adapter，不通用替换 Ref。EXISTING 读真实 ACTIVE Enterprise。IP 先按模板独立物化该 Enterprise 的 scoped memberPolicy，EP 取得真实 VERSIONED `identity.policy` ref/hash 后调用新 create_preparing_project；新 producer 增加必填 `memberPolicyHash`、`preparationPresetHash` 与 `preparationRequestRef`，逐字段验证 request 与当前 IP proof。单 Project 事务提交 Root + 真正 ProjectScopeClaim + Receipt + PreparingProjectCreated；零 PROJECT_START。既有 create_project 不使用此 admission/reservation。
+
+Project 创建后 IP 单独 provisioning；每个 Grant 有自己的真实成功事实，不用 EP createdBy 或 memberPolicyRef 代替 Grant。request result/query 闭集为 `{requestRef,originalCommand,originalCommandId,originalKey,payloadHash,scopeRef,preparationPresetRef,preparationPresetHash,disposition,steps,access,permittedActions,sourceWatermarks}`；steps 固定 `ADMISSION,ENTERPRISE,MEMBER_POLICY,PROJECT,CREATOR_ACCESS`，每项 `{status:NOT_STARTED|PENDING|OBSERVED|COMMITTED|FAILED|UNKNOWN,refs:[],receiptRefs:[],reasonCodes:[]}`。EXISTING ENTERPRISE 为 OBSERVED，只带受权观察水位，不伪造创建 Receipt。access 为 `{status:PENDING|USABLE|INCOMPLETE|REVOKED,provisioningReceiptRef?,checkedAt}`；USABLE 须当次所需全部权限仍有效；只有 Project+access 成立才 overall ACCEPTED/进入 ZIP 页。失败保留全部可读成功 refs，UNKNOWN/STALE 不抹去它们。
+
+`get_project_preparation_request(requestRef,originalKey)` 是纯读；创建前/无 post-create access 时，经 IP 的本 Human 原 admission recovery-read 严格限定本 request/Scope，返回本人的原公开 Command 与必要步骤摘要，无客户源/报告。current 普通 Project read 权不能随意读他人的 bootstrap intent。每次同键 request replay 从已存意图恢复缺失步骤并重验原 Human 当前资格；读不可见不推断 NOT_COMMITTED。仅 EP request 唯一键/事务完整性与 IP reservation 均经受权 readback 确认不存在提交时，才能返回 `permittedActions=[RETRY_ORIGINAL]`；普通404/503没有这种证明。原 payload 已丢失且服务器无意图则首版显示无法安全重发，由受权运维核对，不根据两字段猜原请求。
+
+PREPARATION 模式 Project 的既有 `get_project_board_slice@1.0` result 增加可选 `preparationEntry:{preparationRequestRef,originalPreparationKey}`，由 EP owning 关联精确读取并按当前 Project board + preparation.read 权限裁剪；缺读权省略。此为 #277 显式 additive result/新 PREPARING selector 提案，须同步 schema/fixtures，旧 FULL_START result 保持。目录 discovery 只提供项目卡片，进入该项目后才读此链接，不从名称反查原请求；不为 PREPARING 放宽 TE Task board。
+
+### 原 intake 到分析的固定交接
+
+以下内部 Port 均 version=1.0、operation/purpose/action 同名 token；`ReadPreparationIntakeBinding` 为 `project.preparation.intake_binding.read`（固定 IG SERVICE），`ReadPreparationAnalysisHandoff` 为 `project.preparation.handoff.read`（固定 IG SERVICE），`ContinuePreparationAnalysisHandoff` 为 `project.preparation.handoff.continue`（显式受权运维驱动的 EP SERVICE）。target 分别为原 preparation_request、同 Project/intake handoff 身份，全部 current Decision 与完整读取/续步 payloadHash 绑定；普通 Human 浏览器不直调内部 Port。
+
+handoff read 输入 `{projectRef,intakeRef}`、输出下文闭合摘要；continue 输入 `{projectRef,intakeRef,expectedProcessVersion,step:SOURCE|TASK|ANALYSIS_REQUEST,originalSubmissionPayloadHash}`，只在原 step 没有UNKNOWN且已证实未提交/可续时CAS执行，输出同一摘要和该真实step Receipt。若过程尚不存在，read 返回受权 `{status:NOT_OBSERVED,sourceWatermarks}`，IG在自身manifest已提交时映射为PENDING；不以NOT_OBSERVED触发Query写入。受控运维动作不能改源/profile、制造第二请求或绕过当前Human/服务权限。
+
+内部只读 `ReadPreparationIntakeBinding@1.0` 输入 `{preparationRequestRef,originalPreparationKey,projectRef,intakeRef,intakePayloadHash}`，当前 IG SERVICE 许可与 Human 当前 intake/analysis admission 独立校验；从真实 request/Project/readback 验证首包资格及原 target。首次 intake 的唯一关联由 IG `(preparationRequestRef)` owning 唯一约束裁决，EP Query 不抢占或写入。该 Port 返回精确预设/rule bindings、PREPARING/creationMode、creatorRef、当前 eligibility/水位；原请求/原键不是 bearer token。
+
+IG manifest Event 只在完成源接纳后产生；EP Inbox 按 eventId 去重，再通过 IG 受权 `ReadCustomerZipSubmission@1.0` 读取完整原意图/manifest/Receipts，不能只信 Event 自报。EP 以 `(projectId,intakeId)` 唯一创建固定 `PreparationAnalysisHandoff` Process；保存 original intake/key/payloadHash、noteSourceRef?、manifestRef、source/task/analysisRequest 预分配 ID、原 Human provenance、各步 refs/Receipts。依次 capture_preparation_source → 已批准 TE create_preparation_analysis_task → request_preparation_analysis；各步当前 Human 原 ANALYZE 授权资格与 SERVICE 执行权分别检查，均使用稳定 step key。无 Role 继承、无跨 Owner 事务/Repository。
+
+| handoff step / 已批准 owning 输入 | 本次精确赋值来源 |
+|---|---|
+| SOURCE / `capture_preparation_source` | projectRef/intakeManifestRef 来自原intake及已提交manifest；templateRefs为同preset锁定bundle中的完整精确模板集合，ruleBundleRef同绑定；purpose固定preparation.analysis，audience为部署显式配置且获权的TE preparation SERVICE Principal；previousReportRef省略、trustedDecisionRefs=[] |
+| TASK / `create_preparation_analysis_task` | projectRef同上、preparationSourceRef取SOURCE真实Receipt、analysisProfileRef/definition.expectedReportProfileRef取原preset.analysisHandoff；definition.kind=PREPARATION_ANALYSIS、objective取preset.creation.objective，inputRefs为该source snapshot的完整授权exact输入集合（含note），不由Browser裁剪；target为已存task ID |
+| ANALYSIS_REQUEST / `request_preparation_analysis` | taskRef/taskDefinitionSnapshotRef/expectedTaskAggregateVersion逐字取TASK成功Receipt，preparationSourceRef/analysisProfileRef与前步相等，target为原Process预分配analysisRequest ID；不使用假定version=1、latest或新重试ID |
+
+固定 SERVICE Principal、各step target/Purpose/capability映射是显式部署输入；缺值记WAITING_CAPABILITY，不借Human或通配service执行。TE拥有后续WorkOrder/Context/Run安排，本Process不调用它的内部producer。已提交TE原请求的进度仅通过其已批准的原Command同键只读replay/owning Receipt取得；无法证明的Run/Attempt状态保持UNKNOWN，不新建查询私有端点或重发invocation。
+
+note 非空时由 IG 物化原 UTF-8 text/plain 源，经 EP 既有 register/validation/accept，source snapshot 显式绑定该源为 CUSTOMER_MATERIAL（说明），不是模板/系统提示；客户 ZIP 的文件支持集仍仅 DOCX/Markdown。源 snapshot 使用原 intake manifest + 同一预设的精确 companyRules；不把说明写进 Task 的可信 objective，Task definition.objective 来自预设。首次 source capture 的 previousReportRef 省略、trustedDecisionRefs=[]，不借用另一项目/后续报告。每个 source ref/hash/receipt 由 owning readback 取得。
+
+handoff 查询字段为 `{intakeRef,manifestRef?,status:WAITING_INPUT|PENDING|WAITING_CAPABILITY|BLOCKED_AUTHORIZATION|PARTIAL|UNKNOWN|STALE|ACCEPTED,steps,reasonCodes,sourceWatermarks}`，steps 固定 SOURCE/TASK/ANALYSIS_REQUEST，结构同上。`ACCEPTED` 只证明 TE analysisRequest 已提交；Run/Attempt/报告仅来自 TE/IG 已有的真实 owning receipts。IG 原 intake Query 在独立当前授权下组合此安全摘要；若 EP 不可用，仅 analysis 部分 UNKNOWN，已知 custody 不降级。Query 纯读，公开 Browser 不调 TE 创建接口。首版能力补齐后的继续由受权运维对原 Process 作 `CONTINUE_PENDING_STEP`，只处理已证明未提交的一步；没有公开“重新分析”或新 Run 自动重试。
+
 ## D14 / RD-01 准备、报告与启动字段提案
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。方案与选择见 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。本节拥有 EP 字段；不修改上文已发布 @1.0、13 个 scope Query 接受名或旧 PROJECT_START 创建条件。
@@ -943,10 +1002,10 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 | 拟操作@1.0 / mode | 封闭 payload | Result data / purpose |
 |---|---|---|
-| `project.find_preparation_enterprises` / Query | `searchText: Sensitive<string>; page:{limit:1..50,cursor?}` | `Page<{enterpriseRef,displayName,displayCode}>`，cursor 绑定身份/查询水位；`project.enterprise.select`；只搜当次许可企业，不按名称确立身份 |
-| `project.request_project_preparation` / CREATE preparation_request | `customer: {mode:EXISTING,enterpriseRef}或{mode:NEW,displayName}; projectTitle; preparationPresetRef:VERSIONED` | requestRef + per-step Enterprise/Project receipts + disposition；`project.preparation.request`；NEW 企业创建与项目创建独立，预分配 ID/显示编号/默认 objective/memberPolicy 来自锁定预设 |
+| `project.find_preparation_enterprises` / Query | `searchText: Sensitive<string>; page:{limit:1..50,cursor?}` | `Page<{enterpriseRef,displayName,displayCode}>`，#277 待审在外层增加 entryBinding/newCustomerAllowed；cursor 绑定身份/查询水位；`project.enterprise.select`；只搜当次许可企业，不按名称确立身份 |
+| `project.request_project_preparation` / CREATE preparation_request | `customer: {mode:EXISTING,enterpriseRef}或{mode:NEW,displayName}; projectTitle; preparationPresetRef:VERSIONED; preparationPresetHash:ContentHash` | requestRef + per-step Enterprise/Project/access receipts + disposition；`project.preparation.request`；#277 待审补充闭合预分配 Scope、预设和创建后权限，见上方 owning 专节 |
 | `project.get_project_preparation_request` / Query | `requestRef; originalKey` | 原 request binding + step facts/current permitted action；`project.preparation.read`；恢复使用 request_project_preparation 原键原 payload，无新企业 |
-| `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
+| `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef`；#277 待审增加 `memberPolicyHash; preparationPresetHash; preparationRequestRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
 | `project.capture_preparation_source` / CREATE snapshot | `projectRef; intakeManifestRef; templateRefs:NonEmptySet<CONTENT_ADDRESSED>; ruleBundleRef; previousReportRef?; trustedDecisionRefs:Set; purpose:preparation.analysis; audience:PrincipalRef` | preparationSourceRef + bytes manifest binding + coverage/omissions/redactions + validUntil；`project.preparation.source.capture`；只纳当前 ACCEPTED 源与 published refs |
 | `project.get_preparation_source` / Query | `preparationSourceRef; purpose:preparation.analysis; audience:PrincipalRef` | 原不可变 source payload + currentUsability/reasons/validUntil；`project.preparation.source.read` |
 | `project.accept_preparation_report` / CREATE report snapshot | `projectRef; expectedPreparationVersion; analysisResultRef:CONTENT_ADDRESSED; analysisResultAcceptanceRef:CONTENT_ADDRESSED; preparationSourceRef; expectedPreviousReportRef?; outputProfileRef:VERSIONED` | reportRef + candidateSetRef + planRef + becameCurrent + receiptRef；`project.preparation.report.accept`；EP Validator SERVICE，经 TE result Query 取真实 outputs，不接 caller JSON |

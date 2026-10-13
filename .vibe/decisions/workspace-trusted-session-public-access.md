@@ -84,6 +84,10 @@ Core 自身目录入口以 `scopeRef={}` 的专用 self-discovery 接受集处�
 
 目录权限不包含 board/content/start 权限。BFF 只把目录结果展示为选项；选中后用各自当前授权的 `project.get_project_board_slice@1.0`、`execution.get_task_board_slice@1.0` 组合指定 Project 的安全看板，保留各自 consistency、水位、freshness、完整分母。首版跨项目工作台先显示项目卡片，按显式选择/可见卡片有限读取，不把分页的几项 Task 加起来称为全部项目总数。卡片标题不匹配名称搜索不赋新权限，PREPARING 只有相应 D14 可用动作。依赖失败为 ERROR/503，不冒充 EMPTY。
 
+### #277 未批准的准备入口补充
+
+[准备入口 Delta](preparation-entry-bootstrap.md) 拟新增 EP find_preparation_enterprises 的 self Enterprise 候选接受集及 IP 独立准入/创建者配置，空 Scope 不再只靠既有 Project 目录完成创建；这些是明确待审增量，当前 #258/#266 实现并未获得该能力。新增唯一 Browser Command 候选为 `integration.restart_customer_zip_upload@1.0`，对应同形 `/bff/commands/…` → `/api/commands/…`；其原 intake/generation/CAS/一次重传字段归 [IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。Query 不续签 token，BFF 不补授权、不重写原 payload/hash。以下已批准表及空 Scope 规则继续是当前实现基准，#277 获独立审查与精确修订 Human 批准后才可注册这一补充。
+
 ## 5. 有限公开路由与 Envelope 映射
 
 下表是**完整的首版候选集合**，不是运行中的 handler 清单。`R` 表示当前 Catalog 已有该 version、HTTP 仍 NOT RUN；`P` 表示已批准 D14 设计中的未注册 proposal；`N` 为本 Issue 新提案。启用须同时满足配置 allowlist、exact Registry/schema/result、owning handler 和批准接受集；P/N 缺任何项一律不可用。Browser `POST /bff/commands/{operation}/1.0`、`POST /bff/queries/{operation}/1.0` 仅接受下列逐字 token，映射固定上游同形 `/api/…`，不作为 Registry 任意 dispatch。IP 管理/Decision、EP start/accept/source、TE readiness/run/receive、IG dispatch 等均不暴露。

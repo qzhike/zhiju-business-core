@@ -387,14 +387,54 @@ late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Atte
 
 历史读回不验证原 Run 当前执行资格，因此合法 expiry/ABANDONED 后仍能返回原 Observation；执行资格仍由 TE 自己判断。原 accepted Result 的迟到重交审计不改写 IG 原 source。返回给 TE 的源 DTO 只能在受信 composition 内消费，再由 TE allowlist 输出 summary/evidence；不扩大 IG public body 到 Human 的权限。复用原 app SELECT/RLS，无新的 schema/table/index/role/grant；SQL/角色边界见 PostgreSQL §43。
 
+## #277 ZIP 提交意图与一次完整重传提案
+
+状态：`T2 / PROPOSED / REVIEW AND HUMAN APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节补齐下方 D14 未注册 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是待审增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
+
+| 拟公开 operation@1.0 | 封闭 payload / Result 增量 |
+|---|---|
+| `integration.request_customer_zip_intake` / CREATE intake | `{projectRef,preparationRequestRef,originalPreparationKey,preparationPresetRef,preparationPresetHash,originalName,declaredByteLength,zipBytesSha256,intakePolicyRef,intakePolicyHash,submittedNote?,analysisIntent:ANALYZE}`；Scope 全等。Result `{intakeRef,originalCommandId,originalKey,payloadHash,receiptRef,upload,disposition,analysis:{status:WAITING_INPUT}}`。upload 见下文；此 ACCEPTED/COMMITTED 只证明资料提交意图持久化 |
+| `integration.get_customer_zip_intake` / AUTHORITATIVE Query | tagged selector `{by:INTAKE,intakeRef}` 或 `{by:PREPARATION_REQUEST,preparationRequestRef,originalPreparationKey}`；后者通过唯一关联找回原 intake，不新增 intake。Result `{intakeRef,preparationRequestRef,originalCommand,originalKey,payloadHash,restartCommand?,submittedNote?,analysisIntent,uploadState,custody,analysis,allowedActions,sourceWatermarks}`；原 note 仅当前获权 Human/专用 consumer 可读，不回 token/locator |
+| `integration.restart_customer_zip_upload` / MUTATE intake | `{intakeRef,originalKey,originalPayloadHash,expectedUploadGeneration}` + Envelope expectedAggregateVersion、独立 restart key；Result `{intakeRef,originalKey,originalPayloadHash,upload,receiptRef}`，不改原 note/ZIP/分析意图；purpose `integration.customer_zip.restart` |
+
+`originalName` 非空 UTF-8 ≤1024 bytes、无控制字符；`declaredByteLength` 正整数且 ≤100 MiB，zipBytesSha256 为实际原 bytes SHA-256。note 可省略；出现时非空，≤4096 Unicode code points 且 UTF-8 ≤16384 bytes，只允许普通文本及 TAB/LF/CR，拒绝 NUL/其他控制字符。不裁剪/归一化/解析 Markdown 后计算 hash；同 key 改一个字符即冲突。说明不进入 Event/日志/URL。唯一键同时覆盖原 intake target/key 与 preparationRequestRef；第二 target 不能为同一首包建第二 intake，即便换 Session/键。明确修改 ZIP/note 属新意图，首版不提供自动替换入口。
+
+IG 先由 EP ReadPreparationIntakeBinding 获得真实原请求/Project/PREPARING/current preset-rule 绑定，再分别重验当前 Human intake 和 analysis admission。服务器比对传入的预设与 policy ref/hash，不向原 payload 注入默认再沿用旧 hash。业务事务保存完整原 `WorkspaceCommandInput`（originalCommand）及 payload/hash、Human Actor/两份 Decision provenance、固定 step targets、intake Root、Receipt 和 upload generation=1，提交后才返回 upload ticket/收流。COMMITTED 响应丢失时不会从新 key 建 Root；原 query 返回已存字段以便当前获权 Human 精确原键 replay。
+
+IG 内部 `CustomerZipPolicyRegistry/Resolver@1.0` 为技术 intake policy 的生产/解析者：构建期受审 artifact 保存 `{policyRef:VERSIONED<zhiju.integration.customer_zip_policy>,payloadHash,payload}`，payload 闭集为 `profile:zip-intake-limits@1`、D14 §2 的全部数值/安全拒绝/文件类型/编码规则及固定 extractorProfileRef。精确 policyRef 身份在后续注册时从该批准 artifact 实取，本文不伪造 UUID/hash；resolver 重算 cv1(payload)、检查已加载版本和精确 tuple，输出原 payload/hash，缺失/漂移拒绝。不从客户端数值或 preset 同名字符串构造 policy，不修改已批准 ZIP 限额。该 registry 不含公司业务规则/Runtime 配置；publisher 在预设发布时必须能够解析指定实例。
+
+Query 的 originalCommand 是当初已提交的完整公开 transport projection，current read 后原样回传，submittedNote/analysisIntent/key/hash 与其对应字段逐项一致；无 raw token/Actor override。一次 restart 使用固定 key `integration.restart_customer_zip_upload:1.0:<intakeId>:2`，其完整原 projection 以 restartCommand 随同 owning 事务保存，Query 在当前获权原作者读取时返回以便重登后 exact replay，未提交则省略。Query不给新token，原Command replay也不改expiry；404/依赖失败不当作未提交证明。
+
+### Upload ticket 与唯一有界恢复
+
+upload 闭集 `{generation,token,expiresAt,method:PUT,path,expectedByteLength,expectedZipBytesSha256}`；path 只为固定 `/api/customer-intakes/<intakeId>/zip`，BFF 转为同形 `/bff/…`，不能携带任意 origin。token 随机性/抗猜测强度至少256 bits，只绑定 intake、creator、完整 Scope、原 payloadHash、ZIP hash/长度、generation、固定期限；不是通用 bearer，不替代当次 Session/CSRF/IP 权限。每代有效期5分钟，不延长；流的总时限5分钟/无数据30秒沿 #258，token 到期即停止读流，完成提交前仍需 generation/权限有效。
+
+IG 保存 ticket digest 与受控加密 token（专用 keyId、密文；明文只在签发/受权 replay 时出现），期限后不可再返回；不放普通 Receipt/Event/Audit/日志。该短期存储只用于原 CommandResult 的授权重放；成功 Receipt 保存 generation/expiry/绑定，不保存明文 token。key 不可用则安全依赖失败，不随机换 token。相同 CREATE/restart key 的合法重复只读同代同 token/原 expiry，不增加次数、不重新签发。另一个 Human、原作者失权或错误原 hash 都不得取 token。
+
+uploadState 为 `{generation:1|2,state:ISSUED|RECEIVING|CLOSED_NO_OBJECT|STAGED|UNKNOWN,restartsUsed:0|1,expiresAt,reasonCodes}`。IG 开流用 generation+CAS 独占 claim，重复流不能覆盖 staging；旧连接/旧 token/迟到 finish 通过 generation/fencing 拒绝。实际完成 hash/长度和隔离对象 durable receipt 已验证才 STAGED；数据库/对象结果不确定为 UNKNOWN。BFF 断开/超时本身不将状态改 FAILED/CLOSED。
+
+restart 只在 generation=1、restartsUsed=0、当前 Human 同时具 intake/read/restart 与 analysis-admit 权限、原内容全等、owner 确认旧流已关闭且**没有完整 staged object、EP link 或 manifest** 时允许。IG 独立 readback 对账 stream lease/object receipt 与 EP 步骤；无证明保持 UNKNOWN，Query不给 RESTART。部分 bytes 可保留隔离供审计，不能作为客户源；只对确定未 link 且满足 retention 的孤立对象 cleanup。restart 事务 CAS 到 generation=2、原子废止旧票据/claim、保存新 Receipt/token；从 byte 0 上传同一原 ZIP，Range/分片/Content-Encoding 拒绝。STAGED/EXTRACTING/READY/PARTIAL 只续服务器原工序，不重传。第二代失败/超时无第三代；返回停止/受权运维核对原 intake 的明确结果，不自动新建 intake 或 invoke。
+
+### Manifest、说明与可靠交接
+
+全包安全/完整性验证通过后才接纳 ZIP/entries；逐源 register/validate/accept 仍属于 EP。nonempty note 使用其精确 UTF-8 bytes 形成独立 text/plain SourceMaterial，origin 绑定 intake+原 Human+原 submit hash、media/长度/hash 和真实安全/完整性 validation；只读材料，不作为可信 prompt。note 生成/接纳失败则保留 ZIP/entry 成功 facts，manifest/handoff 尚未成功，不丢说明。无 note 时相应 ref 省略，不能补空文件；至少一个有效 DOCX/Markdown ZIP entry 才能进入分析，note 不替代此条件。
+
+immutable `customer_input_manifest` payload 闭集 `{intakeRef,preparationRequestRef,originalIntakeKey,submissionPayloadHash,projectRef,zipSourceRef,zipBytesSha256,zipByteLength,intakePolicyRef,intakePolicyHash,extractorProfileRef,entries,noteSourceRef?,noteBytesSha256?,analysisIntent:ANALYZE,preparationPresetRef,preparationPresetHash,sourceReceiptRefs,createdAt}`。entries 沿 D14 的 entryId/ordinal/原名/normalized path/实际media与bytes/hash/源验证ref/status/限制；按原 central-directory ordinal 排序，不按名称/hash合并。SNAPSHOT hash 是完整 canonical payload Hash，后续 Host manifest bytes SHA 是独立域。Manifest/Receipt 与新 `integration.CustomerZipManifestCommitted@1.0` Outbox 同一 IG 事务提交，payload 仅 `{intakeRef,preparationRequestRef,projectRef,manifestRef,submissionPayloadHash,analysisIntent:ANALYZE}`，不含名称、note、token、locator 或自报运行结果。
+
+内部 `ReadCustomerZipSubmission@1.0` 输入 `{intakeRef,manifestRef,submissionPayloadHash}`，固定 EP SERVICE 当前同 Project `integration.customer_zip.submission.read` 许可；精确验证 refs/hash、source Receipts 与 Human 原 ANALYZE provenance，返回 `{originalSubmission,manifest,receiptRefs,currentUsability,sourceWatermarks}`。它纯读、无新源/dispatch；Event 是通知，读取结果才供 EP 确认原交接。重复 Event/worker 重启不新建 source/intake 或另一次分析；每个 source/validation step target 在原 intake 首次持久化并按 entry ordinal 固定。
+
+custody result 沿既有 `RECEIVING/STAGED/EXTRACTING/READY/PARTIAL/FAILED/UNKNOWN`，包含各源实际 refs/Receipts、逐 entry 限制、manifestRef?。analysis 仅组合 EP PreparationAnalysisHandoff 当前授权摘要；EP 依赖503时保留 custody，analysis `{status:UNKNOWN,reasonCodes:[DEPENDENCY_UNAVAILABLE]}`。取得 TE analysisRequest Receipt 仍不显示 RUNNING；只有原 IG Attempt/真实 ack 与 TE Run 事实才允许该层状态。缺 Runner/锁、当前撤权、UNKNOWN 不删已链接源、不伪造报告、不发 PROJECT_START。
+
+错误新增 `INTEGRATION_ZIP_UPLOAD_RESTART_NOT_ALLOWED`、`INTEGRATION_ZIP_UPLOAD_RESTART_EXHAUSTED`、`INTEGRATION_ZIP_UPLOAD_GENERATION_CONFLICT`，原键异内容沿共享冲突；unsafe/limit/corrupt/zero analyzable 沿原 D14。所有 transport 与 source 验证真实执行仍 NOT RUN。
+
 ## D14 / RD-01 ZIP intake 与真实报告观察提案
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。本模块只拥有受控外部传输/物化/调用与原始观察；source custody 与报告业务快照属 EP，Run/Result 属 TE。限制与路径规则见 [ZIP handoff](../decisions/d14-rd01-first-customer-flow.md#2-zipstaging-与-host-的交接)。
 
 | 拟操作@1.0 | 封闭 input | result / 当次 purpose |
 |---|---|---|
-| `integration.request_customer_zip_intake` / CREATE | `projectRef; originalName:Sensitive; declaredByteLength; zipBytesSha256; intakePolicyRef` | OBJECT `zhiju.integration.customer_zip_intake` intakeRef + opaque one-intake upload token/expiry + receiptRef；`integration.customer_zip.intake`；不接受 locator/CLI/path，当前 HUMAN 接纳权 |
-| `integration.get_customer_zip_intake` / Query A | `intakeRef` | original request hash、status RECEIVING/STAGED/EXTRACTING/READY/PARTIAL/FAILED/UNKNOWN、逐 entry states/accepted source refs、安全 reasons、manifestRef?、Receipt refs、current allowedActions；`integration.customer_zip.read`；许可范围，无 storage locator/host path |
+| `integration.request_customer_zip_intake` / CREATE | 原 `projectRef; originalName; declaredByteLength; zipBytesSha256; intakePolicyRef`，加 #277 上方封闭原请求/预设/hash/note/ANALYZE 字段 | OBJECT `zhiju.integration.customer_zip_intake` intakeRef + 单 intake/generation 短 upload ticket + Receipt；`integration.customer_zip.intake` 与独立分析准入；不接受 locator/CLI/path |
+| `integration.get_customer_zip_intake` / Query A | #277 上方 INTAKE / PREPARATION_REQUEST 两种 exact selector | 原 intake/已提交 note/分析意图、custody/source/manifest/Receipt、uploadState 和独立 handoff 摘要；`integration.customer_zip.read`；无 storage locator/host path/token |
 
 worker 使用 original intakeId/key/payload，依次原 bytes 写 staging、验证→EP register/accept ZIP→受控提取→逐合法 entry validate/register/accept→commit immutable `SNAPSHOT/zhiju.integration.customer_input_manifest`。每行 entryId/ordinal/sourceRef/bytes hash/status，manifest 包括原 intake/ZIP ref、policy/extractor versions、实际不支持/损坏/读限。只在这些事实提交后 READY/PARTIAL；失败不能把未 link 的对象算 accepted。工序状态可变但 manifest/Entry validation/Receipt 不可改；resume 先同 intake Query/owner Receipt，重复上传异 bytes 拒绝；原包安全失败 zero dispatch。网络/解包不进入 EP 数据库事务。
 

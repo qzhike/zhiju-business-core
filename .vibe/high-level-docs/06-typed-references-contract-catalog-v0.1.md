@@ -1491,6 +1491,23 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 首轮恢复 additive 提案补充（均 @1.0、未注册）：EP `project.request_initial_scope_confirmation`、`project.get_initial_scope_request`、`project.resume_initial_scope_request`；TE `execution.get_initial_work_scope_state`。新增 OBJECT `zhiju.project.initial_scope_request`、CONTENT_ADDRESSED `zhiju.project.initial_work_scope_decision`，均同 Project；producer/field/startBindingMode 与授权唯一维护于 Spec002 ACTIVE 首轮恢复，消费者与唯一 INITIAL scope 约束维护于 Spec003。旧 catalog 计数/bytes 不改。
 
+## #277 准备入口增量名称与引用提案
+
+状态：`T2 / PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。只维护名称/Owner；完整字段分别见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。不改变当前 Registry/历史兼容计数。
+
+| 新名称 / 类型 | 唯一 Owner / 边界 |
+|---|---|
+| Command `integration.restart_customer_zip_upload@1.0` | IG；同 intake 的一次完整重传，公开 Browser finite route 的唯一新 token |
+| Event `integration.CustomerZipManifestCommitted@1.0` | IG；manifest/Receipt 同事务成功，EP Inbox 只读核验后建立固定 handoff；不是分析启动事件 |
+| VERSIONED `zhiju.project.preparation_preset`；CONTENT_ADDRESSED `zhiju.project.preparation_preset_publication` | EP Platform；VERSIONED ref + 独立 payloadHash，publication 精确绑定；不复用 startup rule bundle |
+| VERSIONED `zhiju.integration.customer_zip_policy` | IG Platform 构建期 closed registry；完整 D14 limits/profile/extractor refs + 独立 payloadHash |
+| OBJECT `zhiju.identity.preparation_enrollment_grant`；CONTENT_ADDRESSED `zhiju.identity.preparation_admission` | IP Platform；显式准入授权与一次原请求绑定，零客户正文 |
+| VERSIONED `identity.policy` 的两个独立 profile | IP `ip.preparation_membership_template@1.0` 为 Platform，`ip.preparation_membership@1.0` 为 Enterprise-scoped；新 producer/resolver，不扩旧 policy writer 或公司三项 registry |
+
+内部 Port 的固定 operation/purpose/action registry 随 IP owning 表实现：entry discover、enrollment grant/revoke、admission reserve/read、membership_template publish/withdraw/read、membership materialize/read、creator_access provision 及 preset publish/withdraw/read；不成为新的 Browser 管理面或任意公开 dispatcher。EP ReadPreparationIntakeBinding/PreparationAnalysisHandoff read/continue、IG ReadCustomerZipSubmission 为受权内部 Port，无 public HTTP。准入 scoped bootstrap grants 是真实 IP Grant，ProjectScopeClaim 仍只由 EP Project 事务创建。
+
+已有 D14 EP/IG proposal 的字段修订及已注册 EP board 的 optional preparationEntry 由 owning Spec 明示；TE analysis 接口仅被消费，未新增 TE 名称/接受集。新引用强度/作用域不得扩散到旧操作，所谓 exact ID/hash 只能由真实 producer/registry 取得，不在此表编造生产值。
+
 ## Workspace 授权目录名称提案（#258，已注册）
 
 状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / REGISTERED AND IMPLEMENTED (#266) / EXECUTION EVIDENCE IN ISSUE-PR / PRODUCTION NOT RUN`。
