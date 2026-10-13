@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
@@ -7,6 +7,21 @@ import remarkGfm from 'remark-gfm';
 import type { ReportView, WorkspaceData } from './model.js';
 import { ContentBoundary, Missing } from './shell.js';
 import { TrustedApp } from './TrustedApp.js';
+import { WorkbenchNavigation, UnavailablePage } from './workbench/navigation.js';
+const FixtureWorkbenchProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/workbench.js').then((module) => ({
+      default: module.FixtureWorkbenchProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureWorkbench = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/workbench.js').then((module) => ({
+      default: module.FixtureWorkbench,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
 
 const projectId = 'DEMO-PROJECT-01';
 const initialReportId = 'DEMO-STARTUP-REPORT-01';
@@ -123,25 +138,63 @@ function FixtureApp() {
                 )}
               </section>
             ) : (
-              <Routes>
-                <Route path="/" element={<Navigate to="/workbench" replace />} />
-                <Route path="/workbench" element={<Workbench />} />
-                <Route path="/projects/new" element={<NewProject />} />
-                <Route path="/projects/:projectId/intake" element={<Intake />} />
-                <Route
-                  path="/projects/:projectId/analysis/:reportId"
-                  element={<ReportPage data={query.data} />}
-                />
-                <Route
-                  path="/projects/:projectId/startup/:reportId"
-                  element={<Startup data={query.data} key={location.pathname} />}
-                />
-                <Route
-                  path="/projects/:projectId/executions/:requestId"
-                  element={<Execution data={query.data} />}
-                />
-                <Route path="*" element={<Missing />} />
-              </Routes>
+              <Suspense
+                fallback={
+                  <section className="panel" role="status">
+                    <h1 tabIndex={-1}>正在加载页面场景</h1>
+                    <p>请稍候…</p>
+                  </section>
+                }
+              >
+                <WorkbenchNavigation>
+                  <FixtureWorkbenchProvider>
+                    <FixturePageFocus />
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/workbench" replace />} />
+                      <Route path="/workbench" element={<FixtureWorkbench />} />
+                      <Route path="/projects/new" element={<NewProject />} />
+                      <Route path="/projects/:projectId/intake" element={<Intake />} />
+                      <Route
+                        path="/projects/:projectId/analysis/:reportId"
+                        element={<ReportPage data={query.data} />}
+                      />
+                      <Route
+                        path="/projects/:projectId/startup/:reportId"
+                        element={<Startup data={query.data} key={location.pathname} />}
+                      />
+                      <Route
+                        path="/projects/:projectId/executions/:requestId"
+                        element={<Execution data={query.data} />}
+                      />
+                      <Route
+                        path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                        element={
+                          <UnavailablePage
+                            title="检查文件"
+                            reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
+                          />
+                        }
+                      />
+                      <Route
+                        path="/projects/:projectId/delivery"
+                        element={
+                          <UnavailablePage
+                            title="项目交付"
+                            reason="项目交付页面尚未交付；此处未生成交付包。"
+                          />
+                        }
+                      />
+                      <Route
+                        path="/projects/:projectId/tasks/:taskId"
+                        element={
+                          <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
+                        }
+                      />
+                      <Route path="*" element={<Missing />} />
+                    </Routes>
+                  </FixtureWorkbenchProvider>
+                </WorkbenchNavigation>
+              </Suspense>
             )}
           </ContentBoundary>
         </main>
@@ -150,51 +203,12 @@ function FixtureApp() {
   );
 }
 
-function Workbench() {
-  const [empty, setEmpty] = useState(false);
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">工作空间</p>
-          <h1 tabIndex={-1}>我的工作台</h1>
-          <p className="muted">从需要你处理的事情开始</p>
-        </div>
-        <Link className="button primary" to="/projects/new">
-          新建项目
-        </Link>
-      </div>
-      <div className="toolbar">
-        <h2>待处理工作</h2>
-        <button
-          aria-pressed={empty}
-          onClick={() => {
-            setEmpty(!empty);
-          }}
-        >
-          {empty ? '查看匿名示例' : '查看空工作台'}
-        </button>
-      </div>
-      {empty ? (
-        <section className="panel empty">
-          <h2>暂无待处理工作</h2>
-          <p>可新建项目并准备客户资料。</p>
-        </section>
-      ) : (
-        <section className="panel work-item">
-          <div className="status-tag">资料准备 · 演示</div>
-          <h2>青禾制造 · 体系文件升级</h2>
-          <p>先把客户现有文件放进一个 ZIP，再核对分析报告与首轮文件范围。</p>
-          <div className="work-footer">
-            <span className="muted">匿名合成项目 · 固定样例</span>
-            <Link className="button primary" to={`/projects/${projectId}/intake`}>
-              准备客户资料 →
-            </Link>
-          </div>
-        </section>
-      )}
-    </>
-  );
+function FixturePageFocus() {
+  const location = useLocation();
+  useEffect(() => {
+    document.querySelector<HTMLElement>('#main h1')?.focus();
+  }, [location.pathname]);
+  return null;
 }
 
 function NewProject() {
@@ -283,6 +297,10 @@ function Intake() {
   useEffect(() => {
     if (error) errorRef.current?.focus();
   }, [error]);
+  if (params.projectId === 'DEMO-PROJECT-02')
+    return (
+      <UnavailablePage title="准备首轮客户资料" reason="此项目尚无资料接入场景；未上传文件。" />
+    );
   if (params.projectId !== projectId) return <Missing />;
   return (
     <>
@@ -499,6 +517,13 @@ function ReportPage({ data }: { data: WorkspaceData }) {
 function Startup({ data }: { data: WorkspaceData }) {
   const params = useParams();
   const report = getReport(data, params);
+  if (params.projectId === 'DEMO-PROJECT-02')
+    return (
+      <UnavailablePage
+        title="核对信息与文件范围"
+        reason="此项目尚无精确报告读取场景；未确认或启动。"
+      />
+    );
   return report ? <StartupScope data={data} report={report} /> : <Missing />;
 }
 
@@ -760,7 +785,19 @@ function Execution({ data }: { data: WorkspaceData }) {
       window.removeEventListener('focus', focus);
     };
   }, []);
-  if (!request || request.projectId !== params.projectId) return <Missing />;
+  if (!request || request.projectId !== params.projectId) {
+    if (
+      (params.projectId === projectId || params.projectId === 'DEMO-PROJECT-02') &&
+      params.requestId?.startsWith('WB-')
+    )
+      return (
+        <UnavailablePage
+          title="文件进度"
+          reason="此精确请求的文件进度页面尚未交付；本入口未开始或重试任何工作。"
+        />
+      );
+    return <Missing />;
+  }
   const report = data.reports.find((r) => r.reportId === request.reportId);
   const ready = now - request.createdAt >= 5000;
   return (

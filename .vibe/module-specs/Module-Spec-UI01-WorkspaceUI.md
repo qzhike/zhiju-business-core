@@ -291,6 +291,16 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 
 实现事实（#266）：上述 1–8 条的 BFF/Web 路径、封闭 Core 技术配置（`ZHIJU_WORKSPACE_TRUST_CONFIG`）与部署锁定值（capability code 映射、`ZHIJU_WORKSPACE_BOARD_CURSOR_KEY`、`ZHIJU_WORKSPACE_BOARD_POLICY_REFS`）已实现并有确定性本地、一次性 PostgreSQL、真实公开 HTTP 与 Chromium 制品旅程证据。首版 `execution.get_task_board_slice@1.0` 仍要求部署为该 Project 配置精确 Board Policy 版本引用：未配置时 owning 入口按既有语义返回 `DEPENDENCY_UNAVAILABLE` 并由 UI 诚实显示不可用，不伪造看板数据；`project.get_project_board_slice@1.0` 只需该 Project 的独立 board 读授权。目录页的 EP 水位是首屏已返回摘要观测摘要（`servedObservationDigest`）的 48 位投影（`enterpriseProjectWatermarkSequence`），属读取观察，不是全局计数、未授权项目计数或完成度。真实受控 Keycloak 26.7.0 旅程（隔离 realm/client/user 的 PKCE 登录 → callback `iss` → refresh → admin-API 密钥轮换 → 错 aud/azp/iss 拒绝）与受控 Chromium 制品旅程已在 exact-head persistence gate 通过（`tests/persistence/workspace-controlled-keycloak.test.ts`、`workspace-built-browser.test.ts`；证据见 PR #273 与本 Issue 评论）；生产部署、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收仍 `NOT RUN`。
 
+## 工作台页面实现边界（#281）
+
+沿已批准产品 §4.1 与工程基线落实共享 React 工作台：顶部紧凑项目进度、项目选择与最近访问，下方“需要你 / 推进中 / 待开始”，已完成与次要入口默认折叠。展示分组不新增 Core 状态；卡片保留具体原因、动作和来源提供的精确项目/任务/报告/候选引用。任务完成、候选就绪、批准与项目交付分别表达。
+
+生产继续只使用 #266 的授权目录与显式选中项目的 EP/TE 看板。数量标明已读取范围、枚举完整性及各来源观察水位；不推算跨项目总数、候选数量或项目完成百分比，不从 Task ID 构造 scope request。缺少公开读取或尚未交付的目标页面使用可导航的不可用边界，不能模拟上传、执行、保存、批准或交付成功。目录授权不代替看板授权。
+
+页面展示模型与动作类型仅属于 Experience。隔离开发 adapter 使用同一工作台组件提供多项目、混合状态、空/失败及候选/报告更新场景，生产构建剔除 adapter。原卡更新不跳页、不抢焦点、不覆盖输入或当前精确版本。筛选、展开、阅读位置与最近访问仅保留在当前有效会话的内存；URL 只保存安全项目/对象标识，历史记录不保存业务 payload。身份失效清理页面内存；切项目卸载旧看板，既有 generation/Scope 防迟到机制保持。
+
+文件检查、项目交付与任务详情边界均是页面导航，不增加公共操作、业务所有权、通知服务或持久最近访问能力。既有工程样例的报告/启动流程继续独立于真实服务验收；实际 Chrome/Edge 平台矩阵、Runner、生产服务与人工验收不由页面证据替代。
+
 ## D12 / Q11 项目交付与原意图恢复提案（#260）
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。owning字段/Hash/操作候选见 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)，跨轮次/失败trace见 [Spec Delta](../decisions/project-delivery-controlled-export.md#5-设计-trace-与必要反例)。已批准 #project-delivery/#delivery/#execution-review 布局与中文产品文案保留，原型sessionStorage/合成ZIP不成为生产事实。

@@ -159,6 +159,21 @@ reviewer and timestamp
 | UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 确定性本地+HTTP PASS：受保护响应 no-store/no-referrer/nosniff、generation+Principal+Scope 迟到响应拦截、多 Tab 失效信号不携带 token/内容、日志/trace 无 token/Subject/客户正文（`trusted-session.test.ts`、`guard.test.ts`、`workspace-trusted-http.test.ts` 断言响应不出现 JWT/secret/subject）。真实 bfcache 与多 Tab 浏览器行为 `NOT RUN` |
 | UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN`：受控 Chromium 的工程外壳门禁（`workspace:check`）与受控制品旅程（`workspace-built-browser.test.ts`、`workspace-controlled-keycloak.test.ts` 的真实 Keycloak 登录）已执行，但 Windows/macOS 实际 Chrome/Edge 平台矩阵与独立顾问人工验收仍未执行 |
 
+## 工作台页面验收（#281）
+
+以下为页面/组件验收，执行证据归 Issue/PR；不替代 #266 真实服务或完整浏览器矩阵。
+
+| ID | 场景 | 可观察结果 |
+|---|---|---|
+| UI-BOARD-001 | 多项目、长名称、混合工作状态 | 共享页面呈现三列和折叠完成项、紧凑项目进度、最近访问；原因与动作清晰，无常驻聊天输入 |
+| UI-BOARD-002 | 项目/工作筛选、精确入口、浏览器返回 | 新建、ZIP、报告、文件进度、精确候选与交付入口可导航；缺目标时诚实不可用；返回恢复筛选、展开、滚动和操作焦点 |
+| UI-BOARD-003 | 新报告/候选在等待时到达 | 更新原卡及数量，不追加重复卡、不跳页、不抢焦点、不清输入；旧版本引用仍精确，Run 完成不推导项目完成 |
+| UI-BOARD-004 | 授权目录与独立 EP/TE 读取、空中间页、分页/陈旧/拒绝/失效 | 只读选中项目，不推跨项目总数；完整/部分及各水位分开；失败不冒充空，失权无旧数据，迟到响应不回填 |
+| UI-BOARD-005 | 1280×800、1440×900、1920×1080、360×800 与 320 CSS px | 桌面内容有界滚动，窄屏可切组和项目、长名称可读，无页面横向溢出；键盘/焦点/状态文本与 axe 检查 |
+| UI-BOARD-006 | 生产制品、开发开关注入、深链接刷新 | 无工作台 fixture adapter/合成卡片及自动 fallback；注册页面可刷新，未知页面/资源仍拒绝 |
+
+独立 exact-head review、真实服务/Runner/持久化、Windows/macOS 最近两个 Chrome/Edge 稳定版本与独立人工验收须另有证据；未执行层保持 `NOT RUN`。
+
 ## D12 / Q11 项目交付交互与恢复设计场景（#260）
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [UI D12](../module-specs/Module-Spec-UI01-WorkspaceUI.md#d12--q11-项目交付与原意图恢复提案260)；保留已批准原型布局/中文文案，以下不借用合成演示或工程外壳的浏览器结果。

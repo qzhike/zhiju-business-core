@@ -488,6 +488,8 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
       );
     }
     expect(await card.count()).toBe(1);
+    // Exact references remain available in the compact workbench disclosure.
+    await card.getByText('项目引用', { exact: true }).click();
     const cardText = (await card.innerText()).replace(/\s+/gu, ' ');
     expect(cardText).toContain(
       `${current.workspace.enterpriseDisplayName} · ${current.workspace.projectTitle}`,

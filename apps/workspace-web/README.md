@@ -31,6 +31,23 @@ a registered public operation (ZIP intake, D14 preparation, Runner progress,
 original-byte downloads) stay visibly unavailable. Real Keycloak, Core HTTP,
 Runner and manual acceptance remain `NOT RUN`.
 
+The shared workbench page lives in `src/workbench`. Both trusted reads and the
+isolated development adapter supply typed presentation inputs to the same page.
+Project selection is a safe URL identifier; work filters, disclosure state,
+scroll positions and recent navigation remain in live-session memory. Returning
+from a work card restores its board context. Recent access opens an exact page
+without resuming execution. Task, report, request and candidate identifiers are
+kept distinct, and unavailable file review, delivery and task pages retain an
+explicit route boundary. The three active groups are independently scrollable
+on desktop and selectable on narrow screens; completed work starts collapsed.
+
+The production view reads only the selected project's independently authorized
+EP/TE boards. It labels each source's completeness and freshness, and never
+manufactures cross-project totals, candidate counts or completion percentages.
+`src/fixtures/workbench.tsx` supplies multi-project, negative-state and delayed
+candidate/report scenarios in the development build only. Its board updates are
+memory-only and reset on reload; no business operation or draft save occurs.
+
 For an **explicit development demonstration**, run:
 
 ```sh
