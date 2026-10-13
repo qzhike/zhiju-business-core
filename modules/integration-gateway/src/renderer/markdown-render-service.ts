@@ -147,9 +147,10 @@ export class MarkdownRenderService {
     operation: () => Promise<T>,
     deadline = this.now() + (this.config.timeoutMs ?? 30_000),
   ): Promise<T> {
+    if (this.now() > deadline) throw new Error('Markdown external outcome unknown');
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         operation(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
@@ -160,6 +161,8 @@ export class MarkdownRenderService {
           );
         }),
       ]);
+      if (this.now() > deadline) throw new Error('Markdown external outcome unknown');
+      return result;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -207,6 +210,7 @@ export class MarkdownRenderService {
     )
       return invalid();
     await this.verifySource(request);
+    await this.authorize(authority, OPERATION, request.revisionRef);
     const requestHash = bufferHash(request);
     const stableHash = bufferHash({
       operation: OPERATION,
@@ -217,6 +221,7 @@ export class MarkdownRenderService {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.idempotencyScope + ':' + input.idempotencyKey}, 279))`.execute(
         trx,
       );
+      await this.authorize(authority, OPERATION, request.revisionRef);
       const prior = await trx
         .selectFrom('integration_gateway.command_receipt')
         .selectAll()
@@ -446,6 +451,7 @@ export class MarkdownRenderService {
         .where('attempt_id', '=', row.attempt_id)
         .executeTakeFirst(),
     );
+    let deadline: number | undefined;
     try {
       if (!output) {
         if (row.status !== 'CREATED') return await this.getBinding(authority, ref);
@@ -463,7 +469,7 @@ export class MarkdownRenderService {
         }
         if (reconcile) return await this.getBinding(authority, ref);
         const started = this.now();
-        const deadline = started + (this.config.timeoutMs ?? 30_000);
+        deadline = started + (this.config.timeoutMs ?? 30_000);
         const claimed = await withRenderTransaction(this.config.db, context, (trx) =>
           trx
             .insertInto('integration_gateway.markdown_render_work')
@@ -472,7 +478,7 @@ export class MarkdownRenderService {
               enterprise_id: row.enterprise_id,
               project_id: requiredValue(row.project_id),
               started_at: new Date(started),
-              deadline_at: new Date(deadline),
+              deadline_at: new Date(requiredValue(deadline)),
             })
             .onConflict((c) => c.doNothing())
             .returning('attempt_id')
@@ -576,9 +582,27 @@ export class MarkdownRenderService {
       const reference = output.storage_reference as MarkdownRenderStorageReference;
       const receiptReference = output.receipt_storage_reference as MarkdownRenderStorageReference;
       const validation = output.validation as IntegrationGateway.MarkdownValidation;
-      const source = await this.verifySource(request);
-      const actual = await this.config.storage.read(reference);
-      const receipt = await this.config.storage.read(receiptReference);
+      if (deadline === undefined) {
+        const work = await withRenderTransaction(this.config.db, context, (trx) =>
+          trx
+            .selectFrom('integration_gateway.markdown_render_work')
+            .select('deadline_at')
+            .where('attempt_id', '=', row.attempt_id)
+            .executeTakeFirst(),
+        );
+        if (!work) return invalid();
+        deadline =
+          reconcile && row.status === 'UNKNOWN'
+            ? this.now() + (this.config.timeoutMs ?? 30_000)
+            : work.deadline_at.getTime();
+      }
+      const commonDeadline = deadline;
+      const source = await this.bounded(() => this.verifySource(request), commonDeadline);
+      const actual = await this.bounded(() => this.config.storage.read(reference), commonDeadline);
+      const receipt = await this.bounded(
+        () => this.config.storage.read(receiptReference),
+        commonDeadline,
+      );
       const expectedReceipt = Buffer.from(
         json({
           attemptRef: ref,
@@ -593,19 +617,21 @@ export class MarkdownRenderService {
         actual.bytes.length !== validation.outputByteLength ||
         actual.mediaType !== mediaType ||
         !isDeepStrictEqual(bytesHash(actual.bytes), validation.outputBytesSha256) ||
-        !receipt.bytes.equals(expectedReceipt) ||
-        !isDeepStrictEqual(
-          await this.config.canonical.verify({
+        !receipt.bytes.equals(expectedReceipt)
+      )
+        return invalid();
+      const roundTrip = await this.bounded(
+        () =>
+          this.config.canonical.verify({
             revisionRef: request.revisionRef,
             bytes: actual.bytes,
             identityMap: source.identityMap,
           }),
-          request.inputHash,
-        )
-      )
-        return invalid();
-      await this.bounded(() => this.config.storage.finalize(reference));
-      await this.bounded(() => this.config.storage.finalize(receiptReference));
+        commonDeadline,
+      );
+      if (!isDeepStrictEqual(roundTrip, request.inputHash)) return invalid();
+      await this.bounded(() => this.config.storage.finalize(reference), commonDeadline);
+      await this.bounded(() => this.config.storage.finalize(receiptReference), commonDeadline);
       await this.authorize(authority, OPERATION, request.revisionRef);
       const receiptId = newUuidV7();
       const recordedAt = new Date(this.now());

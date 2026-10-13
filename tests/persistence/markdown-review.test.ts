@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Artifact } from '@zhiju/contracts';
+import pg from 'pg';
+import type { Artifact, Common } from '@zhiju/contracts';
 import { getContractRegistry } from '@zhiju/contracts';
 import {
   exactMarkdownRevision,
@@ -7,7 +8,12 @@ import {
   markdownBytesHash,
   MarkdownBoundTokens,
 } from '@zhiju/artifact';
-import { MarkdownRenderService } from '@zhiju/integration-gateway';
+import {
+  MarkdownRenderService,
+  withRenderTransaction,
+  type MarkdownRenderAuthority,
+  type RenderTransactionContext,
+} from '@zhiju/integration-gateway';
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import { createMarkdownReviewEntry } from '../../apps/api/src/composition/markdown-review-entry.js';
 import type { WorkspaceBoardSession } from '../../apps/api/src/composition/workspace-board-entries.js';
@@ -269,6 +275,228 @@ describe.skipIf(!databaseUrl)('exact Markdown review and download #279 (real Pos
       }),
     ).rejects.toThrow();
   });
+  it.each([
+    { stage: 'source read', source: true, output: false, receipt: false, verify: false },
+    { stage: 'output read', source: false, output: true, receipt: false, verify: false },
+    { stage: 'receipt read', source: false, output: false, receipt: true, verify: false },
+    {
+      stage: 'round-trip verification',
+      source: false,
+      output: false,
+      receipt: false,
+      verify: true,
+    },
+  ])(
+    'bounds the observed-output $stage and recovers the same stored versions',
+    async (target) => {
+      const prepared = await fixture.prepareRenderCommand();
+      let canonicalReads = 0;
+      let canonicalVerifies = 0;
+      let storageReads = 0;
+      let stalled = false;
+      const hang = () =>
+        new Promise<never>((_resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error('Markdown external call stayed pending'));
+          }, 60_000);
+          timer.unref();
+        });
+      const canonical = {
+        read: async (revisionRef: Parameters<typeof fixture.canonical.read>[0]) => {
+          canonicalReads += 1;
+          if (target.source && canonicalReads === 3 && !stalled) {
+            stalled = true;
+            return await hang();
+          }
+          return fixture.canonical.read(revisionRef);
+        },
+        verify: async (input: Parameters<typeof fixture.canonical.verify>[0]) => {
+          canonicalVerifies += 1;
+          if (target.verify && canonicalVerifies === 2 && !stalled) {
+            stalled = true;
+            return await hang();
+          }
+          return fixture.canonical.verify(input);
+        },
+      };
+      const storage = {
+        putStaging: (input: Parameters<typeof fixture.storage.putStaging>[0]) =>
+          fixture.storage.putStaging(input),
+        read: async (reference: Parameters<typeof fixture.storage.read>[0]) => {
+          storageReads += 1;
+          if (
+            !stalled &&
+            ((target.output && storageReads === 3) || (target.receipt && storageReads === 4))
+          ) {
+            stalled = true;
+            return await hang();
+          }
+          return fixture.storage.read(reference);
+        },
+        finalize: (reference: Parameters<typeof fixture.storage.finalize>[0]) =>
+          fixture.storage.finalize(reference),
+      };
+      const renderer = new MarkdownRenderService({
+        db: fixture.integrationDb,
+        storage,
+        canonical,
+        rendererDigest: fixture.rendererDigest,
+        timeoutMs: 250,
+      });
+      const context = await prepared.authority.authorize(
+        'integration.request_markdown_render',
+        prepared.command.payload.revisionRef,
+      );
+      await renderer.request(prepared.authority, prepared.command);
+      expect((await renderer.work(prepared.authority, prepared.attemptRef)).status).toBe('UNKNOWN');
+      expect(stalled).toBe(true);
+      const before = await withRenderTransaction(fixture.integrationDb, context, (trx) =>
+        trx
+          .selectFrom('integration_gateway.markdown_render_output')
+          .select(['storage_reference', 'receipt_storage_reference'])
+          .where('attempt_id', '=', prepared.attemptRef.objectId)
+          .executeTakeFirst(),
+      );
+      expect(before).toBeDefined();
+      expect((await renderer.work(prepared.authority, prepared.attemptRef, true)).status).toBe(
+        'SUCCEEDED',
+      );
+      const after = await withRenderTransaction(fixture.integrationDb, context, (trx) =>
+        trx
+          .selectFrom('integration_gateway.markdown_render_output')
+          .select(['storage_reference', 'receipt_storage_reference'])
+          .where('attempt_id', '=', prepared.attemptRef.objectId)
+          .executeTakeFirst(),
+      );
+      expect(after).toEqual(before);
+    },
+    10_000,
+  );
+  it('replays the same authorized command and rechecks authorization after source reads and lock waits', async () => {
+    const operation = 'integration.request_markdown_render';
+    const replay = await fixture.prepareRenderCommand();
+    const first = await fixture.renderer.request(replay.authority, replay.command);
+    expect(await fixture.renderer.request(replay.authority, replay.command)).toEqual(first);
+
+    async function expectNoCommandWrites(
+      command: Awaited<ReturnType<typeof fixture.prepareRenderCommand>>['command'],
+      attemptRef: Common.ObjectRef,
+      context: RenderTransactionContext,
+    ) {
+      const rows = await withRenderTransaction(fixture.integrationDb, context, async (trx) => ({
+        receipt: await trx
+          .selectFrom('integration_gateway.command_receipt')
+          .select('command_id')
+          .where('command_id', '=', command.commandId)
+          .executeTakeFirst(),
+        attempt: await trx
+          .selectFrom('integration_gateway.render_attempt')
+          .select('attempt_id')
+          .where('attempt_id', '=', attemptRef.objectId)
+          .executeTakeFirst(),
+        audit: await trx
+          .selectFrom('integration_gateway.audit_record')
+          .select('command_id')
+          .where('command_id', '=', command.commandId)
+          .executeTakeFirst(),
+      }));
+      expect(rows).toEqual({ receipt: undefined, attempt: undefined, audit: undefined });
+    }
+
+    const duringRead = await fixture.prepareRenderCommand();
+    const readContext = await duringRead.authority.authorize(
+      operation,
+      duringRead.command.payload.revisionRef,
+    );
+    let revokedDuringRead = false;
+    const canonical = {
+      read: async (revisionRef: Parameters<typeof fixture.canonical.read>[0]) => {
+        const source = await fixture.canonical.read(revisionRef);
+        if (!revokedDuringRead) {
+          revokedDuringRead = true;
+          await fixture.revoke(operation);
+        }
+        return source;
+      },
+      verify: (input: Parameters<typeof fixture.canonical.verify>[0]) =>
+        fixture.canonical.verify(input),
+    };
+    const revokedRenderer = new MarkdownRenderService({
+      db: fixture.integrationDb,
+      storage: fixture.storage,
+      canonical,
+      rendererDigest: fixture.rendererDigest,
+    });
+    await expect(
+      revokedRenderer.request(duringRead.authority, duringRead.command),
+    ).rejects.toThrow();
+    expect(revokedDuringRead).toBe(true);
+    await expectNoCommandWrites(duringRead.command, duringRead.attemptRef, readContext);
+
+    await fixture.grant(operation);
+    const duringLock = await fixture.prepareRenderCommand();
+    const lockContext = await duringLock.authority.authorize(
+      operation,
+      duringLock.command.payload.revisionRef,
+    );
+    const observer = new pg.Pool({ connectionString: requiredValue(databaseUrl), max: 3 });
+    const lockClient = await observer.connect();
+    let pending: Promise<{ value: unknown } | { error: unknown }> | undefined;
+    try {
+      await lockClient.query('BEGIN');
+      await lockClient.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 279))', [
+        `${duringLock.command.idempotencyScope}:${duringLock.command.idempotencyKey}`,
+      ]);
+      let authorizationCount = 0;
+      let signalAuthorizedAfterRead!: () => void;
+      const authorizedAfterRead = new Promise<void>((resolve) => {
+        signalAuthorizedAfterRead = resolve;
+      });
+      const authority: MarkdownRenderAuthority = {
+        authorize: async (requestedOperation, target) => {
+          const authorized = await duringLock.authority.authorize(requestedOperation, target);
+          authorizationCount += 1;
+          if (authorizationCount === 2) signalAuthorizedAfterRead();
+          return authorized;
+        },
+      };
+      pending = fixture.renderer.request(authority, duringLock.command).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await authorizedAfterRead;
+      const deadline = Date.now() + 5_000;
+      let waiting = false;
+      while (Date.now() < deadline) {
+        const result = await observer.query<{ blockers: number[] }>(
+          `SELECT pg_blocking_pids(pid) AS blockers
+             FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock'
+              AND query LIKE '%pg_advisory_xact_lock%'`,
+        );
+        if (result.rows.some((row) => row.blockers.length > 0)) {
+          waiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(waiting).toBe(true);
+      await fixture.revoke(operation);
+      await lockClient.query('COMMIT');
+      const outcome = await pending;
+      expect('error' in outcome).toBe(true);
+      await expectNoCommandWrites(duringLock.command, duringLock.attemptRef, lockContext);
+    } finally {
+      try {
+        await lockClient.query('ROLLBACK');
+      } catch {
+        // The lock was already released by COMMIT or the connection failed.
+      }
+      lockClient.release();
+      if (pending) await pending;
+      await observer.end();
+    }
+  }, 30_000);
   it('refuses late results and cannot promote a failed Attempt to success', async () => {
     let time = Date.now();
     const lateStorage = {

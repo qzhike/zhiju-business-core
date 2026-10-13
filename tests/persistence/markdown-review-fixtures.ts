@@ -373,7 +373,7 @@ export async function provisionMarkdownReview(input: {
     tokenKey: Buffer.alloc(32, 0x81),
     binding: { read: (ref) => renderer.readOutput(renderAuthority(ref), ref) },
   });
-  async function renderRequest(revisionRef = to.revisionRef, rendererInstance = renderer) {
+  async function prepareRenderCommand(revisionRef = to.revisionRef) {
     const source = await canonical.read(revisionRef);
     const attemptRef: Common.ObjectRef = {
       kind: 'OBJECT',
@@ -401,8 +401,59 @@ export async function provisionMarkdownReview(input: {
       idempotencyKey: newUuidV7(),
       payload,
     };
-    const receipt = await rendererInstance.request(renderAuthority(attemptRef), command);
-    return { attemptRef, command, receipt, authority: renderAuthority(attemptRef) };
+    return { attemptRef, command, authority: renderAuthority(attemptRef) };
+  }
+  async function renderRequest(revisionRef = to.revisionRef, rendererInstance = renderer) {
+    const prepared = await prepareRenderCommand(revisionRef);
+    const { attemptRef, command, authority } = prepared;
+    const receipt = await rendererInstance.request(authority, command);
+    return { attemptRef, command, receipt, authority };
+  }
+  async function grant(operation: string) {
+    const purposes: Record<string, string> = {
+      ...MARKDOWN_REVIEW_PURPOSES,
+      ...MARKDOWN_SERVICE_PURPOSES,
+    };
+    const purpose = purposes[operation];
+    if (!purpose) throw new Error(`Unsupported controlled Markdown grant: ${operation}`);
+    const id = newUuidV7();
+    await withIdentityTransaction(identityDb, context, async (trx) => {
+      const prior = (
+        await repo.listActiveCapabilityGrants(
+          trx,
+          workspace.principalId,
+          scope.enterpriseId,
+          new Date(),
+        )
+      )[0];
+      if (!prior?.grant_policy_snapshot_id) throw new Error('Trusted workspace policy missing');
+      await repo.insertCapabilityGrant(trx, {
+        id,
+        principalId:
+          operation in MARKDOWN_REVIEW_PURPOSES
+            ? workspace.principalId
+            : workspace.servicePrincipalId,
+        code: requiredValue(MARKDOWN_CAPABILITIES[operation]),
+        scopeKind: 'PROJECT',
+        enterpriseId: scope.enterpriseId,
+        projectId: scope.projectId,
+        validFrom: new Date(Date.now() - 60_000),
+        justification: 'Controlled Markdown authorization-boundary recovery',
+        createdByPrincipalId: context.principalId,
+        createdByActorSnapshotId: context.actorSnapshotId,
+        resourceSelectors: [
+          { selectorType: 'TARGET_TYPE', objectType: 'artifact.artifact_revision' },
+          ...(operation === 'integration.get_markdown_render_binding'
+            ? [{ selectorType: 'TARGET_TYPE', objectType: 'integration.render_attempt' }]
+            : []),
+        ],
+        actions: [`${purpose}.v1`],
+        grantPolicySnapshotId: prior.grant_policy_snapshot_id,
+        grantPolicySnapshotHash: prior.grant_policy_snapshot_hash,
+      });
+    });
+    grantIds.set(operation, id);
+    return id;
   }
   async function register(attemptRef: Common.ObjectRef) {
     const payload = {
@@ -443,6 +494,8 @@ export async function provisionMarkdownReview(input: {
     canonical,
     rendererDigest,
     renderer,
+    grant,
+    prepareRenderCommand,
     review,
     representations,
     service,

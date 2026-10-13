@@ -32,6 +32,7 @@ export function MarkdownReview(props: Props) {
   const [loaded, setLoaded] = useState<MarkdownReviewData | null>(null);
   const [error, setError] = useState('');
   const [downloadStatus, setDownloadStatus] = useState('');
+  const [directoryStatus, setDirectoryStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const objectUrls = useRef(new Set<string>());
@@ -57,8 +58,36 @@ export function MarkdownReview(props: Props) {
     const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
     setLoaded(null);
     setError('当前无法读取此精确版本，请确认链接与当前权限。');
+    setDirectoryStatus('');
     if ([401, 403, 404].includes(failure.httpStatus)) {
       props.onSessionFailure();
+    }
+  }
+  async function canonicalReadPermission(): Promise<
+    { state: 'ALLOWED' } | { state: 'DENIED'; cause: unknown } | { state: 'UNKNOWN' }
+  > {
+    const currentLink = link;
+    const currentController = controller.current;
+    if (!currentLink || !currentController || currentController.signal.aborted)
+      return { state: 'UNKNOWN' };
+    try {
+      parseReviewContent(
+        await readExactQuery(
+          'artifact.get_file_review_content',
+          currentLink.revisionRef.scope,
+          { revisionRef: currentLink.revisionRef },
+          props.csrfToken,
+          currentController.signal,
+        ),
+        currentLink,
+      );
+      return accepts() ? { state: 'ALLOWED' } : { state: 'UNKNOWN' };
+    } catch (cause) {
+      if (!accepts()) return { state: 'UNKNOWN' };
+      const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
+      return [401, 403, 404].includes(failure.httpStatus)
+        ? { state: 'DENIED', cause }
+        : { state: 'UNKNOWN' };
     }
   }
   useEffect(() => {
@@ -67,6 +96,7 @@ export function MarkdownReview(props: Props) {
     const untrack = props.readBoundary.track(abort);
     setLoaded(null);
     setError('');
+    setDirectoryStatus('');
     if (!link) {
       setError('文件链接不完整或版本绑定无效。');
       return () => {
@@ -135,6 +165,7 @@ export function MarkdownReview(props: Props) {
   async function more() {
     if (!link || !loaded?.changes.nextCursor || !controller.current) return;
     setBusy(true);
+    setDirectoryStatus('');
     try {
       const page = parseChanges(
         await readExactQuery(
@@ -160,7 +191,23 @@ export function MarkdownReview(props: Props) {
         changes: { ...page, entries: [...loaded.changes.entries, ...page.entries] },
       });
     } catch (cause) {
-      fail(cause);
+      if (!accepts()) return;
+      const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
+      if ([401, 403, 404].includes(failure.httpStatus)) {
+        const permission = await canonicalReadPermission();
+        if (!accepts()) return;
+        if (permission.state === 'DENIED') {
+          fail(permission.cause);
+          return;
+        }
+        setDirectoryStatus(
+          permission.state === 'ALLOWED'
+            ? '更多变化暂不可用；当前文件和意见草稿已保留，请重试。'
+            : '更多变化暂不可用；无法确认当前读取权限，已保留文件和意见草稿，请重试。',
+        );
+      } else {
+        setDirectoryStatus('更多变化暂不可用；当前文件和意见草稿已保留，请重试。');
+      }
     } finally {
       if (accepts()) setBusy(false);
     }
@@ -246,9 +293,22 @@ export function MarkdownReview(props: Props) {
       setDownloadStatus('下载响应已完整接收；请在浏览器中确认保存。');
     } catch (cause) {
       if (accepts()) {
-        setDownloadStatus('当前无法下载；请重试以重新核验权限。');
         const failure = failureFromUnknown(cause, 'DOWNLOAD_UNAVAILABLE');
-        if ([401, 403, 404].includes(failure.httpStatus)) fail(cause);
+        if ([401, 403, 404].includes(failure.httpStatus)) {
+          const permission = await canonicalReadPermission();
+          if (!accepts()) return;
+          if (permission.state === 'DENIED') {
+            fail(permission.cause);
+            return;
+          }
+          setDownloadStatus(
+            permission.state === 'ALLOWED'
+              ? '下载暂不可用；当前正文和意见草稿已保留，精确版本仍可读取。请重试下载。'
+              : '下载暂不可用；无法确认当前读取权限，已保留正文和意见草稿。请重试。',
+          );
+        } else {
+          setDownloadStatus('下载暂不可用；当前正文和意见草稿已保留。请重试下载。');
+        }
       }
     }
   }
@@ -273,6 +333,7 @@ export function MarkdownReview(props: Props) {
       hasRepresentation={Boolean(link.representationRef)}
       busy={busy}
       downloadStatus={downloadStatus}
+      directoryStatus={directoryStatus}
       onDownload={download}
       onMore={more}
     />
@@ -285,6 +346,6 @@ function changePayload(link: ReviewLink, cursor?: string): JsonRecord {
     baselineKind: link.baselineKind,
     ...(link.fromRevisionRef ? { fromRevisionRef: link.fromRevisionRef } : {}),
     filter: {},
-    page: { limit: 100, ...(cursor ? { cursor } : {}) },
+    page: { limit: 10, ...(cursor ? { cursor } : {}) },
   };
 }

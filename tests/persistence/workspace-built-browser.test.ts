@@ -508,7 +508,10 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     page.on('response', (response) => {
       if (response.status() >= 400 || response.url().includes('markdown'))
         transportErrors.push(`${response.status()} ${new URL(response.url()).pathname}`);
-      if (new URL(response.url()).pathname.startsWith('/api/markdown-representations/'))
+      if (
+        response.status() === 200 &&
+        new URL(response.url()).pathname.startsWith('/api/markdown-representations/')
+      )
         downloadHeaders.push(response.headers());
     });
     await page.goto(`${stack.webOrigin}${fixture.link}`);
@@ -528,6 +531,55 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     expect(await directory.innerText()).toContain('36');
     const note = page.getByRole('textbox', { name: '意见草稿' });
     await note.fill('核对采购凭证；这是未提交的本页记录。');
+    const directoryUrl = new URL(
+      '/bff/queries/artifact.get_file_change_directory/1.0',
+      stack.webOrigin,
+    );
+    let failOneContinuation = true;
+    const failFirstContinuation = (url: URL) =>
+      url.origin === stack.webOrigin && url.pathname === directoryUrl.pathname;
+    await page.route(failFirstContinuation, async (route) => {
+      const envelope = JSON.parse(route.request().postData() ?? '{}') as {
+        payload?: { page?: { cursor?: unknown } };
+      };
+      if (envelope.payload?.page?.cursor && failOneContinuation) {
+        failOneContinuation = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'DEPENDENCY_UNAVAILABLE', retryable: true, correlationId: null },
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    const loadedCount = async () => {
+      const text = await directory.locator(':scope > small').innerText();
+      const match = /已加载 (\d+) \/ 36/u.exec(text);
+      return match ? Number(match[1]) : 0;
+    };
+    const waitForPageChange = async (prior: number) =>
+      expect.poll(loadedCount, { timeout: 5_000 }).toBeGreaterThan(prior);
+    const firstPage = await loadedCount();
+    await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+    const paginationStatus = directory.getByRole('status');
+    await paginationStatus.waitFor({ state: 'visible' });
+    expect(await paginationStatus.innerText()).toContain('意见草稿已保留');
+    expect(await note.inputValue()).toContain('未提交');
+    expect(await page.getByRole('heading', { name: '采购控制程序', exact: true }).isVisible()).toBe(
+      true,
+    );
+    await page.unroute(failFirstContinuation);
+    await page.getByRole('button', { name: '重试加载变化', exact: true }).click();
+    await waitForPageChange(firstPage);
+    while (await page.getByRole('button', { name: '继续加载变化', exact: true }).count()) {
+      const prior = await loadedCount();
+      await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+      await waitForPageChange(prior);
+    }
+    expect(await loadedCount()).toBe(36);
     for (let n = 1; n <= 36; n++) {
       expect(await page.locator('.markdown-change').innerText()).toContain(`第 ${n} / 36 处`);
       expect(await page.locator('.markdown-after').innerText()).toContain('更新要求');
@@ -554,6 +606,20 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
       fullPage: true,
     });
     const bytes: Buffer[] = [];
+    const streamPath = `/api/markdown-representations/${fixture.representationRef.representationId}/content`;
+    const streamUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === streamPath;
+    await page.route(streamUrl, async (route) => {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
+    await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
+    await expect
+      .poll(async () => (await page.locator('.markdown-download-status').textContent()) ?? '')
+      .toContain('精确版本仍可读取');
+    expect(await note.inputValue()).toContain('未提交');
+    expect(await page.getByRole('heading', { name: '采购控制程序', exact: true }).isVisible()).toBe(
+      true,
+    );
+    await page.unroute(streamUrl);
     for (let n = 0; n < 2; n++) {
       const downloaded = page.waitForEvent('download');
       await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
@@ -638,11 +704,22 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     );
     expect([403, 404]).toContain(results.read);
     expect([400, 404]).toContain(results.service);
+    await page.goto(`${stack.webOrigin}${fixture.link}`);
+    await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+    const note = page.getByRole('textbox', { name: '意见草稿' });
+    await note.fill('仅在本页保留，撤权后需要清除。');
+    const streamPath = `/api/markdown-representations/${fixture.representationRef.representationId}/content`;
+    const streamUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === streamPath;
+    await page.route(streamUrl, async (route) => {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
     await fixture.revoke('artifact.get_file_review_content');
-    await page.reload();
+    await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
     await page.getByRole('heading', { name: '文件检查', exact: true }).waitFor();
-    await page.locator('.canonical-document').waitFor({ state: 'hidden' });
+    await note.waitFor({ state: 'detached' });
+    expect(await page.locator('body').innerText()).not.toContain('撤权后需要清除');
     expect(await page.locator('body').innerText()).not.toContain('更新要求');
+    await page.unroute(streamUrl);
   }, 30_000);
 });
 

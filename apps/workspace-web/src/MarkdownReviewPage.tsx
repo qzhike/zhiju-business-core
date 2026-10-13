@@ -151,6 +151,7 @@ export interface MarkdownReviewPageProps {
   hasRepresentation: boolean;
   busy: boolean;
   downloadStatus: string;
+  directoryStatus: string;
   onDownload: () => Promise<void>;
   onMore: () => Promise<void>;
 }
@@ -161,6 +162,7 @@ export function MarkdownReviewPage({
   hasRepresentation,
   busy,
   downloadStatus,
+  directoryStatus,
   onDownload,
   onMore,
 }: MarkdownReviewPageProps) {
@@ -299,9 +301,12 @@ export function MarkdownReviewPage({
                 </button>
               ))}
             {visible.changes.nextCursor && (
-              <button disabled={busy} onClick={() => void onMore()}>
-                继续加载变化
-              </button>
+              <>
+                <button disabled={busy} onClick={() => void onMore()}>
+                  {busy ? '正在加载变化…' : directoryStatus ? '重试加载变化' : '继续加载变化'}
+                </button>
+                {directoryStatus && <p role="status">{directoryStatus}</p>}
+              </>
             )}
           </div>
           <small>
