@@ -1,0 +1,156 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "source": "D12 / Q11 (#272) standalone structural fixture",
+    "description": "Legacy single-Revision `release-package-manifest/1.0` baseline: the frozen REL-801-style Package hash and payload hash that the D12 domains must never alter or absorb. It intentionally keeps its historical DOCX representation acceptance."
+  },
+  "packageDefinition": {
+    "releaseRef": {
+      "kind": "OBJECT",
+      "objectType": "release.release",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d901",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "canonicalRevisionRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "artifact.artifact_revision",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d902",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+      }
+    },
+    "representations": [
+      {
+        "representationRef": {
+          "representationId": "018f22e2-7c15-7b2e-8d86-2de956a9d903",
+          "revision": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "artifact.artifact_revision",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d902",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+            }
+          },
+          "format": "document.docx",
+          "mediaType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "objectStorageRef": "objects/legacy/903",
+          "checksum": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5"
+          },
+          "renderer": {
+            "rendererId": "renderer.docx",
+            "rendererVersion": "1.0.0"
+          },
+          "createdAt": "2026-08-31T00:00:00Z"
+        },
+        "ordinal": 0,
+        "displayName": "Frozen single-Revision package",
+        "required": true,
+        "releaseRole": "primary_document"
+      }
+    ],
+    "destinations": [
+      {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d904",
+        "destinationType": "feishu_channel",
+        "destinationRef": {
+          "system": "zhiju.channel",
+          "resourceType": "feishu_chat",
+          "externalId": "legacy-channel-1",
+          "observedAt": "2026-08-31T00:00:00Z"
+        },
+        "recipientScopeRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "release.recipient_scope_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d905",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d906",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "babababababababababababababababababababababababababababababababa"
+          }
+        },
+        "purpose": "customer_delivery",
+        "required": true,
+        "requiredReceiptKind": "channel_delivery_receipt",
+        "deliveryPolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d907",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d908",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        }
+      }
+    ],
+    "recipientScopeSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "release.recipient_scope_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d905",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d906",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "babababababababababababababababababababababababababababababababa"
+      }
+    },
+    "approvalBundleSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "quality.approval_bundle_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d909",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d910",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5"
+      }
+    },
+    "preparedAt": "2026-08-31T00:01:00Z",
+    "packageHash": {
+      "algorithm": "SHA-256",
+      "digest": "040e336d4897185a6807f6a148bd4bfe3e33bbfee64f3e4ac3d9f9a526d0aca0",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "expectedPackageHash": {
+    "algorithm": "SHA-256",
+    "digest": "040e336d4897185a6807f6a148bd4bfe3e33bbfee64f3e4ac3d9f9a526d0aca0",
+    "canonicalizationVersion": "1"
+  },
+  "expectedPackagePayloadHash": {
+    "algorithm": "SHA-256",
+    "digest": "b612554ec134d0ba4244a3da8319afc9d2e7f79a989c2676368c7892c64ab4ac",
+    "canonicalizationVersion": "1"
+  },
+  "expectedCanonicalManifest": "{\"approvalBundleSnapshotRef\":{\"contentHash\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5\"},\"kind\":\"SNAPSHOT\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d909\",\"objectType\":\"quality.approval_bundle_snapshot\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"},\"snapshotId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d910\"},\"canonicalRevisionRef\":{\"contentHash\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5\"},\"kind\":\"CONTENT_ADDRESSED\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d902\",\"objectType\":\"artifact.artifact_revision\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"}},\"destinations\":[{\"deliveryPolicyRef\":{\"kind\":\"VERSIONED\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d907\",\"objectType\":\"zhiju.identity.policy\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\"},\"versionId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d908\"},\"destinationId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d904\",\"destinationRef\":{\"externalId\":\"legacy-channel-1\",\"observedAt\":\"2026-08-31T00:00:00Z\",\"resourceType\":\"feishu_chat\",\"system\":\"zhiju.channel\"},\"destinationType\":\"feishu_channel\",\"purpose\":\"customer_delivery\",\"recipientScopeRef\":{\"contentHash\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"babababababababababababababababababababababababababababababababa\"},\"kind\":\"SNAPSHOT\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d905\",\"objectType\":\"release.recipient_scope_snapshot\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"},\"snapshotId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d906\"},\"required\":true,\"requiredReceiptKind\":\"channel_delivery_receipt\"}],\"manifestVersion\":\"release-package-manifest/1.0\",\"recipientScopeSnapshotRef\":{\"contentHash\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"babababababababababababababababababababababababababababababababa\"},\"kind\":\"SNAPSHOT\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d905\",\"objectType\":\"release.recipient_scope_snapshot\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"},\"snapshotId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d906\"},\"releaseRef\":{\"kind\":\"OBJECT\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d901\",\"objectType\":\"release.release\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"}},\"representations\":[{\"displayName\":\"Frozen single-Revision package\",\"ordinal\":0,\"releaseRole\":\"primary_document\",\"representationRef\":{\"checksum\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5\"},\"createdAt\":\"2026-08-31T00:00:00Z\",\"format\":\"document.docx\",\"mediaType\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\"objectStorageRef\":\"objects/legacy/903\",\"renderer\":{\"rendererId\":\"renderer.docx\",\"rendererVersion\":\"1.0.0\"},\"representationId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d903\",\"revision\":{\"contentHash\":{\"algorithm\":\"SHA-256\",\"canonicalizationVersion\":\"1\",\"digest\":\"a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5\"},\"kind\":\"CONTENT_ADDRESSED\",\"objectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d902\",\"objectType\":\"artifact.artifact_revision\",\"scope\":{\"enterpriseId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d201\",\"projectId\":\"018f22e2-7c15-7b2e-8d86-2de956a9d202\"}}},\"required\":true}]}"
+}

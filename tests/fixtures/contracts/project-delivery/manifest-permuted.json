@@ -1,0 +1,849 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "source": "D12 / Q11 (#272) standalone structural fixture",
+    "description": "Permutation of manifest-valid.json: only collection order differs, so the semantic batchManifestHash must be identical."
+  },
+  "manifest": {
+    "manifestVersion": "project-delivery-batch-manifest/1.0",
+    "batchRef": {
+      "kind": "OBJECT",
+      "objectType": "release.project_delivery_batch",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.project",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "deliveryPlanRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.delivery_plan",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d203",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d205",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "recipientScopeSnapshotRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "release.recipient_scope_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d255",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d256",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "babababababababababababababababababababababababababababababababa"
+      }
+    },
+    "destinations": [
+      {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d258",
+        "destinationType": "controlled_export",
+        "destinationRef": {
+          "system": "zhiju.export",
+          "resourceType": "human_download",
+          "externalId": "download-target-2",
+          "observedAt": "2026-10-11T02:00:00Z"
+        },
+        "recipientScopeRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "release.recipient_scope_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"
+          }
+        },
+        "purpose": "controlled_export",
+        "required": true,
+        "requiredReceiptKind": "controlled_export_observation",
+        "deliveryPolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d206",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d207",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        }
+      },
+      {
+        "destinationId": "018f22e2-7c15-7b2e-8d86-2de956a9d257",
+        "destinationType": "controlled_export",
+        "destinationRef": {
+          "system": "zhiju.export",
+          "resourceType": "human_download",
+          "externalId": "download-target-1",
+          "observedAt": "2026-10-11T02:00:00Z"
+        },
+        "recipientScopeRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "release.recipient_scope_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "bdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"
+          }
+        },
+        "purpose": "controlled_export",
+        "required": true,
+        "requiredReceiptKind": "controlled_export_observation",
+        "deliveryPolicyRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d206",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d207",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        }
+      }
+    ],
+    "exportPolicyRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d206",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d207",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "dependencyProof": {
+      "ruleRefs": [
+        {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d208",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d209",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        },
+        {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.identity.policy",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d206",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d207",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        }
+      ],
+      "requiredItemIds": [
+        "018f22e2-7c15-7b2e-8d86-2de956a9d242",
+        "018f22e2-7c15-7b2e-8d86-2de956a9d240"
+      ],
+      "coveredItemIds": [
+        "018f22e2-7c15-7b2e-8d86-2de956a9d243",
+        "018f22e2-7c15-7b2e-8d86-2de956a9d242",
+        "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+        "018f22e2-7c15-7b2e-8d86-2de956a9d240"
+      ],
+      "associationSetHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "requirementSetHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "entries": [
+      {
+        "artifactRef": {
+          "kind": "OBJECT",
+          "objectType": "artifact.artifact",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d212",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+          }
+        },
+        "representationRef": {
+          "representationId": "018f22e2-7c15-7b2e-8d86-2de956a9d232",
+          "revision": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "artifact.artifact_revision",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d222",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+            }
+          },
+          "format": "document.markdown",
+          "mediaType": "text/markdown",
+          "objectStorageRef": "objects/markdown/3",
+          "checksum": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+          },
+          "renderer": {
+            "rendererId": "renderer.markdown",
+            "rendererVersion": "1.0.0"
+          },
+          "createdAt": "2026-10-11T02:00:00Z"
+        },
+        "deliveryItemIds": [
+          "018f22e2-7c15-7b2e-8d86-2de956a9d243",
+          "018f22e2-7c15-7b2e-8d86-2de956a9d241"
+        ],
+        "associationProofHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "2323232323232323232323232323232323232323232323232323232323232323"
+        },
+        "chapterBindings": [
+          {
+            "chapterCode": "sec.3",
+            "ordinal": 0
+          }
+        ],
+        "provenance": {
+          "revisionProvenance": {
+            "principal": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.identity.principal",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d707",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+              }
+            },
+            "workOrderRef": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.execution.work_order",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d712",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              }
+            },
+            "runRef": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.execution.run",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d722",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              }
+            },
+            "agentResultRef": {
+              "kind": "CONTENT_ADDRESSED",
+              "objectType": "zhiju.execution.agent_result",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d732",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              },
+              "contentHash": {
+                "algorithm": "SHA-256",
+                "canonicalizationVersion": "1",
+                "digest": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+              }
+            },
+            "sourceMaterialRefs": [],
+            "toolchainVersions": []
+          },
+          "sourceReportRefs": []
+        },
+        "qualityProfileRef": {
+          "kind": "VERSIONED",
+          "objectType": "quality.quality_profile",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d360",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d361",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        },
+        "revisionAcceptanceSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.revision_acceptance_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d340",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d341",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+          }
+        },
+        "approvalBundleSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.approval_bundle_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d342",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d343",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3"
+          }
+        },
+        "releaseRef": {
+          "kind": "OBJECT",
+          "objectType": "release.release",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d350",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "releasePackageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d350",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d351",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d352",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3"
+          }
+        },
+        "releaseReadinessSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.release_readiness_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d353",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d354",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3"
+          }
+        },
+        "releaseAuthorizationRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "release.release_authorization",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d355",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "1313131313131313131313131313131313131313131313131313131313131313"
+          }
+        },
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d212/018f22e2-7c15-7b2e-8d86-2de956a9d222.md"
+      },
+      {
+        "artifactRef": {
+          "kind": "OBJECT",
+          "objectType": "artifact.artifact",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d211",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+          }
+        },
+        "representationRef": {
+          "representationId": "018f22e2-7c15-7b2e-8d86-2de956a9d231",
+          "revision": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "artifact.artifact_revision",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d221",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+            }
+          },
+          "format": "document.markdown",
+          "mediaType": "text/markdown",
+          "objectStorageRef": "objects/markdown/2",
+          "checksum": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+          },
+          "renderer": {
+            "rendererId": "renderer.markdown",
+            "rendererVersion": "1.0.0"
+          },
+          "createdAt": "2026-10-11T02:00:00Z"
+        },
+        "deliveryItemIds": ["018f22e2-7c15-7b2e-8d86-2de956a9d242"],
+        "associationProofHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "chapterBindings": [
+          {
+            "chapterCode": "sec.2",
+            "ordinal": 0
+          }
+        ],
+        "provenance": {
+          "revisionProvenance": {
+            "principal": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.identity.principal",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d706",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+              }
+            },
+            "workOrderRef": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.execution.work_order",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d711",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              }
+            },
+            "runRef": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.execution.run",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              }
+            },
+            "agentResultRef": {
+              "kind": "CONTENT_ADDRESSED",
+              "objectType": "zhiju.execution.agent_result",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+              },
+              "contentHash": {
+                "algorithm": "SHA-256",
+                "canonicalizationVersion": "1",
+                "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+              }
+            },
+            "sourceMaterialRefs": [
+              {
+                "kind": "CONTENT_ADDRESSED",
+                "objectType": "zhiju.project.source_material",
+                "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+                "scope": {
+                  "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+                  "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+                },
+                "contentHash": {
+                  "algorithm": "SHA-256",
+                  "canonicalizationVersion": "1",
+                  "digest": "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8"
+                }
+              }
+            ],
+            "toolchainVersions": []
+          },
+          "sourceReportRefs": []
+        },
+        "qualityProfileRef": {
+          "kind": "VERSIONED",
+          "objectType": "quality.quality_profile",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        },
+        "revisionAcceptanceSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.revision_acceptance_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d240",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"
+          }
+        },
+        "approvalBundleSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.approval_bundle_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d242",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d243",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
+          }
+        },
+        "releaseRef": {
+          "kind": "OBJECT",
+          "objectType": "release.release",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d250",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "releasePackageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d250",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d251",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d252",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2"
+          }
+        },
+        "releaseReadinessSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.release_readiness_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d253",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d254",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+          }
+        },
+        "releaseAuthorizationRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "release.release_authorization",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d255",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "1212121212121212121212121212121212121212121212121212121212121212"
+          }
+        },
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d211/018f22e2-7c15-7b2e-8d86-2de956a9d221.md"
+      },
+      {
+        "artifactRef": {
+          "kind": "OBJECT",
+          "objectType": "artifact.artifact",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d210",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "revisionRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "artifact.artifact_revision",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d220",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          }
+        },
+        "representationRef": {
+          "representationId": "018f22e2-7c15-7b2e-8d86-2de956a9d230",
+          "revision": {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "artifact.artifact_revision",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d220",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+            }
+          },
+          "format": "document.markdown",
+          "mediaType": "text/markdown",
+          "objectStorageRef": "objects/markdown/1",
+          "checksum": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+          },
+          "renderer": {
+            "rendererId": "renderer.markdown",
+            "rendererVersion": "1.0.0"
+          },
+          "createdAt": "2026-10-11T02:00:00Z"
+        },
+        "deliveryItemIds": [
+          "018f22e2-7c15-7b2e-8d86-2de956a9d241",
+          "018f22e2-7c15-7b2e-8d86-2de956a9d240"
+        ],
+        "associationProofHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "2121212121212121212121212121212121212121212121212121212121212121"
+        },
+        "chapterBindings": [
+          {
+            "chapterCode": "sec.2",
+            "ordinal": 1
+          },
+          {
+            "chapterCode": "sec.1",
+            "ordinal": 0
+          }
+        ],
+        "provenance": {
+          "revisionProvenance": {
+            "principal": {
+              "kind": "OBJECT",
+              "objectType": "zhiju.identity.principal",
+              "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d701",
+              "scope": {
+                "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+              }
+            },
+            "sourceMaterialRefs": [],
+            "toolchainVersions": []
+          },
+          "sourceReportRefs": []
+        },
+        "qualityProfileRef": {
+          "kind": "VERSIONED",
+          "objectType": "quality.quality_profile",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d160",
+          "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d161",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+          }
+        },
+        "revisionAcceptanceSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.revision_acceptance_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d140",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d141",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+          }
+        },
+        "approvalBundleSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.approval_bundle_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d142",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d143",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1"
+          }
+        },
+        "releaseRef": {
+          "kind": "OBJECT",
+          "objectType": "release.release",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d150",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          }
+        },
+        "releasePackageRef": {
+          "releaseRef": {
+            "kind": "OBJECT",
+            "objectType": "release.release",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d150",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            }
+          },
+          "packageSnapshotRef": {
+            "kind": "SNAPSHOT",
+            "objectType": "release.release_package",
+            "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d151",
+            "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d152",
+            "scope": {
+              "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+              "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "canonicalizationVersion": "1",
+              "digest": "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
+            }
+          },
+          "packageHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1"
+          }
+        },
+        "releaseReadinessSnapshotRef": {
+          "kind": "SNAPSHOT",
+          "objectType": "quality.release_readiness_snapshot",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d153",
+          "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d154",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+          }
+        },
+        "releaseAuthorizationRef": {
+          "kind": "CONTENT_ADDRESSED",
+          "objectType": "release.release_authorization",
+          "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d155",
+          "scope": {
+            "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+            "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+          },
+          "contentHash": {
+            "algorithm": "SHA-256",
+            "canonicalizationVersion": "1",
+            "digest": "1111111111111111111111111111111111111111111111111111111111111111"
+          }
+        },
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md"
+      }
+    ]
+  },
+  "expectedBatchManifestHash": {
+    "algorithm": "SHA-256",
+    "digest": "3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738",
+    "canonicalizationVersion": "1"
+  }
+}

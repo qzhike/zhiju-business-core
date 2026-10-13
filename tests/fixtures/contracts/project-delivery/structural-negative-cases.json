@@ -1,0 +1,421 @@
+[
+  {
+    "description": "duplicate Artifact identity from another entry",
+    "path": "/entries/1/artifactRef",
+    "from": "/entries/0/artifactRef",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate archive path",
+    "path": "/entries/1/archivePath",
+    "from": "/entries/0/archivePath",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "archive path not derived from Artifact and Revision identity",
+    "path": "/entries/0/archivePath",
+    "value": "files/018f22e2-7c15-7b2e-8d86-2de956a9d999/018f22e2-7c15-7b2e-8d86-2de956a9d998.md",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "absolute archive path",
+    "path": "/entries/0/archivePath",
+    "value": "/files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "mixed Project Scope on an entry Release",
+    "path": "/entries/0/releaseRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "fabricated Project Scope on the Enterprise-owned QualityProfile ref",
+    "path": "/entries/0/qualityProfileRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d202",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry Package belongs to a different Release",
+    "path": "/entries/0/releasePackageRef/releaseRef/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d399",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "packaged Representation declares a different Revision content hash",
+    "path": "/entries/0/representationRef/revision/contentHash/digest",
+    "value": "abababababababababababababababababababababababababababababababab",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "packaged Representation declares an immutable version the entry Revision does not",
+    "path": "/entries/0/representationRef/revision/immutableVersionId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d297",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "packaged Representation belongs to a different Revision",
+    "path": "/entries/0/representationRef/revision/objectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance work order reference carries another Project Scope",
+    "path": "/entries/1/provenance/revisionProvenance/workOrderRef/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance agent result reference carries another Enterprise Scope",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance source material reference carries another Project Scope",
+    "path": "/entries/1/provenance/revisionProvenance/sourceMaterialRefs/0/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "QualityProfile ref belongs to another Enterprise",
+    "path": "/entries/0/qualityProfileRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Plan quality Policy rule belongs to another Enterprise",
+    "path": "/dependencyProof/ruleRefs/1/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Plan quality Policy rule carries another Project Scope",
+    "path": "/dependencyProof/ruleRefs/1/scope/projectId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d298",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "export Policy belongs to another Enterprise",
+    "path": "/exportPolicyRef/scope/enterpriseId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance work order reference omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/workOrderRef/scope/projectId",
+    "remove": true,
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance work order reference declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/workOrderRef/scope",
+    "value": {},
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance run reference omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/runRef/scope/projectId",
+    "remove": true,
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance run reference declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/runRef/scope",
+    "value": {},
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance agent result reference omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef/scope/projectId",
+    "remove": true,
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance agent result reference declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef/scope",
+    "value": {},
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "provenance source material reference omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/sourceMaterialRefs/0/scope/projectId",
+    "remove": true,
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.run source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/runRef",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+      "scope": {}
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.run source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/runRef",
+    "value": {
+      "kind": "OBJECT",
+      "objectType": "execution.run",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d721",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.agent_result source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef",
+    "value": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "published execution.agent_result source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/agentResultRef",
+    "value": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d731",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "canonical zhiju.execution.context_snapshot source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d751",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d752",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "canonical zhiju.execution.context_snapshot source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d751",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d752",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "abababababababababababababababababababababababababababababababab"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "historical zhiju.project.context_snapshot source declares an empty Scope",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "historical zhiju.project.context_snapshot source omits the Project Scope member",
+    "path": "/entries/1/provenance/revisionProvenance/contextSnapshotRef",
+    "value": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.context_snapshot",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d741",
+      "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d742",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "accepted report snapshot carries another Project Scope",
+    "path": "/entries/0/provenance/sourceReportRefs",
+    "value": [
+      {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.preparation_report",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d901",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d902",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+          "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d298"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "abababababababababababababababababababababababababababababababab"
+        }
+      }
+    ],
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "accepted report snapshot omits the Project Scope",
+    "path": "/entries/0/provenance/sourceReportRefs",
+    "value": [
+      {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.preparation_report",
+        "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d901",
+        "snapshotId": "018f22e2-7c15-7b2e-8d86-2de956a9d902",
+        "scope": {
+          "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "abababababababababababababababababababababababababababababababab"
+        }
+      }
+    ],
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages a DOCX representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.docx",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages an XLSX representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.xlsx",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry packages a PDF representation",
+    "path": "/entries/0/representationRef/format",
+    "value": "document.pdf",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Markdown representation declares a non-Markdown media type",
+    "path": "/entries/0/representationRef/mediaType",
+    "value": "text/plain",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "declared Required companion Item is not covered",
+    "path": "/dependencyProof/requiredItemIds/0",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d244",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "entry DeliveryItem is not covered by the dependency proof",
+    "path": "/entries/0/deliveryItemIds/0",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d244",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate DeliveryItem association inside one entry",
+    "path": "/entries/0/deliveryItemIds/1",
+    "from": "/entries/0/deliveryItemIds/0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "duplicate chapter binding inside one entry",
+    "path": "/entries/0/chapterBindings/1",
+    "from": "/entries/0/chapterBindings/0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "export Policy missing from the dependency rule set",
+    "path": "/dependencyProof/ruleRefs/0",
+    "value": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.identity.policy",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d208",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d209",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "QualityProfile disguised as a Policy dependency rule",
+    "path": "/dependencyProof/ruleRefs/1",
+    "value": {
+      "kind": "VERSIONED",
+      "objectType": "quality.quality_profile",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d260",
+      "versionId": "018f22e2-7c15-7b2e-8d86-2de956a9d261",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+      }
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "Destination delivery Policy differs from the export Policy",
+    "path": "/destinations/0/deliveryPolicyRef/versionId",
+    "value": "018f22e2-7c15-7b2e-8d86-2de956a9d299",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "batchRef declared with the archive object type",
+    "path": "/batchRef/objectType",
+    "value": "release.project_delivery_archive",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "unsupported manifest version",
+    "path": "/manifestVersion",
+    "value": "project-delivery-batch-manifest/2.0",
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  },
+  {
+    "description": "RecipientScope snapshot omits the Project Scope",
+    "path": "/recipientScopeSnapshotRef/scope",
+    "value": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201"
+    },
+    "expectedError": "PROJECT_DELIVERY_MANIFEST_INVALID"
+  }
+]

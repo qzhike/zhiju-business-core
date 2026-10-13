@@ -1227,3 +1227,118 @@ describe('release-publication schema', () => {
     expect(result.errors.some((error) => error.keyword === 'additionalProperties')).toBe(true);
   });
 });
+
+describe('release-publication D12 project-delivery closed types (#272)', () => {
+  const registry = new ContractRegistry();
+  const moduleSchema = 'https://schemas.zhiju.local/modules/release-publication/1.0';
+
+  interface ProjectDeliverySchemaCase {
+    readonly base: 'manifest' | 'descriptor' | 'validation';
+    readonly definition: string;
+    readonly path: string;
+    readonly keyword: string;
+    readonly expectedPath: string;
+    readonly value?: unknown;
+    readonly remove?: boolean;
+  }
+
+  const manifestFixture = fixture('project-delivery/manifest-valid.json');
+  const archiveFixture = fixture('project-delivery/archive-materials-valid.json');
+  const instances: Record<string, Record<string, unknown>> = {
+    manifest: manifestFixture.manifest as Record<string, unknown>,
+    descriptor: archiveFixture.descriptor as Record<string, unknown>,
+    validation: archiveFixture.validation as Record<string, unknown>,
+  };
+  const schemaCases = fixture(
+    'project-delivery/schema-negative-cases.json',
+  ) as unknown as readonly ProjectDeliverySchemaCase[];
+
+  function requireLastPart(parts: readonly string[]): string {
+    const key = parts.at(-1);
+    if (key === undefined) throw new Error('invalid fixture pointer');
+    return key;
+  }
+
+  function atPath(
+    root: Record<string, unknown>,
+    pointer: string,
+  ): [Record<string, unknown>, string] {
+    const parts = pointer.split('/').slice(1);
+    let current = root;
+    for (const part of parts.slice(0, -1)) current = current[part] as Record<string, unknown>;
+    return [current, requireLastPart(parts)];
+  }
+
+  function mutate(base: Record<string, unknown>, test: ProjectDeliverySchemaCase) {
+    const target = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
+    const [parent, key] = atPath(target, test.path);
+    if (test.remove === true) Reflect.deleteProperty(parent, key);
+    else parent[key] = JSON.parse(JSON.stringify(test.value)) as unknown;
+    return target;
+  }
+
+  it('accepts the checked-in D12 fixtures against the closed module schemas', () => {
+    expect(
+      registry.validateCoreContract(
+        `${moduleSchema}#/$defs/projectDeliveryManifest`,
+        instances.manifest,
+      ).valid,
+    ).toBe(true);
+    expect(
+      registry.validateCoreContract(
+        `${moduleSchema}#/$defs/projectDeliveryBatchRef`,
+        manifestFixture.batchRef,
+      ).valid,
+    ).toBe(true);
+    expect(
+      registry.validateCoreContract(
+        `${moduleSchema}#/$defs/projectDeliveryArchiveRef`,
+        archiveFixture.archiveRef,
+      ).valid,
+    ).toBe(true);
+    expect(
+      registry.validateCoreContract(
+        `${moduleSchema}#/$defs/projectDeliveryArchiveDescriptor`,
+        instances.descriptor,
+      ).valid,
+    ).toBe(true);
+    expect(
+      registry.validateCoreContract(
+        `${moduleSchema}#/$defs/projectDeliveryArchiveValidation`,
+        instances.validation,
+      ).valid,
+    ).toBe(true);
+  });
+
+  it.each(schemaCases)('rejects $base $path ($keyword)', (test) => {
+    const instance = instances[test.base];
+    if (instance === undefined) throw new Error(`unknown fixture base ${test.base}`);
+    const mutated = mutate(instance, test);
+    const result = registry.validateCoreContract(
+      `${moduleSchema}#/$defs/${test.definition}`,
+      mutated,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.keyword === test.keyword)).toBe(true);
+    expect(result.errors.some((error) => error.instancePath === test.expectedPath)).toBe(true);
+  });
+
+  it('keeps the eight D12 project-delivery operation candidates unregistered', () => {
+    const candidates = [
+      'release.find_project_delivery_candidates',
+      'release.inspect_project_delivery_selection',
+      'release.confirm_project_delivery_batch',
+      'release.get_project_delivery_batch',
+      'release.request_project_delivery_package',
+      'release.get_project_delivery_package_request',
+      'release.request_project_delivery_download',
+      'release.get_project_delivery_download_request',
+    ];
+    for (const type of candidates) {
+      expect(registry.getOperation(type, '1.0')).toBeUndefined();
+    }
+    expect(
+      publicApiOperations.some((operation) => operation.type.includes('project_delivery')),
+    ).toBe(false);
+  });
+});

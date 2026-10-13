@@ -1,0 +1,195 @@
+{
+  "provenance": {
+    "synthetic": true,
+    "source": "D12 / Q11 (#272) standalone structural fixture",
+    "description": "Archive materials bound to manifest-valid.json: the OBJECT archive identity, the CONTENT_ADDRESSED archive identity, the descriptor and the validation fact, plus the derived manifest Markdown bytes and the fixed ZIP bytes their checksums cover. Both archives are declared synthetic facts only: a real export attempt, object storage version and fixed ZIP production remain NOT RUN."
+  },
+  "manifestFixture": "manifest-valid.json",
+  "archiveRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "release.project_delivery_archive",
+    "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d280",
+    "scope": {
+      "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+      "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "ad245540ada49bae4378a3478e56410a0490ed427f6b4e00dedc7af3f975c6f2",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "descriptor": {
+    "descriptorVersion": "project-delivery-archive/1.0",
+    "archiveRef": {
+      "kind": "OBJECT",
+      "objectType": "release.project_delivery_archive",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d280",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "batchRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "release.project_delivery_batch",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "batchManifestHash": {
+      "algorithm": "SHA-256",
+      "digest": "3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738",
+      "canonicalizationVersion": "1"
+    },
+    "manifestMarkdownChecksum": {
+      "algorithm": "SHA-256",
+      "digest": "8dbae33280f3f068a30df23b52e00d7d13064002d2d3d75ea808d967a4db6e47",
+      "canonicalizationVersion": "1"
+    },
+    "zipChecksum": {
+      "algorithm": "SHA-256",
+      "digest": "e297ac6863c9d4612b80272d724009c1c046199400611826682e28678a6fafa4",
+      "canonicalizationVersion": "1"
+    },
+    "entryChecksums": [
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+        }
+      },
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d211/018f22e2-7c15-7b2e-8d86-2de956a9d221.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        }
+      },
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d212/018f22e2-7c15-7b2e-8d86-2de956a9d222.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+        }
+      }
+    ],
+    "zipByteSize": 46,
+    "mediaType": "application/zip",
+    "objectRef": "objects/project-delivery/282",
+    "storageVersion": "storage-v1",
+    "archiveProfileVersion": "project-delivery-zip/1.0",
+    "validationFactRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "release.project_delivery_archive_validation",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d281",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "59636a2a60a1d3e328df44fd2422ddd672df6a39e2b5d5644764ba7929845736",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "linkedAt": "2026-10-11T03:05:00Z",
+    "availableAt": "2026-10-11T03:10:00Z"
+  },
+  "validation": {
+    "attemptRef": {
+      "kind": "OBJECT",
+      "objectType": "release.project_delivery_export_attempt",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d282",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      }
+    },
+    "batchRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "release.project_delivery_batch",
+      "objectId": "018f22e2-7c15-7b2e-8d86-2de956a9d204",
+      "scope": {
+        "enterpriseId": "018f22e2-7c15-7b2e-8d86-2de956a9d201",
+        "projectId": "018f22e2-7c15-7b2e-8d86-2de956a9d202"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "objectRef": "objects/project-delivery/282",
+    "storageVersion": "storage-v1",
+    "archiveProfileVersion": "project-delivery-zip/1.0",
+    "entryChecksums": [
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1"
+        }
+      },
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d211/018f22e2-7c15-7b2e-8d86-2de956a9d221.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        }
+      },
+      {
+        "archivePath": "files/018f22e2-7c15-7b2e-8d86-2de956a9d212/018f22e2-7c15-7b2e-8d86-2de956a9d222.md",
+        "checksum": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+        }
+      }
+    ],
+    "manifestMarkdownChecksum": {
+      "algorithm": "SHA-256",
+      "digest": "8dbae33280f3f068a30df23b52e00d7d13064002d2d3d75ea808d967a4db6e47",
+      "canonicalizationVersion": "1"
+    },
+    "zipChecksum": {
+      "algorithm": "SHA-256",
+      "digest": "e297ac6863c9d4612b80272d724009c1c046199400611826682e28678a6fafa4",
+      "canonicalizationVersion": "1"
+    },
+    "zipByteSize": 46,
+    "outcome": "VERIFIED",
+    "validatorVersion": "project-delivery-zip-validator/1.0",
+    "validatedAt": "2026-10-11T03:00:00Z"
+  },
+  "manifestMarkdownBytes": "# Project delivery manifest\n\nbatchManifestHash: 3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738\n- files/018f22e2-7c15-7b2e-8d86-2de956a9d210/018f22e2-7c15-7b2e-8d86-2de956a9d220.md b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1\n- files/018f22e2-7c15-7b2e-8d86-2de956a9d211/018f22e2-7c15-7b2e-8d86-2de956a9d221.md b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2\n- files/018f22e2-7c15-7b2e-8d86-2de956a9d212/018f22e2-7c15-7b2e-8d86-2de956a9d222.md b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3\n",
+  "zipBytes": "PK\u0003\u0004synthetic-fixed-project-delivery-zip-bytes",
+  "expectedBatchManifestHash": {
+    "algorithm": "SHA-256",
+    "digest": "3f461576cba909b928a857fd32c0bd03ec9115dd4d32fd50796699d698031738",
+    "canonicalizationVersion": "1"
+  },
+  "expectedArchiveDescriptorHash": {
+    "algorithm": "SHA-256",
+    "digest": "ad245540ada49bae4378a3478e56410a0490ed427f6b4e00dedc7af3f975c6f2",
+    "canonicalizationVersion": "1"
+  },
+  "expectedArchiveValidationHash": {
+    "algorithm": "SHA-256",
+    "digest": "59636a2a60a1d3e328df44fd2422ddd672df6a39e2b5d5644764ba7929845736",
+    "canonicalizationVersion": "1"
+  }
+}

@@ -1519,7 +1519,18 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## D12 / Q11 批次类型与操作候选路由（#260）
 
-状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。完整字段、Hash域和8个additive操作候选及purpose唯一见 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)。它们不是本Catalog现行注册项，不改变现行operation count、旧ReleasePackageRef/RepresentationRef或历史compatibility baseline。
+状态：`T2 / DESIGN APPROVED / HUMAN DESIGN APPROVED / §14.2 封闭类型与 §14.4 Hash 域 CONTRACT REGISTERED AND IMPLEMENTED（#272）/ 8 个公开操作 NOT REGISTERED / HANDLER 与运行链路 NOT IMPLEMENTED`。完整字段、Hash域和8个additive操作候选及purpose唯一见 [REL §14](../module-specs/Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260)。8 个操作仍不是本Catalog现行注册项，不改变现行operation count、旧ReleasePackageRef/RepresentationRef或历史compatibility baseline。
+
+#272 已注册下列 ReleasePublication-owned `objectType` 的 closed Schema/类型与 exact Scope；注册只发布类型与身份面，不创建业务对象、不写业务事实，也不使未实现操作可调用：
+
+| objectType | Owner | Reference / Scope | 不可变 / 版本 / BusinessOutput |
+|---|---|---|---|
+| `release.project_delivery_batch` | release-publication | OBJECT（CREATE target）与 CONTENT_ADDRESSED（已提交身份，`contentHash` = `batchManifestHash`）；Project Scope（两成员必填） | 不可变；不另建可变版本；否 |
+| `release.project_delivery_archive` | release-publication | OBJECT（Descriptor 的归档目标）与 CONTENT_ADDRESSED（归档身份，`contentHash` = `archiveDescriptorHash`）；Project Scope | 不可变；否 |
+| `release.project_delivery_archive_validation` | release-publication | CONTENT_ADDRESSED；Project Scope | 不可变校验事实；否 |
+| `release.project_delivery_package_request`、`release.project_delivery_download_request`、`release.project_delivery_export_attempt` | release-publication | OBJECT；Project Scope | 本切片只注册身份拼写，不产生任何该类事实；否 |
+
+Entry/Manifest 内消费的既有 Owner 拼写与 Scope 约束见 [REL §14.2/§14.8](../module-specs/Module-Spec-006-ReleasePublication.md#148-272-已注册的封闭类型结构校验与-hash-域)；`quality.quality_profile`（Enterprise Scope，无 `projectId`）与 `zhiju.identity.policy`（企业 Scope，`projectId` 可选）沿用各自 Owner 的注册拼写，不新增 Quality/Identity 类型。`ProjectDeliveryProvenance.revisionProvenance` 直接 `$ref` Artifact 已注册的 `revisionProvenance`，不复制字段。D12 专用收窄（不影响 Common 与旧 ReleasePackage 接受集）：Representation 固定 `document.markdown` + `text/markdown`，`dependencyProof.ruleRefs` 固定 `VERSIONED/zhiju.identity.policy`，`recipientScopeSnapshotRef` 固定引用种类与完整 Project Scope。`recipientScopeSnapshotRef` 与 `sourceReportRefs` 的 `objectType` 仍留给 owning 解析（后者是未注册的 D14 已接纳报告提案）。
 
 拟类型均Owner release-publication、完整Project Scope：OBJECT CREATE target与CONTENT_ADDRESSED immutable身份 `release.project_delivery_batch`；OBJECT `release.project_delivery_package_request` / `release.project_delivery_download_request` / `release.project_delivery_export_attempt`；OBJECT archive identity及CONTENT_ADDRESSED Descriptor身份 `release.project_delivery_archive`；CONTENT_ADDRESSED `release.project_delivery_archive_validation`为生成Attempt/对象/清单/entry校验事实。batchRef.contentHash为batchManifestHash，archiveRef.contentHash为archiveDescriptorHash；这些Hash不能代替旧packageHash、Representation checksum或zipChecksum。Source/Quality/Release refs仍各归原Owner；QG/ART/EP拟内部只读Port不是public operation。HTTP/stream route与许可Token不进入此Catalog。
 
