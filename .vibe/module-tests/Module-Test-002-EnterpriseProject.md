@@ -549,6 +549,19 @@ pnpm persistence:gate
 
 #239 当前执行位置：`tests/persistence/initial-context.test.ts` 的两个 `isolated normal/recovered owning delivery fixture` 及 `isolated late-commit and cross-Item out-of-order schedule`；legacy正例在 `delivery-plan.test.ts` 的 `EP-WI12-P-005`，criteria/Envelope fixtures见 `tests/fixtures/contracts/delivery-completion/`。定向诊断使用缓存的固定digest PostgreSQL/Flyway镜像，独立environment preflight当前为PIN_MATCH；定向诊断不等于configured full，required full及exact-revision CI证据记录在PR。`PARTIAL`行剩余子项保持NOT RUN；外部Runtime/Provider/CLI/飞书、publicHTTP、生产/负载和独立人工业务验收均NOT RUN。
 
+## #277 准备预设、原请求与交接设计场景
+
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)。本表追加，不替换 EP-D14/EP-257/EP-WS 既有接受集。
+
+| ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| EP-277-001 | 发布/精确解析受控技术preset，scope/版本/hash正确；同版本异hash、缺producer、客户payload冒充配置；创建后全局entry选择变化，再读原request | 真实preset/version/publication/Receipt；entryBinding及原request公开result/query返回各自exact preset的intakePolicyRef/hash；原request绑定不随全局选择换值，单凭公开结果可构造首次intake；VERSIONED与独立hash分域；错误拒绝。rule bundle不替代preset、preset不替代rule publication | 未执行 / NOT RUN |
+| EP-277-002 | NEW与EXISTING正常创建；NEW企业commit后memberPolicy/Project失败；Project事务任一写点失败 | NEW只有一个Enterprise，EXISTING无create Enterprise；原request/每step Receipt保留；只续未完step；Project+真正Claim+Receipt原子，无PROJECT_START | 未执行 / NOT RUN |
+| EP-277-003 | IP provisioning失败/响应丢失/恢复；Project已建无discovery或board/intake权 | request保留Project，access非USABLE不显示入口；current限定recovery读；补齐真实权限后进入同Project，旧创建人字段不赋权 | 未执行 / NOT RUN |
+| EP-277-004 | preset未发布/未来/撤回/显式取代；rule publication不存在/失效；只缺Runner | 前两者创建前拒绝、创建后STALE保留事实；不原地换binding。单缺Runner可完成资料入口，分析WAITING_CAPABILITY；不制造生产值 | 未执行 / NOT RUN |
+| EP-277-005 | request提交后response-loss、重登、双Tab同键；原URL跨Human；original payload遗失且无已提交Root | 当前授权原key读回同refs；无未知时新建企业/项目；无服务器原意图则不能猜payload重发；安全404不证明NOT_COMMITTED | 未执行 / NOT RUN |
+| EP-277-006 | manifest重复Event、note/source已接纳；EP/TE各step提交后crash；TE缺接口或UNKNOWN | Inbox/单intake唯一handoff，note纳入source且不作系统objective；真实每step refs；缺能力等待、UNKNOWN同Receipt/Attemptreadback，零第二调用/报告/start；查询零写 | 未执行 / NOT RUN |
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。

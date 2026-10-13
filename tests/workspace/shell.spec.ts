@@ -26,10 +26,12 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await page.goto('/workbench');
   await expect(page.getByRole('heading', { name: '我的工作台' })).toBeVisible();
   await expect(page.getByRole('note')).toContainText('不上传或读取 ZIP 内容');
-  await page.getByRole('link', { name: '准备客户资料 →' }).click();
+  await page.getByRole('link', { name: '准备客户资料' }).click();
   await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
-  await page.getByRole('button', { name: '载入演示分析报告' }).click();
-  await expect(page.getByRole('status')).toContainText('正在载入');
+  await page.getByRole('button', { name: '提交并分析' }).click();
+  await expect(page.locator('.intake-receipt')).toContainText('正在接收资料');
+  await expect(page.getByRole('link', { name: '查看分析报告', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '查看分析报告', exact: true }).click();
   await expect(page.getByRole('heading', { name: '分析总览', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
   await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).not.toBeChecked();
@@ -79,6 +81,7 @@ test('desktop built fixture journey, exact versions, refresh and history', async
 test('narrow navigation, keyboard focus, empty states and error recovery', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/workbench');
+  await page.getByText('演示控制', { exact: true }).click();
   await page.getByRole('button', { name: '查看空工作台' }).click();
   await expect(page.getByRole('heading', { name: '暂无待处理工作' })).toBeVisible();
   await page
@@ -86,17 +89,18 @@ test('narrow navigation, keyboard focus, empty states and error recovery', async
     .getByRole('link', { name: '新建项目' })
     .focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: '进入演示资料准备' }).click();
+  await page.getByRole('button', { name: '创建项目并继续' }).click();
   await expect(page.getByRole('alert')).toBeFocused();
-  await page.getByLabel('客户企业名称', { exact: true }).fill('青禾制造（匿名）');
+  await page.getByLabel('客户企业名称', { exact: true }).fill('青禾制造');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
   await page.getByLabel('项目名称', { exact: true }).fill('体系升级（匿名）');
-  await page.getByRole('button', { name: '进入演示资料准备' }).click();
+  await page.getByRole('button', { name: '创建项目并继续' }).click();
+  await expect(page.getByRole('heading', { name: '准备首轮客户资料' })).toBeVisible();
+  await page.goto(`${project}/intake`);
   await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
-  await page.getByRole('checkbox', { name: '演示加载失败' }).check();
-  await page.getByRole('button', { name: '载入演示分析报告' }).click();
-  await expect(page.getByRole('alert')).toBeFocused();
-  await page.getByRole('checkbox', { name: '演示加载失败' }).uncheck();
-  await page.getByRole('button', { name: '载入演示分析报告' }).click();
+  await page.getByRole('button', { name: '提交并分析' }).click();
+  await page.getByRole('link', { name: '查看分析报告', exact: true }).click();
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
   await page.getByRole('searchbox', { name: '查找文件' }).fill('不存在的文件');
   await expect(page.getByRole('status')).toContainText('没有符合条件的文件');
@@ -126,9 +130,11 @@ test('safe content, exact deep links and fixture cache recovery', async ({ page 
   await page.goto('/projects/other/startup/DEMO-STARTUP-REPORT-01');
   await expect(page.getByRole('heading', { name: '无法打开此页面' })).toBeVisible();
   await page.goto(report);
+  await expect(page.getByRole('heading', { name: '分析总览', exact: true })).toBeVisible();
   const violations = (await new AxeBuilder({ page }).analyze()).violations;
   expect(violations).toEqual([]);
   await page.goto(startup);
+  await expect(page.getByRole('heading', { name: '核对信息，选择本轮文件' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.evaluate(() => {
     sessionStorage.setItem('zhiju-workspace-development-fixture-v1', '{broken');

@@ -125,6 +125,18 @@ reviewer and timestamp
 
 真实 OIDC、公开业务 HTTP、Runner、生产、Windows/macOS 最近两版 Chrome/Edge 支持矩阵、完整 WCAG AA 与独立人工业务验收仍为 `NOT RUN`。旧真实 UI-E/UI-S/UI-A/UI-M、D14 及 UI-ENG-002–008 场景不由外壳演示代替。
 
+## #277 两字段与原 intake 恢复设计场景
+
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [UI #277](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。实际 Browser/publicHTTP 与独立顾问验收须另行取证；原型计时器不算真实Receipt。
+
+| ID | 输入 / 故障 | 预期可见行为与边界 | 实际 / 结果 |
+|---|---|---|---|
+| UI-277-001 | 受权NEW与EXISTING两字段创建、公司entryBinding、Project/access成功 | 只有客户/标题字段；无员工preset/memberPolicy/runtime设置；进入固定Project ZIP页，目录/board权限分别成立；无start | 未执行 / NOT RUN |
+| UI-277-002 | ZIP+note一次提交、policy tuple取EP原request公开结果、仅custody/Task/analysisRequest成功、合法unsupported entry | 无隐藏配置/默认即可构造完整intake；原note可读回，限制清晰；只显示已证实阶段；Browser/BFF不第二私有调用TE、不显示虚假RUNNING/百分比/报告 | 未执行 / NOT RUN |
+| UI-277-003 | 原create/intake响应丢失、刷新/重登、原URL另一Human；同请求跨Tab；全局entry选择已变但原request仍可用 | 安全ID路由→EP/IG原key查询；首次intake始终取原request返回的policy tuple；唯一原intake；重新认证不重新提交/换作者；无权限清缓存，404/503不是重建许可 | 未执行 / NOT RUN |
+| UI-277-004 | 缺preset/rule publication、无post-create access、Runner能力缺失、分析撤权 | 分别给真实原因；保留客户/Project/资料成功事实；资料已接收不冒充已分析；无Project权不能进上传，缺Runner可保留原ANALYZE意图 | 未执行 / NOT RUN |
+| UI-277-005 | 首CREATE响应丢失后Query给RESTART及aggregateVersion/generation；查询后版本变化；UNKNOWN/次数耗尽；篡改note/hash/target/route/actor/CSRF | 同页从该Query独立填CAS/generation，一次完整重传，仅原bytes/hash；竞态拒绝后回读，UNKNOWN不显示可重传；已提交restart按保存原命令重放；有限route独立检查、坏输入零protected write，次数耗尽无自动新intake | 未执行 / NOT RUN |
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
@@ -158,6 +170,21 @@ reviewer and timestamp
 | UI-258-010 / Recovery + HTTP + PG | request已commit/start成功scope失败时断网/Session过期/重启；原requestRef/key重登回读 | 原intent/成功steps/Receipt不变；新auth仅当前read/续步证明，UNKNOWN依赖失败不推未提交，零重复事实/dispatch，TR-258-06/07 | 部分确定性本地+HTTP PASS：Session 过期/登出/重登换代次、迟到结果丢弃、匿名会话 `REAUTH_REQUIRED`（`trusted-session.test.ts`、`workspace-trusted-http.test.ts`）；原 committed request 的跨重启回读依赖未注册 D14 操作，`NOT RUN` |
 | UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 确定性本地+HTTP PASS：受保护响应 no-store/no-referrer/nosniff、generation+Principal+Scope 迟到响应拦截、多 Tab 失效信号不携带 token/内容、日志/trace 无 token/Subject/客户正文（`trusted-session.test.ts`、`guard.test.ts`、`workspace-trusted-http.test.ts` 断言响应不出现 JWT/secret/subject）。真实 bfcache 与多 Tab 浏览器行为 `NOT RUN` |
 | UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN`：受控 Chromium 的工程外壳门禁（`workspace:check`）与受控制品旅程（`workspace-built-browser.test.ts`、`workspace-controlled-keycloak.test.ts` 的真实 Keycloak 登录）已执行，但 Windows/macOS 实际 Chrome/Edge 平台矩阵与独立顾问人工验收仍未执行 |
+
+## 工作台页面验收（#281）
+
+以下为页面/组件验收，执行证据归 Issue/PR；不替代 #266 真实服务或完整浏览器矩阵。
+
+| ID | 场景 | 可观察结果 |
+|---|---|---|
+| UI-BOARD-001 | 多项目、长名称、混合工作状态 | 共享页面呈现三列和折叠完成项、紧凑项目进度、最近访问；原因与动作清晰，无常驻聊天输入 |
+| UI-BOARD-002 | 项目/工作筛选、精确入口、浏览器返回 | 新建、ZIP、报告、文件进度、精确候选与交付入口可导航；缺目标时诚实不可用；返回恢复筛选、展开、滚动和操作焦点 |
+| UI-BOARD-003 | 新报告/候选在等待时到达 | 更新原卡及数量，不追加重复卡、不跳页、不抢焦点、不清输入；旧版本引用仍精确，Run 完成不推导项目完成 |
+| UI-BOARD-004 | 授权目录与独立 EP/TE 读取、空中间页、分页/陈旧/拒绝/失效 | 只读选中项目，不推跨项目总数；完整/部分及各水位分开；失败不冒充空，失权无旧数据，迟到响应不回填 |
+| UI-BOARD-005 | 1280×800、1440×900、1920×1080、360×800 与 320 CSS px | 桌面内容有界滚动，窄屏可切组和项目、长名称可读，无页面横向溢出；键盘/焦点/状态文本与 axe 检查 |
+| UI-BOARD-006 | 生产制品、开发开关注入、深链接刷新 | 无工作台 fixture adapter/合成卡片及自动 fallback；注册页面可刷新，未知页面/资源仍拒绝 |
+
+独立 exact-head review、真实服务/Runner/持久化、Windows/macOS 最近两个 Chrome/Edge 稳定版本与独立人工验收须另有证据；未执行层保持 `NOT RUN`。
 
 ## D12 / Q11 项目交付交互与恢复设计场景（#260）
 
@@ -193,3 +220,15 @@ reviewer and timestamp
 失败场景包含可恢复分页/下载失败保留意见、当前版本或基线单独拒绝时清空全部比较内容，以及持续 403/404 配合不变 ALLOWED Session 时请求停止、显式重读后仅发起一次新的读取。受控基线拒绝与请求计数为 Browser 呈现边界证据；实际当前 Grant 撤销另走真实 IP/Core/BFF 清理场景，不把受控响应当成额外 owning 授权证据。
 
 本用例覆盖 UI-MF-002/007 的自动化技术切片；实际 Chrome/Edge 的 Windows/macOS 矩阵、真实客户文件内容判断与独立 Human acceptance 仍 NOT RUN。截图只为布局 QA，不是批准或接收事实。
+
+## 新建项目与首轮 ZIP 页面验收（#282）
+
+| ID | 场景 | 可观察结果 |
+|---|---|---|
+| UI-INTAKE-001 | 同名客户、键盘搜索、NEW、待定/错回执 | 名称不绑定身份；显式选 ID；保留输入；匹配回执才导航，创建不分析 |
+| UI-INTAKE-002 | 固定/跨项目入口、无权/目录失败、迟到选择/响应 | 固定项目；跨项目初始不选；读取失败不冒充空；旧结果不串项目 |
+| UI-INTAKE-003 | 单 ZIP/取消/非法选择、note、双击提交 | 旧选择保留；一次意图；提交后原 ZIP/note 不可变；任意文件无合成报告 |
+| UI-INTAKE-004 | 各阶段、准备失败/替换、分析失败/许可重试、UNKNOWN | 同页真实区分状态，无自动跳转；原输入/失败可检查；UNKNOWN 不重发 |
+| UI-INTAKE-005 | 构建后键盘/焦点、桌面三视口、360/320、axe、生产开关 | 有界滚动/无横向溢出；生产剔除 adapter，无模拟成功回退 |
+
+组件/受控 Chromium 证据归 PR。真实创建、ZIP 接收、Runner、持久化、Windows/macOS Chrome/Edge 完整矩阵、独立 exact-head review 及人工验收需单独证据；未执行层 NOT RUN。

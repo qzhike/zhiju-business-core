@@ -264,6 +264,22 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 - 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；manifest 同时检查依赖名称与声明目标，只允许精确 registry 版本或默认 `catalog:`，拒绝别名、本地路径与其他来源借允许名称引入禁止目标。Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
 - 所有演示结果显示开发身份、合成报告/回执/进度标识。生产业务入口保持拒绝；真实接入继续由 owning 契约决定。
 
+## #277 两字段创建与单次提交交接提案
+
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
+
+表单先公开 find_preparation_enterprises 读取公司 entryBinding 与本人可选客户；同一个客户字段明确 NEW 或选择 exact EXISTING。两种模式仍只由用户填客户和项目标题；浏览器生成 request/project 及 NEW enterprise UUIDv7、固定原键/完整 Scope，在原 payload 中原样回送 presetRef/hash，服务器复验公司选择。无可用 preset/publication/准入权限显示具体不可操作原因。配置、memberPolicy、Runtime/model、授权字段不成为员工表单选项，登录成功不显示“已获项目权限”。
+
+创建按钮只调 request_project_preparation；成功进入 ZIP 页要求 EP Project receipt + 当次 access=USABLE。PARTIAL 显示已建客户/项目和未完成权限，允许原请求当前许可的继续；不重新生成 target/key。Project 目录仍按 exact discovery Grants；准备 Project 的 EP board 可返回下述 preparationEntry 安全链接，UI 不为 PREPARING 自动调用尚不支持它的 TE Task board。无 Project 读权时仅保留当次 admission recovery-read 允许的原请求摘要。
+
+“提交并分析”先固定 intake UUIDv7、原 preparation request/key、note 原文、ZIP 原 bytes hash/长度、从 EP 原 preparation request 公开 result/query 取得的 preparationPresetRef/hash 与 intakePolicyRef/hash、以及 ANALYZE，再发送一个 IG Command，随后同 intake PUT。该 policy tuple 由原 exact preset 产生；首次进入和重登均使用同一公开结果，不从当前新 entryBinding 偷换旧请求绑定，不需要私有配置 API。浏览器只编排传输，不另调用 source capture/TE request 或第二私有分析 API。IG Query 的 custody、EP handoff、TE/IG 执行事实分别显示“接收资料/准备资料/等待安排/分析能力暂不可用/分析中”；没有真实 Run/Attempt ack 时不能显示分析中或百分比。已接收说明必须可原文读回，换 Session 不丢已提交内容；未提交内存草稿不承诺持久化。
+
+跳转在首写前保存安全 request ID/Scope ID 到当前路由（不放客户名、note、token、完整 payload），沿 #258 原请求链接恢复；重新登录先 current auth，再 EP get 原 request，IG 用 PREPARATION_REQUEST selector 找回唯一 intake。浏览器业务写自动重试仍为0；请求 UNKNOWN 只查原事实，不显示“重新创建”。原 Query 返回许可 RESTART 时用户可在同页“重新上传这份 ZIP”，最多一次，重新选择文件须同 hash/长度；原 note 不可在重传中编辑。首次 restart 的 expectedAggregateVersion 取同次 IG Query.aggregateVersion，expectedUploadGeneration 取 uploadState.generation，不能互相替代或猜创建版本；提交时竞态拒绝后回读。原重传 Command 响应丢失按同 key/原 payload readback/replay，已保存的 restartCommand 不替换 CAS 版本，绝不第三代/新 intake。
+
+finite route 增量只有 `POST /bff/commands/integration.restart_customer_zip_upload/1.0` → 固定同形 `/api/commands/…`；EP entry/preparation 与 IG intake/query 使用 #258 已批准候选 token，PUT 仍唯一 `/bff/customer-intakes/{intakeId}/zip`。空 Scope 增量仅 EP find_preparation_enterprises 的明确 self 候选 profile；request/read/restart 都有完整 Scope/精确 target，并沿 IP 专用 bootstrap 或普通 Project 当前权限。Core/BFF 同步逐字 allowlist/schema/结果检查，未注册/未实现保持不可用，不扩大任意 dispatcher。当前运行代码仍只有 #266 三项 Query，不能据本段宣布路由可用。
+
+所有失败保留原可读成功 facts；403/401 先清敏感缓存，重登后不把旧作者换成当前 Human。分析能力恢复后的推进是 EP owning 原 Process 的受权运维动作，首版不暴露“重新分析”或自动新 Run。已有资料不删除、不制造报告/PROJECT_START；完整失败 trace 与 NOT RUN 验收见 [#277 Delta](../decisions/preparation-entry-bootstrap.md#4-失败保留事实与有界恢复)。
+
 ## D14 / RD-01 公开接入与回执提案
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。当前工程外壳/开发样例不属于此设计的真实接入证据。公开操作与字段由 [EP owning D14](Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案)、[TE owning D14](Module-Spec-003-TaskExecution.md#d14--rd-01-preparationcontext分析与初轮范围提案)、[IG owning D14](Module-Spec-007-IntegrationGateway.md#d14--rd-01-zip-intake-与真实报告观察提案) 定义；[DTO 映射](../decisions/workspace-startup-review-v0.1.md#d14--rd-01-公开操作映射提案) 只组合许可结果。
@@ -290,6 +306,16 @@ ACTIVE 首轮恢复仍使用同一范围面板，公开 get_startup_review 的 c
 8. 独立设计Review和人类技术批准、actual deployment lock/Registry/当前权限/公开HTTP与D14依赖分开确认。#266 已执行受控 Keycloak、真实公开 HTTP、一次性 PostgreSQL 与受控 Chromium 制品旅程（见本节实现事实）；生产部署、Host/Runner、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收仍 NOT RUN，不因 docs gate 或受控证据宣告生产可用 Session 或任务 READY。
 
 实现事实（#266）：上述 1–8 条的 BFF/Web 路径、封闭 Core 技术配置（`ZHIJU_WORKSPACE_TRUST_CONFIG`）与部署锁定值（capability code 映射、`ZHIJU_WORKSPACE_BOARD_CURSOR_KEY`、`ZHIJU_WORKSPACE_BOARD_POLICY_REFS`）已实现并有确定性本地、一次性 PostgreSQL、真实公开 HTTP 与 Chromium 制品旅程证据。首版 `execution.get_task_board_slice@1.0` 仍要求部署为该 Project 配置精确 Board Policy 版本引用：未配置时 owning 入口按既有语义返回 `DEPENDENCY_UNAVAILABLE` 并由 UI 诚实显示不可用，不伪造看板数据；`project.get_project_board_slice@1.0` 只需该 Project 的独立 board 读授权。目录页的 EP 水位是首屏已返回摘要观测摘要（`servedObservationDigest`）的 48 位投影（`enterpriseProjectWatermarkSequence`），属读取观察，不是全局计数、未授权项目计数或完成度。真实受控 Keycloak 26.7.0 旅程（隔离 realm/client/user 的 PKCE 登录 → callback `iss` → refresh → admin-API 密钥轮换 → 错 aud/azp/iss 拒绝）与受控 Chromium 制品旅程已在 exact-head persistence gate 通过（`tests/persistence/workspace-controlled-keycloak.test.ts`、`workspace-built-browser.test.ts`；证据见 PR #273 与本 Issue 评论）；生产部署、实际 Windows/macOS Chrome/Edge 平台矩阵与独立人工验收仍 `NOT RUN`。
+
+## 工作台页面实现边界（#281）
+
+沿已批准产品 §4.1 与工程基线落实共享 React 工作台：顶部紧凑项目进度、项目选择与最近访问，下方“需要你 / 推进中 / 待开始”，已完成与次要入口默认折叠。展示分组不新增 Core 状态；卡片保留具体原因、动作和来源提供的精确项目/任务/报告/候选引用。任务完成、候选就绪、批准与项目交付分别表达。
+
+生产继续只使用 #266 的授权目录与显式选中项目的 EP/TE 看板。数量标明已读取范围、枚举完整性及各来源观察水位；不推算跨项目总数、候选数量或项目完成百分比，不从 Task ID 构造 scope request。缺少公开读取或尚未交付的目标页面使用可导航的不可用边界，不能模拟上传、执行、保存、批准或交付成功。目录授权不代替看板授权。
+
+页面展示模型与动作类型仅属于 Experience。隔离开发 adapter 使用同一工作台组件提供多项目、混合状态、空/失败及候选/报告更新场景，生产构建剔除 adapter。原卡更新不跳页、不抢焦点、不覆盖输入或当前精确版本。筛选、展开、阅读位置与最近访问仅保留在当前有效会话的内存；URL 只保存安全项目/对象标识，历史记录不保存业务 payload。身份失效清理页面内存；切项目卸载旧看板，既有 generation/Scope 防迟到机制保持。
+
+文件检查、项目交付与任务详情边界均是页面导航，不增加公共操作、业务所有权、通知服务或持久最近访问能力。既有工程样例的报告/启动流程继续独立于真实服务验收；实际 Chrome/Edge 平台矩阵、Runner、生产服务与人工验收不由页面证据替代。
 
 ## D12 / Q11 项目交付与原意图恢复提案（#260）
 
@@ -343,3 +369,9 @@ BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，
 分页或下载的鉴权相关失败须复核全部保留的 exact Revision（包括基线），不能仅凭当前版本可读而保留已失权的旧正文或 before-values。确认任一来源读取权丢失时清空比较页和意见。资源 403/404 本身不触发 Session 重载；清理后停在稳定不可用状态，显式重读重新授权，会话失败提供显式会话检查入口，避免同一拒绝绑定自动循环。
 
 受控 built Chromium 验收覆盖 36 项/9 章、完整 12 列表格与两次相同已登记字节下载。Windows/macOS Chrome/Edge 全矩阵、生产环境与独立 Human 内容判断仍 NOT RUN，不以自动化读取/下载替代批准。
+
+## 新建项目与首轮 ZIP 页面组件（#282）
+
+页面工程复用同一 React 组件与 typed presentation actions，不注册 wire Contract。客户搜索必须显式选择独立 ID，NEW 原位切换；匹配原意图的创建回执才进入精确项目。ZIP 页固定项目，跨项目入口先显式选择；本地选择只保留文件引用/名称，不读取、解包或分析。无公开创建/上传能力时生产明确不可用。
+
+提交冻结 ZIP 与说明；重复点击仅一个意图。状态由 adapter 提供，接收、准备、等待安排、Runner 分析、报告核验、报告就绪、失败和 UNKNOWN 分别显示。后台更新不导航。准备失败允许替换，分析失败只有 adapter 明确许可才显示重试；原输入与失败历史保留。固定开发场景显式带入，任意本地 ZIP 不返回合成报告；新建演示项目只到等待安排，不借用其他项目报告。状态仅在当前身份边界内存保留，不承诺刷新/跨设备保存；退出/身份变化清理，离开项目的迟到选择与响应丢弃。真实服务、Runner、持久化、完整平台矩阵及人工验收仍 NOT RUN。

@@ -2502,6 +2502,24 @@ forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_STAR
 
 首轮恢复拟新增 EP initial_scope_request / initial_work_scope_decision（原 intent/hash、Actor/Decision、固定 startBindingMode 与 refs，INSERT-only），TE work_scope 增加 `(enterprise_id,project_id,purpose=INITIAL)` 唯一约束。新准备路径 ACTIVE 的资格还须 immutable creationMode=PREPARATION，不把旧 FULL_START 项目放入窗口。startup_request→已提交 PROJECT_START 的 owning association 不回填改写旧 scope decision payload；current-state 查询不能替代 final receive 的唯一事务约束。
 
+## #277 准备准入与上传交接持久化提案
+
+状态：`T2 / DESIGN APPROVED / NOT IMPLEMENTED`。本次无 SQL/迁移注册；字段归 EP/IP/IG #277 owning Spec。以下约束是后续实现必需 delta，不改变已应用 migration、旧 FULL_START 或公司发布存储。
+
+| owning Schema / 逻辑事实 | 约束、事务与恢复 |
+|---|---|
+| identity_policy preparation_enrollment/admission/membership_template/member_policy/provisioning | 与公司 Platform authority/scoped历史表隔离；enrollment/模板发布/撤销/准入/物化/每项 Grant 原 provenance 和 Receipt 可精确读。Platform facts 只含身份、refs/hash/授权，不存客户名称/说明。reservation 原子占 maxUses；creator+原键、request/project identity 唯一；NEW enterprise identity 独占，EXISTING enterprise 不设该唯一限制。异 payload/Scope/Human 同键拒绝 |
+| identity_policy scoped bootstrap/creator Grants | 各自真实 scoped Actor/Decision/PolicySnapshot 与完整 request/target/operation 绑定；bootstrap 未创建 ID 仅允许限定CREATE/原request读。creator各权限slot独立幂等；已撤销 slot 不由 replay 重新授予。模板/成员版本不可变，旧 Grant scope/mirror/revocation/hash 约束保持 |
+| enterprise_project preparation_preset/version/publication/withdrawal | 独立 Platform 版本/发布当前性；code+version、id+version→唯一 payload/hash；publication/withdrawal 与 owning Receipt 同事务。专用NOLOGIN/NOBYPASSRLS角色，普通app/dispatcher不可写公司预设 |
+| enterprise_project preparation_request/request_scope_reservation | request 的 enterprise_id+project_id、原key/hash/Human/preset/admission immutable；允许 Root 创建前存在，因此 reservation **不 FK 到尚不存在的 Enterprise/Project Root，也不冒充 ProjectScopeClaim**。专用准入 role/已验IP证明下仅该request的exact RLS Context；原request/step同Schema复合Scope FK闭合。后续Project事务用实际Root/Claim/关联/Receipt完成唯一create，失败不回删reservation/Enterprise |
+| integration_gateway customer_zip_intake/upload_generation/entry/manifest | preparationRequestRef唯一首intake（跨Schema仅typed ref）；原提交/note/hash/ANALYZE不可变。generation仅1/2、restartsUsed仅0/1、同代唯一live claim/CAS fencing；restart Receipt与代次/ticket密文同事务。前代迟到object/finish不能commit新代；密文有keyId/期限，明文禁Event/日志 |
+| integration_gateway manifest + Outbox | 完整manifest/hash和Receipt/Event原子提交；source/validation/accept refs按每entry原key读回，不跨Schema FK/写EP。unsafe/zero-analyzable不得产生可分析manifest Event；失败不删除已link源；manifest INSERT-only |
+| enterprise_project analysis_handoff + Inbox | eventId Inbox去重；project+intake唯一Process，固定source/task/analysisRequest targets与step keys；只保存别Owner真实refs/Receipts，无跨Schema join。原Human ANALYZE、noteSource/manifest精确绑定，查询零推进；TE/IGUNKNOWN只原调用readback |
+
+新增 IP preparation self reader 仅该 verifier Principal 的 enrollment 与 Enterprise select/create 候选；独立于 V1008 PROJECT-only reader，无BYPASSRLS/其他主体/写权。保护性读取及提交前当前撤权重验；正常 Project-owned 行必须双 Scope FORCE RLS，不用 platform技术context读客户数据。用于准入的Platform Grant不是客户数据事务身份；EP request在写入前必须已有当前IP exact scoped Decision。
+
+对象存储只在已持久化 intake/Attempt 后收流；对象存在不等于EP link，metadata缺失不证明对象未创建。UNKNOWN需真实object/stream/EP receipts读回；cleanup校验所有已提交link及retention/hold，禁止以回滚补偿删除已接纳源。后续 full gate 必须覆盖空库/forward migration、错scope镜像/Hash/权限、未创建ID非法读、maxUses/唯一关联并发、两代流竞态、每步提交后crash/response-loss、Outbox/Inbox重投和旧数据回归；本设计无数据库执行证据。
+
 ## Workspace self-discovery 读取边界提案（#258）
 
 状态：`T2 / HUMAN DESIGN APPROVED 2026-10-09 / INDEPENDENT DESIGN REVIEW APPROVE / IMPLEMENTED (#266, V1008) / EXECUTION EVIDENCE IN ISSUE-PR / PRODUCTION NOT RUN`。不新增业务目录表/Projection/Session Repository，不在本 Issue 写业务SQL。身份/目录字段唯一见 [IP #258](../module-specs/Module-Spec-001-IdentityPolicy.md#workspace-可信-human-入口与目录授权提案258) 与 [EP #258](../module-specs/Module-Spec-002-EnterpriseProject.md#workspace-授权项目目录提案258)。

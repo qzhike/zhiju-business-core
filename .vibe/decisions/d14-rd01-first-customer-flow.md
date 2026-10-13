@@ -8,6 +8,8 @@
 
 独立审查、精确修订的人类技术批准及 IM-DG-006 决定是冻结门禁；提交 PR 不代表已批准。审查证据在 PR 与 `.vibe/reviews/pr-<number>/Review.md`；未决选择见 §7。不能把依赖实现任务标为 READY。本提案不冻结文档修改、批准、发布或项目完成合同。
 
+准备入口的 technical preset、创建前 Scope/创建后 Grants、提交说明/ANALYZE 与一次上传恢复，由 [#277 独立已批准 Delta](preparation-entry-bootstrap.md) 收口。该补充有独立精确修订批准，不是本文件原批准的一部分；不重开整体 D14、公司规则或 Session 的批准，也不据补充文本声明接口已经可用。
+
 ## 1. 所有权与完整支持集
 
 | 用户步骤 | 唯一 owning 能力 / 拟议操作 | 精确输出与边界 |

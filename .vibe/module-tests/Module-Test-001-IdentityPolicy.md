@@ -348,6 +348,19 @@ authority 为 [Spec 001 §15.17](../module-specs/Module-Spec-001-IdentityPolicy.
 
 implementation configured full；实际Grant PolicySnapshot取代原延后保持，纯mapping反例不替代PG当前撤权/expiry。当前分层结果见本矩阵；运行证据来自 `tests/persistence/task-board-entry.test.ts`，完整矩阵不因聚焦 PG 通过而提升为全量 PASS。
 
+## #277 准备准入与创建者授权设计场景
+
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)，所有前置通过 owning 管理/发布入口形成，不能直接 SQL 造中间授权。
+
+| ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
+|---|---|---|---|
+| IP-277-001 | 当前可信 Human、显式 NEW enrollment；EXISTING 另有 exact Enterprise select/create；无 Project；旧创建 operation 分别绑定注册 Purpose enterprise.project.create_enterprise / enterprise.project.create_project | admission 真实 Platform provenance 与 scoped bootstrap Grants，仅固定 request/E/P CREATE；无普通 Project read；重放不二次扣 maxUses；逐版本原生 Purpose 与 action/capability 独立匹配 | 未执行 / NOT RUN |
+| IP-277-002 | 仅登录/公司rule发布权/Enterprise grant、Agent或actingFor；无 NEW enrollment；EXISTING缺select或create；用 project.enterprise.create / project.project.create 或 action 冒充旧注册 Purpose | 准入拒绝；零 EP 受保护读写，不按名字/createdBy/ScopeClaim赋权；现有空Scope Project目录仍受原限制；短拼写/别名不映射为旧创建权限，冻结 Registry/bytes 不变 | 未执行 / NOT RUN |
+| IP-277-003 | 同 key 异 payload/Scope/Human；maxUses并发最后一额；NEW ID被另一request复用；EXISTING同企业两个不同Project | 异内容/NEW冲突拒绝，最后一额一winner；EXISTING不同Project可各自合法准入；旧Receipt不绕当前撤权 | 未执行 / NOT RUN |
+| IP-277-004 | 模板精确物化、Project提交后逐项Grant；少intake/read/discovery任一项；已授一项后重启/撤销 | 保留各真实Grant/Receipt，access INCOMPLETE/REVOKED，不进入ZIP页；同slot无重复，已撤销不自动补发；明确管理员修复才续原slot | 未执行 / NOT RUN |
+| IP-277-005 | 另一Principal枚举Enterprise、借pending Project Scope读board/source；跨Project target/hash；目录cursor水位变更 | self reader只本人候选，EP逐项当前Decision/RLS；普通protected reads=0，cursor拒绝；旧PROJECT-only reader/旧policy/company registry接受集不扩大 | 未执行 / NOT RUN |
+| IP-277-006 | 原Human意图保存后撤link/Grant/Policy或到期；SERVICE拥有执行权但Human无ANALYZE；反向Human有权SERVICE失权 | 后台逐步当前复验拒绝；历史intent/Grant/Receipt保留，零新task/invoke；只读恢复也须独立current许可 | 未执行 / NOT RUN |
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。

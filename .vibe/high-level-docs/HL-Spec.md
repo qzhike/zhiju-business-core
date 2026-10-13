@@ -401,4 +401,6 @@ BLOCKED
 
 ## D14 / RD-01 未来设计入口
 
+准备入口的预设、准入授权、ZIP说明/分析意图与有界恢复见 [#277 Spec Delta](../decisions/preparation-entry-bootstrap.md) 及 EP/IP/IG/UI owning Spec/Test。该补充为 `DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`，精确修订批准来源见正式 Review；#253/#258/#257 已批准内容各自保留，不能用新的Markdown提案推导当前业务路由/权限/Runner已存在。
+
 [首条客户资料链路 Spec Delta](../decisions/d14-rd01-first-customer-flow.md) 为 Issue #253 的 `T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED` 提案，owning fields/场景在 EP/IP/TE/IG/UI 和 Runtime Spec/Test 的 D14 专节。只同步已批准初始化方向所需技术提案，不冻结新字段/Runtime 默认，不改变旧 create_project、ACTIVE Task、ProjectContext@1.0、七模块和 Human-only 规则。独立设计审查与精确修订人类技术批准前，依赖实现不 READY；static/prototype 不等于 API/持久化/Runner/人验 PASS。

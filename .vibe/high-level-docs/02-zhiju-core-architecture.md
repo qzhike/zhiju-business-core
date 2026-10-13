@@ -2100,4 +2100,6 @@ TemplateBaseline 和 RegulatoryProfile 是 Project-owned immutable version chain
 
 ## D14 / RD-01 模块协作提案
 
+[#277 准备入口补充](../decisions/preparation-entry-bootstrap.md) 为已批准设计增量：EP 独立拥有 technical preset/原 preparation request/固定 intake→analysis Process；IP 拥有显式 bootstrap 准入、scoped membership 与逐项 Project Grant；IG 拥有提交说明/ANALYZE 原意图、一次重传、manifest/Event；UI/BFF 只调用有限公开接口。公司 startup rule bundle 的发布/业务内容所有权不变，七模块边界不扩张。ProjectScopeClaim 是 EP 创建事实，IP Grant 是独立授权事实；两者不能互推。创建前的 request scope reservation 不是已存在 Project；跨模块按当前受权 Port/Receipt/Inbox 交接，无共享库事务。新接受集已获独立精确修订技术批准，尚未注册/实现。
+
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`，见 [Delta](../decisions/d14-rd01-first-customer-flow.md)。EP 拥有 PREPARING Project/ScopeClaim、SourceMaterial、准备来源切片、accepted report/候选/计划和 Human 决定/一次 start；IP 拥有当次授权；TE 拥有独立 PreparationContext、分析 Task/WO/Run/Result 与初轮 scope 事实；IG/Runtime 拥有 ZIP 传输/安全解包、受控物化、原 invocation/raw observations；UI/BFF 只调用公开能力和呈现。Quality 的真实 Evidence capture/verify/get 按既有合同复用，原 source alias 不伪装 EvidenceRef。七模块不变，EP Process 协调多 Root 而不共享 Repository/跨 Schema Join；原件/模板只读、commit 后副作用、权限分离和 owner Completion 保持。

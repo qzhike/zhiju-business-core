@@ -406,6 +406,8 @@ describe.skipIf(!databaseUrl)(
       const card = page.locator('article.work-item');
       await card.waitFor({ state: 'visible', timeout: 30_000 });
       expect(await card.count()).toBe(1);
+      // The compact workbench keeps exact references in a secondary disclosure.
+      await card.getByText('项目引用', { exact: true }).click();
       const cardText = (await card.innerText()).replace(/\s+/gu, ' ');
       expect(cardText).toContain(
         `${stack.workspace.enterpriseDisplayName} · ${stack.workspace.projectTitle}`,

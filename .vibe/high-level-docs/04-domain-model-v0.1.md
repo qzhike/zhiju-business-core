@@ -5749,6 +5749,8 @@ DeliveryItem Completion 是由 EnterpriseProject owning Evaluator 根据冻结 `
 
 ## D14 / RD-01 Project 生命周期提案
 
+[#277 已批准设计增量](../decisions/preparation-entry-bootstrap.md) 区分 IP admission、EP request scope reservation、Enterprise、Project/ProjectScopeClaim、IP creator Grants 五个独立事实；只有 Project 事务提交才存在 PREPARING 项目，只有真实 exact Grants 才可发现/读取/上传。资料意图由 IG 保存原 ZIP/note/ANALYZE，成功 manifest 交给 EP 固定 Process，TE analysisRequest 不等于 Run。失败保留先前成功事实；同 intake 一次重传不改变来源意图，UNKNOWN 不新建或调用，不产生 PROJECT_START。字段/状态由 owning Spec #277 维护，未注册/未实现。
+
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。新 Project creationMode=PREPARATION 时 PREPARING 即正式隔离身份，有 ScopeClaim/memberPolicy，无 PROJECT_START；只能受控来源接纳/只读分析，不具正式文件修改资格。原 FULL_START 创建继续单事务 ACTIVE+完整 start。PREPARING→ACTIVE 仅一次 Human 授权 start 事务，三类真实 refs、CAS、唯一 binding、Receipt/Event 一起提交；失败不留下半 ACTIVE。Scope/memberPolicy 永不迁移，ACTIVE 不回 PREPARING，后继材料/企业版本追加 impact 不改 frozen start。
 
 EP 新不可变 PreparationReport、CandidateSet、FilePlan snapshots 不等于 GapAnalysis/DeliveryPlan/正式 Fact；Human 信息决定、真实 Fact/Product/QMS 前置版本、Project start、TE 初轮 workScope 独立事实。scope 只表示整份文件意图接收，不自动批准修改/完成。缺必需客户事实阻 start；非必要未知或文件保护/冲突阻整份受影响文件，合法 start 后独立文件可接收。完整状态/recovery 见 [Delta §5](../decisions/d14-rd01-first-customer-flow.md#5-转换原意图与恢复)，owning fields/scenarios 不在本节复制。
