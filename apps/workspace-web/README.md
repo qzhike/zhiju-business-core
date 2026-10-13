@@ -125,3 +125,22 @@ real PostgreSQL, synthetic OIDC HTTP, Core/BFF and the production SPA. It traver
 and downloads the same registered bytes twice. Feedback submission, durable drafts
 and approval remain unavailable. Production integrations, the full Windows/macOS
 Chrome/Edge matrix and independent Human content acceptance remain NOT RUN.
+
+The shared analysis experience lives in `src/analysis`: exact report presentation,
+four overview summaries, routed detail views, deduplicated request selection and
+editable clipboard/manual-copy preview. One contextual composer retains separate
+customer, consultant and single-file plan drafts in page-session memory. Explicit
+submission freezes a snapshot while subsequent edits remain unsent. History is
+read-only; a newer report requires an explicit switch, preserves old drafts and
+asks for context rechecking. Narrow screens switch the same page between report
+reading and the single composer, retaining both contexts. Scope eligibility is supplied separately, never
+derived from report prose.
+
+`src/fixtures/analysis.tsx` is a development-only adapter for the checked-in report
+examples. Only its explicitly imported fixed supplement may offer the fixed
+follow-up report. Arbitrary attachment names/text cannot produce a conclusion.
+Failure, unavailable, UNKNOWN and mismatched receipt scenarios stay beside the
+composer. Plan-opinion pending presentation affects only its identified file.
+The production report route remains unavailable until the owning public read and
+command capabilities exist; fixture data and simulated receipts are pruned from
+production. No browser customer-data storage or server-draft claim is added.

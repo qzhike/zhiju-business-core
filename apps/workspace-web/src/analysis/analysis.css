@@ -1,0 +1,354 @@
+.analysis-page {
+  height: calc(100dvh - 174px);
+  min-height: 530px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.analysis-header h1 {
+  font-size: 24px;
+  margin: 4px 0;
+}
+.analysis-header p {
+  font-size: 12px;
+  margin: 3px 0;
+}
+.analysis-reading {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.analysis-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.analysis-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  padding: 12px 16px;
+  min-width: 0;
+}
+.analysis-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.analysis-card-title h2 {
+  flex: 1;
+  margin: 0;
+}
+.analysis-card-title button {
+  border: 0;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+.analysis-card-title strong {
+  font-size: 24px;
+  color: var(--purple);
+  font-variant-numeric: tabular-nums;
+}
+.analysis-card-title small {
+  color: var(--muted);
+}
+.analysis-card p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.analysis-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 2px 0;
+}
+.analysis-card li button {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  text-align: left;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.analysis-detail {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.analysis-list,
+.analysis-item {
+  overflow: auto;
+  min-width: 0;
+  padding: 18px;
+}
+.analysis-list {
+  border-right: 1px solid var(--line);
+}
+.analysis-list label {
+  display: block;
+  margin-bottom: 12px;
+}
+.analysis-list-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+.analysis-list-row button {
+  text-align: left;
+  flex: 1;
+  border: 0;
+  padding: 12px 4px;
+}
+.analysis-list-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.analysis-list-row button[aria-current] {
+  color: var(--purple);
+  background: var(--soft);
+}
+.analysis-item h2 {
+  margin: 8px 0 16px;
+  font-size: 19px;
+}
+.analysis-item h3 {
+  font-size: 15px;
+}
+.analysis-item section {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.analysis-evidence details {
+  background: #f7f7fa;
+  padding: 8px 10px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.analysis-evidence summary {
+  cursor: pointer;
+}
+.analysis-composer {
+  flex-shrink: 0;
+  max-height: 25vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--purple);
+  background: white;
+  border-radius: 10px;
+  padding: 12px 18px;
+}
+.analysis-composer h2 {
+  font-size: 16px;
+  display: inline-block;
+  margin: 0 12px 6px 0;
+}
+.analysis-composer p {
+  font-size: 12px;
+  margin: 5px 0;
+}
+.analysis-composer label,
+.analysis-copy-dialog label {
+  display: block;
+}
+.analysis-composer textarea,
+.analysis-copy-dialog textarea {
+  width: 100%;
+  margin-top: 6px;
+}
+.analysis-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.analysis-actions label {
+  font-size: 12px;
+}
+.analysis-actions input {
+  max-width: 240px;
+}
+.analysis-actions button {
+  margin-left: auto;
+}
+.analysis-receipt {
+  background: var(--soft);
+  padding: 10px;
+  margin: 2px 0;
+}
+.analysis-receipt pre {
+  white-space: pre-wrap;
+  font: inherit;
+}
+.analysis-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.analysis-copy-bar {
+  position: sticky;
+  bottom: -18px;
+  background: white;
+  padding: 12px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.analysis-records {
+  flex-shrink: 0;
+  max-height: 130px;
+  overflow: auto;
+}
+.analysis-records a {
+  margin-right: 16px;
+}
+.analysis-back-list {
+  display: none;
+}
+.analysis-page p,
+.analysis-page small,
+.analysis-page pre,
+.analysis-page summary {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .analysis-page {
+    height: calc(100dvh - 232px);
+    min-height: 480px;
+  }
+  .analysis-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .analysis-header h1 {
+    font-size: 21px;
+  }
+  .analysis-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .analysis-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .analysis-detail .analysis-item {
+    display: none;
+  }
+  .analysis-detail.has-item .analysis-list {
+    display: none;
+  }
+  .analysis-detail.has-item .analysis-item {
+    display: block;
+  }
+  .analysis-back-list {
+    display: inline-block;
+  }
+  .analysis-composer {
+    max-height: 40vh;
+    padding: 12px;
+  }
+  .analysis-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .analysis-actions button {
+    margin-left: 0;
+  }
+}
+
+.analysis-card > button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.analysis-page > .notice {
+  padding: 8px 12px;
+  font-size: 12px;
+  margin: 0;
+}
+.analysis-page > .notice button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.analysis-records {
+  padding: 0;
+}
+.analysis-header h1 {
+  line-height: 1.3;
+}
+.analysis-header p {
+  line-height: 1.4;
+}
+@media (min-width: 701px) {
+  .analysis-overview {
+    height: 100%;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+  .analysis-card {
+    min-height: 0;
+    overflow: auto;
+  }
+}
+
+.analysis-composer > div:first-child > button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.analysis-composer > details {
+  padding: 4px 0;
+}
+.analysis-mobile-switch {
+  display: none;
+}
+@media (max-width: 700px) {
+  .analysis-mobile-switch {
+    display: flex;
+    gap: 8px;
+  }
+  .analysis-page[data-mobile-view='report'] .analysis-composer {
+    display: none;
+  }
+  .analysis-page[data-mobile-view='composer'] .analysis-reading {
+    display: none;
+  }
+  .analysis-page[data-mobile-view='composer'] .analysis-composer {
+    flex: 1;
+    flex-shrink: 1;
+    min-height: 0;
+    max-height: none;
+  }
+}
+.analysis-actions label {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.analysis-actions input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  max-width: none;
+  cursor: pointer;
+}
+.analysis-actions label:focus-within {
+  outline: 3px solid #7365d3;
+  outline-offset: 3px;
+}

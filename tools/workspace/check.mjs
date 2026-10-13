@@ -60,6 +60,8 @@ async function checkProductionBundle() {
       '@zhiju/contracts',
       'loadFixture',
       'DEVELOPMENT_INTAKE_ADAPTER_ONLY',
+      'DEVELOPMENT_ANALYSIS_ADAPTER_ONLY',
+      '固定岗位职责示例.md',
       'DEMO-CREATED-',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);

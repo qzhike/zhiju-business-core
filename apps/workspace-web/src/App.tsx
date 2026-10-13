@@ -41,6 +41,26 @@ const FixtureIntake = lazy(() => {
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
 
+const FixtureAnalysisProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/analysis.js').then((module) => ({
+      default: module.FixtureAnalysisProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureAnalysis = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/analysis.js').then((module) => ({ default: module.FixtureAnalysis }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureAnalysisStartup = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/analysis.js').then((module) => ({
+      default: module.FixtureAnalysisStartup,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+
 const projectId = 'DEMO-PROJECT-01';
 const initialReportId = 'DEMO-STARTUP-REPORT-01';
 const reportPath = (reportId = initialReportId) => `/projects/${projectId}/analysis/${reportId}`;
@@ -167,51 +187,55 @@ function FixtureApp() {
                 <WorkbenchNavigation>
                   <FixtureWorkbenchProvider>
                     <FixtureIntakeProvider>
-                      <FixturePageFocus />
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/workbench" replace />} />
-                        <Route path="/workbench" element={<FixtureWorkbench />} />
-                        <Route path="/projects/new" element={<FixtureNewProject />} />
-                        <Route path="/projects/:projectId/intake" element={<FixtureIntake />} />
-                        <Route path="/initial-analysis" element={<FixtureIntake />} />
-                        <Route
-                          path="/projects/:projectId/analysis/:reportId"
-                          element={<ReportPage data={query.data} />}
-                        />
-                        <Route
-                          path="/projects/:projectId/startup/:reportId"
-                          element={<Startup data={query.data} key={location.pathname} />}
-                        />
-                        <Route
-                          path="/projects/:projectId/executions/:requestId"
-                          element={<Execution data={query.data} />}
-                        />
-                        <Route
-                          path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                          element={
-                            <UnavailablePage
-                              title="检查文件"
-                              reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
-                            />
-                          }
-                        />
-                        <Route
-                          path="/projects/:projectId/delivery"
-                          element={
-                            <UnavailablePage
-                              title="项目交付"
-                              reason="项目交付页面尚未交付；此处未生成交付包。"
-                            />
-                          }
-                        />
-                        <Route
-                          path="/projects/:projectId/tasks/:taskId"
-                          element={
-                            <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
-                          }
-                        />
-                        <Route path="*" element={<Missing />} />
-                      </Routes>
+                      <FixtureAnalysisProvider>
+                        <FixturePageFocus />
+                        <Routes>
+                          <Route path="/" element={<Navigate to="/workbench" replace />} />
+                          <Route path="/workbench" element={<FixtureWorkbench />} />
+                          <Route path="/projects/new" element={<FixtureNewProject />} />
+                          <Route path="/projects/:projectId/intake" element={<FixtureIntake />} />
+                          <Route path="/initial-analysis" element={<FixtureIntake />} />
+                          <Route
+                            path="/projects/:projectId/analysis/:reportId"
+                            element={<FixtureAnalysis />}
+                          />
+                          <Route
+                            path="/projects/:projectId/startup/:reportId"
+                            element={
+                              <FixtureAnalysisStartup data={query.data} key={location.pathname} />
+                            }
+                          />
+                          <Route
+                            path="/projects/:projectId/executions/:requestId"
+                            element={<Execution data={query.data} />}
+                          />
+                          <Route
+                            path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                            element={
+                              <UnavailablePage
+                                title="检查文件"
+                                reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
+                              />
+                            }
+                          />
+                          <Route
+                            path="/projects/:projectId/delivery"
+                            element={
+                              <UnavailablePage
+                                title="项目交付"
+                                reason="项目交付页面尚未交付；此处未生成交付包。"
+                              />
+                            }
+                          />
+                          <Route
+                            path="/projects/:projectId/tasks/:taskId"
+                            element={
+                              <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
+                            }
+                          />
+                          <Route path="*" element={<Missing />} />
+                        </Routes>
+                      </FixtureAnalysisProvider>
                     </FixtureIntakeProvider>
                   </FixtureWorkbenchProvider>
                 </WorkbenchNavigation>
@@ -273,73 +297,7 @@ export function SafeMarkdown({ children }: { children: string }) {
   );
 }
 
-function ReportPage({ data }: { data: WorkspaceData }) {
-  const params = useParams();
-  const report = getReport(data, params);
-  const [arrived, setArrived] = useState(false);
-  if (!report) return <Missing />;
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">青禾制造 · 精确报告第 {report.version} 版 · 演示</p>
-          <h1 tabIndex={-1}>分析总览</h1>
-          <p className="muted">
-            {report.reportId} · {report.title}
-          </p>
-        </div>
-        <Link className="button primary" to={`/projects/${projectId}/startup/${report.reportId}`}>
-          核对信息与文件范围 →
-        </Link>
-      </div>
-      {arrived && (
-        <div className="notice" role="status">
-          有新演示报告到达，当前仍是第 {report.version} 版。
-          <Link to={reportPath('DEMO-STARTUP-REPORT-02')}>查看第 2 版</Link>
-        </div>
-      )}
-      <div className="report-grid">
-        <div>
-          <section className="panel">
-            <div className="status-tag">部分读取 · 演示分析</div>
-            <h2>{report.summary}</h2>
-            <ul>
-              {report.limitations.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-          <section className="panel markdown">
-            <h2>报告说明</h2>
-            <SafeMarkdown>{report.narrative}</SafeMarkdown>
-          </section>
-        </div>
-        <aside className="panel">
-          <h2>需要处理的事项</h2>
-          <p className="muted">客户补充与顾问判断分别保留</p>
-          {report.attention.map((item) => (
-            <details key={item.id}>
-              <summary>{item.title}</summary>
-              <p>{item.reason}</p>
-              <small>
-                {item.audience === 'CUSTOMER' ? '客户需补充' : '顾问需判断'} · {item.id}
-              </small>
-            </details>
-          ))}
-          <button
-            onClick={() => {
-              setArrived(true);
-            }}
-          >
-            模拟新报告到达
-          </button>
-        </aside>
-      </div>
-    </>
-  );
-}
-
-function Startup({ data }: { data: WorkspaceData }) {
+export function Startup({ data }: { data: WorkspaceData }) {
   const params = useParams();
   const report = getReport(data, params);
   if (params.projectId === 'DEMO-PROJECT-02')
