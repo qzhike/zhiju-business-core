@@ -26,7 +26,7 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await page.goto('/workbench');
   await expect(page.getByRole('heading', { name: '我的工作台' })).toBeVisible();
   await expect(page.getByRole('note')).toContainText('不上传或读取 ZIP 内容');
-  await page.getByRole('link', { name: '准备客户资料 →' }).click();
+  await page.getByRole('link', { name: '准备客户资料' }).click();
   await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
   await page.getByRole('button', { name: '载入演示分析报告' }).click();
   await expect(page.getByRole('status')).toContainText('正在载入');
@@ -79,6 +79,7 @@ test('desktop built fixture journey, exact versions, refresh and history', async
 test('narrow navigation, keyboard focus, empty states and error recovery', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/workbench');
+  await page.getByText('演示控制', { exact: true }).click();
   await page.getByRole('button', { name: '查看空工作台' }).click();
   await expect(page.getByRole('heading', { name: '暂无待处理工作' })).toBeVisible();
   await page
@@ -126,9 +127,11 @@ test('safe content, exact deep links and fixture cache recovery', async ({ page 
   await page.goto('/projects/other/startup/DEMO-STARTUP-REPORT-01');
   await expect(page.getByRole('heading', { name: '无法打开此页面' })).toBeVisible();
   await page.goto(report);
+  await expect(page.getByRole('heading', { name: '分析总览', exact: true })).toBeVisible();
   const violations = (await new AxeBuilder({ page }).analyze()).violations;
   expect(violations).toEqual([]);
   await page.goto(startup);
+  await expect(page.getByRole('heading', { name: '核对信息，选择本轮文件' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.evaluate(() => {
     sessionStorage.setItem('zhiju-workspace-development-fixture-v1', '{broken');
