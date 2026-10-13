@@ -200,13 +200,22 @@ export function createRequestHandler(
     request: FastifyRequest,
     reply: FastifyReply,
     expectedContentType: string | undefined,
+    sameOriginGet = false,
   ): { record: SessionRecord } | { handled: true } {
     const lookup = lookupSession(request);
     const failure = guardSessionRead(reply, lookup);
     if (failure) return { handled: true };
     if (lookup.status !== 'active') return { handled: true };
     const target = effectiveTarget(request);
-    if (!originAllowed(config.publicOrigin, target.origin)) {
+    if (
+      !originAllowed(config.publicOrigin, target.origin) &&
+      !(
+        sameOriginGet &&
+        request.method === 'GET' &&
+        target.origin === undefined &&
+        request.headers['sec-fetch-site'] === 'same-origin'
+      )
+    ) {
       return {
         handled: sendSafeError(
           reply,
@@ -934,9 +943,153 @@ export function createRequestHandler(
     return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Intake upload not available.', false);
   }
 
+  async function handleMarkdownContent(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    path: string,
+  ): Promise<boolean> {
+    const matched =
+      /^\/api\/markdown-representations\/([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/content$/.exec(
+        path,
+      );
+    if (!matched || request.url.includes('?') || request.method !== 'GET')
+      return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Download unavailable.', false);
+    try {
+      assertNoOverrideHeaders(request.headers);
+    } catch {
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Invalid download request.',
+        false,
+      );
+    }
+    const guarded = guardProtected(request, reply, undefined, true);
+    if ('handled' in guarded) return true;
+    const ticket = request.headers['x-markdown-download-ticket'];
+    if (
+      typeof ticket !== 'string' ||
+      ticket.length > 16384 ||
+      !/^[A-Za-z0-9_-]{16,16384}$/.test(ticket)
+    )
+      return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Download unavailable.', false);
+    const fresh = await ensureFreshSession(guarded.record);
+    if (!fresh)
+      return sendSafeError(reply, 401, UI_ERROR.SESSION_EXPIRED, 'Session expired.', true);
+    const abort = new AbortController();
+    reply.raw.once('close', () => {
+      abort.abort();
+    });
+    try {
+      const response = await context.fetchImpl(
+        `${trimTrailingSlash(config.apiBaseUrl)}/markdown-representations/${matched[1]}/content`,
+        {
+          method: 'GET',
+          redirect: 'error',
+          headers: {
+            authorization: `Bearer ${fresh.accessToken}`,
+            'x-workspace-session-binding': fresh.sessionBinding,
+            'x-workspace-trust-config-hash': loaded.configHash,
+            'x-markdown-download-ticket': ticket,
+          },
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60_000)]),
+        },
+      );
+      if (!sessions.isCurrent(fresh)) {
+        await response.body?.cancel();
+        return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
+      }
+      if (response.status !== 200) {
+        await response.body?.cancel();
+        return sendSafeError(
+          reply,
+          response.status === 401
+            ? 401
+            : response.status === 404 || response.status === 403
+              ? 404
+              : 503,
+          response.status === 401
+            ? UI_ERROR.REAUTH_REQUIRED
+            : response.status === 404 || response.status === 403
+              ? CORE_ERROR.NOT_FOUND
+              : CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+          'Download unavailable.',
+          false,
+        );
+      }
+      const length = Number(response.headers.get('content-length'));
+      const disposition = response.headers.get('content-disposition');
+      if (
+        !Number.isSafeInteger(length) ||
+        length < 1 ||
+        length > 10_485_760 ||
+        response.headers.get('content-type') !== 'text/markdown; charset=utf-8' ||
+        !disposition ||
+        !/^attachment; filename="[A-Za-z0-9_-]+\.md"$/.test(disposition) ||
+        !response.body
+      ) {
+        await response.body?.cancel();
+        throw new Error('Invalid download metadata');
+      }
+      const reader = response.body.getReader();
+      let sent = 0;
+      const currentSession = () => sessions.isCurrent(fresh);
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          try {
+            abort.signal.throwIfAborted();
+            if (!currentSession()) throw new Error('Download interrupted');
+            const chunk = await reader.read();
+            abort.signal.throwIfAborted();
+            if (!currentSession()) throw new Error('Download interrupted');
+            if (chunk.done) {
+              if (sent !== length) throw new Error('Incomplete download');
+              controller.close();
+              abort.abort();
+              return;
+            }
+            const bytes = chunk.value as Uint8Array;
+            sent += bytes.byteLength;
+            if (sent > length) throw new Error('Download exceeds its binding');
+            controller.enqueue(bytes);
+          } catch (error) {
+            controller.error(error);
+            abort.abort();
+            await reader.cancel().catch(() => undefined);
+          }
+        },
+        async cancel() {
+          abort.abort();
+          await reader.cancel().catch(() => undefined);
+        },
+      });
+      reply.header('content-type', 'text/markdown; charset=utf-8');
+      reply.header('content-disposition', disposition);
+      reply.header('content-length', length);
+      await reply.send(stream);
+      return true;
+    } catch {
+      abort.abort();
+      if (reply.raw.headersSent) {
+        reply.raw.destroy();
+        return true;
+      }
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Download unavailable.',
+        true,
+      );
+    }
+  }
+
   return async (request, reply) => {
     const { path, rawQuery } = splitUrl(request.url);
     const method = request.method.toUpperCase();
+    if (path.startsWith('/api/markdown-representations/'))
+      return handleMarkdownContent(request, reply, path);
     if (path.startsWith('/bff/queries/') || path.startsWith('/bff/commands/')) {
       return handleOperation(request, reply, path, method);
     }

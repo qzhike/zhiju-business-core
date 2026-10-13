@@ -529,6 +529,105 @@ export namespace Artifact {
   readonly effectivePeriod?: Artifact.EffectivePeriod;
   readonly asOf: Common.UtcInstant;
 }
+  export type FileReviewLocation = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly unitId: Common.NonEmptyString;
+  readonly unitType: "SECTION" | "PARAGRAPH" | "TABLE" | "TABLE_ROW" | "TABLE_CELL";
+  readonly path: readonly Common.NonEmptyString[];
+  readonly claimHash: Common.ContentHash;
+  readonly tableUnitId?: Common.NonEmptyString;
+  readonly rowUnitId?: Common.NonEmptyString;
+  readonly columnId?: Common.NonEmptyString;
+};
+  export type FileChangeEntry = {
+  readonly changeId: Common.ContentHash;
+  readonly unitId: Common.NonEmptyString;
+  readonly kind: "ADDED" | "REMOVED" | "CHANGED" | "MOVED";
+  readonly beforeLocation?: Artifact.FileReviewLocation;
+  readonly afterLocation?: Artifact.FileReviewLocation;
+  readonly beforeValue?: Artifact.MarkdownDocumentUnit;
+  readonly afterValue?: Artifact.MarkdownDocumentUnit;
+  readonly chapterUnitIds: readonly Common.NonEmptyString[];
+  readonly contextUnitIds: readonly Common.NonEmptyString[];
+};
+  export type FileReviewContent = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly canonicalContentHash: Common.ContentHash;
+  readonly profileRef: Common.VersionedRef;
+  readonly document: Artifact.MarkdownDocument;
+  readonly authoritativeIdentityMap: Artifact.MarkdownIdentityMap;
+  readonly currentUsability: "USABLE" | "STALE" | "REVOKED";
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+};
+  export type FileChangeDirectory = {
+  readonly exactInputs: {
+  readonly toRevisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly fromRevisionRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly baselineKind: "REVISION" | "EMPTY_INITIAL";
+};
+  readonly algorithmRef: {
+  readonly algorithmId: "artifact.file_diff";
+  readonly version: "1.0";
+};
+  readonly diffHash: Common.ContentHash;
+  readonly totalChanges: Common.NonNegativeInteger;
+  readonly changedUnitCount: Common.NonNegativeInteger;
+  readonly filteredChanges: Common.NonNegativeInteger;
+  readonly chapterGroups: readonly {
+  readonly unitId: Common.NonEmptyString;
+  readonly title: Common.NonEmptyString;
+  readonly changeCount: Common.NonNegativeInteger;
+}[];
+  readonly entries: readonly Artifact.FileChangeEntry[];
+  readonly nextCursor?: Common.OpaqueCursor;
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+};
+  export type FileReviewLocationResolution = {
+  readonly originalLocation: Artifact.FileReviewLocation;
+  readonly resolution: "UNCHANGED" | "MOVED" | "CHANGED" | "REMOVED" | "AMBIGUOUS" | "UNSUPPORTED";
+  readonly suggestedLocation?: Artifact.FileReviewLocation;
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  export type MarkdownDownload = {
+  readonly representationRef: Common.RepresentationRef;
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly checksum: Common.ContentHash;
+  readonly byteLength: number;
+  readonly mediaType: "text/markdown; charset=utf-8";
+  readonly safeFilename: string;
+  readonly downloadTicket: string;
+  readonly expiresAt: Common.UtcInstant;
+};
   /** Payload of `artifact.create_artifact` (COMMAND). */
   export interface ArtifactCreateArtifactPayload {
   readonly enterpriseRef: Common.ObjectRef;
@@ -768,4 +867,91 @@ export namespace Artifact {
   readonly useStatus: "USABLE" | "STALE" | "REVOKED";
   readonly reasonCodes: readonly ("ARTIFACT_EXECUTION_OUTPUT_STALE" | "ARTIFACT_EXECUTION_OUTPUT_REVOKED")[];
 };
+  /** Payload of `artifact.get_file_review_content` (QUERY). */
+  export type ArtifactGetFileReviewContentPayload = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly location?: Artifact.FileReviewLocation;
+};
+  /** Result of `artifact.get_file_review_content` (QUERY). */
+  export type ArtifactGetFileReviewContentResult = Artifact.FileReviewContent;
+  /** Payload of `artifact.get_file_change_directory` (QUERY). */
+  export type ArtifactGetFileChangeDirectoryPayload = {
+  readonly toRevisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly fromRevisionRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly baselineKind: "REVISION" | "EMPTY_INITIAL";
+  readonly filter: {
+  readonly chapterUnitId?: Common.NonEmptyString;
+  readonly text?: string;
+};
+  readonly page: {
+  readonly limit: number;
+  readonly cursor?: Common.OpaqueCursor;
+};
+};
+  /** Result of `artifact.get_file_change_directory` (QUERY). */
+  export type ArtifactGetFileChangeDirectoryResult = Artifact.FileChangeDirectory;
+  /** Payload of `artifact.resolve_file_review_locations` (QUERY). */
+  export type ArtifactResolveFileReviewLocationsPayload = {
+  readonly fromRevisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly toRevisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly locations: readonly Artifact.FileReviewLocation[];
+};
+  /** Result of `artifact.resolve_file_review_locations` (QUERY). */
+  export interface ArtifactResolveFileReviewLocationsResult {
+  readonly items: readonly Artifact.FileReviewLocationResolution[];
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+}
+  /** Payload of `artifact.register_markdown_representation` (COMMAND). */
+  export type ArtifactRegisterMarkdownRepresentationPayload = {
+  readonly revisionRef: Common.ContentAddressedRef & {
+  readonly objectType?: "artifact.artifact_revision";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly renderAttemptRef: Common.ObjectRef;
+};
+  /** Result of `artifact.register_markdown_representation` (COMMAND). */
+  export interface ArtifactRegisterMarkdownRepresentationResult {
+  readonly representationRef: Common.RepresentationRef;
+  readonly registrationRef: Common.ContentAddressedRef;
+  readonly receiptRef: Common.ObjectRef;
+}
+  /** Payload of `artifact.get_markdown_download` (QUERY). */
+  export interface ArtifactGetMarkdownDownloadPayload {
+  readonly representationRef: Common.RepresentationRef;
+}
+  /** Result of `artifact.get_markdown_download` (QUERY). */
+  export type ArtifactGetMarkdownDownloadResult = Artifact.MarkdownDownload;
 }

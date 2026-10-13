@@ -474,7 +474,7 @@ artifacts沿共享Page，显式items、可选nextCursor、snapshotAt/sourceWater
 
 ## 13. Markdown 候选、定位与表示提案（#259）
 
-状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。跨步骤选择与 trace 见 [Spec Delta](../decisions/markdown-file-feedback.md)；本节拥有内容、范围、定位、候选及 Markdown 表示字段。§7.4 内部 Human Edit、§12 初始 execution revision、IM-DG-005 和旧 Renderer 接受集保持原样。
+状态：T2 / APPROVED DESIGN；§13.2 已由 #270 实现，§13.4–13.5 已由 #279 实现；其余仍 PROPOSED / NOT IMPLEMENTED。跨步骤选择与 trace 见 [Spec Delta](../decisions/markdown-file-feedback.md)；本节拥有内容、范围、定位、候选及 Markdown 表示字段。§7.4 内部 Human Edit、§12 初始 execution revision、IM-DG-005 和旧 Renderer 接受集保持原样。
 
 ### 13.1 基线映射与完整约束
 
@@ -556,6 +556,8 @@ cursor为server opaque/authenticated token，绑定input refs/hash、algorithm/f
 
 ### 13.5 Markdown Representation 与下载
 
+#279 实现范围为 §13.4 的三个受权 Query 和本节的登记/下载；仅支持已封存、同 Project 的 registered Markdown Revision。公开读取不创建候选、不推进 Head、不写检查或批准状态。读取缺正文/权限必须拒绝；只有缺 Representation 时允许继续阅读并明确显示下载不可用。实现与验证证据归对应 PR，未执行项保留 `NOT RUN`。
+
 | 拟 @1.0 操作 | closed payload | closed data / purpose |
 |---|---|---|
 | artifact.register_markdown_representation / CREATE，OBJECT/artifact.representation | revisionRef、renderAttemptRef | representationRef、registrationRef、receiptRef；artifact.markdown_representation.register，专用SERVICE；依IG Markdown binding真实成功登记 |
@@ -569,7 +571,7 @@ downloadTicket有效≤60秒、只绑定当前principal、完整Scope/exactRepre
 
 ### 13.6 已实现的技术管线与证据（#270）
 
-状态：`T2 / IMPLEMENTED (#270) / SCOPE: 解析、canonical graph 与元数据、身份 sidecar、round-trip`。本节只记录 #270 实际交付的封闭技术管线；§13.1、§13.3–§13.5 的公开操作、Handler、持久化、真实原输出、Representation 与下载仍为 `NOT IMPLEMENTED / NOT RUN`。
+状态：`T2 / IMPLEMENTED (#270) / SCOPE: 解析、canonical graph 与元数据、身份 sidecar、round-trip`。本节只记录 #270 实际交付的封闭技术管线；§13.1、§13.3 的候选/真实原输出链仍为 `NOT IMPLEMENTED / NOT RUN`；§13.4–13.5 的当前实现见 §13.7（#279）。
 
 - 已注册 selector/profile：`artifact.markdown_document@1.0`（profile）与 `artifact.markdown_document.schema@1.0`（selector），`SchemaRef` 为 VERSIONED/`artifact.canonical_document_schema`、Enterprise Scope。注册事实唯一来源是 `contracts/registry/artifact-markdown-schemas.v1.json`（objectId `0199b600-0000-7000-8000-000000000402`、versionId `0199b600-0000-7000-8000-000000000412`），`schemaId` 为 `https://schemas.zhiju.local/modules/artifact/1.0#/$defs/markdownDocumentContent`；与已批准字面量不一致的注册 payload、未知 selector/version 均 fail closed（`loadArtifactMarkdownSchema`）。不复用 §12 selector 或 synthetic 默认 Ref。
 - 已注册 limits：`artifact.markdown_limits@1.0`（单文件 10 MiB、100000 Units、标题/列表深度 ≤6、单表 ≤128 列/10000 行、单逻辑文本 ≤65536 Unicode code points、解析 ≤10 秒）。256 MiB heap 为声明预算，实际由已执行的字节/节点/表规模上限约束；总 Unit 预算对段落、列表、表格及其行/单元格在 materialization 之前统一计数。
@@ -579,3 +581,14 @@ downloadTicket有效≤60秒、只绑定当前principal、完整Scope/exactRepre
 - 稳定错误码：`ARTIFACT_MARKDOWN_UNSUPPORTED`、`ARTIFACT_MARKDOWN_UNSAFE`、`ARTIFACT_MARKDOWN_LIMIT`、`ARTIFACT_MARKDOWN_LOSSY`、`ARTIFACT_MARKDOWN_IDENTITY_INVALID`。
 - 未改动：旧 STRUCTURED_DOCUMENT/schema 与 Hash、§7.4 Human Edit、§12 execution revision、旧 `request_render@1.0` 接受集、Representation 媒体映射、synthetic Runtime 与历史兼容基线；Markdown 新字段不成为旧请求或旧内容的必填项，也不新增 MARKDOWN `contentType`。
 - 已执行证据：fixture、子用例与结果见 [Module-Test-004 已实现子用例](../module-tests/Module-Test-004-Artifact.md#已实现的-markdown-技术子用例270)；配置验证目标（`code`、含 Docker/PostgreSQL 门禁的 `full`）的实际结果记录在 [PR #275](https://github.com/qzhike/zhiju-business-core/pull/275)。`request_markdown_render@1.0`、真实 Binding/Representation/公开下载、真实 Host/Runner、OIDC/HTTP、Browser/平台与独立人工内容验收保持 `NOT RUN`。
+
+
+### 13.7 已实现的精确 Markdown 检查与下载（#279）
+
+本节落实已批准的 §13.4–13.5。五个 ART 操作已登记 executable payload/result；候选接纳、反馈、草稿、批准、Release 和批量包仍按原提案边界，不因本节成为已实现。
+
+- `MarkdownReviewService` 从 owning Revision、Artifact、Branch 与 FROZEN/FINALIZED Content Object 读取实际 canonical bytes，核完整 Ref/Scope/Hash/长度与封闭 Markdown profile。已登记企业级 Markdown schema 可用于当前受权 Project 的 Content Object；一般 schema 的精确 Scope 规则不扩大。由封存树恢复完整 identity map，再由 ART round-trip 验证，不从显示标题猜身份。
+- Diff 按稳定 unitId 比较语义与位置，CHANGED+MOVED 为两项；删除保留旧值/位置，表格及后代不裁列。完整 diffHash 不受分页或筛选影响；游标 HMAC 绑定两端引用、filter、算法/排序、当前授权/Session watermark、最后 changeId 和五分钟期限。Location claimHash 包含单元和完整子树；resolve 仅返回新位置建议，不改写原引用。
+- `MarkdownRepresentationService` 只登记当前 SERVICE 权限、原 `request_markdown_render@1.0` Receipt/Attempt 成功绑定与实际 bytes 共同证明的表示。原 profile/schema/digest/identityMap/input、ART round-trip 和校验结果逐项一致才可提交；旧登记函数明确拒绝 `zhiju.markdown`。同 Attempt 幂等，不补造成功事实。
+- Human 下载先读取已登记完整 RepresentationRef，重核当前 Revision 可用性、授权及实际 bytes。60 秒以内的 HMAC ticket 绑定本人、Session/当前 Grant、Project、完整 Representation/Revision/checksum、格式与读取 purpose；同源固定 GET 用 `x-markdown-download-ticket` header。每次流打开及每块输出重新核验权限，过期/撤权/断流拒绝，输出最多 10 MiB。完整响应只表示 bytes 收齐，不表示保存或批准。
+- Core composition 注入真实 owning 服务、固定 renderer digest、对象存储及至少 256-bit ticket key；未配置时返回依赖不可用。新 Link 只包含已读回的 Artifact/Revision、可选基线与完整 RepresentationRef；对象引用仅作身份，不可由 Browser 拼成存储 URL。不存在匿名 fixture fallback 或新的成果生产入口。

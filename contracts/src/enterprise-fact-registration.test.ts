@@ -37,7 +37,7 @@ describe('enterprise fact object type registration (#214)', () => {
 
   it('adds no operation, reference declaration or Catalog entry', () => {
     const operations: readonly PublicOperationDefinition[] = publicApiOperations;
-    expect(operations).toHaveLength(240);
+    expect(operations).toHaveLength(247);
     const referencing = operations.filter((operation) =>
       [...(operation.references ?? []), ...(operation.resultReferences ?? [])].some(
         (ref) => ref.objectType === 'zhiju.project.enterprise_fact',

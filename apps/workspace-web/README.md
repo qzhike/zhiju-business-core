@@ -87,3 +87,41 @@ pinned test browser; CI installs it with system dependencies. Browser screenshot
 are synthetic and remain local under ignored `test-results/`. These tests do not
 certify real OIDC, public business HTTP, Runner, Chrome/Edge platform support or
 independent human business acceptance.
+
+## Exact Markdown review
+
+`MarkdownReviewPage` is the shared, typed presentation component for #279 and
+continued #286 page work. It owns navigation and the single unsaved opinion area;
+`MarkdownReview` supplies authorized content, paged changes and download actions.
+The page has no transport or credential dependency. Development adapters must use
+this component rather than creating a second review page.
+
+The authenticated `/projects/:projectId/artifacts/:artifactId/revisions/:revisionId`
+route reads a sealed Revision through the four finite ART review/download queries.
+The server-side `markdownReviewLink` helper encodes exact references read back from
+lawful owning setup, including an optional explicit baseline and registered
+Representation. A link supplies identity only; Core rechecks scope, content hashes,
+current Human authorization and stored bytes. It never supplies a storage URL or
+an authorization ticket.
+
+Configure `createWorkspaceCoreFromEnv(env, { markdown })` with owning
+`MarkdownReviewService`, `MarkdownRepresentationService` and the explicit
+operation-to-capability map. Their storage, renderer digest, 256-bit token keys,
+current IdentityPolicy authority and server-only `MarkdownRenderService` must be
+provided by trusted composition. Missing dependencies return 503. Rendering and
+registration are not browser routes. Existing lawful Human ART handlers establish
+the sealed content; this slice adds no generation or TE directory producer.
+
+The download query grants a ticket valid for at most 60 seconds. The browser sends
+it in `x-markdown-download-ticket` with CSRF to the fixed same-origin
+`/api/markdown-representations/:representationId/content` GET. Core and BFF enforce
+current authorization/session, metadata, byte limits and stream cancellation.
+The browser verifies complete length and SHA-256 before offering the attachment.
+Tickets and content are not stored in browser persistence.
+
+`workspace-built-browser.test.ts` includes the controlled #279 journey through
+real PostgreSQL, synthetic OIDC HTTP, Core/BFF and the production SPA. It traverses
+36 changes in 9 chapters, retains one unsaved note, inspects all 12 table columns,
+and downloads the same registered bytes twice. Feedback submission, durable drafts
+and approval remain unavailable. Production integrations, the full Windows/macOS
+Chrome/Edge matrix and independent Human content acceptance remain NOT RUN.

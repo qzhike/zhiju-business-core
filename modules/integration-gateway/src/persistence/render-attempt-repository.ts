@@ -31,6 +31,7 @@ export class RenderPersistenceError extends Error {
 }
 
 export interface RenderAttemptRecord {
+  readonly sourceCommandId?: string;
   readonly attemptId: string;
   readonly enterpriseId: string;
   readonly projectId?: string;
@@ -46,6 +47,13 @@ export interface RenderAttemptRecord {
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
+
+export type RenderCompletionRecord = Omit<RenderAttemptRecord, 'request'> & {
+  readonly request: Pick<
+    IntegrationGateway.RenderRequest,
+    'revisionRef' | 'rendererId' | 'rendererVersion'
+  >;
+};
 
 export interface RenderReceiptInput {
   readonly receiptId: string;
@@ -120,6 +128,7 @@ export class RenderAttemptRepository {
       .insertInto('integration_gateway.render_attempt')
       .values({
         attempt_id: input.attemptId,
+        source_command_id: null,
         enterprise_id: input.context.enterpriseId,
         project_id: projectId ?? null,
         stable_key_hash: stableHash,
@@ -149,6 +158,12 @@ export class RenderAttemptRepository {
         'render attempt identity is already bound to another stable key or scope',
       );
     }
+    if (row.original_operation !== 'integration.request_render') {
+      throw new RenderPersistenceError(
+        INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT,
+        'Legacy render operation mismatch',
+      );
+    }
     if (!sameBuffer(row.request_payload_hash, requestHash)) {
       throw new RenderPersistenceError(
         INTEGRATION_ATTEMPT_IDEMPOTENCY_CONFLICT,
@@ -166,6 +181,7 @@ export class RenderAttemptRepository {
       .selectFrom('integration_gateway.render_attempt')
       .selectAll()
       .where('attempt_id', '=', attemptId)
+      .where('original_operation', '=', 'integration.request_render')
       .executeTakeFirst();
     if (row === undefined) return undefined;
     const record = rowToRecord(row);
@@ -183,7 +199,7 @@ export class RenderAttemptRepository {
   async recordSuccess(
     trx: RenderTransaction,
     input: {
-      readonly record: RenderAttemptRecord;
+      readonly record: RenderCompletionRecord;
       readonly receipt: RenderReceiptInput;
       readonly outputObjectRef: string;
       readonly outputChecksum: Common.ContentHash;
@@ -256,7 +272,7 @@ export class RenderAttemptRepository {
   async recordFailure(
     trx: RenderTransaction,
     input: {
-      readonly record: RenderAttemptRecord;
+      readonly record: RenderCompletionRecord;
       readonly status: 'FAILED' | 'UNKNOWN';
       readonly errorCode: string;
       readonly context: RenderTransactionContext;
@@ -302,7 +318,7 @@ export class RenderAttemptRepository {
   private async appendOutbox(
     trx: RenderTransaction,
     input: {
-      readonly record: RenderAttemptRecord;
+      readonly record: RenderCompletionRecord;
       readonly context: RenderTransactionContext;
       readonly eventType: string;
       readonly aggregateVersion: number;
@@ -338,7 +354,7 @@ export class RenderAttemptRepository {
         last_error_code: null,
         published_at: null,
         created_by_principal_id: input.context.principalId,
-        source_command_id: input.record.attemptId,
+        source_command_id: input.record.sourceCommandId ?? input.record.attemptId,
       })
       .execute();
   }

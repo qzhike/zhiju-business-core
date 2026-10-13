@@ -1975,7 +1975,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(240);
+    expect(catalog.operations).toHaveLength(247);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

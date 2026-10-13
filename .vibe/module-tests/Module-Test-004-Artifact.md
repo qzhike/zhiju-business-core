@@ -254,13 +254,13 @@ authority为Spec 004 §12；#235当前有限owning/PG证据如下，历史已交
 
 ## D12 / Q11 Markdown 表示与bytes读取设计场景（#260）
 
-状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [Artifact D12](../module-specs/Module-Spec-004-Artifact.md#d12--q11-精确-markdown-表示与导出读取提案260)。
+状态：D12 批次/发现能力仍为 `PROPOSED / NOT IMPLEMENTED`；单文件新 Markdown 渲染、登记与下载的技术切片由 #279 实现，见本文件末尾对应测试。对应 [Artifact D12](../module-specs/Module-Spec-004-Artifact.md#d12--q11-精确-markdown-表示与导出读取提案260)。
 
 | ID | 输入 | 预期 | 当前实际输出 / 结果 |
 |---|---|---|---|
-| AF-D12-001 | exact Canonical Document→登记Markdown Renderer→成功Binding→Representation；跨R1/R2集合 | format/media/UTF-8/input/checksum/renderer/Scope全部权威相等；包使用同一表示bytes，既有contentHash域不变 | 现行Renderer/映射未支持Markdown / NOT RUN |
-| AF-D12-002 | caller自报.md、错Revision/renderer/checksum/对象version、篡改bytes、unsupported Workbook/opaque/required结构 | 不登记/不供stream、不生成AVAILABLE；已登记旧Revision/Representation历史保留 | 无新Markdown/bytes Port / NOT RUN |
-| AF-D12-003 | bytes读取无权/错purpose/Agent、withdrawn/invalidated/archived、metadata locator直接改URL | owning当前授权拒绝；无额外正文泄漏；元数据Query不是下载许可；本系统无法撤回已复制bytes | 无真实stream/安全验收 / NOT RUN |
+| AF-D12-001 | exact Canonical Document→登记Markdown Renderer→成功Binding→Representation；跨R1/R2集合 | format/media/UTF-8/input/checksum/renderer/Scope全部权威相等；包使用同一表示bytes，既有contentHash域不变 | #279 单文件技术切片见 ART-MF-012；跨版本批次/包 NOT RUN |
+| AF-D12-002 | caller自报.md、错Revision/renderer/checksum/对象version、篡改bytes、unsupported Workbook/opaque/required结构 | 不登记/不供stream、不生成AVAILABLE；已登记旧Revision/Representation历史保留 | #279 覆盖错原操作/精确引用、UNKNOWN、实际字节篡改；完整 D12 批次场景 NOT RUN |
+| AF-D12-003 | bytes读取无权/错purpose/Agent、withdrawn/invalidated/archived、metadata locator直接改URL | owning当前授权拒绝；无额外正文泄漏；元数据Query不是下载许可；本系统无法撤回已复制bytes | #279 覆盖当前 Human 权限、票据/固定 HTTP 流和撤权；完整 D12 场景 NOT RUN |
 | AF-D12-004 | shared Artifact映射多个Item、多个批准版本、Human-only来源无Run/报告，新候选到达 | 文件只一entry，Profile/Scope兼容；显式选一个exact批准版本；来源原样、不伪造执行；新候选不改旧Batch | 无新项目关联消费 / NOT RUN |
 | AF-D12-005 | Contract；TR-260-09，仅ProjectRef/Page、零已知文件refs；跨轮次/shared/Human文件、内部获批但无Release、未登记Markdown、无权/跨Project/Enterprise-owned成果 | ART owning发现真实ArtifactView/批准指针/精确登记View，共享文件只一次；无Release仍返回，无表示为空且不造Ref；按当前Human及Reader权限裁剪，无名称/数量泄漏，不读取EP/REL Repository | 无新发现Port / NOT RUN |
 | AF-D12-006 | Pagination/Race；多页/空中间页、多个批准版本与表示、伪造/过期cursor、获批绑定或表示登记水位变化、发现索引过时、Guard超限 | 共享Page元数据及稳定身份顺序，有cursor继续；实际owning读回后再由REL逐项重验；读切面变化拒绝旧cursor，不能遗漏版本/复制shared成果或静默截断，不新增批准/发布事实 | 无新发现分页/重验实现 / NOT RUN |
@@ -288,6 +288,8 @@ ART-MF-001/003补充：首次scope校验使用完整sourceMapping→candidate而
 
 ## 已实现的 Markdown 技术子用例（#270）
 
+#279 的实施验收须独立覆盖 ART-MF-007/008/012：同 Unit 的 CHANGED+MOVED、EMPTY_INITIAL、删除旧位置、完整 diffHash/总条目/去重 Unit 与过滤分页分离、错输入/Scope/授权游标、真实 Markdown Attempt/Binding/登记和原键恢复、对象变更、≤60 秒票据/撤权/响应中断。配置 `full`、受控数据库/对象存储、authenticated HTTP 和 built Chromium 的实际执行证据记录在 PR；Windows/macOS Chrome/Edge 与人工内容验收不由受控测试推定。
+
 实现权威为 [ART §13.6](../module-specs/Module-Spec-004-Artifact.md#136-已实现的技术管线与证据270)。下表只把 #270 实际执行的技术子用例标为 PASS；上表 ART-MF-001～012 的整行仍为 `NOT RUN`，不因本节升级。
 
 | ID / 归属 | 输入 | 可核验预期 | 实际 / 结果 |
@@ -301,3 +303,9 @@ ART-MF-001/003补充：首次scope校验使用完整sourceMapping→candidate而
 | ART-MF-005 / Template + Manual | `evaluation.md` 五评价维度、审批栏、编制说明与 `更新记录` 已填记录 | 全部文字/表格/空签名区与已填记录完整可读（本技术层仅证明无损解析与 round-trip） | 技术子用例已执行 / PASS；独立人工内容验收 `NOT RUN` |
 
 未执行：ART-MF-001/003/007/008/009/010/011/012 的公开 prepare/confirm 读回、候选接纳、Diff/目录/游标、Evidence 错配、PostgreSQL/故障、Representation/download，以及任何 TE/IG 真实 Attempt、OIDC/HTTP、Browser、人工内容验收。
+
+## 精确 Markdown 检查与下载技术验收（#279）
+
+`modules/artifact/src/business/markdown-review-service.test.ts` 验证 ADDED/REMOVED/CHANGED/MOVED、同单元两条变化、两端位置和完整子树 claim；`tests/persistence/markdown-review.test.ts` 用真实 PostgreSQL、既有 Human ART handler 封存与实际对象 bytes，覆盖 36 项/9 章、稳定完整 diffHash/筛选/分页、跨 Scope/hash/Session/陈旧游标、伪造位置、EMPTY_INITIAL 资格、SERVICE 登记、实际 checksum、两次下载、撤权、票据过期/中断及对象篡改。
+
+ART-MF-007/008/012 的该技术切片由上述测试承担；独立 Human 内容正确性与生产对象存储不由本测试证明。

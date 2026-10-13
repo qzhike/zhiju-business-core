@@ -1683,6 +1683,55 @@
       "authorizationPurpose": "project.workspace.discover",
       "dataClassification": "INTERNAL",
       "semanticDeclaration": "workspace-trusted-session-public-access-v1"
+    },
+    {
+      "type": "artifact.get_file_review_content",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.file_review.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "artifact.get_file_change_directory",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.file_diff.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "artifact.resolve_file_review_locations",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.file_locations.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "artifact.register_markdown_representation",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.markdown_representation.register",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "artifact.get_markdown_download",
+      "version": "1.0",
+      "authorizationPurpose": "artifact.markdown_download.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "integration.request_markdown_render",
+      "version": "1.0",
+      "authorizationPurpose": "integration.render.request",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "integration.get_markdown_render_binding",
+      "version": "1.0",
+      "authorizationPurpose": "integration.markdown_render_binding.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "markdown-review-download-v1"
     }
   ]
 }

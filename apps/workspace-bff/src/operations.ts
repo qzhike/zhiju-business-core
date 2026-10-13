@@ -5,6 +5,10 @@ import { isPlainObject, isUuidLike } from './support.js';
  * Registry operations: the URL token must be one of these verbatim.
  */
 const QUERY_OPERATIONS: Record<string, true> = {
+  'artifact.get_file_review_content@1.0': true,
+  'artifact.get_file_change_directory@1.0': true,
+  'artifact.resolve_file_review_locations@1.0': true,
+  'artifact.get_markdown_download@1.0': true,
   'project.find_workspace_projects@1.0': true,
   'project.get_project_board_slice@1.0': true,
   'execution.get_task_board_slice@1.0': true,

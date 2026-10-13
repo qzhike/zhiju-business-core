@@ -308,7 +308,8 @@ export interface ArtifactRepresentationValidationTable {
   revision_id: string;
   enterprise_id: string;
   project_id: string | null;
-  binding_operation: 'integration.get_render_attempt_binding';
+  binding_operation:
+    'integration.get_render_attempt_binding' | 'integration.get_markdown_render_binding';
   validator_id: string;
   validator_version: string;
   outcome: 'VERIFIED';

@@ -1555,7 +1555,7 @@ Entry/Manifest 内消费的既有 Owner 拼写与 Scope 约束见 [REL §14.2/§
 
 ## Markdown 逐文件处理名称提案（#259）
 
-状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。仅为 [Markdown Delta](../decisions/markdown-file-feedback.md) 的唯一name/Owner/reference导航；不加入当前Catalog/Registry计数、200历史兼容bytes或Browser可调用allowlist。批准后实现同时注册closed payload/result/purpose/target/selector与正负fixture。
+状态：T2 / APPROVED DESIGN；下文 #279 七项操作已登记实现，其余仍 PROPOSED / NOT REGISTERED / NOT IMPLEMENTED。仅为 [Markdown Delta](../decisions/markdown-file-feedback.md) 的唯一name/Owner/reference导航；未实现提案不加入当前 Catalog/Registry 计数、历史兼容 bytes 或 Browser allowlist；#279 登记项按下文区分 Human Query 与 SERVICE 操作。
 
 | 拟 operation / version | 唯一 Owner / 字段权威 |
 |---|---|
@@ -1585,3 +1585,19 @@ Entry/Manifest 内消费的既有 Owner 拼写与 Scope 约束见 [REL §14.2/§
 RevisionRef继续CONTENT_ADDRESSED/artifact.artifact_revision，Artifact继续artifact.artifact；Markdown沿用完整RepresentationRef（含opaque objectStorageRef的精确身份字段）与RenderAttempt身份，不创造不兼容的简化Ref或由locator生成URL。Location为ART closed Value Object，unitId可非UUID，不能冒充TypedReference；changeId/diffHash是确定性派生读取标识，不是Quality Evidence/Approval。
 
 内部source mapping/constraints提案producer、FileSourceBinding/Context producer、原output readback须独立当前SERVICE授权及closed Port，非Browser公共操作。无新Domain Event名称，沿用已批准各owning成功Event的原shape并仅在相应真实提交点产生；不把上述profile/名称或测试trace登记成已实施事实。
+
+## #279 精确 Markdown 阅读与下载注册
+
+以下七项拥有独立 closed Schema；ART Human read/download 与 SERVICE 登记、IG SERVICE render/binding 的调用边界沿 ART §13.4–13.5 / IG #259。旧 operation 接受集不变。
+
+```text
+artifact.get_file_review_content@1.0
+artifact.get_file_change_directory@1.0
+artifact.resolve_file_review_locations@1.0
+artifact.register_markdown_representation@1.0
+artifact.get_markdown_download@1.0
+integration.request_markdown_render@1.0
+integration.get_markdown_render_binding@1.0
+```
+
+#279 登记后当前 executable Registry 为 247 项（ART 33、IG 28），冻结历史 200-operation compatibility baseline 不变。新 Markdown 操作使用 shared RepresentationRef，保留旧 ART 局部 media-type/格式接受集；下载票据是独立有界 base64url token，变化 cursor 仍满足共享 opaqueCursor 的 512 字符边界。

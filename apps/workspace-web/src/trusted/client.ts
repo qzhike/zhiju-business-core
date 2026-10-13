@@ -35,6 +35,42 @@ interface WireResponse {
   readonly body: unknown;
 }
 
+export async function readExactQuery(
+  operation: string,
+  scopeRef: JsonRecord,
+  payload: JsonRecord,
+  csrfToken: string,
+  signal: AbortSignal,
+): Promise<unknown> {
+  const queryId = uuidV7();
+  const response = await requestJson(
+    queryRoute(operation, '1.0'),
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'x-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        queryId,
+        type: operation,
+        version: '1.0',
+        scopeRef,
+        consistencyRequirement: 'AUTHORITATIVE',
+        correlationId: uuidV7(),
+        requestedAt: nowInstant(),
+        payload,
+      }),
+    },
+    signal,
+  );
+  const result = readQueryResult(response.status, response.body);
+  if (result.freshness !== 'FRESH' || (response.body as { queryId?: unknown }).queryId !== queryId)
+    throw new Error('Unexpected exact read response');
+  return result.data;
+}
+
 async function requestJson(
   path: string,
   init: RequestInit,

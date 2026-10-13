@@ -32,7 +32,11 @@ import { createAccessTokenVerifier } from './access-token.js';
 import { CORE_ERROR_CODE, WorkspaceCoreError, type CoreErrorCode } from './errors.js';
 import { peerAllowed } from './net.js';
 import { loadCoreTrustConfigFromEnv, type WorkspaceCoreTrustConfig } from './trust-config.js';
-import { createWorkspaceDispatch, type WorkspaceDispatch } from './dispatch.js';
+import {
+  createWorkspaceDispatch,
+  type WorkspaceDispatch,
+  type WorkspaceDispatchConfig,
+} from './dispatch.js';
 import type {
   WorkspaceHumanBootstrap,
   WorkspaceTransportRuntime,
@@ -235,7 +239,10 @@ function parseBoardPolicyRefs(raw: string): ReadonlyMap<string, Common.Versioned
  * `WorkspaceStartupError` with a safe code. The returned pools are owned by the
  * returned runtime for the process lifetime.
  */
-export function createWorkspaceCoreFromEnv(env: NodeJS.ProcessEnv): WorkspaceCoreRuntime {
+export function createWorkspaceCoreFromEnv(
+  env: NodeJS.ProcessEnv,
+  options: { markdown?: WorkspaceDispatchConfig['markdown'] } = {},
+): WorkspaceCoreRuntime {
   const loaded = loadCoreTrustConfigFromEnv(env);
   if (!loaded.ok) {
     throw new WorkspaceStartupError(loaded.code);
@@ -285,6 +292,7 @@ export function createWorkspaceCoreFromEnv(env: NodeJS.ProcessEnv): WorkspaceCor
 
   const verifier = createAccessTokenVerifier({ trustConfig });
   const dispatch: WorkspaceDispatch = createWorkspaceDispatch({
+    ...(options.markdown ? { markdown: options.markdown } : {}),
     identity: { db: identityDb, repo, crypto },
     enterpriseProjectDb,
     taskExecutionDb,
@@ -328,6 +336,7 @@ export function createWorkspaceCoreFromEnv(env: NodeJS.ProcessEnv): WorkspaceCor
         throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
       }
     },
+    streamMarkdown: (request) => dispatch.stream(request),
     dispatch: async (request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse> =>
       dispatch.execute(request),
   };

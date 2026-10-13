@@ -1107,7 +1107,256 @@ const namedDefinitions = {
   }),
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
+const { markdownReviewDefinitions, markdownReviewOperations } = (() => {
+  const common = 'https://schemas.zhiju.local/common/1.0#/$defs/';
+  const art = 'https://schemas.zhiju.local/modules/artifact/1.0#/$defs/';
+  const ref = (name: string) => ({ $ref: `${common}${name}` });
+  const local = (name: string) => ({ $ref: `${art}${name}` });
+  const list = (items: unknown) => ({ type: 'array', items });
+  const object = (required: string[], properties: Record<string, unknown>): JsonSchema => ({
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties,
+  });
+  const text = ref('nonEmptyString');
+  const hash = ref('contentHash');
+  const revision = {
+    allOf: [
+      ref('contentAddressedRef'),
+      {
+        type: 'object',
+        properties: {
+          objectType: { const: 'artifact.artifact_revision' },
+          scope: {
+            type: 'object',
+            required: ['enterpriseId', 'projectId'],
+            properties: { enterpriseId: ref('uuidV7'), projectId: ref('uuidV7') },
+          },
+        },
+      },
+    ],
+  };
+  const watermarks = list(ref('sourceWatermark'));
+  const locationProperties = {
+    revisionRef: revision,
+    unitId: text,
+    unitType: { enum: ['SECTION', 'PARAGRAPH', 'TABLE', 'TABLE_ROW', 'TABLE_CELL'] },
+    path: { ...list(text), minItems: 1 },
+    claimHash: hash,
+    tableUnitId: text,
+    rowUnitId: text,
+    columnId: text,
+  };
+  const location = local('fileReviewLocation');
+  const inputs = object(['toRevisionRef', 'baselineKind'], {
+    toRevisionRef: revision,
+    fromRevisionRef: revision,
+    baselineKind: { enum: ['REVISION', 'EMPTY_INITIAL'] },
+  });
+  const algorithm = object(['algorithmId', 'version'], {
+    algorithmId: { const: 'artifact.file_diff' },
+    version: { const: '1.0' },
+  });
+
+  const markdownReviewDefinitions = {
+    fileReviewLocation: {
+      ...object(['revisionRef', 'unitId', 'unitType', 'path', 'claimHash'], locationProperties),
+      allOf: [
+        {
+          if: { properties: { unitType: { const: 'TABLE_CELL' } } },
+          then: {
+            required: ['tableUnitId', 'rowUnitId', 'columnId'],
+            properties: { tableUnitId: text, rowUnitId: text, columnId: text },
+          },
+          else: {
+            not: {
+              anyOf: [
+                { required: ['tableUnitId'], properties: { tableUnitId: text } },
+                { required: ['rowUnitId'], properties: { rowUnitId: text } },
+                { required: ['columnId'], properties: { columnId: text } },
+              ],
+            },
+          },
+        },
+      ],
+    },
+    fileChangeEntry: {
+      ...object(['changeId', 'unitId', 'kind', 'chapterUnitIds', 'contextUnitIds'], {
+        changeId: hash,
+        unitId: text,
+        kind: { enum: ['ADDED', 'REMOVED', 'CHANGED', 'MOVED'] },
+        beforeLocation: location,
+        afterLocation: location,
+        beforeValue: local('markdownDocumentUnit'),
+        afterValue: local('markdownDocumentUnit'),
+        chapterUnitIds: list(text),
+        contextUnitIds: list(text),
+      }),
+      allOf: [
+        {
+          if: { properties: { kind: { enum: ['REMOVED', 'CHANGED', 'MOVED'] } } },
+          then: {
+            required: ['beforeLocation', 'beforeValue'],
+            properties: { beforeLocation: location, beforeValue: local('markdownDocumentUnit') },
+          },
+          else: { properties: { beforeLocation: false, beforeValue: false } },
+        },
+        {
+          if: { properties: { kind: { enum: ['ADDED', 'CHANGED', 'MOVED'] } } },
+          then: {
+            required: ['afterLocation', 'afterValue'],
+            properties: { afterLocation: location, afterValue: local('markdownDocumentUnit') },
+          },
+          else: { properties: { afterLocation: false, afterValue: false } },
+        },
+      ],
+    },
+    fileReviewContent: object(
+      [
+        'revisionRef',
+        'canonicalContentHash',
+        'profileRef',
+        'document',
+        'authoritativeIdentityMap',
+        'currentUsability',
+        'sourceWatermarks',
+      ],
+      {
+        revisionRef: revision,
+        canonicalContentHash: hash,
+        profileRef: ref('versionedRef'),
+        document: local('markdownDocument'),
+        authoritativeIdentityMap: local('markdownIdentityMap'),
+        currentUsability: { enum: ['USABLE', 'STALE', 'REVOKED'] },
+        sourceWatermarks: watermarks,
+      },
+    ),
+    fileChangeDirectory: object(
+      [
+        'exactInputs',
+        'algorithmRef',
+        'diffHash',
+        'totalChanges',
+        'changedUnitCount',
+        'filteredChanges',
+        'chapterGroups',
+        'entries',
+        'sourceWatermarks',
+      ],
+      {
+        exactInputs: inputs,
+        algorithmRef: algorithm,
+        diffHash: hash,
+        totalChanges: ref('nonNegativeInteger'),
+        changedUnitCount: ref('nonNegativeInteger'),
+        filteredChanges: ref('nonNegativeInteger'),
+        chapterGroups: list(
+          object(['unitId', 'title', 'changeCount'], {
+            unitId: text,
+            title: text,
+            changeCount: ref('nonNegativeInteger'),
+          }),
+        ),
+        entries: list(local('fileChangeEntry')),
+        nextCursor: ref('opaqueCursor'),
+        sourceWatermarks: watermarks,
+      },
+    ),
+    fileReviewLocationResolution: object(['originalLocation', 'resolution', 'reasonCodes'], {
+      originalLocation: location,
+      resolution: {
+        enum: ['UNCHANGED', 'MOVED', 'CHANGED', 'REMOVED', 'AMBIGUOUS', 'UNSUPPORTED'],
+      },
+      suggestedLocation: location,
+      reasonCodes: list(ref('reasonCode')),
+    }),
+    markdownDownload: object(
+      [
+        'representationRef',
+        'revisionRef',
+        'checksum',
+        'byteLength',
+        'mediaType',
+        'safeFilename',
+        'downloadTicket',
+        'expiresAt',
+      ],
+      {
+        representationRef: ref('representationRef'),
+        revisionRef: revision,
+        checksum: hash,
+        byteLength: { type: 'integer', minimum: 1, maximum: 10485760 },
+        mediaType: { const: 'text/markdown; charset=utf-8' },
+        safeFilename: { type: 'string', pattern: '^[A-Za-z0-9_-]+\\.md$', maxLength: 100 },
+        downloadTicket: { type: 'string', pattern: '^[A-Za-z0-9_-]{16,16384}$' },
+        expiresAt: ref('utcInstant'),
+      },
+    ),
+  } as const;
+
+  const markdownReviewOperations = {
+    'artifact.get_file_review_content': {
+      payload: object(['revisionRef'], { revisionRef: revision, location }),
+      result: local('fileReviewContent'),
+    },
+    'artifact.get_file_change_directory': {
+      payload: {
+        ...object(['toRevisionRef', 'baselineKind', 'filter', 'page'], {
+          toRevisionRef: revision,
+          fromRevisionRef: revision,
+          baselineKind: { enum: ['REVISION', 'EMPTY_INITIAL'] },
+          filter: object([], { chapterUnitId: text, text: { type: 'string', maxLength: 200 } }),
+          page: object(['limit'], {
+            limit: { type: 'integer', minimum: 1, maximum: 100 },
+            cursor: ref('opaqueCursor'),
+          }),
+        }),
+        allOf: [
+          {
+            if: { properties: { baselineKind: { const: 'REVISION' } } },
+            then: { required: ['fromRevisionRef'], properties: { fromRevisionRef: revision } },
+            else: {
+              not: { required: ['fromRevisionRef'], properties: { fromRevisionRef: revision } },
+            },
+          },
+        ],
+      },
+      result: local('fileChangeDirectory'),
+    },
+    'artifact.resolve_file_review_locations': {
+      payload: object(['fromRevisionRef', 'toRevisionRef', 'locations'], {
+        fromRevisionRef: revision,
+        toRevisionRef: revision,
+        locations: { ...list(location), minItems: 1, maxItems: 100 },
+      }),
+      result: object(['items', 'sourceWatermarks'], {
+        items: list(local('fileReviewLocationResolution')),
+        sourceWatermarks: watermarks,
+      }),
+    },
+    'artifact.register_markdown_representation': {
+      payload: object(['revisionRef', 'renderAttemptRef'], {
+        revisionRef: revision,
+        renderAttemptRef: ref('objectRef'),
+      }),
+      result: object(['representationRef', 'registrationRef', 'receiptRef'], {
+        representationRef: ref('representationRef'),
+        registrationRef: ref('contentAddressedRef'),
+        receiptRef: ref('objectRef'),
+      }),
+    },
+    'artifact.get_markdown_download': {
+      payload: object(['representationRef'], { representationRef: ref('representationRef') }),
+      result: local('markdownDownload'),
+    },
+  } as const;
+
+  return { markdownReviewDefinitions, markdownReviewOperations };
+})();
+
 const operationSchemas = {
+  ...markdownReviewOperations,
   'artifact.create_execution_revision': {
     payload: {
       type: 'object',
@@ -1585,5 +1834,5 @@ export const artifactOperationContracts = Object.freeze(
 export const artifactSchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $defs: { ...namedDefinitions, ...operationDefinitions },
+  $defs: { ...namedDefinitions, ...markdownReviewDefinitions, ...operationDefinitions },
 } as const satisfies JsonSchema;

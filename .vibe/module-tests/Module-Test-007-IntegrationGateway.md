@@ -277,3 +277,7 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-MF-004-T3 / 跨模块 round-trip | 已检入 procurement 快照与全部聚焦 fixture | ART `verifyMarkdownRoundTrip` 对 renderer 输出重新 `parse`，tree/身份/cv1 Hash 相等；不一致返回 `ARTIFACT_MARKDOWN_LOSSY` | 已执行 / PASS（`ART-MF-006-T2` 同批证据） |
 
 未执行：`request_markdown_suggestion_intake@1.0`、`get_markdown_suggestion_intake@1.0`、`request_markdown_render@1.0`、`get_markdown_render_binding@1.0`、原输出观察、Attempt/Binding/Representation 接线、真实 Host/Provider/object store/HTTP/browser 与人工验收。
+
+## Markdown Attempt / Binding 技术验收（#279）
+
+`tests/persistence/markdown-review.test.ts` 承担 IG-MF-004 的本切片：实际 FROZEN Canonical→确定性 renderer→原 output/receipt staging/readback→ART round-trip→finalize→RawReceipt/Binding→登记。验证同 key 原 Receipt 重放、错误 renderer digest/original operation、failed/late 无成功 Binding、finalize UNKNOWN、显式恢复原 Attempt/对象版本/Receipt 以及当前 Service 撤权。旧 renderer/Representation 回归仍由原 persistence suite 验证。生产外部 Host/Renderer/Ceph/OpenBao 为 NOT RUN。

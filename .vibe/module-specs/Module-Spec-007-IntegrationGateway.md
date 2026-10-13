@@ -462,14 +462,14 @@ final outputs 保存原 JSON/Markdown/提取件 bytes 和 bounded immutable obse
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。所有业务清单/资格/许可只由 [REL §14](Module-Spec-006-ReleasePublication.md#14-d12--q11-项目交付批次与受控导出提案260) 拥有，不增加客户发送能力，不修改现有PublicationReceipt来源链。
 
-1. 拟additive登记精确Markdown Renderer profile（document.markdown / text/markdown / UTF-8），按ART D12受支持的完整STRUCTURED_DOCUMENT输出，沿既有request_render/RenderAttempt/Binding/RawReceipt。未登记rendererId/version、未知required结构或input/output绑定不一致均在成功登记前拒绝；现有OOXML profile不扩成任意格式/Runtime。
+1. Markdown Renderer 采用已批准 ART §13.5 / #259 的 `zhiju.markdown` / `text/markdown; charset=utf-8`，只经新 `integration.request_markdown_render@1.0` / `integration.get_markdown_render_binding@1.0` 与 `artifact.register_markdown_representation@1.0` 路径。旧 `request_render@1.0` / OOXML 接受集不变；本条早期 `document.markdown` 简写不构成第二种格式。未登记 rendererId/version、未知 required 结构或 input/output 绑定不一致均在成功登记前拒绝。D12 批次能力仍独立保持未实现。
 2. 受控ZIP技术Port只接受已提交REL PackageRequest/Batch的精确输入和稳定Attempt identity；IG或存储Adapter只能报告staging/readback/finalize/UNKNOWN。生成清单、来源checksum、entry路径及ZIP版本遵守REL冻结输入，不能自行拼候选或改Manifest。lease/fence过期不能返回可晋升AVAILABLE的结果；UNKNOWN按同Attempt/object/version重读，不以新键盲目重建。
 3. 对象存储写入与REL业务Link分开；API/BFF不直连存储，Adapter不写REL/QMS/ART Repository。原对象bytes/media/大小/version/CRC/checksum均须权威回读，URL/Token/raw Provider诊断不进入公开事件、日志或Descriptor。合法孤儿清理须先确认无业务reverse Link及满足retention/legal hold Policy。
 4. Browser/服务器流响应不是formal Adapter Attempt + ExternalDeliveryRequest +成功RawReceipt链；不得调用record_publication_receipt，不产生PublicationSucceeded/ReleaseCompleted。真实HTTP/Renderer/对象存储/download和人工交付验收均NOT RUN，技术Attempt不拥有业务完成解释权。
 
 ## Markdown 建议、生成原输出与渲染提案（#259）
 
-状态：T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED。仅传输/外部Attempt与真实原观察属于IG；业务意图属于TE，Canonical/Revision/Representation属于ART。支持边界见 [Markdown Delta](../decisions/markdown-file-feedback.md)，不扩展D14分析或已交付synthetic Runtime接口。
+状态：T2 / APPROVED DESIGN；两项 Markdown render/binding 已由 #279 登记并实现，其余仍 PROPOSED / NOT IMPLEMENTED。仅传输/外部Attempt与真实原观察属于IG；业务意图属于TE，Canonical/Revision/Representation属于ART。支持边界见 [Markdown Delta](../decisions/markdown-file-feedback.md)，不扩展D14分析或已交付synthetic Runtime接口。
 
 | 拟操作 / mode | closed payload | closed data / purpose |
 |---|---|---|
@@ -494,10 +494,21 @@ Markdown render由已提交RenderAttempt读取exact ART FROZEN Canonical，固�
 
 ## 已实现的确定性 Markdown Renderer（#270）
 
-状态：`T2 / IMPLEMENTED (#270) / SCOPE: 确定性渲染库`。本节只记录 #270 实际交付的 renderer；上文 #259 的 `integration.request_markdown_suggestion_intake@1.0`、`get_markdown_suggestion_intake@1.0`、`request_markdown_render@1.0`、`get_markdown_render_binding@1.0`、原输出观察与任何 Attempt/Receipt/Representation 接线仍为 `NOT IMPLEMENTED / NOT RUN`，旧 `integration.request_render@1.0` 的 `{request:RenderRequest}` 接受集与旧 worker 不变。
+状态：`T2 / IMPLEMENTED (#270) / SCOPE: 确定性渲染库`。本节只记录 #270 实际交付的 renderer；上文 #259 的建议 intake、原生成输出观察仍为 `NOT IMPLEMENTED / NOT RUN`；Markdown RenderAttempt/Binding 的当前实现见下文 #279，旧 `integration.request_render@1.0` 的 `{request:RenderRequest}` 接受集与旧 worker 不变。
 
-- 已实现 profile：`MARKDOWN_RENDERER_PROFILE`，`outputFormat: zhiju.markdown`、`rendererId: zhiju.renderer.markdown.canonical`、`rendererVersion: 1.0.0`、`mediaType: text/markdown; charset=utf-8`、`contentType: STRUCTURED_DOCUMENT`。当前未登记为注册 selector，也未接入任何 Attempt/Binding。
+- 已实现 profile：`MARKDOWN_RENDERER_PROFILE`，`outputFormat: zhiju.markdown`、`rendererId: zhiju.renderer.markdown.canonical`、`rendererVersion: 1.0.0`、`mediaType: text/markdown; charset=utf-8`、`contentType: STRUCTURED_DOCUMENT`。不新增策略 selector；#279 已将此固定实现接入专用 Markdown Attempt/Binding。
 - 已实现入口：`renderMarkdownDocument(content)` 与 `renderMarkdownInline(text, spans)`。输入必须是封闭 `artifact.markdown_document.schema@1.0` payload（先经 `validateMarkdownDocumentContent`），否则 `INTEGRATION_RENDER_INPUT_MISMATCH`；无法在 canonical Markdown 表达的输入（例如前导空白）返回 `INTEGRATION_MARKDOWN_RENDER_INVALID`，不静默降级。
 - 确定性契约：固定 LF 行尾、固定转义（``\ ` * | < > # = ~`` 与行首 marker，以及会读回成链接/图片/脚注的 `[^`/`](`/`![` 序列和 checkbox 样式列表项）、固定列表 marker（ORDERED 用 `orderedMarker`，UNORDERED 用 `-`）、固定三连字符分隔行与单空格 cell padding；同一 canonical tree 两次渲染字节与 checksum 相同。
 - round-trip 边界：renderer 不解析、不校验身份；`parse(render(tree), authoritativeIdentityMap) = tree` 由 ART 的 `verifyMarkdownRoundTrip` 独立断言，任何差异拒整份文件。
 - 已执行证据：见 [Module-Test-007 已实现子用例](../module-tests/Module-Test-007-IntegrationGateway.md#已实现的-markdown-renderer-技术子用例270) 与 [Module-Test-004](../module-tests/Module-Test-004-Artifact.md#已实现的-markdown-技术子用例270)；真实 Host/Provider/object store/HTTP/browser/人工仍 `NOT RUN`。
+
+
+## 已实现的 Markdown RenderAttempt / Binding（#279）
+
+`integration.request_markdown_render@1.0` 与 `integration.get_markdown_render_binding@1.0` 已登记。新操作使用上述 flat closed payload，原 `request_render@1.0` 的格式集、包装、worker 和旧 Binding 保持独立。两类 Attempt 不能互相消费。
+
+请求先在 IG 同一事务提交原 Command Receipt、Attempt 与 Audit，再执行确定性渲染。Attempt 持久化 `original_operation`/`source_command_id`，Binding 从 owning 原 Receipt/请求/hash 读取；不接受 caller 自报 originalOperation。只有显式允许的 SERVICE Principal 能取得每个 purpose 的当前 IP Decision；Canonical 读与 ART 独立 round-trip 通过受权 owning Port 完成。
+
+每个 Attempt 只能插入一次 immutable `markdown_render_work`。实际输出和原 receipt bytes 均 staging/readback；完整 round-trip 成功且在原 deadline 内的 observation 保存到 `markdown_render_output`，随后 finalize，最后提交 RawReceipt、SUCCEEDED 与 Outbox。异步操作有时间界限；超时、finalize/外部结果不确定保持 UNKNOWN。恢复显式查询原 Attempt，复用已持久化的对象版本与原 receipt，重新读回校验并完成 finalize；无合法原 observation 不重启渲染，不新建 Attempt 替代。FAILED/late 不能恢复成功。数据库只允许原命令、scope/hash 与输出观察一致的成功状态，app 不能 UPDATE/DELETE 原材料。
+
+确定性 profile/renderer digest/identity map、实际 output sha256/byteLength、完整 Canonical round-trip hash 进入 `markdownValidation`。成功字段只允许 SUCCEEDED；其余状态没有可登记的表示。真实生产 Ceph/OpenBao、外部 Renderer/Host 仍为 NOT RUN；受控 PostgreSQL/对象存储与公共 HTTP/Browser 技术验收见 Module-Test-007 与 UI01。

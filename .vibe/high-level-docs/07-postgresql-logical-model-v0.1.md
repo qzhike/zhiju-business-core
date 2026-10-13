@@ -2553,3 +2553,10 @@ OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中�
 | quality_governance / 现有Evidence/Issue/Gate/Approval | 无Feedback新表；原问题/来源不可变、新候选不自动Close/Approved，当前impact另追加，不回写历史 |
 
 跨owner仅exact TypedReference/受权Port，禁止跨Schema FK/SQL、共享Repository或单事务多Root；所有新记录通过owning function+RLS/ACL/immutable guard，私稿还核作者身份。原文/附件引用属于权限裁剪的敏感数据，不写普通日志/Event；retention/legal hold控制清理，清空草稿是新snapshot不删除提交历史。后续真实PostgreSQL/full需验证CAS/唯一占用/作者隔离/撤权/partial/recovery/fault和既有升级回归，当前NOT RUN。
+
+
+## Markdown Render / Representation 增量（#279）
+
+`V7018__markdown_render_binding.sql`：IG `render_attempt` 增加 original operation 与实际 source Command Receipt；旧行默认 `integration.request_render`。新 `markdown_render_work` 保存唯一原工作窗口，`markdown_render_output` 保存 immutable 实际对象版本/原 receipt 对象版本、完整 round-trip validation 与 observedAt。两表强制 Project RLS，app 仅 SELECT/INSERT；原命令/Scope/hash 与及时观察不一致不能转 SUCCEEDED。已有终态/过渡函数与技术 Receipt/Outbox 继续承担事务原子性。
+
+`V7019__markdown_representation.sql`：ART 表示格式允许精确 `zhiju.markdown`/`text/markdown; charset=utf-8`，Validation 允许新 Binding operation。旧登记函数拒绝 Markdown；新 `register_markdown_representation` 只接受原 PENDING Markdown 登记 Receipt、当前 FROZEN Revision 和原成功 Binding 的精确身份，以原 Attempt 保持唯一/幂等。PDF/DOCX/XLSX 原接受集不变。无客户发送/审批/Gate 或业务完成状态新增。

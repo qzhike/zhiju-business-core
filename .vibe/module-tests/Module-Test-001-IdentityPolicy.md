@@ -428,3 +428,7 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-MF-002 / MF-09同Human两设备、另一Human/Project Admin/Agent/Runtime/Service/actingFor读写私稿与pending快照 | 私稿仅同trusted Human+精确Scope/base，其他主体protected read=0、masked不可见；Project read权限不泄露草稿 | 未执行 / NOT RUN |
 | IP-MF-003 / MF-04/05伪Actor、跨Scope location/suggestion、ticket猜测/过期/撤权及stream中途失权 | Browser字段不造Human；精确bytes/read与文件generation/write分权，token不赋权，流终止且无假下载成功，旧history不改 | 未执行 / NOT RUN |
 | IP-MF-004 / 无Root/Revision的Human prepare/get与合法TE/ART SERVICE；失权/错Scope/plan/map/proposal Hash、错service/profile及Agent actingFor | Human同完整file/plan/源/模板/保护读权与服务自身Decision分别成立，服务许可不提升Human读取；拒绝在protected reads前且不泄露proposal，get不写入；Human-only prepare/get/submit/constraints/Approval拒Agent，即使actingFor | 未执行 / NOT RUN |
+
+## Markdown 当前授权技术验收（#279）
+
+`tests/persistence/markdown-review.test.ts` 通过真实 IP Repository/ActorSnapshot/Decision/Grant 执行四个 Human 与三个 SERVICE purpose，验证同 Session 稳定 watermark、跨 Project/Session 不复用 cursor/ticket、下载撤权和 Service Binding 撤权。`workspace-built-browser.test.ts` 的 #279 用例经真实 OIDC/BFF/Core 当前身份读取；Browser 无 SERVICE producer 路由。

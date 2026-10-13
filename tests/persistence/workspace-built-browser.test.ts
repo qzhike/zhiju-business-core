@@ -27,14 +27,21 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { provisionMarkdownReview, type MarkdownFixture } from './markdown-review-fixtures.js';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { NestFactory } from '../../apps/api/node_modules/@nestjs/core/index.js';
 import { FastifyAdapter } from '../../apps/api/node_modules/@nestjs/platform-fastify/index.js';
 import fastify from '../../apps/api/node_modules/fastify/fastify.js';
-import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Request as BrowserRequest,
+} from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../../apps/api/src/app.module.js';
@@ -88,6 +95,7 @@ interface ArtifactServer {
 }
 
 interface BuiltBrowserStack {
+  readonly markdown?: MarkdownFixture;
   readonly provider: FakeOidcProvider;
   readonly workspace: ProvisionedWorkspace;
   /** The browser-facing origin of the built SPA artifact server. */
@@ -196,7 +204,7 @@ async function startArtifactServer(input: {
   };
 }
 
-async function startBuiltStack(): Promise<BuiltBrowserStack> {
+async function startBuiltStack(withMarkdown = false): Promise<BuiltBrowserStack> {
   if (databaseUrl === undefined) {
     throw new Error('ZJU_PERSISTENCE_DATABASE_URL is required for the built-artifact journey');
   }
@@ -240,16 +248,34 @@ async function startBuiltStack(): Promise<BuiltBrowserStack> {
   };
   const rawDocument = JSON.stringify(document);
 
+  const workspace = await provisionTrustedWorkspace({
+    databaseUrl,
+    lookupKey: Buffer.from(LOOKUP_KEY_HEX, 'hex'),
+    fieldKey: Buffer.from(FIELD_KEY_HEX, 'hex'),
+    issuer: provider.issuer,
+  });
+  const markdown = withMarkdown
+    ? await provisionMarkdownReview({
+        databaseUrl,
+        workspace,
+        lookupKey: Buffer.from(LOOKUP_KEY_HEX, 'hex'),
+        fieldKey: Buffer.from(FIELD_KEY_HEX, 'hex'),
+      })
+    : undefined;
+
   // The real Core workspace runtime; no Task Board policy is deployed, so the
   // Task Board read fails closed with 503 instead of inventing a page.
-  const runtime = createWorkspaceCoreFromEnv({
-    ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument,
-    ZHIJU_WORKSPACE_DATABASE_URL: databaseUrl,
-    ZHIJU_WORKSPACE_IDENTITY_LOOKUP_KEY: LOOKUP_KEY_HEX,
-    ZHIJU_WORKSPACE_IDENTITY_FIELD_KEY: FIELD_KEY_HEX,
-    ZHIJU_WORKSPACE_BOARD_CURSOR_KEY: CURSOR_KEY_HEX,
-    ZHIJU_WORKSPACE_BOARD_POLICY_REFS: '{}',
-  });
+  const runtime = createWorkspaceCoreFromEnv(
+    {
+      ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument,
+      ZHIJU_WORKSPACE_DATABASE_URL: databaseUrl,
+      ZHIJU_WORKSPACE_IDENTITY_LOOKUP_KEY: LOOKUP_KEY_HEX,
+      ZHIJU_WORKSPACE_IDENTITY_FIELD_KEY: FIELD_KEY_HEX,
+      ZHIJU_WORKSPACE_BOARD_CURSOR_KEY: CURSOR_KEY_HEX,
+      ZHIJU_WORKSPACE_BOARD_POLICY_REFS: '{}',
+    },
+    markdown ? { markdown } : {},
+  );
   const server = fastify({ logger: false, bodyLimit: WORKSPACE_BODY_LIMIT_BYTES });
   const adapter = new FastifyAdapter(server);
   const coreApp = await NestFactory.create(AppModule.register(runtime), adapter, { logger: false });
@@ -265,12 +291,6 @@ async function startBuiltStack(): Promise<BuiltBrowserStack> {
   });
   await bffApp.listen(bffPort, '127.0.0.1');
 
-  const workspace = await provisionTrustedWorkspace({
-    databaseUrl,
-    lookupKey: Buffer.from(LOOKUP_KEY_HEX, 'hex'),
-    fieldKey: Buffer.from(FIELD_KEY_HEX, 'hex'),
-    issuer: provider.issuer,
-  });
   const artifactServer = await startArtifactServer({ port: webPort, bffOrigin });
 
   console.log(
@@ -281,6 +301,7 @@ async function startBuiltStack(): Promise<BuiltBrowserStack> {
   return {
     provider,
     workspace,
+    ...(markdown ? { markdown } : {}),
     webOrigin: artifactServer.origin,
     bffOrigin,
     coreOrigin,
@@ -288,6 +309,7 @@ async function startBuiltStack(): Promise<BuiltBrowserStack> {
       await artifactServer.stop();
       await bffApp.close();
       await coreApp.close();
+      await markdown?.close();
       await workspace.close();
       await provider.stop();
     },
@@ -470,3 +492,405 @@ describe.skipIf(!databaseUrl)(
     }, 120_000);
   },
 );
+
+describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () => {
+  let stack: BuiltBrowserStack;
+  let browser: Browser;
+  let context: BrowserContext;
+  let page: Page;
+  beforeAll(async () => {
+    stack = await startBuiltStack(true);
+    browser = await chromium.launch({ headless: true });
+    context = await browser.newContext({ viewport: VIEWPORT, acceptDownloads: true });
+    page = await context.newPage();
+  }, 180_000);
+  afterAll(async () => {
+    await context.close();
+    await browser.close();
+    await stack.stop();
+  }, TEARDOWN_TIMEOUT_MS);
+  it('opens the exact link, visits all 36 changes, searches 9 chapters and downloads identical registered bytes twice', async () => {
+    const fixture = requiredValue(stack.markdown);
+    const transportErrors: string[] = [];
+    const downloadHeaders: Record<string, string>[] = [];
+    page.on('response', (response) => {
+      if (response.status() >= 400 || response.url().includes('markdown'))
+        transportErrors.push(`${response.status()} ${new URL(response.url()).pathname}`);
+      if (
+        response.status() === 200 &&
+        new URL(response.url()).pathname.startsWith('/api/markdown-representations/')
+      )
+        downloadHeaders.push(response.headers());
+    });
+    await page.goto(`${stack.webOrigin}${fixture.link}`);
+    await page.getByRole('link', { name: '使用企业账号登录' }).click();
+    try {
+      await page
+        .getByRole('heading', { name: '采购控制程序', exact: true })
+        .waitFor({ timeout: 30_000 });
+    } catch (error) {
+      throw new Error(
+        `Markdown entry failed: ${(await page.locator('body').innerText()).slice(0, 700)}; ${transportErrors.join(', ')}`,
+        { cause: error },
+      );
+    }
+    const directory = page.getByRole('complementary', { name: '变化目录' });
+    expect(await directory.locator('details').count()).toBe(9);
+    expect(await directory.innerText()).toContain('36');
+    const note = page.getByRole('textbox', { name: '意见草稿' });
+    await note.fill('核对采购凭证；这是未提交的本页记录。');
+    const directoryUrl = new URL(
+      '/bff/queries/artifact.get_file_change_directory/1.0',
+      stack.webOrigin,
+    );
+    let failOneContinuation = true;
+    const failFirstContinuation = (url: URL) =>
+      url.origin === stack.webOrigin && url.pathname === directoryUrl.pathname;
+    await page.route(failFirstContinuation, async (route) => {
+      const envelope = JSON.parse(route.request().postData() ?? '{}') as {
+        payload?: { page?: { cursor?: unknown } };
+      };
+      if (envelope.payload?.page?.cursor && failOneContinuation) {
+        failOneContinuation = false;
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'DEPENDENCY_UNAVAILABLE', retryable: true, correlationId: null },
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    const loadedCount = async () => {
+      const text = await directory.locator(':scope > small').innerText();
+      const match = /已加载 (\d+) \/ 36/u.exec(text);
+      return match ? Number(match[1]) : 0;
+    };
+    const waitForPageChange = async (prior: number) =>
+      expect.poll(loadedCount, { timeout: 5_000 }).toBeGreaterThan(prior);
+    const firstPage = await loadedCount();
+    await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+    const paginationStatus = directory.getByRole('status');
+    await paginationStatus.waitFor({ state: 'visible' });
+    expect(await paginationStatus.innerText()).toContain('意见草稿已保留');
+    expect(await note.inputValue()).toContain('未提交');
+    expect(await page.getByRole('heading', { name: '采购控制程序', exact: true }).isVisible()).toBe(
+      true,
+    );
+    await page.unroute(failFirstContinuation);
+    await page.getByRole('button', { name: '重试加载变化', exact: true }).click();
+    await waitForPageChange(firstPage);
+    while (await page.getByRole('button', { name: '继续加载变化', exact: true }).count()) {
+      const prior = await loadedCount();
+      await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+      await waitForPageChange(prior);
+    }
+    expect(await loadedCount()).toBe(36);
+    for (let n = 1; n <= 36; n++) {
+      expect(await page.locator('.markdown-change').innerText()).toContain(`第 ${n} / 36 处`);
+      expect(await page.locator('.markdown-after').innerText()).toContain('更新要求');
+      if (n < 36) await page.getByRole('button', { name: '下一处变化' }).click();
+    }
+    expect(await note.inputValue()).toContain('未提交');
+    await page.getByRole('searchbox', { name: '搜索章节' }).fill('5 采购');
+    expect(await directory.locator('details').count()).toBe(1);
+    await directory.locator('details button').first().click();
+    expect(await page.locator('.markdown-change').innerText()).toContain('第 17 / 36 处');
+    await page.getByRole('searchbox', { name: '搜索章节' }).fill('');
+    await page.getByRole('button', { name: '查看全文' }).click();
+    const table = page.getByRole('region', { name: '完整表格，可横向滚动' });
+    expect(await table.locator('th').count()).toBe(12);
+    expect(await table.locator('tbody tr').first().locator('td').count()).toBe(12);
+    expect(await table.locator('td').nth(0).innerText()).toBe('0');
+    expect(await table.locator('td').nth(1).innerText()).toBe('');
+    expect(await table.locator('td').last().innerText()).toBe('最后一列完整');
+    expect(await page.getByRole('button', { name: '提交并修改 · 暂不可用' }).isDisabled()).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: join(screenshotDirectory, 'wi279-markdown-review.png'),
+      fullPage: true,
+    });
+    const bytes: Buffer[] = [];
+    const streamPath = `/api/markdown-representations/${fixture.representationRef.representationId}/content`;
+    const streamUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === streamPath;
+    await page.route(streamUrl, async (route) => {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
+    await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
+    await expect
+      .poll(async () => (await page.locator('.markdown-download-status').textContent()) ?? '')
+      .toContain('精确版本仍可读取');
+    expect(await note.inputValue()).toContain('未提交');
+    expect(await page.getByRole('heading', { name: '采购控制程序', exact: true }).isVisible()).toBe(
+      true,
+    );
+    await page.unroute(streamUrl);
+    for (let n = 0; n < 2; n++) {
+      const downloaded = page.waitForEvent('download');
+      await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
+      const download = await downloaded.catch(async (cause: unknown) => {
+        throw new Error(
+          `Markdown download failed: ${(await page.locator('body').innerText()).slice(-900)}; ${transportErrors.join(', ')}`,
+          { cause },
+        );
+      });
+      expect(download.suggestedFilename()).toMatch(/^document-[a-f0-9-]+\.md$/u);
+      const path = await download.path();
+      if (!path) throw new Error('Download file missing');
+      bytes.push(readFileSync(path));
+    }
+    expect(bytes[0]).toEqual(bytes[1]);
+    expect(downloadHeaders).toHaveLength(2);
+    for (const headers of downloadHeaders) {
+      expect(headers['cache-control']).toContain('no-store');
+      expect(headers['x-content-type-options']).toBe('nosniff');
+      expect(headers['content-type']).toBe('text/markdown; charset=utf-8');
+      expect(headers['content-disposition']).toMatch(
+        /^attachment; filename="document-[a-f0-9-]+\.md"$/u,
+      );
+    }
+    expect(createHash('sha256').update(requiredValue(bytes[0])).digest('hex')).toBe(
+      fixture.representationRef.checksum.digest,
+    );
+    expect(await note.inputValue()).toContain('未提交');
+    const html = await page.content();
+    expect(html).not.toContain(SUBJECT_EXTERNAL_ID);
+    expect(html).not.toContain(CLIENT_SECRET);
+    expect(html).not.toContain('downloadTicket');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const downloadBounds = requiredValue(
+      await page.getByRole('button', { name: '下载 Markdown', exact: true }).boundingBox(),
+    );
+    const tabBounds = requiredValue(
+      await page.getByRole('button', { name: '阅读文件', exact: true }).boundingBox(),
+    );
+    expect(downloadBounds.y + downloadBounds.height).toBeLessThanOrEqual(tabBounds.y);
+    await page.getByRole('button', { name: '本文件意见', exact: true }).click();
+    expect(await note.isVisible()).toBe(true);
+    expect(await note.inputValue()).toContain('未提交');
+    await page.screenshot({
+      path: join(screenshotDirectory, 'wi279-markdown-mobile.png'),
+      fullPage: true,
+    });
+    await page.setViewportSize(VIEWPORT);
+    await note.fill('');
+  }, 120_000);
+  it('clears the comparison when only the baseline is denied and recovers only on explicit retry', async () => {
+    const fixture = requiredValue(stack.markdown);
+    const contentPath = '/bff/queries/artifact.get_file_review_content/1.0';
+    const directoryPath = '/bff/queries/artifact.get_file_change_directory/1.0';
+    const contentUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === contentPath;
+    const directoryUrl = (url: URL) =>
+      url.origin === stack.webOrigin && url.pathname === directoryPath;
+    let denyBaseline = false;
+    const probes: string[] = [];
+    const requests = { session: 0, content: 0, directory: 0 };
+    const track = (request: BrowserRequest) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/bff/session') requests.session += 1;
+      if (path === contentPath) requests.content += 1;
+      if (path === directoryPath) requests.directory += 1;
+    };
+    page.on('request', track);
+    await page.route(contentUrl, async (route) => {
+      const envelope = JSON.parse(route.request().postData() ?? '{}') as {
+        payload: { revisionRef: { objectId: string } };
+      };
+      if (denyBaseline) probes.push(envelope.payload.revisionRef.objectId);
+      if (
+        denyBaseline &&
+        envelope.payload.revisionRef.objectId === fixture.from.revisionRef.objectId
+      ) {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      } else {
+        await route.continue();
+      }
+    });
+    try {
+      await page.goto(`${stack.webOrigin}${fixture.link}`);
+      await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      const note = page.getByRole('textbox', { name: '意见草稿' });
+      await note.fill('基线失权后必须清除的本页意见。');
+      expect(await page.locator('.markdown-before').innerText()).toContain('原有要求');
+      denyBaseline = true;
+      await page.route(directoryUrl, async (route) => {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+      });
+      await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
+      const retry = page.getByRole('button', { name: '重新读取文件', exact: true });
+      await retry.waitFor();
+      await note.waitFor({ state: 'detached' });
+      expect(probes).toEqual([fixture.to.revisionRef.objectId, fixture.from.revisionRef.objectId]);
+      const body = await page.locator('body').innerText();
+      expect(body).not.toContain('原有要求');
+      expect(body).not.toContain('更新要求');
+      expect(body).not.toContain('基线失权后必须清除');
+      const stopped = { ...requests };
+      await page.waitForTimeout(500);
+      expect(requests).toEqual(stopped);
+      await retry.click();
+      await expect.poll(() => probes.length).toBe(4);
+      await retry.waitFor();
+      expect(probes).toEqual([
+        fixture.to.revisionRef.objectId,
+        fixture.from.revisionRef.objectId,
+        fixture.to.revisionRef.objectId,
+        fixture.from.revisionRef.objectId,
+      ]);
+      const retried = { ...requests };
+      await page.waitForTimeout(500);
+      expect(requests).toEqual(retried);
+      denyBaseline = false;
+      await page.unroute(directoryUrl);
+      await retry.click();
+      await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      expect(await page.getByRole('textbox', { name: '意见草稿' }).inputValue()).toBe('');
+    } finally {
+      page.off('request', track);
+      await page.unroute(contentUrl);
+      await page.unroute(directoryUrl);
+    }
+  }, 30_000);
+  it.each([401, 403, 404])(
+    'stops persistent %i reads with the same ALLOWED session until explicit retry',
+    async (status) => {
+      const fixture = requiredValue(stack.markdown);
+      const contentPath = '/bff/queries/artifact.get_file_review_content/1.0';
+      const contentUrl = (url: URL) =>
+        url.origin === stack.webOrigin && url.pathname === contentPath;
+      const readSession = () =>
+        page.evaluate(async () => {
+          const session = (await (await fetch('/bff/session', { cache: 'no-store' })).json()) as {
+            accessState: string;
+            sessionGeneration: string;
+          };
+          return { accessState: session.accessState, sessionGeneration: session.sessionGeneration };
+        });
+      const before = await readSession();
+      expect(before.accessState).toBe('ALLOWED');
+      const requests = { session: 0, content: 0 };
+      const track = (request: BrowserRequest) => {
+        const path = new URL(request.url()).pathname;
+        if (path === '/bff/session') requests.session += 1;
+        if (path === contentPath) requests.content += 1;
+      };
+      page.on('request', track);
+      await page.route(contentUrl, async (route) => {
+        await route.fulfill({ status, contentType: 'application/json', body: '{}' });
+      });
+      try {
+        await page.goto(`${stack.webOrigin}${fixture.link}`);
+        const retry = page.getByRole('button', {
+          name: status === 401 ? '重新检查会话' : '重新读取文件',
+          exact: true,
+        });
+        await retry.waitFor();
+        expect(await page.locator('.canonical-document').count()).toBe(0);
+        expect(await page.getByRole('textbox', { name: '意见草稿' }).count()).toBe(0);
+        expect(await readSession()).toEqual(before);
+        expect(requests.content).toBe(1);
+        const stopped = { ...requests };
+        await page.waitForTimeout(500);
+        expect(requests).toEqual(stopped);
+        await retry.click();
+        await expect.poll(() => requests.content).toBe(2);
+        await retry.waitFor();
+        const retried = { ...requests };
+        await page.waitForTimeout(500);
+        expect(requests).toEqual(retried);
+        await page.unroute(contentUrl);
+        await retry.click();
+        await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+      } finally {
+        page.off('request', track);
+        await page.unroute(contentUrl);
+      }
+    },
+    30_000,
+  );
+  it('refuses cross-scope and unregistered Service routes, and clears content after permission revocation', async () => {
+    const fixture = requiredValue(stack.markdown);
+    const results = await page.evaluate(
+      async ({ projectId, revisionRef }) => {
+        const session = (await (await fetch('/bff/session', { cache: 'no-store' })).json()) as {
+          csrfToken: string;
+        };
+        const headers = { 'content-type': 'application/json', 'x-csrf-token': session.csrfToken };
+        const scope = { ...revisionRef.scope, projectId };
+        const read = await fetch('/bff/queries/artifact.get_file_review_content/1.0', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            queryId: '019aaa00-0000-7000-8000-000000000279',
+            type: 'artifact.get_file_review_content',
+            version: '1.0',
+            scopeRef: scope,
+            consistencyRequirement: 'AUTHORITATIVE',
+            correlationId: '019aaa00-0000-7000-8000-000000000280',
+            requestedAt: new Date().toISOString(),
+            payload: { revisionRef: { ...revisionRef, scope } },
+          }),
+        });
+        const service = await fetch('/bff/commands/integration.request_markdown_render/1.0', {
+          method: 'POST',
+          headers,
+          body: '{}',
+        });
+        return { read: read.status, service: service.status };
+      },
+      { projectId: newUuidV7(), revisionRef: fixture.to.revisionRef },
+    );
+    expect([403, 404]).toContain(results.read);
+    expect([400, 404]).toContain(results.service);
+    await page.goto(`${stack.webOrigin}${fixture.link}`);
+    await page.getByRole('heading', { name: '采购控制程序', exact: true }).waitFor();
+    const note = page.getByRole('textbox', { name: '意见草稿' });
+    await note.fill('仅在本页保留，撤权后需要清除。');
+    const streamPath = `/api/markdown-representations/${fixture.representationRef.representationId}/content`;
+    const streamUrl = (url: URL) => url.origin === stack.webOrigin && url.pathname === streamPath;
+    await page.route(streamUrl, async (route) => {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
+    await fixture.revoke('artifact.get_file_review_content');
+    await page.getByRole('button', { name: '下载 Markdown', exact: true }).click();
+    await page.getByRole('heading', { name: '文件检查', exact: true }).waitFor();
+    await note.waitFor({ state: 'detached' });
+    expect(await page.locator('body').innerText()).not.toContain('撤权后需要清除');
+    expect(await page.locator('body').innerText()).not.toContain('更新要求');
+    const session = await page.evaluate(
+      async () =>
+        (await (await fetch('/bff/session', { cache: 'no-store' })).json()) as {
+          accessState: string;
+        },
+    );
+    expect(session.accessState).toBe('ALLOWED');
+    const requests = { session: 0, content: 0 };
+    const track = (request: BrowserRequest) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/bff/session') requests.session += 1;
+      if (path === '/bff/queries/artifact.get_file_review_content/1.0') requests.content += 1;
+    };
+    page.on('request', track);
+    try {
+      await page.waitForTimeout(500);
+      expect(requests).toEqual({ session: 0, content: 0 });
+      await page.getByRole('button', { name: '重新读取文件', exact: true }).click();
+      await expect.poll(() => requests.content).toBe(1);
+      await page.getByRole('button', { name: '重新读取文件', exact: true }).waitFor();
+      await page.waitForTimeout(500);
+      expect(requests).toEqual({ session: 0, content: 1 });
+    } finally {
+      page.off('request', track);
+    }
+    await page.unroute(streamUrl);
+  }, 30_000);
+});
+
+function requiredValue<T>(value: T | null | undefined): T {
+  if (value === undefined || value === null)
+    throw new Error('Required Markdown binding is unavailable');
+  return value;
+}

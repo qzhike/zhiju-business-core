@@ -3,6 +3,9 @@ export const artifactModule = Object.freeze({
   status: 'WI_08_REPRESENTATION_IMPLEMENTATION_COMPLETE' as const,
 });
 
+export * from './business/markdown-review-service.js';
+export * from './business/markdown-representation-service.js';
+
 export {
   createArtifactDatabase,
   withArtifactTransaction,

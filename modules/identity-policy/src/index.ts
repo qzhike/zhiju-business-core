@@ -504,3 +504,4 @@ export type {
   WorkspaceProjectDiscoveryCandidate,
   WorkspaceProjectDiscoveryScanResult,
 } from './commands/workspace-project-discovery.js';
+export * from './commands/markdown-review-authorization.js';

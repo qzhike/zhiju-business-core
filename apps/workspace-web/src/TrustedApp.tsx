@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { ContentBoundary, Missing } from './shell.js';
+import { MarkdownReview } from './MarkdownReview.js';
 import { DIRECTORY_SCOPE_KEY } from './trusted/protocol.js';
 import { NewProjectPage } from './intake/Pages.js';
 import { TrustedIntake } from './intake/TrustedIntake.js';
@@ -62,12 +63,19 @@ export function TrustedApp() {
   const principalId = probe.session?.principal.principalId ?? null;
   const sessionGeneration = probe.session?.sessionGeneration ?? '';
   const csrfToken = probe.session?.csrfToken ?? '';
+  const reviewScopeKey = /\/artifacts\/[^/]+\/revisions\/[^/]+$/.test(location.pathname)
+    ? `${location.pathname}${location.search}`
+    : null;
 
   // Derived during render so child effects always observe the current guard
   // (child effects run before parent effects). A new principal/session advances
   // the generation; a project selection only changes the live scope set.
   const guard = useMemo(() => {
-    const scopes = [DIRECTORY_SCOPE_KEY, ...(selectedKey === null ? [] : [selectedKey])];
+    const scopes = [
+      DIRECTORY_SCOPE_KEY,
+      ...(selectedKey === null ? [] : [selectedKey]),
+      ...(reviewScopeKey === null ? [] : [reviewScopeKey]),
+    ];
     if (!live || principalId === null) {
       boundSession.current = null;
       return invalidateGuard(guardRef.current);
@@ -75,7 +83,7 @@ export function TrustedApp() {
     if (boundSession.current === sessionGeneration) return scopeGuard(guardRef.current, scopes);
     boundSession.current = sessionGeneration;
     return bindGuard(guardRef.current, { principalId, scopes });
-  }, [live, principalId, sessionGeneration, selectedKey]);
+  }, [live, principalId, sessionGeneration, selectedKey, reviewScopeKey]);
   guardRef.current = guard;
 
   const reload = session.reload;
@@ -192,6 +200,22 @@ export function TrustedApp() {
             ) : live ? (
               <WorkbenchNavigation key={`${sessionGeneration}:${principalId ?? ''}`}>
                 <Routes>
+                  <Route
+                    path="/projects/:projectId/artifacts/:artifactId/revisions/:revisionId"
+                    element={
+                      <MarkdownReview
+                        key={`${sessionGeneration}:${reviewScopeKey}`}
+                        sessionGeneration={sessionGeneration}
+                        principalId={principalId ?? ''}
+                        csrfToken={csrfToken}
+                        generation={guard.generation}
+                        guardRef={guardRef}
+                        readBoundary={readBoundary}
+                        scopeKey={reviewScopeKey ?? ''}
+                        onSessionFailure={onSessionFailure}
+                      />
+                    }
+                  />
                   <Route path="/" element={<Navigate to="/workbench" replace />} />
                   <Route
                     path="/workbench"

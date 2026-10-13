@@ -1225,3 +1225,10 @@ create/save草稿和提交request各自独立authorize；同键replay/readback/r
 当前权限先于对象/body/locator读取并在提交、Receipt返回或stream前重验；跨模块当前Grant/profile失效停止新步骤，历史Actor/授权/原意图保持。浏览器principal/actor header、Markdown伪签名、文件名、statement或Agent actingFor不能构造Human。Quality专业验证/Approval仍各自现有Human-only及职责分离，本提案不批准保护例外。真实授权/RLS/HTTP/stream及跨设备用例IP-MF-*均NOT RUN。
 
 首次候选的CREATE_ARTIFACT步骤仍须既有artifact.artifact.create自身授权和独立get_artifact读权；预分配identity/约束确认不赋Root创建或Branch写权。move_working_head各自artifact.branch.move_head及当前CAS，不借candidate.accept授权。后续生成profile必须显式覆盖这些受限service步骤，缺任何许可停止PARTIAL而不删已提交Root/Revision。
+
+
+## Markdown 精确检查与服务端处理授权（#279）
+
+沿用 owning ActorSnapshot、Entry Decision 与当前 Grant 重验；不新增身份来源或 Browser SERVICE 身份。四个 Human 操作分别绑定注册 purpose：`artifact.file_review.read`、`artifact.file_diff.read`、`artifact.file_locations.read`、`artifact.markdown_download.read`；target 为 exact `artifact.artifact_revision`。capabilityCodes 用实际 operation 名映射部署 capability；Grant action 为对应 `${purpose}.v1`，不接受 wildcard。
+
+三个服务端操作分别为 `artifact.markdown_representation.register`、`integration.render.request`、`integration.markdown_render_binding.read`。部署必须显式 allowlist SERVICE Principal，拒绝 Human/actingFor；Binding 读取对原 Attempt 与其真实 Revision 分别授权。Decision 绑定原 operation/version、payload hash、认证上下文、target Ref/Scope；缓存 Decision 仍每次重验当前 Grant。游标/下载 ticket 使用稳定的当前 Grant、Scope、Principal、认证与 Session 指纹；fresh Decision id 不成为 watermark，撤权或主体/Session 改变不能复用旧许可。

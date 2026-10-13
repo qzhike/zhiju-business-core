@@ -112,6 +112,15 @@ export function readSessionProbe(httpStatus: number, body: unknown): SessionProb
  * percent-encoding and control characters fall back to the workbench.
  */
 export function safeReturnTo(candidate: string | null | undefined): string {
+  // Exact Markdown links carry non-secret, bounded reference bindings through login.
+  if (
+    typeof candidate === 'string' &&
+    /^\/projects\/[0-9a-f-]{36}\/artifacts\/[0-9a-f-]{36}\/revisions\/[0-9a-f-]{36}\?binding=[A-Za-z0-9_-]{1,12000}$/.test(
+      candidate,
+    )
+  ) {
+    return candidate;
+  }
   if (typeof candidate !== 'string' || candidate.length === 0 || candidate.length > 200) {
     return WORKBENCH_ROUTE;
   }
