@@ -354,8 +354,8 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
-| IP-277-001 | 当前可信 Human、显式 NEW enrollment；EXISTING 另有 exact Enterprise select/create；无 Project | admission 真实 Platform provenance 与 scoped bootstrap Grants，仅固定 request/E/P CREATE；无普通 Project read；重放不二次扣 maxUses | 未执行 / NOT RUN |
-| IP-277-002 | 仅登录/公司rule发布权/Enterprise grant、Agent或actingFor；无 NEW enrollment；EXISTING缺select或create | 准入拒绝；零 EP 受保护读写，不按名字/createdBy/ScopeClaim赋权；现有空Scope Project目录仍受原限制 | 未执行 / NOT RUN |
+| IP-277-001 | 当前可信 Human、显式 NEW enrollment；EXISTING 另有 exact Enterprise select/create；无 Project；旧创建 operation 分别绑定注册 Purpose enterprise.project.create_enterprise / enterprise.project.create_project | admission 真实 Platform provenance 与 scoped bootstrap Grants，仅固定 request/E/P CREATE；无普通 Project read；重放不二次扣 maxUses；逐版本原生 Purpose 与 action/capability 独立匹配 | 未执行 / NOT RUN |
+| IP-277-002 | 仅登录/公司rule发布权/Enterprise grant、Agent或actingFor；无 NEW enrollment；EXISTING缺select或create；用 project.enterprise.create / project.project.create 或 action 冒充旧注册 Purpose | 准入拒绝；零 EP 受保护读写，不按名字/createdBy/ScopeClaim赋权；现有空Scope Project目录仍受原限制；短拼写/别名不映射为旧创建权限，冻结 Registry/bytes 不变 | 未执行 / NOT RUN |
 | IP-277-003 | 同 key 异 payload/Scope/Human；maxUses并发最后一额；NEW ID被另一request复用；EXISTING同企业两个不同Project | 异内容/NEW冲突拒绝，最后一额一winner；EXISTING不同Project可各自合法准入；旧Receipt不绕当前撤权 | 未执行 / NOT RUN |
 | IP-277-004 | 模板精确物化、Project提交后逐项Grant；少intake/read/discovery任一项；已授一项后重启/撤销 | 保留各真实Grant/Receipt，access INCOMPLETE/REVOKED，不进入ZIP页；同slot无重复，已撤销不自动补发；明确管理员修复才续原slot | 未执行 / NOT RUN |
 | IP-277-005 | 另一Principal枚举Enterprise、借pending Project Scope读board/source；跨Project target/hash；目录cursor水位变更 | self reader只本人候选，EP逐项当前Decision/RLS；普通protected reads=0，cursor拒绝；旧PROJECT-only reader/旧policy/company registry接受集不扩大 | 未执行 / NOT RUN |

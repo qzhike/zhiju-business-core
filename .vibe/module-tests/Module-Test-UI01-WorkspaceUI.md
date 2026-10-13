@@ -132,10 +132,10 @@ reviewer and timestamp
 | ID | 输入 / 故障 | 预期可见行为与边界 | 实际 / 结果 |
 |---|---|---|---|
 | UI-277-001 | 受权NEW与EXISTING两字段创建、公司entryBinding、Project/access成功 | 只有客户/标题字段；无员工preset/memberPolicy/runtime设置；进入固定Project ZIP页，目录/board权限分别成立；无start | 未执行 / NOT RUN |
-| UI-277-002 | ZIP+note一次提交、仅custody/Task/analysisRequest成功、合法unsupported entry | 原note可读回，限制清晰；只显示已证实阶段；Browser/BFF不第二私有调用TE、不显示虚假RUNNING/百分比/报告 | 未执行 / NOT RUN |
-| UI-277-003 | 原create/intake响应丢失、刷新/重登、原URL另一Human；同请求跨Tab | 安全ID路由→EP/IG原key查询；唯一原intake；重新认证不重新提交/换作者；无权限清缓存，404/503不是重建许可 | 未执行 / NOT RUN |
+| UI-277-002 | ZIP+note一次提交、policy tuple取EP原request公开结果、仅custody/Task/analysisRequest成功、合法unsupported entry | 无隐藏配置/默认即可构造完整intake；原note可读回，限制清晰；只显示已证实阶段；Browser/BFF不第二私有调用TE、不显示虚假RUNNING/百分比/报告 | 未执行 / NOT RUN |
+| UI-277-003 | 原create/intake响应丢失、刷新/重登、原URL另一Human；同请求跨Tab；全局entry选择已变但原request仍可用 | 安全ID路由→EP/IG原key查询；首次intake始终取原request返回的policy tuple；唯一原intake；重新认证不重新提交/换作者；无权限清缓存，404/503不是重建许可 | 未执行 / NOT RUN |
 | UI-277-004 | 缺preset/rule publication、无post-create access、Runner能力缺失、分析撤权 | 分别给真实原因；保留客户/Project/资料成功事实；资料已接收不冒充已分析；无Project权不能进上传，缺Runner可保留原ANALYZE意图 | 未执行 / NOT RUN |
-| UI-277-005 | 明确RESTART许可/UNKNOWN/次数耗尽；篡改note/hash/target/route/actor/CSRF | 同页一次完整重传，仅原bytes/hash，UNKNOWN不显示可重传；有限route独立检查、坏输入零protected write，次数耗尽无自动新intake | 未执行 / NOT RUN |
+| UI-277-005 | 首CREATE响应丢失后Query给RESTART及aggregateVersion/generation；查询后版本变化；UNKNOWN/次数耗尽；篡改note/hash/target/route/actor/CSRF | 同页从该Query独立填CAS/generation，一次完整重传，仅原bytes/hash；竞态拒绝后回读，UNKNOWN不显示可重传；已提交restart按保存原命令重放；有限route独立检查、坏输入零protected write，次数耗尽无自动新intake | 未执行 / NOT RUN |
 
 ## D14 / RD-01 首条资料链路设计场景
 

@@ -555,7 +555,7 @@ pnpm persistence:gate
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
-| EP-277-001 | 发布/精确解析受控技术preset，scope/版本/hash正确；同版本异hash、缺producer、客户payload冒充配置 | 真实preset/version/publication/Receipt；精确selected tuple；VERSIONED与独立hash分域；错误拒绝。rule bundle不替代preset、preset不替代rule publication | 未执行 / NOT RUN |
+| EP-277-001 | 发布/精确解析受控技术preset，scope/版本/hash正确；同版本异hash、缺producer、客户payload冒充配置；创建后全局entry选择变化，再读原request | 真实preset/version/publication/Receipt；entryBinding及原request公开result/query返回各自exact preset的intakePolicyRef/hash；原request绑定不随全局选择换值，单凭公开结果可构造首次intake；VERSIONED与独立hash分域；错误拒绝。rule bundle不替代preset、preset不替代rule publication | 未执行 / NOT RUN |
 | EP-277-002 | NEW与EXISTING正常创建；NEW企业commit后memberPolicy/Project失败；Project事务任一写点失败 | NEW只有一个Enterprise，EXISTING无create Enterprise；原request/每step Receipt保留；只续未完step；Project+真正Claim+Receipt原子，无PROJECT_START | 未执行 / NOT RUN |
 | EP-277-003 | IP provisioning失败/响应丢失/恢复；Project已建无discovery或board/intake权 | request保留Project，access非USABLE不显示入口；current限定recovery读；补齐真实权限后进入同Project，旧创建人字段不赋权 | 未执行 / NOT RUN |
 | EP-277-004 | preset未发布/未来/撤回/显式取代；rule publication不存在/失效；只缺Runner | 前两者创建前拒绝、创建后STALE保留事实；不原地换binding。单缺Runner可完成资料入口，分析WAITING_CAPABILITY；不制造生产值 | 未执行 / NOT RUN |

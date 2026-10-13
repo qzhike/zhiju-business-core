@@ -211,9 +211,9 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
-| IG-277-001 | 已授权NEW/EXISTING准备请求，一ZIP+多行note，重复click/同request不同intake target | 唯一原intake/Receipt、原文/hash/ANALYZE绑定；第二target拒绝；Query两selector读回同结果，零Query写/签token/分析 | 未执行 / NOT RUN |
-| IG-277-002 | 首ticket响应丢失/连接中断/token到期；owner证实CLOSED_NO_OBJECT后restart | 当前权限与hash/原key/CAS检查；同intake仅generation2、原内容byte0上传；原票据/fencing失效；replay同代同token原expiry | 未执行 / NOT RUN |
-| IG-277-003 | 旧流未停/对象状态UNKNOWN/已STAGED或已有link；双restart并发；代2失败；旧finish迟到；restart响应丢失 | UNKNOWN/STAGED/link拒绝重传；并发一winner，代次不超过2；旧finish不commit，响应丢失不增加次数；token密文不可用安全失败、过期不可返回 | 未执行 / NOT RUN |
+| IG-277-001 | 已授权NEW/EXISTING准备请求，一ZIP+多行note，policy ref/hash仅取EP原request公开结果；伪造/替换当前新entry的policy；重复click/同request不同intake target | 唯一原intake/Receipt、原文/hash/ANALYZE绑定；policy与原preset逐项全等才接受，不注入默认；第二target拒绝；Query两selector读回同结果，零Query写/签token/分析 | 未执行 / NOT RUN |
+| IG-277-002 | 首CREATE/ticket响应丢失→重登→原Query确认CLOSED_NO_OBJECT/RESTART→首次restart；连接中断/token到期 | Query同次返回真实aggregateVersion与uploadState；分别填Envelope CAS和payload generation，当前权限与hash/原key检查；同intake仅generation2、原内容byte0上传；原票据/fencing失效；replay同代同token原expiry | 未执行 / NOT RUN |
+| IG-277-003 | 旧流未停/对象状态UNKNOWN/已STAGED或已有link；Query后Root版本或generation改变；双restart并发；代2失败；旧finish迟到；restart响应丢失 | UNKNOWN/STAGED/link或过期CAS拒绝重传，零新token/代次；并发一winner，代次不超过2；旧finish不commit，响应丢失不增加次数且原restartCommand不改CAS；token密文不可用安全失败、过期不可返回 | 未执行 / NOT RUN |
 | IG-277-004 | 有效DOCX+MD+不支持条目/坏DOCX；零可分析entry但有note；unsafe路径/bomb/DOCX二级预算超限 | 安全部分源/原bytes/逐entry限制保留；零有效ZIP entry拒分析；unsafe零manifest Event/dispatch，不以说明或technical extraction伪造可读报告 | 未执行 / NOT RUN |
 | IG-277-005 | object写成功link失败、entry或note accept后crash；manifest提交前失败 | 原step IDs/key/Receipt续接，无重复源；已link资料不可cleanup；manifest未commit不READY，说明未接纳不能丢弃后handoff | 未执行 / NOT RUN |
 | IG-277-006 | manifest/Receipt/Event任一写点失败/提交后重复投递；EP暂不可用；TE已接收但无Run | IG同事务回滚或真实完整提交；EP原Eventreadback去重；custody不丢，analysis独立PENDING/UNKNOWN；不将202/Task/Request说成Runner启动 | 未执行 / NOT RUN |
