@@ -264,6 +264,22 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 - 工程检查覆盖 TS/TSX、应用 manifest 的四类 dependency 字段、静态/动态 import、require 与 import type 反例；manifest 同时检查依赖名称与声明目标，只允许精确 registry 版本或默认 `catalog:`，拒绝别名、本地路径与其他来源借允许名称引入禁止目标。Web/BFF 只允许批准的 Experience 依赖，不改七个业务模块、Catalog、Schema 或 migrations。
 - 所有演示结果显示开发身份、合成报告/回执/进度标识。生产业务入口保持拒绝；真实接入继续由 owning 契约决定。
 
+## #277 两字段创建与单次提交交接提案
+
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
+
+表单先公开 find_preparation_enterprises 读取公司 entryBinding 与本人可选客户；同一个客户字段明确 NEW 或选择 exact EXISTING。两种模式仍只由用户填客户和项目标题；浏览器生成 request/project 及 NEW enterprise UUIDv7、固定原键/完整 Scope，在原 payload 中原样回送 presetRef/hash，服务器复验公司选择。无可用 preset/publication/准入权限显示具体不可操作原因。配置、memberPolicy、Runtime/model、授权字段不成为员工表单选项，登录成功不显示“已获项目权限”。
+
+创建按钮只调 request_project_preparation；成功进入 ZIP 页要求 EP Project receipt + 当次 access=USABLE。PARTIAL 显示已建客户/项目和未完成权限，允许原请求当前许可的继续；不重新生成 target/key。Project 目录仍按 exact discovery Grants；准备 Project 的 EP board 可返回下述 preparationEntry 安全链接，UI 不为 PREPARING 自动调用尚不支持它的 TE Task board。无 Project 读权时仅保留当次 admission recovery-read 允许的原请求摘要。
+
+“提交并分析”先固定 intake UUIDv7、原 preparation request/key、note 原文、ZIP 原 bytes hash/长度、从 EP 原 preparation request 公开 result/query 取得的 preparationPresetRef/hash 与 intakePolicyRef/hash、以及 ANALYZE，再发送一个 IG Command，随后同 intake PUT。该 policy tuple 由原 exact preset 产生；首次进入和重登均使用同一公开结果，不从当前新 entryBinding 偷换旧请求绑定，不需要私有配置 API。浏览器只编排传输，不另调用 source capture/TE request 或第二私有分析 API。IG Query 的 custody、EP handoff、TE/IG 执行事实分别显示“接收资料/准备资料/等待安排/分析能力暂不可用/分析中”；没有真实 Run/Attempt ack 时不能显示分析中或百分比。已接收说明必须可原文读回，换 Session 不丢已提交内容；未提交内存草稿不承诺持久化。
+
+跳转在首写前保存安全 request ID/Scope ID 到当前路由（不放客户名、note、token、完整 payload），沿 #258 原请求链接恢复；重新登录先 current auth，再 EP get 原 request，IG 用 PREPARATION_REQUEST selector 找回唯一 intake。浏览器业务写自动重试仍为0；请求 UNKNOWN 只查原事实，不显示“重新创建”。原 Query 返回许可 RESTART 时用户可在同页“重新上传这份 ZIP”，最多一次，重新选择文件须同 hash/长度；原 note 不可在重传中编辑。首次 restart 的 expectedAggregateVersion 取同次 IG Query.aggregateVersion，expectedUploadGeneration 取 uploadState.generation，不能互相替代或猜创建版本；提交时竞态拒绝后回读。原重传 Command 响应丢失按同 key/原 payload readback/replay，已保存的 restartCommand 不替换 CAS 版本，绝不第三代/新 intake。
+
+finite route 增量只有 `POST /bff/commands/integration.restart_customer_zip_upload/1.0` → 固定同形 `/api/commands/…`；EP entry/preparation 与 IG intake/query 使用 #258 已批准候选 token，PUT 仍唯一 `/bff/customer-intakes/{intakeId}/zip`。空 Scope 增量仅 EP find_preparation_enterprises 的明确 self 候选 profile；request/read/restart 都有完整 Scope/精确 target，并沿 IP 专用 bootstrap 或普通 Project 当前权限。Core/BFF 同步逐字 allowlist/schema/结果检查，未注册/未实现保持不可用，不扩大任意 dispatcher。当前运行代码仍只有 #266 三项 Query，不能据本段宣布路由可用。
+
+所有失败保留原可读成功 facts；403/401 先清敏感缓存，重登后不把旧作者换成当前 Human。分析能力恢复后的推进是 EP owning 原 Process 的受权运维动作，首版不暴露“重新分析”或自动新 Run。已有资料不删除、不制造报告/PROJECT_START；完整失败 trace 与 NOT RUN 验收见 [#277 Delta](../decisions/preparation-entry-bootstrap.md#4-失败保留事实与有界恢复)。
+
 ## D14 / RD-01 公开接入与回执提案
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。当前工程外壳/开发样例不属于此设计的真实接入证据。公开操作与字段由 [EP owning D14](Module-Spec-002-EnterpriseProject.md#d14--rd-01-准备报告与启动字段提案)、[TE owning D14](Module-Spec-003-TaskExecution.md#d14--rd-01-preparationcontext分析与初轮范围提案)、[IG owning D14](Module-Spec-007-IntegrationGateway.md#d14--rd-01-zip-intake-与真实报告观察提案) 定义；[DTO 映射](../decisions/workspace-startup-review-v0.1.md#d14--rd-01-公开操作映射提案) 只组合许可结果。

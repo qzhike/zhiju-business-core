@@ -1012,6 +1012,63 @@ Human Query前先重验Human，才能签发必要SERVICE dependency Decision；�
 
 cursor authorizationSourceHash由IP owning Port返回：canonical排序后的actual principal/kind、ActorSnapshot/session身份Hash、Human及实际使用读取mapping/config code、各selected Grant完整id+payloadHash+Scope/selector/action、Grant PolicySnapshot exact Ref/hash，另含当前配置Board policyRef/contentHash；不含新Decision id/issuedAt/expiresAt/检查当前时间。新短期Decision但同一来源不会使cursor失效，来源变更则必须重新查询；当前失效仍先安全拒绝，不等cursor比较。不得由TE自行复制IP表或凭缓存生成指纹。IP签发/拒绝Audit技术写入与TE业务Query无写分别记录，既有真实Grant PolicySnapshot生命周期延后边界不变。
 
+## #277 准备入口准入与显式项目授权提案
+
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
+
+### 现有能力与必须新增的准入
+
+EXISTING 必须分别证明该 Enterprise 的 `project.enterprise.select` 和既有 `enterprise.project.create_project` 当前权限；NEW 必须显式拥有创建新 Enterprise 的权限。当前代码没有能够从无业务 Scope 的登录态授权任意未来 Enterprise 的入口，且 Enterprise Grant 不授权未来 Project。因此新增 `PreparationAdmissionAuthority@1.0`，不能把现有 company Platform Grant、realm role 或显示名称当作这项能力已存在。
+
+新 authority 的 Platform 事实与 scoped Grant/公司发布分表。受信部署显式指定准入管理员及其当前认证依据；管理员经内部 `identity.preparation.enrollment.grant/revoke@1.0` 管理 HUMAN 的 `PreparationEnrollmentGrant`。它不是公开 Browser/API 路由，也不是“首次登录自动 bootstrap”。grant 闭集 `{grantId,principalRef,allowedModes:NonEmptySet<NEW|EXISTING>,preparationPresetRef,preparationPresetHash,membershipTemplateRef,membershipTemplateHash,policySnapshotRef,effectivePeriod,maxUses,administratorActorRef,administratorDecisionRef}`；maxUses 为显式正整数，无无限/默认值，单一 grant 独立覆盖一次 admission 的全部条件，不拼接多 grant 绕过约束。真实管理员配置与 policySnapshot 由受权部署提供，不硬编码初始公司角色/生产 ID。
+
+NEW 使用此当前 grant 中 NEW 授权映射至 `enterprise.project.create_enterprise`，只覆盖本次 reservation 的 Enterprise target；EXISTING 使用其中 EXISTING 模式且另有目标 Enterprise 当前 select/create covering Grants。新的受控准入 producer 生成**本请求专用的 scoped bootstrap Grants**，每项带原 enrollment、精确 Scope/target/operation、PolicySnapshot/ActorSnapshot provenance 和上限期限；这就是创建期 scoped Actor/Decision 的合法来源，不把全局 enrollment 直接当作普通 Project read Grant。旧 authorize_command 与普通 Query 不接受空 Scope，不扩展旧 PolicySnapshot registry。
+
+### 封闭 Ports、身份与当前授权
+
+以下 operation 均为内部 `@1.0`；operation/purpose/action 同表内 token（引用既有操作的行除外），实际 capability code 由受信 mapping 明确配置并逐项检查；无通配默认。每次 Actor 来自当前 ACTIVE HUMAN/固定 SERVICE 与认证摘要，禁 actingFor。IP service 只执行原 Human 受权意图，自身许可另外检查。
+
+| Port / token | 输入、输出及限制 |
+|---|---|
+| `DiscoverPreparationEntryScopes` / `identity.preparation.entry.discover` | 输入 verifiedHumanContext、精确 presetRef/hash、page/filter binding；self-only 读该 Human 当前 enrollment 与 Enterprise select/create candidates，输出 `{newCustomerAllowed,enterpriseCandidates,page,sourceWatermarks}`。新专用 reader 不读 EP/其他 Principal，不写 Grant；EP 每项再做 select Decision；不同于现有 PROJECT-only discovery reader |
+| `ReservePreparationAdmission` / `identity.preparation.admission.reserve` | 输入 `{verifiedHumanContext,requestRef,originalCommandId,originalKey,payloadHash,customerMode,enterpriseRef,projectRef,preparationPresetRef,preparationPresetHash}`；HUMAN-only、ref/Scope/ID 全一致，current enrollment + EXISTING 企业权限。输出 `CONTENT_ADDRESSED/zhiju.identity.preparation_admission` Platform ref、真实 Receipt、固定 scoped bootstrap grantRefs、validUntil；不接 Browser Actor/Decision，不存名称/title/ZIP/note |
+| `RevalidatePreparationAdmission` / `identity.preparation.admission.read` | 原 ref/id/hash/request/Scope/原键；从 owning 存储当前读取 enrollment/revocation/Policy/Principal 和 bootstrap Grants，返回 `{admissionRef,currentUseStatus,grantRefs,checkedAt,validUntil,sourceWatermarks}`。只允许原 HUMAN 的原请求恢复，或固定 EP Process 的有限执行用途；无客户内容 |
+| `MaterializePreparationMemberPolicy` / `identity.preparation.membership.materialize` | 受限 SERVICE、原 admission/Human 决定链及独立执行权；输入 `{admissionRef,templateRef,templateHash,memberPolicyId,versionId}`，从 admission 取精确 creator/enterprise/project。输出 Enterprise-scoped VERSIONED `identity.policy` + payloadHash、templateBinding、Receipt；独立新 `ip.preparation_membership@1.0` profile，旧 policy-version/snapshot writer/resolver 不接新 selector |
+| `ReadPreparationMemberPolicy` / `identity.preparation.membership.read` | 输入 `{memberPolicyRef,memberPolicyHash}`；当前受权 HUMAN 或固定 EP/IP SERVICE，Enterprise scope/实际 Project selector全等。输出 `{payload,memberPolicyRef,memberPolicyHash,currentUseStatus,sourceWatermarks}`；独立精确resolver重算hash/模板绑定，不回退旧policy reader |
+| `ProvisionPreparationCreatorAccess` / `identity.preparation.creator_access.provision` | 输入 `{admissionRef,memberPolicyRef,memberPolicyHash,projectCreationReceiptRef,projectScopeClaimRef}`；EP owning只读 Port 实证项目已创建且 Scope/原 request/预设全等，再依模板逐项创建 exact Grant。结果 `{provisioningReceiptRef,grantRefs,steps,checkedAt}` 只含真实已提交 facts；各 grant 独立事务/稳定 slot key，失败为 PARTIAL，无跨模块写入 |
+| EP preset publisher/resolver 所用 IP mapping | `project.preparation.preset.publish/withdraw/read`，Platform exact preset/version/hash；publish/withdraw 为受权 HUMAN，read 为授权 HUMAN/固定 EP SERVICE。独立 preparation authority allowlist，不扩 #267 company_rule registry |
+
+admission payload 闭集 `{requestRef,originalCommandId,originalKey,payloadHash,creatorRef,customerMode,enterpriseRef,projectRef,preparationPresetRef,preparationPresetHash,membershipTemplateRef,membershipTemplateHash,enrollmentGrantRef,enterprisePermissionRefs,actorSnapshotRef,authorizationDecisionRef,createdAt,validUntil}`；EXISTING enterprisePermissionRefs 必须为真实非空 select/create Grant refs，NEW 为[]，其独立 NEW grant 在 enrollmentGrantRef。Hash 沿 cv1，排除自 ref/hash；完整 provenance 由新 Platform authority 实际保存，禁止 caller 传自洽 JSON 假证明。
+
+同 `(creatorRef,originalKey)`、request ID、预分配 Project ID 各唯一；NEW Enterprise ID 也只能被该 reservation 使用。EXISTING 同一 Enterprise 可创建多个不同项目，不能错误唯一化 Enterprise。同 key/ID 异 payload、模式、Scope、preset 或 Human 拒绝。enrollment maxUses 在 reservation 事务原子占用，重放只返回原占用，不耗第二次；IP 成功而 EP admission 响应丢失也不得退额重占或另配身份。validUntil 不晚于 enrollment/依赖 Policy；各次 Decision 另取 token/原权限期限的较短值。IP 失败/UNKNOWN 不能作为 EP 已准入的证据。
+
+仅这些 bootstrap scoped Grants 可在未有 ProjectScopeClaim 时使用：`project.preparation.request`→该 preparation_request CREATE、`project.preparation.read`→该原 request read、NEW `enterprise.project.create_enterprise`→该 Enterprise CREATE、`project.project.prepare.create`→该 Project CREATE、membership/provisioning 的固定 SERVICE steps。授权先完整读取当前 enrollment/reservation，随后才能建立该精确 Enterprise 或单一 allowedProject 的技术事务 Context；不是 Browser 对 allowedProjects 的赋值。EP 自己保留 request scope reservation，真正 ProjectScopeClaim 只在 Project 创建事务产生；普通业务入口仍要求真实 Project/Claim，不能用未创建 ID 读取 source/board 或 dispatch。Grant/Decision 字段与 payloadHash/目标逐一绑定，不能从其他 request 的许可派生 scope。
+
+准入管理的 grant 请求只接上方 grant 字段中除 administratorActorRef/administratorDecisionRef 的部分；可信 IP 在验证管理员、完整原请求 hash 与当前管理权后追加 provenance。revoke 输入 `{grantRef,reasonCode}`，追加不可变撤销事实/Receipt；两者的 current Decision 在执行前形成，不把自己的 Ref 放入待授权请求 hash。Platform Actor/Decision 必须由新 preparation authority 实际 producer 保存/精确读取，独立于 #267 表；角色允许/初始管理员安装本身不是客户创建许可。新 authority 自身的闭合 producer/reader 与 ACL 属后续同一实现的必交付，不用调用方传入“已验证”JSON替代。
+
+新 scoped binding registry 的拟定逐字映射：`project.find_preparation_enterprises@1.0 / project.enterprise.select / project.find_preparation_enterprises.v1 / Enterprise`；EXISTING create 复用 `project.create_project@1.0 / enterprise.project.create_project / project.create_project.v1 / Enterprise` 的创建资格（不调用旧完整创建）；`project.request_project_preparation@1.0 / project.preparation.request / project.request_project_preparation.v1 / preparation_request`；`project.get_project_preparation_request@1.0 / project.preparation.read / project.get_project_preparation_request.v1 / preparation_request`；`project.create_preparing_project@1.0 / project.project.prepare.create / project.create_preparing_project.v1 / Project`；NEW `project.create_enterprise@1.0 / enterprise.project.create_enterprise / project.create_enterprise.v1 / Enterprise`。各段按 operation@version / 注册 Purpose / 内部 action / target 排列；旧两项 Purpose 逐字来自冻结 operation-compatibility-metadata.v1.json，不接受 project.enterprise.create / project.project.create 短拼写或别名。action 与实际 capabilityCode 是独立字段，不替代注册 Purpose。这是本次新增受控 composition mapping，复用已有 Purpose 不表示已有 Browser handler；实际 capabilityCode 显式配置。完整 native target、Scope、payloadHash 和 mode 逐项校验，目标简写按 owning Ref 展开，不自动互换 legacy/canonical spelling。bootstrap授权许可在真实事务提交前复验；耗额/幂等重放允许读原成功Receipt，但不授权另一CREATE。
+
+### Membership 模板与显式创建者权限
+
+`PreparationMembershipTemplate` 是新 IP internal `ip.preparation_membership_template@1.0` profile，Platform VERSIONED `identity.policy` + 单独 cv1 payloadHash；由受权 HUMAN 用 `identity.preparation.membership_template.publish/withdraw/read` 发布/读取（read 也允许固定 SERVICE），独立版本存储/发布事实，不塞入旧公司三 profile 或旧 im02-static-v1。closed payload 为 `{profile,templateCode,templateVersion,creatorBindings,grantPolicySnapshotRef,maxGrantLifetimeSeconds}`；creatorBindings 是按 operation 排序、唯一的非空列表，每项 `{operation,version,purpose,action,capabilityCode,targetObjectType}`。必须等于下表封闭必需集合及该操作已有的精确 Purpose/action（新增行固定 operation/purpose/action 映射），拒绝额外 wildcard、start/write/approval/release 权限；实际 capability codes/PolicySnapshot/lifetime 是发布输入。
+
+模板 publish 输入 `{templateId,versionId,payload,effectiveFrom}`，IP 在实际 Human Decision 后原子保存唯一版本、发布 provenance 与 Receipt，结果 `{templateRef,templateHash,receiptRef}`；同 code/version异内容拒绝。withdraw 输入 `{templateRef,templateHash,reasonCode,effectiveFrom}`，追加撤回事实/Receipt。read 输入 `{templateRef,templateHash}`，输出 `{payload,useStatus:USABLE|NOT_YET_EFFECTIVE|WITHDRAWN,checkedAt,sourceWatermarks}`，核验完整本地发布/撤回事实及当次许可；版本不可变，新模板不自动取代旧版。memberPolicy 的 currentUseStatus 结合原admission、模板与各授权期限求值；原历史可读不表示当前可provision。所有缺值/未知profile均fail closed，生产值仍需实际发布。
+
+| 使用阶段 | 必须显式具备的最小权限集合 |
+|---|---|
+| creator 在创建后 | `project.workspace.discover`（复用 #258 operation/action mapping）；`project.get_project_board_slice`（复用已注册 Purpose `enterprise.project.get_project_board_slice`）；`project.preparation.read`；`integration.customer_zip.intake/read/restart`；`project.preparation.analysis.admit`。后三类新动作的 version=1.0，action 分别为 `integration.request_customer_zip_intake.v1`、`integration.get_customer_zip_intake.v1`、`integration.restart_customer_zip_upload.v1`，analysis admit action=`project.preparation.analysis.admit.v1` |
+| EP preparation SERVICE | scoped request read、preparing project CREATE、source capture/read、handoff read/continue；每项独立 current Grant/Decision，并保留 Human admission/ANALYZE provenance |
+| IG intake SERVICE | EP source register/accept/validation 与原 request binding read、IG manifest read；仅本 intake/source IDs、只读/接纳客户材料，不含 Runner invoke |
+| 后续 TE handoff consumer | D14 create_preparation_analysis_task/request_preparation_analysis 既有 proposal 的精确 SERVICE Purpose/target；TE/IG 运行许可另按 #253/#256 求值；服务不存在/缺许可可 WAITING_CAPABILITY，不能伪装创建后权限已齐备 |
+
+上表后三行是独立部署的 SERVICE 权限依赖，不进入 creator membership 模板，也不由 creator provisioning 自动赋予 SERVICE。各受控 service authorizer 只对原 request/intake/source/task IDs 明确授权，不能配置 Browser 主体、任意 impersonation 或 Enterprise 通配项目。materialized memberPolicy payload 为 `{profile,templateRef,templateHash,admissionRef,creatorRef,enterpriseRef,projectRef,creatorBindings,grantPolicySnapshotRef,validUntil}`，enterprise scope、完整 project selector 入 Hash；它是权限计划和授予依据，版本保存不等于 Grants 已产生。旧完整创建路径不消费该 profile。resolver 必须以 exact memberPolicyRef+hash 读回这些字段，不能只 shape-check 或返回空 hash。
+
+creator Grants 的授予依据是管理员已批准并向该 Human 委托的 exact enrollment+membership 模板；Project creation receipt 只是额外前置，绝不是授权来源。单个 slot 由 admission+operation+principal 唯一确定；同键返回同一 Grant，撤销后不得由自动 replay 悄悄重新授予。需要重新授予时，受权管理员显式新 grant/决定并关联原 slot 的修复事实；所有既有授权历史保留。Enterprise select/create Grants 不由 Project 创建自动补发；若 NEW 客户日后要成为可选已有客户，管理员另行通过 IP 既有 scoped 授权入口显式赋权。
+
+`project.preparation.analysis.admit` 是 HUMAN 将本次 ZIP/note 交给分析的权限：绑定原 intake payloadHash、Project、预设和固定 profile，不能把 intake-only 权限提升为分析。IG 提交同时验证 intake+analysis 两份当前 Decision；后台推进每个步骤前重新核验原 Human 当前资格并取得 SERVICE 自身当次授权，不复用过期 Human Decision，也不伪装离线 Human token。撤销阻后续步骤但不改原 Human 意图；admission recovery read 当前有效时仅可读原步骤安全摘要，读取 Project/ZIP 正文仍需独立 grant。
+
+新准入 admin、模板 publish、NEW permission、reserved Scope/recovery read 都是本 Issue 的新增接受集，已获独立 T2 Review 与精确修订 Human 技术批准。实现必须同步 Policy/注册元数据/封闭 fixtures、独立 RLS/ACL 与当前撤权反例；当前无这些生产权限或 provisioner。不存在/不可见返回同一安全外观，失权 protected reads/writes=0，旧 URL、key、创建人字段和 ScopeClaim 均不替代权限。
+
 ## D14 / RD-01 准备分析与 Human 决定授权提案
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。字段与流程见 [D14 Delta](../decisions/d14-rd01-first-customer-flow.md)，本节拥有新增 purpose/Principal 接受集。旧 #190/#200 创建绑定不变，不能从准备 ScopeClaim 推导已有 task.execution.create_task 资格。

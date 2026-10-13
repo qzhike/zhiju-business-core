@@ -125,6 +125,18 @@ reviewer and timestamp
 
 真实 OIDC、公开业务 HTTP、Runner、生产、Windows/macOS 最近两版 Chrome/Edge 支持矩阵、完整 WCAG AA 与独立人工业务验收仍为 `NOT RUN`。旧真实 UI-E/UI-S/UI-A/UI-M、D14 及 UI-ENG-002–008 场景不由外壳演示代替。
 
+## #277 两字段与原 intake 恢复设计场景
+
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [UI #277](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。实际 Browser/publicHTTP 与独立顾问验收须另行取证；原型计时器不算真实Receipt。
+
+| ID | 输入 / 故障 | 预期可见行为与边界 | 实际 / 结果 |
+|---|---|---|---|
+| UI-277-001 | 受权NEW与EXISTING两字段创建、公司entryBinding、Project/access成功 | 只有客户/标题字段；无员工preset/memberPolicy/runtime设置；进入固定Project ZIP页，目录/board权限分别成立；无start | 未执行 / NOT RUN |
+| UI-277-002 | ZIP+note一次提交、policy tuple取EP原request公开结果、仅custody/Task/analysisRequest成功、合法unsupported entry | 无隐藏配置/默认即可构造完整intake；原note可读回，限制清晰；只显示已证实阶段；Browser/BFF不第二私有调用TE、不显示虚假RUNNING/百分比/报告 | 未执行 / NOT RUN |
+| UI-277-003 | 原create/intake响应丢失、刷新/重登、原URL另一Human；同请求跨Tab；全局entry选择已变但原request仍可用 | 安全ID路由→EP/IG原key查询；首次intake始终取原request返回的policy tuple；唯一原intake；重新认证不重新提交/换作者；无权限清缓存，404/503不是重建许可 | 未执行 / NOT RUN |
+| UI-277-004 | 缺preset/rule publication、无post-create access、Runner能力缺失、分析撤权 | 分别给真实原因；保留客户/Project/资料成功事实；资料已接收不冒充已分析；无Project权不能进上传，缺Runner可保留原ANALYZE意图 | 未执行 / NOT RUN |
+| UI-277-005 | 首CREATE响应丢失后Query给RESTART及aggregateVersion/generation；查询后版本变化；UNKNOWN/次数耗尽；篡改note/hash/target/route/actor/CSRF | 同页从该Query独立填CAS/generation，一次完整重传，仅原bytes/hash；竞态拒绝后回读，UNKNOWN不显示可重传；已提交restart按保存原命令重放；有限route独立检查、坏输入零protected write，次数耗尽无自动新intake | 未执行 / NOT RUN |
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。
