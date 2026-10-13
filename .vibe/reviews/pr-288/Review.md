@@ -102,3 +102,24 @@ R1–R3 修复后须提交新精确 head 供独立复审；当前结论不覆盖
 本轮 required target 仍为 `docs`。已独立读回 [CI run 38348685065](https://github.com/qzhike/zhiju-business-core/actions/runs/38348685065)：headSha 为本次 reviewed SHA，整体 `SUCCESS`；`select/checks/verify` 与 `Verify documentation` step 均成功，`persistence` 为文档路由的预期 `SKIPPED`。复用该精确修订的配置目标证据；本节追加后的本地文档检查另行执行，不以 Markdown 检查代替语义审查或运行证据。
 
 Issue #277 明确要求独立设计审查与最终修订的显式 Human 技术批准。R1–R3 已解决，但尚无该 Human 决定，因此角色结论为 `HUMAN_REVIEW_REQUIRED`；不升级为 `APPROVE` 或依赖实现 READY。部署中的真实 preset/membership/Policy/公司规则发布及服务权限、上传/持久化、公开 HTTP/Browser、TE/Runner 与独立人工业务验收仍无本任务执行证据。Reviewer 仅追加正式记录，未 commit、push、merge 或发布 GitHub 消息。
+
+## 最终设计修订独立确认：98f60b3
+
+- Final reviewed SHA：`98f60b3a81c10c23173482c31162371dfcecfc27`。
+- 独立 Reviewer 已核对该 head 相对 `f7c828fa85353c84d8865d9440d3c530442751d7` 的完整差异：仅纳入复审记录、更新主 Delta 与四份 owning Spec 状态头、增加正式 Review 链接。
+- 字段、授权、恢复、handoff 与接受场景语义没有变化，R1–R3 保持闭合，未发现新的阻塞项。
+- 当时 Reviewer outcome：`HUMAN_REVIEW_REQUIRED`；该结果保留为下方 Human 批准前的历史结论。
+- 精确修订 [CI run 38348940481](https://github.com/qzhike/zhiju-business-core/actions/runs/38348940481) 已读回：`select/checks/verify` 均 `SUCCESS`，`persistence` 按文档路由预期 `SKIPPED`；本地配置 `docs` 为 `PASS files=21`。
+
+最终独立确认来源为本次 Reviewer 的精确 head 复核结果；[PR #288](https://github.com/qzhike/zhiju-business-core/pull/288) 描述已记录该 reviewed SHA 与结论。本节在批准记录纳入时保存既有事实，本身不属于该 reviewed SHA。
+
+## 人类技术设计批准：98f60b3
+
+- 批准日期：2026-10-13。
+- Approved SHA：`98f60b3a81c10c23173482c31162371dfcecfc27`；本轮批准记录前读回的本地 head 与 PR head 均一致。
+- 批准来源：用户在收到最终独立审查结论、该精确修订及四项技术选择的批准问题后，明确回复“批准”。这是本次会话中的真实 Human 决定，不伪装为 GitHub 原生 APPROVED review。
+- Human 技术设计批准：`APPROVED`，覆盖 `SD277-PRESET`、`SD277-ADMISSION`、`SD277-HANDOFF`、`SD277-RECOVERY` 及该修订的 owning Spec/Test。
+
+四项选择分别为 EP 独立技术预设、IP 显式准入与创建后独立 Project Grants、manifest 驱动 EP 分析交接、同 intake 最多一次完整重传。上述初审/复审及 `PENDING`、`HUMAN_REVIEW_REQUIRED` 保留其历史时点；本次明确批准完成该补充的独立审查与精确修订 Human 技术设计门禁。
+
+本次同步仅纳入批准事实与更新受影响文档的设计状态，没有改变获批字段或业务语义。真实管理员/Policy/预设及公司规则发布/部署权限值仍是显式输入；Registry、业务实现、迁移、上传、TE/Runner、公开 HTTP/Browser、生产与独立人工业务验收继续 `NOT RUN`。后续贯通实现可据此准备执行工作项，不由技术设计批准制造已部署能力、Issue 发布授权或合并授权。

@@ -1,21 +1,21 @@
 # 准备项目入口与 ZIP 交接 Spec Delta（#277）
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。
+状态：`T2 / DESIGN APPROVED / INDEPENDENT REVIEW PASSED / HUMAN TECHNICAL APPROVAL 2026-10-13 / NOT REGISTERED / NOT IMPLEMENTED`。
 
-交付 [Issue #277](https://github.com/qzhike/zhiju-business-core/issues/277)，对照 `b28a004a48c60decb975494f4d7ecbebff9f46b8`。本文只拥有本次选择、跨 Owner trace 与后续 readiness；字段和失败条件分别归 [EP](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)、[UI](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。不把本提案写成已批准基准。独立审查与复审结论见 [PR #288 正式记录](../reviews/pr-288/Review.md)；人类技术批准仍须绑定最终审阅修订。
+交付 [Issue #277](https://github.com/qzhike/zhiju-business-core/issues/277)，对照 `b28a004a48c60decb975494f4d7ecbebff9f46b8`。本文只拥有本次选择、跨 Owner trace 与后续 readiness；字段和失败条件分别归 [EP](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)、[UI](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。本补充已通过独立设计审查，并于 2026-10-13 获用户对 `98f60b3a81c10c23173482c31162371dfcecfc27` 的明确技术批准；独立审查、复审及批准来源见 [PR #288 正式记录](../reviews/pr-288/Review.md)。批准覆盖本文四项选择与该修订的 owning Spec/Test，不制造已注册、已实现或生产可用事实。
 
 #253/#255 的准备状态、ZIP 安全上限、三组启动核对和整份选择，#258/#263 的可信 Session 与有限 transport，#257/#262 的公司清单及 #267/#268 的发布基础均保持各自批准。此处仅替换 D14 未注册准备入口的未闭合字段，显式新增 bootstrap 接受集和一次重传操作；不变更旧 create_project、ACTIVE Task、历史 Hash、公司发布 registry 或既有目录权限。二字段仍是客户与项目标题，ZIP 页仍是一个包、可选说明、一次“提交并分析”。
 
-## 1. 待批准的最小选择
+## 1. 已批准的最小选择
 
 | Delta | 选择与理由 | 兼容 / 审查边界 |
 |---|---|---|
 | SD277-PRESET | EP 拥有独立公司技术预设及发布/精确解析；VERSIONED Ref 与单独 canonical payload hash 成对绑定。预设声明技术默认值、membership 模板、ZIP policy 和精确公司规则发布选择 | startup rule bundle 拥有业务清单，不能替代预设；实际两类 publication 都是部署输入，无生产 UUID/hash 默认值 |
 | SD277-ADMISSION | IP 新增专用准入 authority；具权限管理员事先显式授予 NEW 准入，EXISTING 还须该 Enterprise 当次 select/create 权限。一次 reservation 固定 Human、原请求和三个预分配身份；创建后另以批准 membership 模板产生 exact Project Grants | 当前 scoped Grant/空 Scope 目录不足以完成该步骤。本提案明确增加独立内部 operation/Policy/RLS，不借公司发布权或登录自动授予；不新增管理 UI |
 | SD277-HANDOFF | IG 原 intake 持久化 note、原 preparation request/key、ANALYZE 意图；manifest 成功事务发最小 Event，EP 固定 Process 经受权 readback 捕获来源并消费已批准 TE 接口 | BFF 不协调 source/task/run；只接收 ZIP 不显示分析运行。说明是客户提供的材料，不是系统指令或已确认事实 |
-| SD277-RECOVERY | IG 增加一个公开 Command：同 intake、同 bytes、当前 Human 授权下，最多一次完整重传；不实现分片/Range 续传，Query 不签 token | 需批准新增有限 route、generation/CAS/旧流 fencing；UNKNOWN 不许可重传。次数耗尽显示明确人工处理边界，不换键自动建 intake |
+| SD277-RECOVERY | IG 增加一个公开 Command：同 intake、同 bytes、当前 Human 授权下，最多一次完整重传；不实现分片/Range 续传，Query 不签 token | 批准范围包含新增有限 route、generation/CAS/旧流 fencing；UNKNOWN 不许可重传。次数耗尽显示明确人工处理边界，不换键自动建 intake |
 
-以上为最终修订需要逐项批准的技术选择；执行本设计任务不等于批准依赖实现。真实管理员、授权 PolicySnapshot、membership 内容、公司 preset/rule/template 发布实例、部署地址均不得从示例推断。
+以上四项技术选择已获精确修订批准；后续实现仍须按下表准备一个贯通交付、完成注册与适用验证。真实管理员、授权 PolicySnapshot、membership 内容、公司 preset/rule/template 发布实例、部署地址均不得从示例推断。
 
 ## 2. 一次完整用户结果
 
@@ -60,7 +60,7 @@
 
 | 面 | 已批准/已实现依赖 | 本次闭合的最小增量 | 后续可执行条件 |
 |---|---|---|---|
-| EP | 既有 Enterprise/Source 及 ProjectScopeClaim 基础；D14 准备/来源设计已批准 | preset 发布/解析、request admission 与恢复、PREPARING producer、binding read Port、固定 intake→analysis Process | 本设计独立审查 + 精确修订 Human 批准；所用 proposal schemas/handlers/迁移完整注册，旧入口回归 |
+| EP | 既有 Enterprise/Source 及 ProjectScopeClaim 基础；D14 准备/来源设计已批准 | preset 发布/解析、request admission 与恢复、PREPARING producer、binding read Port、固定 intake→analysis Process | 本设计独立审查与精确修订 Human 批准已完成；所用 schemas/handlers/迁移仍须完整注册，旧入口回归 |
 | IP | 可信 Human、当次 scoped Actor/Decision、exact PROJECT discovery；公司发布独立基础 | 明确 NEW 准入、EXISTING Enterprise 候选、一次 reservation/Decision、scoped memberPolicy 与独立 creator provisioning | 显式受权管理者、真实 current Grants/Policy、有限接受集和专用 RLS；缺任何生产值拒绝 |
 | IG | D14 ZIP 限制/源接纳及原调用语义已批准 | immutable submit intent/note、原 intake query、一次 restart、manifest Event 和 handoff readback | 一 ZIP 的真实流、staging/scan/validation/link/manifest；对象存储/解析器配置有效 |
 | UI/API/BFF | #266 可信入口、三项实际 Query transport；D14 浏览器候选 route 已批准但未实现 | EP entry/result 字段映射，准备请求/IG intake + restart finite routes，上传及原请求页 | 同源 Session/CSRF/当前权限；一个显式提交，真实资料/分析状态；不得私有编排 |
@@ -69,4 +69,4 @@
 
 此表不是已发布实现 Issue。后续保持一个“可创建、提交并恢复原资料”的交付，不按模块拆成相互不可用的任务；实际 Runner/报告另按已批准依赖判断。公司真实模板/requirement/rule publication、preset/membership/授权实值、部署/对象存储、Runner 工具链/完整执行锁及实际浏览器/人工验收尚无本任务证据。
 
-本任务只运行 `vibe verify docs --json` 和字段/trace 定向静态对账；运行实现、Registry、迁移、上传、生产发布、TE/Runner、Browser、独立人工业务验收全部 `NOT RUN`。后续包含持久化，须配置 `full`（新容器环境先 `environment`），按 owning Module-Test 分层保留证据。独立 T2 Reviewer 必须检查最终修订并在实际 PR 的 `.vibe/reviews/pr-<number>/Review.md` 留痕，Human 技术批准绑定该 reviewed revision；未有实际 PR 不预造编号/审查结论，不用 docs PASS 代替。未满足两项门禁，依赖实现为 **NOT READY**。
+本任务只运行 `vibe verify docs --json` 和字段/trace 定向静态对账；运行实现、Registry、迁移、上传、生产发布、TE/Runner、Browser、独立人工业务验收全部 `NOT RUN`。后续包含持久化，须配置 `full`（新容器环境先 `environment`），按 owning Module-Test 分层保留证据。独立审查与 Human 技术批准已绑定 `98f60b3a81c10c23173482c31162371dfcecfc27`，记录保存于实际 PR #288 的正式 Review.md；docs PASS 不代替这两项门禁。后续贯通实现可据此准备执行工作项，仍须核对所用已批准依赖与显式部署输入，不据设计批准宣称生产权限、接口或 Runner 已可用。

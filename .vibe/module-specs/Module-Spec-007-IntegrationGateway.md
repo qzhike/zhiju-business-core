@@ -389,7 +389,7 @@ late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Atte
 
 ## #277 ZIP 提交意图与一次完整重传提案
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节补齐下方 D14 未注册 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是待审增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节补齐下方 D14 未注册 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是已批准设计增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
 
 | 拟公开 operation@1.0 | 封闭 payload / Result 增量 |
 |---|---|

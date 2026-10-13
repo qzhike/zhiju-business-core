@@ -933,7 +933,7 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 ## #277 准备入口预设与原请求交接提案
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；实现前须批准整个修订。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；本修订的批准范围见 Delta 与正式审查记录。
 
 ### 技术预设的唯一生产与精确选择
 
@@ -1002,10 +1002,10 @@ handoff 查询字段为 `{intakeRef,manifestRef?,status:WAITING_INPUT|PENDING|WA
 
 | 拟操作@1.0 / mode | 封闭 payload | Result data / purpose |
 |---|---|---|
-| `project.find_preparation_enterprises` / Query | `searchText: Sensitive<string>; page:{limit:1..50,cursor?}` | `Page<{enterpriseRef,displayName,displayCode}>`，#277 待审在外层增加 entryBinding/newCustomerAllowed；cursor 绑定身份/查询水位；`project.enterprise.select`；只搜当次许可企业，不按名称确立身份 |
-| `project.request_project_preparation` / CREATE preparation_request | `customer: {mode:EXISTING,enterpriseRef}或{mode:NEW,displayName}; projectTitle; preparationPresetRef:VERSIONED; preparationPresetHash:ContentHash` | requestRef + per-step Enterprise/Project/access receipts + disposition；`project.preparation.request`；#277 待审补充闭合预分配 Scope、预设和创建后权限，见上方 owning 专节 |
+| `project.find_preparation_enterprises` / Query | `searchText: Sensitive<string>; page:{limit:1..50,cursor?}` | `Page<{enterpriseRef,displayName,displayCode}>`，#277 已批准设计在外层增加 entryBinding/newCustomerAllowed；cursor 绑定身份/查询水位；`project.enterprise.select`；只搜当次许可企业，不按名称确立身份 |
+| `project.request_project_preparation` / CREATE preparation_request | `customer: {mode:EXISTING,enterpriseRef}或{mode:NEW,displayName}; projectTitle; preparationPresetRef:VERSIONED; preparationPresetHash:ContentHash` | requestRef + per-step Enterprise/Project/access receipts + disposition；`project.preparation.request`；#277 已批准设计补充闭合预分配 Scope、预设和创建后权限，见上方 owning 专节 |
 | `project.get_project_preparation_request` / Query | `requestRef; originalKey` | 原 request binding + step facts/current permitted action；`project.preparation.read`；恢复使用 request_project_preparation 原键原 payload，无新企业 |
-| `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef`；#277 待审增加 `memberPolicyHash; preparationPresetHash; preparationRequestRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
+| `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef`；#277 已批准设计增加 `memberPolicyHash; preparationPresetHash; preparationRequestRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
 | `project.capture_preparation_source` / CREATE snapshot | `projectRef; intakeManifestRef; templateRefs:NonEmptySet<CONTENT_ADDRESSED>; ruleBundleRef; previousReportRef?; trustedDecisionRefs:Set; purpose:preparation.analysis; audience:PrincipalRef` | preparationSourceRef + bytes manifest binding + coverage/omissions/redactions + validUntil；`project.preparation.source.capture`；只纳当前 ACCEPTED 源与 published refs |
 | `project.get_preparation_source` / Query | `preparationSourceRef; purpose:preparation.analysis; audience:PrincipalRef` | 原不可变 source payload + currentUsability/reasons/validUntil；`project.preparation.source.read` |
 | `project.accept_preparation_report` / CREATE report snapshot | `projectRef; expectedPreparationVersion; analysisResultRef:CONTENT_ADDRESSED; analysisResultAcceptanceRef:CONTENT_ADDRESSED; preparationSourceRef; expectedPreviousReportRef?; outputProfileRef:VERSIONED` | reportRef + candidateSetRef + planRef + becameCurrent + receiptRef；`project.preparation.report.accept`；EP Validator SERVICE，经 TE result Query 取真实 outputs，不接 caller JSON |

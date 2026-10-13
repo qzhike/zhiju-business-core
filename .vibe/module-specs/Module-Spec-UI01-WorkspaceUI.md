@@ -266,7 +266,7 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 
 ## #277 两字段创建与单次提交交接提案
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
 
 表单先公开 find_preparation_enterprises 读取公司 entryBinding 与本人可选客户；同一个客户字段明确 NEW 或选择 exact EXISTING。两种模式仍只由用户填客户和项目标题；浏览器生成 request/project 及 NEW enterprise UUIDv7、固定原键/完整 Scope，在原 payload 中原样回送 presetRef/hash，服务器复验公司选择。无可用 preset/publication/准入权限显示具体不可操作原因。配置、memberPolicy、Runtime/model、授权字段不成为员工表单选项，登录成功不显示“已获项目权限”。
 

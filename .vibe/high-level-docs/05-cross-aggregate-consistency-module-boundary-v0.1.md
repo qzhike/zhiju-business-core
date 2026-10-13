@@ -1437,7 +1437,7 @@ sequence为partition分配/观察序，不承诺全局producercommit序或完整
 
 ## D14 / RD-01 原请求与部分提交提案
 
-[#277 待审补充](../decisions/preparation-entry-bootstrap.md) 的顺序为 IP准入/占额 → EP原request → Enterprise/成员Policy/Project独立提交 → IP逐项creator Grants → IG原intake/传输 → EP逐源接纳 → IG manifest/Receipt/Outbox原子提交 → EP Inbox/唯一handoff → TE原task/analysisRequest。只有相应owner真实Receipt才能记成功；不存在跨Schema事务或以删除已提交企业/源/Grant作补偿。原query不推进，IP准入成功EP响应未知也不能另扣额度或换ID。上传restart需已证明无完整对象/link且旧流关闭，generation/CAS挡迟到写；UNKNOWN始终先同原receipt/readback。新名称/字段仍待批准注册。
+[#277 已批准补充](../decisions/preparation-entry-bootstrap.md) 的顺序为 IP准入/占额 → EP原request → Enterprise/成员Policy/Project独立提交 → IP逐项creator Grants → IG原intake/传输 → EP逐源接纳 → IG manifest/Receipt/Outbox原子提交 → EP Inbox/唯一handoff → TE原task/analysisRequest。只有相应owner真实Receipt才能记成功；不存在跨Schema事务或以删除已提交企业/源/Grant作补偿。原query不推进，IP准入成功EP响应未知也不能另扣额度或换ID。上传restart需已证明无完整对象/link且旧流关闭，generation/CAS挡迟到写；UNKNOWN始终先同原receipt/readback。新名称/字段已获技术设计批准，实际注册仍未执行。
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。EP 专用 preparation/startup Process 持久化原 intent/binding/hash/稳定键，逐步消费 owning Receipt 驱动 Enterprise→Project、Human→Fact/Product/QMS/Profile/ProductScope→Project start→TE scope。每个 Root 独立事务/授权/CAS；IG ZIP/staging/CLI 副作用只在原请求/Attempt 提交后执行。下游 key=request UUID+step+exact object ID，response 丢失查原 key/Receipt，不产生新意图。新资料/规则形成新 snapshot/request，旧 payload 不更新。
 

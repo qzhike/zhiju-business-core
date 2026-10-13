@@ -2504,7 +2504,7 @@ forward migration 必须验证旧 binding exact refs/Scope/hash 后赋 FULL_STAR
 
 ## #277 准备准入与上传交接持久化提案
 
-状态：`T2 / PROPOSED / NOT IMPLEMENTED`。本次无 SQL/迁移注册；字段归 EP/IP/IG #277 owning Spec。以下约束是后续实现必需 delta，不改变已应用 migration、旧 FULL_START 或公司发布存储。
+状态：`T2 / DESIGN APPROVED / NOT IMPLEMENTED`。本次无 SQL/迁移注册；字段归 EP/IP/IG #277 owning Spec。以下约束是后续实现必需 delta，不改变已应用 migration、旧 FULL_START 或公司发布存储。
 
 | owning Schema / 逻辑事实 | 约束、事务与恢复 |
 |---|---|

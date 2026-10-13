@@ -207,7 +207,7 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 
 ## #277 ZIP 原提交与一次重传设计场景
 
-状态：`PROPOSED / NOT RUN`。字段见 [IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。以下均需受控真实流/对象/owning Source Receipt；保留 IG-D14 安全测试与执行证据边界。
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。以下均需受控真实流/对象/owning Source Receipt；保留 IG-D14 安全测试与执行证据边界。
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|

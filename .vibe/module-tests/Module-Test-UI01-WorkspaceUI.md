@@ -127,7 +127,7 @@ reviewer and timestamp
 
 ## #277 两字段与原 intake 恢复设计场景
 
-状态：`PROPOSED / NOT RUN`。字段见 [UI #277](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。实际 Browser/publicHTTP 与独立顾问验收须另行取证；原型计时器不算真实Receipt。
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [UI #277](../module-specs/Module-Spec-UI01-WorkspaceUI.md#277-两字段创建与单次提交交接提案)。实际 Browser/publicHTTP 与独立顾问验收须另行取证；原型计时器不算真实Receipt。
 
 | ID | 输入 / 故障 | 预期可见行为与边界 | 实际 / 结果 |
 |---|---|---|---|

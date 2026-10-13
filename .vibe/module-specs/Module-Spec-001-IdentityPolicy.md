@@ -1014,7 +1014,7 @@ cursor authorizationSourceHash由IP owning Port返回：canonical排序后的act
 
 ## #277 准备入口准入与显式项目授权提案
 
-状态：`T2 / PROPOSED / HUMAN TECHNICAL APPROVAL PENDING / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
 
 ### 现有能力与必须新增的准入
 
@@ -1067,7 +1067,7 @@ creator Grants 的授予依据是管理员已批准并向该 Human 委托的 exa
 
 `project.preparation.analysis.admit` 是 HUMAN 将本次 ZIP/note 交给分析的权限：绑定原 intake payloadHash、Project、预设和固定 profile，不能把 intake-only 权限提升为分析。IG 提交同时验证 intake+analysis 两份当前 Decision；后台推进每个步骤前重新核验原 Human 当前资格并取得 SERVICE 自身当次授权，不复用过期 Human Decision，也不伪装离线 Human token。撤销阻后续步骤但不改原 Human 意图；admission recovery read 当前有效时仅可读原步骤安全摘要，读取 Project/ZIP 正文仍需独立 grant。
 
-新准入 admin、模板 publish、NEW permission、reserved Scope/recovery read 都是本 Issue 的新增接受集，须独立 T2 Review 与精确修订 Human 批准。实现必须同步 Policy/注册元数据/封闭 fixtures、独立 RLS/ACL 与当前撤权反例；当前无这些生产权限或 provisioner。不存在/不可见返回同一安全外观，失权 protected reads/writes=0，旧 URL、key、创建人字段和 ScopeClaim 均不替代权限。
+新准入 admin、模板 publish、NEW permission、reserved Scope/recovery read 都是本 Issue 的新增接受集，已获独立 T2 Review 与精确修订 Human 技术批准。实现必须同步 Policy/注册元数据/封闭 fixtures、独立 RLS/ACL 与当前撤权反例；当前无这些生产权限或 provisioner。不存在/不可见返回同一安全外观，失权 protected reads/writes=0，旧 URL、key、创建人字段和 ScopeClaim 均不替代权限。
 
 ## D14 / RD-01 准备分析与 Human 决定授权提案
 

@@ -1493,7 +1493,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## #277 准备入口增量名称与引用提案
 
-状态：`T2 / PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。只维护名称/Owner；完整字段分别见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。不改变当前 Registry/历史兼容计数。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。只维护名称/Owner；完整字段分别见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。不改变当前 Registry/历史兼容计数。
 
 | 新名称 / 类型 | 唯一 Owner / 边界 |
 |---|---|

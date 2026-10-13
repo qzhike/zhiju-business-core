@@ -551,7 +551,7 @@ pnpm persistence:gate
 
 ## #277 准备预设、原请求与交接设计场景
 
-状态：`PROPOSED / NOT RUN`。字段见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)。本表追加，不替换 EP-D14/EP-257/EP-WS 既有接受集。
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)。本表追加，不替换 EP-D14/EP-257/EP-WS 既有接受集。
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|

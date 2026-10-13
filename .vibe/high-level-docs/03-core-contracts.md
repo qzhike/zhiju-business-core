@@ -1255,7 +1255,7 @@ TaskDefinition的开放CanonicalJson若收敛为首版typed criteria，采用exe
 
 ## D14 / RD-01 PreparationContext 合同提案
 
-[#277 待审交接](../decisions/preparation-entry-bootstrap.md) 将已提交说明物化为真实 EP text/plain SourceMaterial，作为 CUSTOMER_MATERIAL 与 ZIP manifest 一起进入 preparation source 的既有 exact source refs/hash；正文不进入可信 objective/系统指令，note 不能替代至少一个合法 DOCX/Markdown ZIP entry。此处不新增 TE Context 字段或放宽旧 Task/Run/profile；消费方仍按批准 D14 的 source snapshot/current authorization 构建自己的 Context。technical preset、rule publication、custody、analysis intent、TE request 与真实 Run 分别绑定，canonical payload Hash 不冒充 Host manifest bytes SHA。
+[#277 已批准交接](../decisions/preparation-entry-bootstrap.md) 将已提交说明物化为真实 EP text/plain SourceMaterial，作为 CUSTOMER_MATERIAL 与 ZIP manifest 一起进入 preparation source 的既有 exact source refs/hash；正文不进入可信 objective/系统指令，note 不能替代至少一个合法 DOCX/Markdown ZIP entry。此处不新增 TE Context 字段或放宽旧 Task/Run/profile；消费方仍按批准 D14 的 source snapshot/current authorization 构建自己的 Context。technical preset、rule publication、custody、analysis intent、TE request 与真实 Run 分别绑定，canonical payload Hash 不冒充 Host manifest bytes SHA。
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。`PreparationContext@1.0` 是独立类型（不是 ProjectContext@1.0 可缺必填字段的变体）；owner TE，SNAPSHOT objectType 拟 `zhiju.execution.preparation_context`。固定 header/type/schema/canonicalization、enterpriseRef/projectRef/taskRef/workOrderRef、purpose=preparation.analysis、audience、preparationSourceRef、inputManifestBytesSha256、sourceWatermarks、policy/schema refs、exact authorized source/template/rule/previousReport/decision refs、coverage/omissions/redactions、createdAt/expiresAt。payload 按 cv1 hash 排除 header.payloadHash/自身 ref，外部 SnapshotRef 指向真实 snapshotId/hash；客户正文/原件作为授权 object refs，无占位 Profile/QMS/Product。
 

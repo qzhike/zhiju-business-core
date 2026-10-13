@@ -350,7 +350,7 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 ## #277 准备准入与创建者授权设计场景
 
-状态：`PROPOSED / NOT RUN`。字段见 [IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)，所有前置通过 owning 管理/发布入口形成，不能直接 SQL 造中间授权。
+状态：`DESIGN APPROVED / NOT RUN`。字段见 [IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)，所有前置通过 owning 管理/发布入口形成，不能直接 SQL 造中间授权。
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
