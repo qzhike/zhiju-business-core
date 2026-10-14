@@ -753,6 +753,17 @@ details small {
   padding-bottom: 0;
   border: 0;
 }
+.scope-unavailable-reason {
+  width: 100%;
+  padding: 10px 12px;
+  border-left: 3px solid #b45e29;
+  background: #fff5e9;
+  color: #713914;
+  font-weight: 600;
+}
+.scope-opinion {
+  margin-top: 12px;
+}
 .scope-footer {
   display: flex;
   align-items: center;

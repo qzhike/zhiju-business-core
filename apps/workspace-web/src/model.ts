@@ -40,6 +40,7 @@ export interface FixtureExecution {
   projectId: string;
   reportId: string;
   version: number;
+  informationRefs: string[];
   fileIds: string[];
   createdAt: number;
 }
@@ -51,4 +52,5 @@ export interface WorkspaceData {
   saveSelection: (reportId: string, ids: string[]) => void;
   confirm: (reportId: string, ids: string[], intentId: string) => FixtureExecution;
   execution: (requestId: string) => FixtureExecution | undefined;
+  executions: () => FixtureExecution[];
 }

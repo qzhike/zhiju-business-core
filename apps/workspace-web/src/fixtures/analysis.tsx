@@ -17,8 +17,7 @@ import {
   type Submission,
 } from '../analysis/model.js';
 import { Missing } from '../shell.js';
-import { UnavailablePage } from '../workbench/navigation.js';
-import { Startup } from '../App.js';
+import { StartupPage } from '../startup/Page.js';
 import type { WorkspaceData } from '../model.js';
 const firstReportId = 'DEMO-STARTUP-REPORT-01';
 const secondReportId = 'DEMO-STARTUP-REPORT-02';
@@ -313,48 +312,110 @@ export function FixtureAnalysis() {
 }
 export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
   const params = useParams();
+  const navigate = useNavigate();
   const adapter = useAdapter();
-  const report = reports.find(
+  const report = data.reports.find(
     (item) => item.projectId === params.projectId && item.reportId === params.reportId,
   );
-  if (
-    report &&
-    report.version < (reports.find((item) => item.reportId === adapter.current)?.version ?? 1)
-  )
-    return (
-      <UnavailablePage
-        title="历史报告只读"
-        reason="请返回当前分析报告核对本轮文件范围；历史报告不能确认新的执行范围。"
-      />
-    );
+  const [selected, setSelected] = useState(() => (report ? data.selected(report.reportId) : []));
+  const [missing, setMissing] = useState(false);
+  const [status, setStatus] = useState<'READY' | 'UNKNOWN'>('READY');
+  const [error, setError] = useState('');
+  const [originalIntent, setOriginalIntent] = useState('');
+  if (!report) return <Missing />;
   const scopeFileIds: Record<string, string> = {
     'F-CORR': 'DEMO-CORR',
     'F-PREV': 'DEMO-PREV',
     'F-MANUAL': 'DEMO-MANUAL',
     'F-ROLE': 'DEMO-ROLE',
   };
-  const blocked = report
-    ? adapter.blocked(report.reportId).map((id) => scopeFileIds[id] ?? id)
-    : [];
-  const view: WorkspaceData = {
-    ...data,
-    reports: data.reports.map((item) => ({
-      ...item,
-      files: item.files.map((file) =>
-        blocked.includes(file.id)
-          ? {
-              ...file,
-              selectable: false,
-              reason: '该文件已提交计划意见，等待关联修订计划；其他文件条件保持。',
-            }
-          : file,
-      ),
-    })),
-    selected: (id) => data.selected(id).filter((fileId) => !blocked.includes(fileId)),
-    confirm: (id, ids, intent) => {
-      if (ids.some((fileId) => blocked.includes(fileId))) throw new Error('PLAN_RECHECK_REQUIRED');
-      return data.confirm(id, ids, intent);
-    },
-  };
-  return <Startup data={view} />;
+  const analysisFileIds: Record<string, string> = Object.fromEntries(
+    Object.entries(scopeFileIds).map(([analysisId, scopeId]) => [scopeId, analysisId]),
+  );
+  const unavailable = Object.fromEntries(
+    adapter
+      .blocked(report.reportId)
+      .map((id) => [
+        scopeFileIds[id] ?? id,
+        '该文件已提交计划意见，等待关联修订计划；其他文件条件保持。',
+      ]),
+  );
+  const latestReportId = adapter.arrived ? secondReportId : firstReportId;
+  return (
+    <StartupPage
+      report={report}
+      selected={selected}
+      unavailable={unavailable}
+      startupBlocker={missing ? '缺少必要产品范围依据' : undefined}
+      prior={data.executions().filter((item) => item.projectId === report.projectId)}
+      latestReportId={latestReportId}
+      status={status}
+      onSelectionChange={(ids) => {
+        try {
+          data.saveSelection(report.reportId, ids);
+          setSelected(ids);
+          setError('');
+        } catch {
+          setError('无法保存演示选择，当前选择保留。');
+        }
+      }}
+      onConfirm={(ids, intentId) => {
+        if (ids.some((id) => unavailable[id])) return;
+        try {
+          const execution = data.confirm(report.reportId, ids, intentId);
+          void navigate(`/projects/${report.projectId}/executions/${execution.requestId}`);
+        } catch {
+          setOriginalIntent(intentId);
+          setStatus('UNKNOWN');
+          setError('合成回执结果待核验，保留原意图；不能重复确认。');
+        }
+      }}
+      onPlanOpinion={(id) => {
+        const analysisId = analysisFileIds[id];
+        if (!analysisId) return;
+        void navigate(
+          `/projects/${report.projectId}/analysis/${report.reportId}?opinion=1&file=${analysisId}`,
+        );
+      }}
+      development
+      controls={
+        <div className="fixture-options">
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {status === 'UNKNOWN' && (
+            <button
+              onClick={() => {
+                try {
+                  const result = data.execution(`DEMO-REQUEST-${originalIntent}`);
+                  if (result?.reportId === report.reportId) {
+                    void navigate(`/projects/${report.projectId}/executions/${result.requestId}`);
+                  } else {
+                    setError('原合成请求仍无可匹配回执；未再次提交或声称已启动。');
+                  }
+                } catch {
+                  setError('原合成请求暂不可查询；仍需核验，不能再次提交。');
+                }
+              }}
+            >
+              重新查询原请求
+            </button>
+          )}
+          <label>
+            <input
+              type="checkbox"
+              checked={missing}
+              onChange={(event) => {
+                setMissing(event.target.checked);
+              }}
+            />{' '}
+            演示必要信息缺失
+          </label>
+          <button onClick={adapter.arrive}>模拟新结果到达</button>
+        </div>
+      }
+    />
+  );
 }
