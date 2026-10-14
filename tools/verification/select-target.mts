@@ -14,43 +14,46 @@ export interface VerificationSelection {
   reason: string;
 }
 
-function normalizePath(path: string): string {
-  return path.trim().replace(/^\.\//, '').replaceAll('\\', '/');
-}
-
 export function isDocumentationOnlyPath(path: string): boolean {
   return path === 'README.md' || (path.startsWith('.vibe/') && path.endsWith('.md'));
 }
 
-function requiresFullVerification(path: string): boolean {
-  if (
-    path === '.vibe/project.yaml' ||
-    path === 'AGENTS.md' ||
-    path === 'package.json' ||
-    path === 'pnpm-lock.yaml' ||
-    path === 'pnpm-workspace.yaml' ||
-    path === 'vitest.config.ts' ||
-    path === 'vitest.persistence.config.ts'
-  ) {
-    return true;
-  }
-
-  return (
-    path.startsWith('.github/') ||
-    path.startsWith('migrations/') ||
-    path.startsWith('tests/persistence/') ||
-    path.startsWith('tools/persistence/') ||
-    path.startsWith('tools/verification/') ||
-    /^modules\/[^/]+\/src\/persistence\//u.test(path) ||
-    path.endsWith('.sql')
-  );
-}
+// Audited presentation/fixture boundaries, not a blanket frontend exemption.
+// Production integration or new responsibilities must update this allowlist.
+const lowRiskUiPaths = new Set([
+  'apps/workspace-web/src/style.css',
+  'apps/workspace-web/src/shell.tsx',
+  'apps/workspace-web/src/analysis/analysis.css',
+  'apps/workspace-web/src/analysis/Page.tsx',
+  'apps/workspace-web/src/analysis/Page.test.tsx',
+  'apps/workspace-web/src/analysis/model.ts',
+  'apps/workspace-web/src/analysis/model.test.ts',
+  'apps/workspace-web/src/startup/Page.tsx',
+  'apps/workspace-web/src/startup/Page.test.tsx',
+  'apps/workspace-web/src/intake/intake.css',
+  'apps/workspace-web/src/workbench/workbench.css',
+  'apps/workspace-web/src/fixtures/adapter.ts',
+  'apps/workspace-web/src/fixtures/analysis.tsx',
+  'apps/workspace-web/src/fixtures/analysis-report.json',
+  'apps/workspace-web/src/fixtures/analysis-report.md',
+  'apps/workspace-web/src/fixtures/analysis-report.followup.json',
+  'apps/workspace-web/src/fixtures/analysis-report.followup.md',
+  'apps/workspace-web/src/fixtures/intake.tsx',
+  'apps/workspace-web/src/fixtures/startup-review.json',
+  'apps/workspace-web/src/fixtures/workbench.tsx',
+  'tests/workspace/analysis.spec.ts',
+  'tests/workspace/intake.spec.ts',
+  'tests/workspace/startup.spec.ts',
+  'tests/workspace/shell.spec.ts',
+  'tests/workspace/workbench.spec.ts',
+]);
 
 export function selectVerificationTarget(
   changedPaths: readonly string[],
   context: VerificationContext,
 ): VerificationSelection {
-  const paths = [...new Set(changedPaths.map(normalizePath).filter(Boolean))];
+  // Git's NUL-delimited paths preserve filename characters; match them exactly.
+  const paths = [...new Set(changedPaths)];
 
   if (paths.length === 0) {
     return { target: 'full', reason: 'no-changed-paths' };
@@ -60,21 +63,26 @@ export function selectVerificationTarget(
     return { target: 'docs', reason: 'strict-documentation-only' };
   }
 
-  if (paths.some(requiresFullVerification)) {
-    return { target: 'full', reason: 'persistence-or-verification-sensitive' };
+  if (
+    context.eventName === 'pull_request' &&
+    paths.every((path) => isDocumentationOnlyPath(path) || lowRiskUiPaths.has(path))
+  ) {
+    return { target: 'code', reason: 'low-risk-pull-request' };
   }
 
-  if (context.eventName === 'pull_request' && context.isDraftPullRequest) {
-    return { target: 'code', reason: 'draft-non-persistence-change' };
-  }
-
-  return { target: 'full', reason: 'ready-or-main-non-document-change' };
+  return {
+    target: 'full',
+    reason:
+      context.eventName === 'pull_request'
+        ? 'high-risk-or-unknown-change'
+        : 'non-pull-request-non-document-change',
+  };
 }
 
 function readChangedPaths(baseSha: string, headSha: string): string[] {
   const output = execFileSync(
     'git',
-    ['diff', '--name-only', '-z', '--diff-filter=ACMRD', `${baseSha}...${headSha}`],
+    ['diff', '--name-only', '-z', '--no-renames', `${baseSha}...${headSha}`],
     { encoding: 'utf8' },
   );
 

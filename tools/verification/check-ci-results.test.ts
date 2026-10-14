@@ -61,9 +61,12 @@ describe('required CI verification aggregation', () => {
   it.each([null, [], 'success', {}])('rejects malformed dependency data %j', (needs) => {
     expect(ciVerificationFailures(needs, false)).not.toEqual([]);
   });
-  it('rejects workflow cancellation even if all dependencies report success', () => {
-    expect(ciVerificationFailures(completed(), true)).not.toEqual([]);
-  });
+  it.each(['docs', 'code', 'full'] as const)(
+    'rejects a superseded %s workflow even if all selected jobs succeeded',
+    (target) => {
+      expect(ciVerificationFailures(completed(target), true)).not.toEqual([]);
+    },
+  );
   it('requires newly added dependencies to be explicitly included in aggregation', () => {
     expect(
       ciVerificationFailures({ ...completed(), extra: { result: 'failure' } }, false),

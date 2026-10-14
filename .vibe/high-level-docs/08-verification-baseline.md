@@ -40,14 +40,20 @@
 项目配置保留三个确定性目标，并始终选择覆盖当前变更风险边界的最小充分目标：
 
 - `docs`：严格限于 `.vibe/` 下 Markdown 或根 `README.md` 的文档变更，检查变更路径、diff whitespace、冲突标记、Markdown fence 和仓库既有格式 Gate；设计、Contract 语义与 `NOT RUN` 边界仍由独立审查和适用的人类门禁判断，不能由该自动化结果替代；
-- `code`：Draft Pull Request 中不触及 persistence 的实现变更，执行 clean、格式、lint、TypeScript、普通 Vitest、Architecture 与 Contract Gate；
-- `full`：ready 非文档 Pull Request、main 非文档 push、Migration/SQL、Persistence 测试或工具、模块 Persistence 实现、验证策略本身、无法分类或混合高风险变更；在 `code` 之上追加 PostgreSQL/Flyway Persistence Gate。
+- `code`：Draft 或 ready Pull Request 的完整变更集合仅包含明确的低风险 UI 允许路径和可选的严格文档路径；执行 clean、格式、lint、TypeScript、普通 Vitest、Workspace 独立构建与浏览器检查、Architecture 与 Contract Gate；
+- `full`：main 非文档 push、Core 业务与状态机、授权/Session/Scope/真实提交与回执、共享 Contract、Migration/SQL、Persistence、依赖/构建/验证策略，以及允许列表外或混合范围；在 `code` 之上追加 PostgreSQL/Flyway Persistence Gate。Draft 状态不豁免高风险变更。
 
-CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最后一次提交把含代码的 PR 降级为文档 Gate。Persistence 或验证策略路径在 Draft 阶段也必须 `full`；未知、空集合或 diff 不可得时 fail closed 到 `full`。Reviewer 优先复用同一 exact revision 的可信 CI，不为重复取证再次运行相同目标；需要额外语义证据时使用 focused counterexample。绿色 `docs` 或 `code` 不表示 Persistence、外部系统、生产或人工验收通过。
+第一阶段低风险范围只包括已确认的页面样式、无业务动作的 shell 展示组件、当前仅经开发 fixture 接入的 analysis/startup 页面与局部模型、隔离的开发 fixture 文件及普通页面浏览器用例；精确允许路径由 `tools/verification/select-target.mts` 维护。不能按整个前端目录或文件扩展名统一放行。生产入口 `App.tsx`（含安全 Markdown）、`TrustedApp`、`trusted/`、BFF/API、真实 adapter、包含真实操作的 intake/Markdown 页面，以及共享导航/Scope 模型仍为 `full`。新页面、新配置及职责无法确认的路径默认 `full`；允许路径接入生产业务、安全或持久化职责时，必须在同一变更中更新路由和反例，不能沿用原低风险分类。
+
+CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最后一次提交把含代码的 PR 降级为文档 Gate。路径按 Git 的 NUL 分隔输出原样匹配，不裁剪空格、不把文件名中的反斜杠改成目录分隔符；外观相近的未知路径不能被改写成允许路径。重命名按删除旧路径和新增新路径共同分类，文件类型变化也纳入 diff；不能把高风险文件移入低风险目录后隐藏原路径。任一路径不在允许范围、空集合或 diff 不可得时 fail closed 到 `full`；非 Pull Request 的非文档事件始终 `full`。Reviewer 优先复用同一 exact revision 的可信 CI，不为重复取证再次运行相同目标；需要额外语义证据时使用 focused counterexample。绿色 `docs` 或 `code` 不表示 Persistence、外部系统、生产或人工验收通过。
+
+同一工作流按事件类型与 PR 编号建立 concurrency group，新提交触发的运行取消同一 PR 的旧运行；不同 PR 互不取消。main 和其他非 PR 运行按各自 run id 分组，不取消或挤掉其他 main 验证。取消仍是未通过的旧修订证据，最终合并只接受当前修订的完整所选检查；`verify` 的失败、取消、缺失和意外 skipped 判定保持不变。主干非文档 full 的执行频次保持不变，不引入 nightly、跳过标签或 `[skip ci]`。
+
+路由回归须覆盖 Draft/ready 低风险及文档混合、任一高风险/未知路径覆盖低风险、带首尾空格或字面反斜杠的真实 Git 文件名及混合变更、main 同路径 full、严格文档 main、空/失败 diff、重命名旧路径与累计 PR diff；工作流回归须覆盖同 PR 新 SHA 共享取消组、不同 PR 隔离、每个 main run 独立且禁止取消，以及 docs/code/full 的取消结果均不得通过汇总。
 
 普通 Vitest 只收集无需数据库的测试。原 `tests/persistence/pinned-baseline.test.ts`、`migration-isolation.test.ts`，以及 `query-projection.test.ts` 的 Snapshot hash 和 `enterprise-project-scope.test.ts` 的 SourceMaterial 输入拒绝纯测试，分别迁到 `tests/business/` 的 `pinned-baseline`、`migration-isolation`、`project-board-hash`、`source-material-validation` 文件；断言与测试名称保留。新增无需数据库用例必须进入普通收集范围，不能放入被普通配置排除的数据库目录。
 
-Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。`docs/code/full` 路由不变；CI 的 `checks` 执行预算为 30 分钟，`persistence` 执行预算为 60 分钟。增加数据库任务预算不改变测试收集、串行执行、固定镜像或失败/取消判定。
+Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。配置目标仍为 `docs/code/full`，路由按本节风险规则；CI 的 `checks` 执行预算为 30 分钟，`persistence` 执行预算为 60 分钟。增加数据库任务预算不改变测试收集、串行执行、固定镜像或失败/取消判定。
 
 13 类 Core-valid unsupported final 保持 `initial-context-unsupported-final.test.ts` 中既有的两个独立 PostgreSQL 容器组。12 个授权资格变化用例迁至 `initial-context-eligibility.test.ts`，按 GRANT/POLICY 分成两个各 6 例的独立容器组；三个交付用例迁至 `initial-context-delivery.test.ts`，每例独占容器，最多同时执行两例。各组内部仍串行，交错执行真实等待；连接、角色、迁移、时钟、业务准备缓存和运行时存储各自独立。开始业务执行前验证实例身份不同，角色撤销、同一业务键行锁、时钟变化与 SQL 异常不跨组传播。每例后 drain；失败、超时或 drain 异常后，复用该环境的后续用例显式失败且不再执行业务操作。setup 部分失败和整组退出均关闭已创建的资源；断言失败及超时也必须保留排空与清理保障，不能把整个测试体加入其自身 drain 集合。其余 64 个 initial-context 用例及其他持久化文件保持原相对顺序和串行配置。此范围只调整隔离调度，不删除或合并叶级用例、业务链、断言及 owning expiry cleanup，不改变真实期限、重试等待、Run budget、测试超时或完整门禁要求。
 
