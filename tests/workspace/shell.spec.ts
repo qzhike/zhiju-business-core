@@ -43,9 +43,6 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await expect(page.getByRole('alert')).toContainText('文件选择已保留');
   await expect(page.getByRole('button', { name: '确认信息与范围并开始' })).toBeDisabled();
   await page.getByRole('checkbox', { name: '演示必要信息缺失' }).uncheck();
-  await page.getByRole('button', { name: '模拟新结果到达' }).click();
-  await expect(page).toHaveURL(startup);
-  await expect(page.getByRole('status')).toContainText('选择及第 1 版保持');
   await page.reload();
   await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).toBeChecked();
   await page.goBack();
@@ -59,6 +56,19 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await page.getByRole('button', { name: '确认信息与范围并开始' }).click();
   await page.getByRole('button', { name: '确认并查看演示进度' }).click();
   await expect(page.getByRole('heading', { name: '本轮执行进度' })).toBeVisible();
+  expect(
+    await page.evaluate(() => {
+      const raw = sessionStorage.getItem('zhiju-workspace-development-fixture-v1');
+      return raw
+        ? (JSON.parse(raw) as { executions: { informationRefs: string[] }[] }).executions[0]
+            ?.informationRefs
+        : [];
+    }),
+  ).toEqual([
+    'DEMO-PROFILE-CANDIDATE-01',
+    'DEMO-QMS-CANDIDATE-01',
+    'DEMO-PRODUCT-SCOPE-CANDIDATE-01',
+  ]);
   await expect(page.getByRole('status')).toContainText('不表示真实业务成功');
   const exactUrl = page.url();
   await expect(page.locator('main')).toContainText('DEMO-STARTUP-REPORT-01');
@@ -69,6 +79,10 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   });
   await page.getByRole('link', { name: '查看本轮精确报告' }).click();
   await expect(page).toHaveURL(report);
+  await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
+  await expect(page.getByText('已纳入第 1 版范围')).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).toBeDisabled();
+  await page.getByRole('link', { name: '返回分析总览' }).click();
   await page.getByText('分析演示控制', { exact: true }).click();
   await page.getByRole('button', { name: '模拟新报告到达' }).click();
   await expect(page).toHaveURL(report);

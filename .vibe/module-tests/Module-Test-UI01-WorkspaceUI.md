@@ -249,3 +249,15 @@ reviewer and timestamp
 | 生产隔离 | production bundle 无开发 adapter/匿名报告；未注册能力不可用、无 fixture fallback | Configured code target / production browser |
 
 真实服务、Runner 接纳、上传、持久草稿、跨设备恢复、完整平台矩阵及人工验收：NOT RUN。执行结果记录在 Issue/PR，不由本场景表推导 PASS。
+
+## #284 启动范围页面验收场景
+
+| 场景 | 预期 | 证据位置 |
+|---|---|---|
+| 三类信息与整文件选择 | 默认零选；展开依据；搜索、章节和状态筛选不改变选择；桌面清单有界滚动，底部持续显示计数与确认 | Startup presentation / built browser |
+| 必要依据与文件阻塞 | 必要依据缺失保留选择且禁确认；暂不能处理的整文件原因紧邻标题、关联禁用复选框；已选后阻塞可显式移除，独立文件仍可确认 | Startup presentation / built browser |
+| 计划意见上下文 | 精确报告及文件进入分析页唯一意见区；待复核仅阻关联文件，不扩散到其他文件或旧 Run | Analysis/startup browser |
+| 精确版本与后续轮 | 新报告不能沿用旧选择直接确认；已确认范围不变，重复纳入文件被排除并可打开原进度 | Startup browser / development adapter |
+| 未知回执与生产隔离 | PENDING/UNKNOWN 禁重复提交；UNKNOWN 离开范围页再返回仍保留精确原意图、选择及只读查询入口；正式构建无演示适配器或合成成功 | Startup adapter / production build |
+
+页面和匿名适配器的自动化结果记录于 #284 PR；真实服务、Runner、持久化、跨设备、完整 Chrome/Edge 平台矩阵及人工验收仍为 `NOT RUN`。
