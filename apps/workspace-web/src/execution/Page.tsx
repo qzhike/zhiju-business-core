@@ -22,11 +22,23 @@ import {
 } from './model.js';
 import './execution.css';
 
-const Memory = createContext<Map<string, RoundView> | null>(null);
+interface ExecutionMemory {
+  views: Map<string, RoundView>;
+  candidateReturns: Map<string, string>;
+}
+const Memory = createContext<ExecutionMemory | null>(null);
+export function useExecutionMemory() {
+  const memory = useContext(Memory);
+  if (!memory) throw new Error('Execution navigation boundary is missing');
+  return memory;
+}
 // Lives inside the existing identity boundary; no customer content in browser storage.
 export function ExecutionNavigation({ children }: { children: ReactNode }) {
-  const [views] = useState(() => new Map<string, RoundView>());
-  return <Memory.Provider value={views}>{children}</Memory.Provider>;
+  const [memory] = useState<ExecutionMemory>(() => ({
+    views: new Map(),
+    candidateReturns: new Map(),
+  }));
+  return <Memory.Provider value={memory}>{children}</Memory.Provider>;
 }
 export interface ExecutionPageProps {
   rounds: readonly ExecutionRound[];
@@ -39,8 +51,7 @@ export interface ExecutionPageProps {
 }
 export function ExecutionPage(props: ExecutionPageProps) {
   const { projectId, requestId } = useParams();
-  const views = useContext(Memory);
-  if (!views) throw new Error('Execution navigation boundary is missing');
+  const { views } = useExecutionMemory();
   const round = props.rounds.find(
     (item) => item.projectId === projectId && item.requestId === requestId,
   );
@@ -91,7 +102,7 @@ function RoundPage({
   view: RoundView;
 }) {
   const navigate = useNavigate();
-  const memory = useWorkbenchMemory();
+  const memory = useExecutionMemory();
   const [, render] = useState(0);
   const list = useRef<HTMLDivElement>(null);
   const live = useRef(true);
@@ -255,7 +266,7 @@ function RoundPage({
                       className="button"
                       to={href}
                       onClick={() => {
-                        memory.returnTo = roundPath(round);
+                        memory.candidateReturns.set(href, roundPath(round));
                       }}
                     >
                       检查文件 · {file.candidate?.revisionId}

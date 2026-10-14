@@ -2,9 +2,9 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { MarkdownReviewPage, type MarkdownReviewData } from '../MarkdownReviewPage.js';
-import { useWorkbenchMemory, UnavailablePage } from '../workbench/navigation.js';
+import { UnavailablePage } from '../workbench/navigation.js';
 import { roundPath, candidatePath } from '../execution/model.js';
-import { ExecutionPage, type ExecutionPageProps } from '../execution/Page.js';
+import { ExecutionPage, useExecutionMemory, type ExecutionPageProps } from '../execution/Page.js';
 import type {
   ExecutionRound,
   ProgressFile,
@@ -14,7 +14,7 @@ import type {
 import type { WorkspaceData } from '../model.js';
 const fixtureMarker = 'EXECUTION_DEVELOPMENT_EVENTS_ONLY';
 const projectId = 'DEMO-PROJECT-01';
-const requestId = 'WB-SCOPE-01';
+const requestId = 'WB-ROUND-01';
 const file = (id: string, code: string, title: string): ProgressFile => ({
   id,
   code,
@@ -445,7 +445,7 @@ function candidateExample(round: ExecutionRound, file: ProgressFile): MarkdownRe
 export function FixtureExecutionReview() {
   const { projectId = '', fileId = '', revisionId = '' } = useParams();
   const adapter = useAdapter();
-  const memory = useWorkbenchMemory();
+  const memory = useExecutionMemory();
   const path = `/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(revisionId)}`;
   const snapshot = adapter.candidates.get(path);
   const source = adapter.rounds.find(
@@ -456,7 +456,6 @@ export function FixtureExecutionReview() {
       <UnavailablePage
         title="检查文件"
         reason="未取得此精确候选的固定样例，不能借用其他版本正文。"
-        backLabel="返回本轮文件进度"
       />
     );
   return (
@@ -464,15 +463,7 @@ export function FixtureExecutionReview() {
       <p className="notice">
         仅开发合成候选 · 无真实正文接纳、保存、批准或交付；示例 Hash 不是业务证明。
       </p>
-      <Link
-        to={
-          memory.returnTo.startsWith(`/projects/${encodeURIComponent(projectId)}/executions/`)
-            ? memory.returnTo
-            : roundPath(source)
-        }
-      >
-        返回本轮文件进度
-      </Link>
+      <Link to={memory.candidateReturns.get(path) ?? roundPath(source)}>返回本轮文件进度</Link>
       <MarkdownReviewPage
         data={snapshot.data}
         hasRepresentation={false}

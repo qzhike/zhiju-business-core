@@ -155,7 +155,7 @@ Production progress reads and retries remain unavailable until owning operations
 are registered and authorized; the page never falls back to fixtures.
 
 `src/fixtures/execution.tsx` supplies explicit memory-only events with no timers:
-open `/projects/DEMO-PROJECT-01/executions/WB-SCOPE-01` in a fixture build, then
+open `/projects/DEMO-PROJECT-01/executions/WB-ROUND-01` in a fixture build, then
 expand the development controls. Exercise mixed results, an independently waiting
 later round, long-list scrolling, delayed retry receipts, mismatched receipts,
 read errors and expired access. Candidate entries preserve exact version routes;

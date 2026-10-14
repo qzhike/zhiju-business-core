@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
-const first = '/projects/DEMO-PROJECT-01/executions/WB-SCOPE-01';
+const first = '/projects/DEMO-PROJECT-01/executions/WB-ROUND-01';
 const controls = async (page: Page) => {
   const details = page.locator('.execution-controls');
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
@@ -68,7 +68,7 @@ test('round navigation retains search, filter, disclosures and does not steal fo
   await expect(search).toBeFocused();
   await expect(page).toHaveURL('/projects/DEMO-PROJECT-01/executions/WB-SCOPE-02');
   await expect(search).toHaveValue('手册');
-  await page.getByLabel('查看轮次').selectOption('WB-SCOPE-01');
+  await page.getByLabel('查看轮次').selectOption('WB-ROUND-01');
   await expect(search).toHaveValue('CX');
   await expect(page.getByLabel('文件状态')).toHaveValue('PROCESSING');
   await expect(page.locator('.execution-secondary details').nth(0)).toHaveAttribute('open', '');
@@ -107,7 +107,7 @@ test('read/access/empty states, permission denial and mismatched retry cannot cl
   await page.getByRole('button', { name: '带入空范围示例' }).click();
   await page.getByLabel('查看轮次').selectOption('WB-EMPTY-SCOPE');
   await expect(page.locator('.execution-list')).toContainText('本轮没有已确认文件');
-  await page.goto('/projects/other/executions/WB-SCOPE-01');
+  await page.goto('/projects/other/executions/WB-ROUND-01');
   await expect(page.locator('main')).toContainText('无法读取此精确请求');
   await expect(page.locator('.execution-file')).toHaveCount(0);
 });
@@ -167,7 +167,7 @@ test('long confirmed list scrolls within its bounded area and restores its round
     element.scrollTop = 600;
   });
   await expect.poll(async () => list.evaluate((element) => element.scrollTop)).toBe(600);
-  await page.getByLabel('查看轮次').selectOption('WB-SCOPE-01');
+  await page.getByLabel('查看轮次').selectOption('WB-ROUND-01');
   await page.getByLabel('查看轮次').selectOption('WB-LONG-SCOPE');
   await expect.poll(async () => list.evaluate((element) => element.scrollTop)).toBe(600);
   expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
@@ -223,3 +223,29 @@ function requiredValue<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) throw new Error('Missing test evidence');
   return value;
 }
+
+test('nested candidate return preserves the scoped workbench URL, search, disclosure and focus', async ({
+  page,
+}) => {
+  const projectKey = 'project:WB-ENTERPRISE-01/DEMO-PROJECT-01';
+  const workbenchUrl = '/workbench?enterprise=WB-ENTERPRISE-01&project=DEMO-PROJECT-01';
+  await page.goto(workbenchUrl);
+  await expect(page.getByLabel('筛选项目')).toHaveValue(projectKey);
+  await page.getByLabel('查找工作').fill('文件');
+  await page.locator('.wb-completed > summary').click();
+  const card = page.getByRole('article', { name: '体系文件升级 · 文件进度', exact: true });
+  const entry = card.getByRole('link', { name: '查看文件进度' });
+  await entry.click();
+  await expect(page).toHaveURL(first);
+  await controls(page);
+  await page.getByRole('button', { name: '模拟首份候选到达' }).click();
+  await page.getByRole('link', { name: '检查文件 · DEMO-REV-01' }).click();
+  await expect(page.getByRole('heading', { name: '纠正措施程序（合成候选）' })).toBeVisible();
+  await page.getByRole('link', { name: '返回本轮文件进度' }).click();
+  await page.getByRole('link', { name: '返回工作台', exact: true }).click();
+  await expect(page).toHaveURL(workbenchUrl);
+  await expect(page.getByLabel('筛选项目')).toHaveValue(projectKey);
+  await expect(page.getByLabel('查找工作')).toHaveValue('文件');
+  await expect(page.locator('.wb-completed')).toHaveAttribute('open', '');
+  await expect(entry).toBeFocused();
+});

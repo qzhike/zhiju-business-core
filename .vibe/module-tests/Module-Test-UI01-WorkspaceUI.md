@@ -243,7 +243,7 @@ reviewer and timestamp
 | 重试及 UNKNOWN | 许可单文件点击一次产生 pending 原 intent，重复点击不提交；错回执和异常保持 UNKNOWN，只读原请求；失败历史与其他文件不变 | Execution model/component / browser |
 | 多轮上下文 | 后轮等待时前轮仍处理；搜索/筛选/滚动/展开往返保留；scope/report provenance 不改写 | Execution browser |
 | 后台到达 | 页面、焦点、当前版本/草稿不被替换，展开区保持；另一轮事件不导航 | Execution component / browser |
-| 负向状态 | 空范围/空搜索/读失败/失权各自明确，失权不展示文件，返回稳定工作台上下文 | Execution component / browser |
+| 负向状态 | 空范围/空搜索/读失败/失权各自明确，失权不展示文件；带项目查询及非默认搜索/展开的工作台→轮次→候选→轮次→工作台完整往返保留原 URL、项目和焦点 | Execution component / browser |
 | 视口及键盘 | 1280/1440/1920 桌面清单内部滚动，360/320 reflow；键盘进入候选/切轮，状态不只依赖颜色 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
 | 生产隔离 | production bundle 不含 execution fixture，能力不可用不模拟执行或候选 | Configured code / production browser |
 
