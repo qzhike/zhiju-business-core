@@ -197,7 +197,7 @@ export function StartupPage({
                         type="checkbox"
                         aria-label={`选择${file.title}`}
                         aria-describedby={unavailableReason ? `scope-reason-${file.id}` : undefined}
-                        disabled={!eligible(file.id) || !current}
+                        disabled={!eligible(file.id) || !current || status !== 'READY'}
                         checked={selected.includes(file.id)}
                         onChange={() => {
                           onSelectionChange(
@@ -225,6 +225,17 @@ export function StartupPage({
                   ) : (
                     <p>{file.reason}</p>
                   )}
+                  {unavailableReason && selected.includes(file.id) && (
+                    <button
+                      className="scope-remove-selection"
+                      disabled={!current || status !== 'READY'}
+                      onClick={() => {
+                        onSelectionChange(selected.filter((id) => id !== file.id));
+                      }}
+                    >
+                      从本轮选择中移除{file.title}
+                    </button>
+                  )}
                   <details>
                     <summary>查看本轮计划与依据</summary>
                     <p>{file.plan}</p>
@@ -246,7 +257,8 @@ export function StartupPage({
         <footer className="scope-footer">
           <div>
             <strong>
-              已选 {selected.length} / {report.files.filter((file) => eligible(file.id)).length} 份
+              已选 {selected.length} 份 · 本轮可选{' '}
+              {report.files.filter((file) => eligible(file.id)).length} 份
             </strong>
             <p className="muted">同时确认以上必要信息与完整文件范围</p>
           </div>

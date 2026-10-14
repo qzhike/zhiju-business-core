@@ -55,7 +55,7 @@ function render(
 describe('startup scope presentation', () => {
   it('starts empty and names the whole-file reason with the disabled checkbox', () => {
     const html = render();
-    expect(html).toContain('已选 0 / 2 份');
+    expect(html).toContain('已选 0 份 · 本轮可选 2 份');
     expect(html).toContain('暂不能处理');
     expect(html).toContain('aria-describedby="scope-reason-DEMO-MANUAL"');
     expect(html).toContain('组织图未可靠读取');
@@ -64,7 +64,7 @@ describe('startup scope presentation', () => {
 
   it('preserves selection but blocks confirmation for missing startup evidence and pending results', () => {
     const missing = render({ selected: ['DEMO-CORR'], startupBlocker: '缺少产品范围依据' });
-    expect(missing).toContain('已选 1 / 2 份');
+    expect(missing).toContain('已选 1 份 · 本轮可选 2 份');
     expect(missing).toContain('缺少产品范围依据');
     expect(missing).toContain('disabled=""');
     expect(render({ selected: ['DEMO-CORR'], status: 'UNKNOWN' })).toContain('不能再次提交');
@@ -76,8 +76,18 @@ describe('startup scope presentation', () => {
         { requestId: 'request-1', reportId: report.reportId, version: 1, fileIds: ['DEMO-CORR'] },
       ],
     });
-    expect(html).toContain('已选 0 / 1 份');
+    expect(html).toContain('已选 0 份 · 本轮可选 1 份');
     expect(html).toContain('已纳入第 1 版范围');
     expect(html).toContain('/projects/DEMO-PROJECT-01/executions/request-1');
+  });
+
+  it('keeps a blocked selection visible with a separate removal action', () => {
+    const html = render({
+      selected: ['DEMO-CORR', 'DEMO-PREV'],
+      unavailable: { 'DEMO-CORR': '计划意见待复核' },
+    });
+    expect(html).toContain('已选 2 份 · 本轮可选 1 份');
+    expect(html).toContain('从本轮选择中移除纠正措施程序');
+    expect(html).toContain('计划意见待复核');
   });
 });

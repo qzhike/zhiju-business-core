@@ -764,6 +764,9 @@ details small {
 .scope-opinion {
   margin-top: 12px;
 }
+.scope-remove-selection {
+  margin-top: 4px;
+}
 .scope-footer {
   display: flex;
   align-items: center;

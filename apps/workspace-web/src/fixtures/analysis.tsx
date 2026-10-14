@@ -39,6 +39,13 @@ function stateFor(states: Record<string, AnalysisState>, id: string): AnalysisSt
   if (!state) throw new Error('DEVELOPMENT_REPORT_STATE_UNAVAILABLE');
   return state;
 }
+interface PendingScope {
+  intentId: string;
+  reportId: string;
+  version: number;
+  informationRefs: string[];
+  fileIds: string[];
+}
 interface Adapter {
   states: Record<string, AnalysisState>;
   update: (reportId: string, change: (state: AnalysisState) => AnalysisState) => void;
@@ -50,6 +57,9 @@ interface Adapter {
   scenario: string;
   setScenario: (scenario: string) => void;
   blocked: (reportId: string) => string[];
+  pendingScopes: Record<string, PendingScope>;
+  markScopeUnknown: (scope: PendingScope) => void;
+  clearScopeUnknown: (reportId: string) => void;
 }
 const AdapterContext = createContext<Adapter | null>(null);
 export function FixtureAnalysisProvider({ children }: { children: ReactNode }) {
@@ -59,6 +69,7 @@ export function FixtureAnalysisProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState(firstReportId);
   const [arrived, setArrived] = useState(false);
   const [scenario, setScenario] = useState('received');
+  const [pendingScopes, setPendingScopes] = useState<Record<string, PendingScope>>({});
   const locks = useRef(new Set<string>());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(
@@ -174,6 +185,15 @@ export function FixtureAnalysisProvider({ children }: { children: ReactNode }) {
         scenario,
         setScenario,
         blocked,
+        pendingScopes,
+        markScopeUnknown: (scope) => {
+          setPendingScopes((previous) => ({ ...previous, [scope.reportId]: scope }));
+        },
+        clearScopeUnknown: (reportId) => {
+          setPendingScopes((previous) =>
+            Object.fromEntries(Object.entries(previous).filter(([id]) => id !== reportId)),
+          );
+        },
       }}
     >
       {children}
@@ -317,11 +337,12 @@ export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
   const report = data.reports.find(
     (item) => item.projectId === params.projectId && item.reportId === params.reportId,
   );
-  const [selected, setSelected] = useState(() => (report ? data.selected(report.reportId) : []));
+  const pendingScope = report ? adapter.pendingScopes[report.reportId] : undefined;
+  const [selected, setSelected] = useState(() =>
+    report ? (pendingScope?.fileIds ?? data.selected(report.reportId)) : [],
+  );
   const [missing, setMissing] = useState(false);
-  const [status, setStatus] = useState<'READY' | 'UNKNOWN'>('READY');
   const [error, setError] = useState('');
-  const [originalIntent, setOriginalIntent] = useState('');
   if (!report) return <Missing />;
   const scopeFileIds: Record<string, string> = {
     'F-CORR': 'DEMO-CORR',
@@ -349,8 +370,9 @@ export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
       startupBlocker={missing ? '缺少必要产品范围依据' : undefined}
       prior={data.executions().filter((item) => item.projectId === report.projectId)}
       latestReportId={latestReportId}
-      status={status}
+      status={pendingScope ? 'UNKNOWN' : 'READY'}
       onSelectionChange={(ids) => {
+        if (pendingScope) return;
         try {
           data.saveSelection(report.reportId, ids);
           setSelected(ids);
@@ -360,13 +382,18 @@ export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
         }
       }}
       onConfirm={(ids, intentId) => {
-        if (ids.some((id) => unavailable[id])) return;
+        if (pendingScope || ids.some((id) => unavailable[id])) return;
         try {
           const execution = data.confirm(report.reportId, ids, intentId);
           void navigate(`/projects/${report.projectId}/executions/${execution.requestId}`);
         } catch {
-          setOriginalIntent(intentId);
-          setStatus('UNKNOWN');
+          adapter.markScopeUnknown({
+            intentId,
+            reportId: report.reportId,
+            version: report.version,
+            informationRefs: report.information.map((info) => info.candidateRef),
+            fileIds: [...ids],
+          });
           setError('合成回执结果待核验，保留原意图；不能重复确认。');
         }
       }}
@@ -385,12 +412,19 @@ export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
               {error}
             </p>
           )}
-          {status === 'UNKNOWN' && (
+          {pendingScope && (
             <button
               onClick={() => {
                 try {
-                  const result = data.execution(`DEMO-REQUEST-${originalIntent}`);
-                  if (result?.reportId === report.reportId) {
+                  const result = data.execution(`DEMO-REQUEST-${pendingScope.intentId}`);
+                  if (
+                    result?.reportId === pendingScope.reportId &&
+                    result.version === pendingScope.version &&
+                    JSON.stringify(result.informationRefs) ===
+                      JSON.stringify(pendingScope.informationRefs) &&
+                    JSON.stringify(result.fileIds) === JSON.stringify(pendingScope.fileIds)
+                  ) {
+                    adapter.clearScopeUnknown(report.reportId);
                     void navigate(`/projects/${report.projectId}/executions/${result.requestId}`);
                   } else {
                     setError('原合成请求仍无可匹配回执；未再次提交或声称已启动。');
