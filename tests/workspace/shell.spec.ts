@@ -69,6 +69,7 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   });
   await page.getByRole('link', { name: '查看本轮精确报告' }).click();
   await expect(page).toHaveURL(report);
+  await page.getByText('分析演示控制', { exact: true }).click();
   await page.getByRole('button', { name: '模拟新报告到达' }).click();
   await expect(page).toHaveURL(report);
   await page.getByRole('link', { name: '查看第 2 版' }).click();
