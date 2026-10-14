@@ -1,6 +1,10 @@
 # PR #295 独立审查
 
-结果：`REQUEST_CHANGES`
+当前结果：`APPROVE`（Draft 阶段；复审 SHA 见下文）。
+
+## 初次审查历史
+
+初次结果：`REQUEST_CHANGES`
 
 - 工作项：[Issue #285](https://github.com/qzhike/zhiju-business-core/issues/285)
 - PR：[Draft PR #295](https://github.com/qzhike/zhiju-business-core/pull/295)
@@ -42,3 +46,23 @@
 ## 交接
 
 将 R1 返回 Implementer 修复，在新精确 head 上执行适用验证并独立复审。本记录已本地保存；GitHub 审查交付由主 agent 按已有授权办理。此结果不授权合并或部署。
+
+## R1 修复复审（2026-10-14）
+
+结果：`APPROVE`
+
+- Reviewed SHA：`ecb22a3f270701788931d110cdfe82a685a254d5`
+- 比较版本：初次审查 `56a74b99dcbf0f1248b4099f9fb4d2ea34e895fc` → 本次 reviewed SHA；PR 基线不变。
+- R1：`CLOSED`。本次独立检查实际提交差异、完整新增 Browser 反例及最终配置验证输出，未修改产品实现。
+
+`ExecutionNavigation` 现在分别保存 `views` 与按精确候选路径绑定的 `candidateReturns`。打开候选只记录候选到原轮次的返回路径，不再改写 Workbench 的 `returnTo`；检查页读取该精确路径或按候选来源轮次回退。执行到工作台的返回地址和其完整查询参数得以保留。两层内存均继续位于已有身份边界内，未新增 storage、服务权限或业务状态。
+
+新增 `tests/workspace/execution.spec.ts` 的完整嵌套返回旅程使用实际 fixture 项目查询 `/workbench?enterprise=WB-ENTERPRISE-01&project=DEMO-PROJECT-01`，先设搜索“文件”并展开 completed，再由真实工作台卡片进入 `WB-ROUND-01`、打开候选、返回轮次和工作台；断言原 URL、所选项目、搜索、展开与原入口焦点均恢复。初次静态反例使用的 `DEMO-ENTERPRISE-01` 是候选内容的匿名企业标识；实际工作台 fixture 企业标识为 `WB-ENTERPRISE-01`，本次 Browser 反例已按实际入口修正。该标识校正不改变初次导航覆盖缺陷的判断。
+
+首轮固定执行请求改绑已有工作台 `WB-ROUND-01` 入口，相关文档与现有用例同步；其他轮次仍独立。该修改闭合原工作台与共享执行页入口，不扩展公共 contract 或 Runner 范围。实际差异未引入其他阻塞项。
+
+复用 `/private/tmp/issue-285-r1-code-evidence.txt`，`vibe verify code --json` 最终 `PASS`：124 files / 2545 tests，5 个生产 Browser 检查、32 个开发 Browser 旅程。新增嵌套返回旅程在完整配置门禁内通过；Reviewer 未重复门禁。`vibe repo --json` 确认本次 implementation head；由主会话绑定并提供新 head 的最终验证输出。初版 CI 仅作为历史，不用作本次 head 的 CI 证据。
+
+本 `APPROVE` 为 Issue #285 有界非持久化实现的 Draft 阶段独立 agent 审查结果。当前 required target 为 `code`，不将尚未执行的 `full` 作为 Draft 阻塞；转 ready 前必须完成适用 `full` 与 environment 前置或允许复用的精确版本 CI。真实服务、Runner、授权重试、服务器持久化/草稿、跨设备、完整平台矩阵与人工验收仍 `NOT RUN`。远端新 head CI 不在本次证据中；Reviewer 未轮询或注册 waiter。
+
+本记录更新未提交、推送或发表 GitHub 评论。记录交付后的新最终 head 尚须确认仅含 review 文档差异并绑定最终 reviewed SHA；当前结论不得自动改标到未来修订。批准不授权合并或部署。
