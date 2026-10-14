@@ -44,14 +44,15 @@ interface Adapter {
   add: (round: ExecutionRound) => void;
   update: (requestId: string, change: (round: ExecutionRound) => ExecutionRound) => void;
   intents: Map<string, RetryIntent>;
-  pending: Map<string, () => void>;
+  recordIntent: (intent: RetryIntent) => void;
+  pending: Map<string, (state: 'UNKNOWN' | 'ACCEPTED') => void>;
   candidates: Map<string, { data: MarkdownReviewData; requestId: string }>;
 }
 const Context = createContext<Adapter | null>(null);
 export function FixtureExecutionProvider({ children }: { children: ReactNode }) {
   const [rounds, setRounds] = useState<readonly ExecutionRound[]>([initial]);
-  const [intents] = useState(() => new Map<string, RetryIntent>());
-  const [pending] = useState(() => new Map<string, () => void>());
+  const [intents, setIntents] = useState(() => new Map<string, RetryIntent>());
+  const [pending] = useState(() => new Map<string, (state: 'UNKNOWN' | 'ACCEPTED') => void>());
   const [candidates] = useState(
     () => new Map<string, { data: MarkdownReviewData; requestId: string }>(),
   );
@@ -68,6 +69,9 @@ export function FixtureExecutionProvider({ children }: { children: ReactNode }) 
       value={{
         rounds,
         intents,
+        recordIntent: (intent) => {
+          setIntents((previous) => new Map(previous).set(intent.id, intent));
+        },
         pending,
         candidates,
         add: (round) => {
@@ -141,11 +145,11 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
     }));
   };
   const receive = async (intent: RetryIntent): Promise<RetryReceipt> => {
-    adapter.intents.set(intent.id, intent);
+    adapter.recordIntent(intent);
     if (outcome === 'HOLD')
       return new Promise((resolve) => {
-        adapter.pending.set(intent.id, () => {
-          resolve({ ...intent, state: 'UNKNOWN' });
+        adapter.pending.set(intent.id, (state) => {
+          resolve({ ...intent, state });
           adapter.pending.delete(intent.id);
         });
       });
@@ -220,11 +224,19 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
             </label>
             <button
               onClick={() => {
-                for (const release of adapter.pending.values()) release();
+                for (const release of adapter.pending.values()) release('UNKNOWN');
               }}
             >
               返回待核验重试回执
             </button>
+            <button
+              onClick={() => {
+                for (const release of adapter.pending.values()) release('ACCEPTED');
+              }}
+            >
+              返回已接收重试回执
+            </button>
+            <p className="muted">已记录重试意图：{adapter.intents.size}</p>
             <button
               onClick={() => {
                 const files = Array.from({ length: 40 }, (_, index) =>

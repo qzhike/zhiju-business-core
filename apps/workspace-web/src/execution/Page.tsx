@@ -25,6 +25,7 @@ import './execution.css';
 interface ExecutionMemory {
   views: Map<string, RoundView>;
   candidateReturns: Map<string, string>;
+  notify: () => void;
 }
 const Memory = createContext<ExecutionMemory | null>(null);
 export function useExecutionMemory() {
@@ -34,11 +35,17 @@ export function useExecutionMemory() {
 }
 // Lives inside the existing identity boundary; no customer content in browser storage.
 export function ExecutionNavigation({ children }: { children: ReactNode }) {
+  const [, notify] = useState(0);
   const [memory] = useState<ExecutionMemory>(() => ({
     views: new Map(),
     candidateReturns: new Map(),
+    notify: () => {
+      notify((version) => version + 1);
+    },
   }));
-  return <Memory.Provider value={memory}>{children}</Memory.Provider>;
+  // Notify current consumers even when the initiating round has been unmounted.
+  // A retired identity owns a separate provider; late receipts cannot refill its replacement.
+  return <Memory.Provider value={{ ...memory }}>{children}</Memory.Provider>;
 }
 export interface ExecutionPageProps {
   rounds: readonly ExecutionRound[];
@@ -105,17 +112,12 @@ function RoundPage({
   const memory = useExecutionMemory();
   const [, render] = useState(0);
   const list = useRef<HTMLDivElement>(null);
-  const live = useRef(true);
   const patch = (change: Partial<RoundView>) => {
     Object.assign(view, change);
     render((n) => n + 1);
   };
   useLayoutEffect(() => {
-    live.current = true;
     if (list.current) list.current.scrollTop = view.scroll;
-    return () => {
-      live.current = false;
-    };
   }, [view]);
   const files = scopedFiles(round);
   const visible = files.filter(
@@ -131,7 +133,7 @@ function RoundPage({
   ) => {
     // Lock synchronously before awaiting: a second click cannot create another intent.
     view.retries.set(intent.fileId, { ...intent, state: 'PENDING' });
-    render((n) => n + 1);
+    memory.notify();
     void Promise.resolve()
       .then(() => action(intent))
       .then((receipt) => {
@@ -144,7 +146,7 @@ function RoundPage({
         view.retries.set(intent.fileId, { ...intent, state: 'UNKNOWN' });
       })
       .finally(() => {
-        if (live.current) render((n) => n + 1);
+        memory.notify();
       });
   };
   return (

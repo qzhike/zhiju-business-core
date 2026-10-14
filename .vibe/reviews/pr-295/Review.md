@@ -1,6 +1,6 @@
 # PR #295 独立审查
 
-当前结果：`APPROVE`（Draft 阶段；复审 SHA 见下文）。
+当前结果：`REQUEST_CHANGES`（2026-10-14 新一轮独立审查；Reviewed SHA：`47256468ce16cdab15530f7b0e3404c5310074ea`；R2 待修复）。下方历史 APPROVE 保留，不代表本轮结论。
 
 ## 初次审查历史
 
@@ -66,3 +66,40 @@
 本 `APPROVE` 为 Issue #285 有界非持久化实现的 Draft 阶段独立 agent 审查结果。当前 required target 为 `code`，不将尚未执行的 `full` 作为 Draft 阻塞；转 ready 前必须完成适用 `full` 与 environment 前置或允许复用的精确版本 CI。真实服务、Runner、授权重试、服务器持久化/草稿、跨设备、完整平台矩阵与人工验收仍 `NOT RUN`。远端新 head CI 不在本次证据中；Reviewer 未轮询或注册 waiter。
 
 本记录更新未提交、推送或发表 GitHub 评论。记录交付后的新最终 head 尚须确认仅含 review 文档差异并绑定最终 reviewed SHA；当前结论不得自动改标到未来修订。批准不授权合并或部署。
+
+## 最新 head 独立审查（2026-10-14，用户要求发布 comments）
+
+结果：`REQUEST_CHANGES`
+
+- Reviewed SHA：`47256468ce16cdab15530f7b0e3404c5310074ea`。
+- Base SHA：`7a7f41d51bb0fa33d9da07be3468d30b6e58ffa1`；PR 仍为 Draft。
+- 从最新 Issue #285（无评论）、UI01 Spec/Test 和批准交互规则建立预期，再检查完整产品差异与验证证据。历史 R1 修复仍成立。
+- 本轮未修改产品实现；仅更新正式审查记录。GitHub comment 的发布及读回结果以 PR 为准；本地记录更新未 commit/push。
+
+### R2 / P2：切换轮次后到达的重试回执没有通知当前页面
+
+位置：[execution/Page.tsx 第 137–147 行](https://github.com/qzhike/zhiju-business-core/blob/47256468ce16cdab15530f7b0e3404c5310074ea/apps/workspace-web/src/execution/Page.tsx#L137-L147)。
+
+`requestRetry` 的 Promise 闭包持有发起请求的 `RoundPage` 实例。切换轮次使该实例卸载，`live.current` 变为 false；返回原轮会创建新实例，继续读取同一个 `view.retries` Map。旧 Promise 返回后只修改 Map，并因旧实例不再 live 跳过 render；共享内存没有订阅通知，新实例因此仍显示旧 pending 状态。UNKNOWN 已收到时，“查询原重试请求”入口仍不出现，用户不能按显示的流程继续恢复。
+
+受控 Chromium `156.0.8078.4` 在当前源码的 Vite fixture 服务上实际复现（不是新增 built-browser 或真实服务证据）：
+
+1. 打开 `/projects/DEMO-PROJECT-01/executions/WB-ROUND-01`，展开执行演示控制，带入已确认后轮示例，模拟第二份失败。
+2. 将重试回执设为“等待回执”，点击“重新处理本文件”。页面显示 pending，并冻结一个原 intent。
+3. 通过“查看轮次”切到 `WB-SCOPE-02`，再回到 `WB-ROUND-01`；此时原 Promise 尚未完成。
+4. 点击“返回待核验重试回执”，等待浏览器帧处理结束。页面仍显示“重试请求等待回执”，“查询原重试请求”按钮数量为 0。
+5. 在搜索框输入“预防”，触发无关重绘后，同一 intent 才显示“重试结果待核验”及原请求查询按钮。
+
+这违反 #285 重试不确定结果可原位恢复、跨轮次后台到达保持正确上下文的验收，也与 UI01 Spec #285 的原请求查询要求不符。现有 Browser 用例只覆盖未导航时收到回执以及回执已完成后的导航，未覆盖原 Promise 跨卸载/重挂载完成。
+
+修复应让回执更新通知当前订阅该轮的页面，例如将异步回执状态及通知放入身份边界内的 React provider/store；继续保留原 intent、去重锁及身份清理，不能靠重新提交请求恢复界面。补充 pending → 切到后轮 → 回原轮 → 原 Promise 返回 UNKNOWN/ACCEPTED 的回归，要求无需搜索、刷新或再次导航就展示正确状态；UNKNOWN 应立即提供原请求查询，且不产生第二个重试 intent。
+
+### 本轮证据与边界
+
+复查 `/private/tmp/issue-285-r1-code-evidence.txt` 的完整配置输出：`vibe verify code --json` 为 PASS，124 个测试文件 / 2545 个测试、5 个生产 Browser 检查与 32 个开发 Browser 旅程。其实施提交为 `ecb22a3f270701788931d110cdfe82a685a254d5`；检查其到 reviewed SHA 的差异仅为本正式 review 文档，因此复用产品配置验证，不重复整个门禁。该通过证据不覆盖上述新反例。
+
+最新 head 的 Actions API 返回 `total_count: 0`；远端 CI 不作为本轮通过证据，也无 run/attempt 可注册 waiter。`full` 为转 ready 前要求，本轮 Draft/code 范围不因此升级。沙箱 Chromium 曾因 macOS IPC 权限无法启动；通过已有升级机制在宿主完成最小启动探针及匿名 fixture 反例，未将环境错误作为产品失败。
+
+生产隔离、范围分母、精确候选与未知状态降级等已检查路径未发现新增阻塞项；本轮发现已足以要求修复，不代表穷举全部状态组合。真实进度服务、Runner、授权重试、服务器草稿/持久化、跨设备、Windows/macOS 完整 Chrome/Edge 矩阵及独立人工业务验收仍为 `NOT RUN`。
+
+交接：Implementer 修复 R2 并补充上述回归，取得新 head 的适用配置验证及独立复审。R1 保持关闭。本轮不授权合并或部署。

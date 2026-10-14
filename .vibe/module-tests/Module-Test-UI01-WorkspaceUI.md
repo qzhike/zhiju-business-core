@@ -240,7 +240,7 @@ reviewer and timestamp
 |---|---|---|
 | 范围及混合结果 | 仅确认成员计数；等待/处理中/待检查/失败/待核验可区分；就绪文件立即进入精确候选 | Execution model/component / built-browser |
 | 候选边界 | 缺失或错项目/轮次/文件候选不产生链接、不计待检查；旧候选引用保留 | Execution model/component |
-| 重试及 UNKNOWN | 许可单文件点击一次产生 pending 原 intent，重复点击不提交；错回执和异常保持 UNKNOWN，只读原请求；失败历史与其他文件不变 | Execution model/component / browser |
+| 重试及 UNKNOWN | 许可单文件点击一次产生 pending 原 intent，重复点击不提交；错回执和异常保持 UNKNOWN，只读原请求；失败历史与其他文件不变；pending→其他轮→原轮→UNKNOWN/ACCEPTED 即时更新，UNKNOWN 立即开放原请求查询且只提交一个意图 | Execution model/component / browser |
 | 多轮上下文 | 后轮等待时前轮仍处理；搜索/筛选/滚动/展开往返保留；scope/report provenance 不改写 | Execution browser |
 | 后台到达 | 页面、焦点、当前版本/草稿不被替换，展开区保持；另一轮事件不导航 | Execution component / browser |
 | 负向状态 | 空范围/空搜索/读失败/失权各自明确，失权不展示文件；带项目查询及非默认搜索/展开的工作台→轮次→候选→轮次→工作台完整往返保留原 URL、项目和焦点 | Execution component / browser |

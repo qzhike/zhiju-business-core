@@ -249,3 +249,54 @@ test('nested candidate return preserves the scoped workbench URL, search, disclo
   await expect(page.locator('.wb-completed')).toHaveAttribute('open', '');
   await expect(entry).toBeFocused();
 });
+
+for (const receipt of ['UNKNOWN', 'ACCEPTED'] as const) {
+  test(`retry ${receipt} receipt notifies the remounted original round without another intent`, async ({
+    page,
+  }) => {
+    await page.goto(first);
+    await controls(page);
+    await page.getByRole('button', { name: '带入已确认后轮示例' }).click();
+    await page.getByRole('button', { name: '模拟首份候选到达' }).click();
+    await page.getByRole('button', { name: '模拟第二份失败' }).click();
+    await page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('HOLD');
+    const row = page.locator('.execution-file').filter({ hasText: '预防措施程序' });
+    await row.getByRole('button', { name: '重新处理本文件' }).dblclick();
+    await expect(row).toContainText('重试请求等待回执');
+    const original = requiredValue(
+      /原意图 ([^ ]+)/u.exec(await row.getByRole('status').innerText())?.[1],
+    );
+    await page.getByLabel('查看轮次').selectOption('WB-SCOPE-02');
+    await page.getByLabel('查看轮次').selectOption('WB-ROUND-01');
+    await expect(row).toContainText('重试请求等待回执');
+    await controls(page);
+    const search = page.getByRole('searchbox', { name: '查找本轮文件' });
+    await search.focus();
+    await page
+      .getByRole('button', {
+        name: receipt === 'UNKNOWN' ? '返回待核验重试回执' : '返回已接收重试回执',
+      })
+      .evaluate((button: HTMLButtonElement) => {
+        button.click();
+      });
+    await expect(row).toContainText(
+      receipt === 'UNKNOWN' ? '重试结果待核验' : '重试请求已接收，等待安排',
+    );
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue('');
+    await expect(page).toHaveURL(first);
+    await expect(row.getByRole('status')).toContainText(original);
+    await expect(row.getByRole('button', { name: '重新处理本文件' })).toHaveCount(0);
+    await expect(page.locator('.execution-controls')).toContainText('已记录重试意图：1');
+    await expect(page.getByRole('link', { name: '检查文件 · DEMO-REV-01' })).toBeVisible();
+    await expect(row).toContainText('失败历史（1）');
+    if (receipt === 'UNKNOWN') {
+      await expect(row.getByRole('button', { name: '查询原重试请求' })).toBeVisible();
+      await page.getByLabel('原请求查询结果').selectOption('ACCEPTED');
+      await row.getByRole('button', { name: '查询原重试请求' }).click();
+      await expect(row).toContainText('重试请求已接收，等待安排');
+      await expect(row.getByRole('status')).toContainText(original);
+      await expect(page.locator('.execution-controls')).toContainText('已记录重试意图：1');
+    }
+  });
+}
