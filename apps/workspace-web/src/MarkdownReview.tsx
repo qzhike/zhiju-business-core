@@ -38,6 +38,7 @@ export function MarkdownReview(props: Props) {
   const [downloadStatus, setDownloadStatus] = useState('');
   const [directoryStatus, setDirectoryStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const controller = useRef<AbortController | null>(null);
   const objectUrls = useRef(new Set<string>());
   const tag = useMemo(
@@ -63,6 +64,8 @@ export function MarkdownReview(props: Props) {
     if (!accepts()) return;
     const failure = failureFromUnknown(cause, 'UI_CLIENT_STATE_INVALID');
     setLoaded(null);
+    // Losing read permission clears the comparison page and this opinion area.
+    setNote('');
     setSessionRequired(failure.httpStatus === 401);
     setError(
       failure.httpStatus === 401
@@ -365,12 +368,39 @@ export function MarkdownReview(props: Props) {
   return (
     <MarkdownReviewPage
       data={visible}
-      hasRepresentation={Boolean(link.representationRef)}
       busy={busy}
-      downloadStatus={downloadStatus}
       directoryStatus={directoryStatus}
-      onDownload={download}
       onMore={more}
+      workspace={{
+        directoryNote: '跨文件成果目录读取尚未接入；本页只显示此精确版本。',
+      }}
+      download={{
+        hasRepresentation: Boolean(link.representationRef),
+        status: downloadStatus,
+        note: '此链接未提供已登记表示，下载不可用',
+        onDownload: download,
+      }}
+      opinion={{
+        context: `${visible.content.document.title} · 版本 ${visible.content.revisionRef.objectId.slice(-8)}`,
+        draft: {
+          text: note,
+          state: 'UNAVAILABLE',
+          note: note ? '仅在当前页面，尚未保存' : '尚未输入意见',
+        },
+        approval: {
+          available: false,
+          note: '批准能力尚未接入；阅读与下载都不表示批准。',
+        },
+        unavailable: [
+          '服务器个人草稿、提交并修改与回执查询尚未接入；本页意见请在离开前自行保留。',
+          'Markdown 改稿复核与批准尚未接入。',
+        ],
+      }}
+      opinionActions={{
+        onDraftChange: (text) => {
+          setNote(text);
+        },
+      }}
     />
   );
 }

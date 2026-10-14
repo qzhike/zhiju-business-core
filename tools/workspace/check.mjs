@@ -61,8 +61,12 @@ async function checkProductionBundle() {
       'loadFixture',
       'DEVELOPMENT_INTAKE_ADAPTER_ONLY',
       'DEVELOPMENT_ANALYSIS_ADAPTER_ONLY',
+      'REVIEW_DEVELOPMENT_WORKSPACE_ONLY',
       '固定岗位职责示例.md',
       'DEMO-CREATED-',
+      '模拟本文件新候选到达',
+      '合成长清单文件',
+      '多处修改示例',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);
     }

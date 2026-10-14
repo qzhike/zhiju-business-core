@@ -13,23 +13,38 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 .markdown-review-header h1 {
-  font-size: 23px;
+  font-size: 20px;
 }
-.markdown-review-header p {
+.markdown-identity {
+  min-width: 0;
+}
+.markdown-identity-line {
   color: var(--muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.markdown-download {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  text-align: right;
+}
+.markdown-download p {
+  font-size: 12px;
+  margin: 0;
 }
 .markdown-review-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 270px;
+  grid-template-columns: 220px minmax(0, 1fr) 300px;
   gap: 14px;
   flex: 1;
   min-height: 0;
 }
-.markdown-chapters,
+.markdown-files,
 .markdown-reader,
 .markdown-opinion {
   min-width: 0;
@@ -37,58 +52,82 @@
   border-radius: 10px;
   background: white;
 }
-.markdown-chapters {
+.markdown-files {
   display: flex;
   flex-direction: column;
   padding: 14px;
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
 }
-.markdown-directory-summary strong {
-  font-size: 25px;
-  color: var(--purple);
-  font-variant-numeric: tabular-nums;
+.markdown-files h2 {
+  font-size: 15px;
 }
-.markdown-directory-summary span,
-.markdown-chapters small {
+.markdown-files label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.markdown-files-summary {
+  display: flex;
+  flex-direction: column;
   font-size: 11px;
   color: var(--muted);
 }
-.markdown-chapter-list {
+.markdown-files-summary small {
+  color: var(--muted);
+}
+.markdown-file-list {
   overflow: auto;
   min-height: 0;
   flex: 1;
   overscroll-behavior: contain;
 }
-.markdown-chapter-list summary {
-  cursor: pointer;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-  font-weight: 600;
-}
-.markdown-chapter-list summary span {
-  float: right;
-  color: var(--muted);
-  font-weight: 400;
-}
-.markdown-chapter-list button {
+.markdown-file-list button {
   display: flex;
-  gap: 7px;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
   border: 0;
+  border-left: 3px solid transparent;
   text-align: left;
   margin: 4px 0;
-  padding: 10px 6px;
+  padding: 8px 6px;
 }
-.markdown-chapter-list button span:nth-child(2) {
+.markdown-file-list button strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
 }
-.markdown-chapter-list button[aria-current='step'] {
+.markdown-file-list button small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markdown-file-list button[aria-current='true'] {
   background: var(--soft);
+  border-left-color: var(--purple);
   color: var(--purple);
+}
+.markdown-file-state {
+  font-size: 11px;
+  color: var(--muted);
+}
+.markdown-file-state.is-ready {
+  color: var(--green);
+}
+.markdown-file-state.is-failed {
+  color: #b04b40;
+}
+.markdown-files > small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.markdown-files-note {
+  font-size: 12px;
+  color: var(--muted);
 }
 .markdown-reader {
   display: flex;
@@ -114,10 +153,108 @@
   min-height: 0;
   overscroll-behavior: contain;
 }
+.markdown-change-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fafafc;
+}
+.markdown-change-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.markdown-change-total small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.markdown-change-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.markdown-change-current span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.markdown-change-current small {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-change-current strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markdown-change-current div {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.markdown-more-changes {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.markdown-change-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.markdown-change-heading p {
+  margin: 0;
+}
 .markdown-change h2 {
   margin: 8px 0 20px;
   font-size: 20px;
   overflow-wrap: anywhere;
+}
+.markdown-chapter-context {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.markdown-chapter-context summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.markdown-chapter-context button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  margin: 4px 0;
+  padding: 8px 6px;
+}
+.markdown-chapter-context button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markdown-chapter-context button span:first-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.markdown-chapter-context button span:nth-child(2) {
+  flex: 1;
+}
+.markdown-chapter-context button[aria-current='step'] {
+  background: var(--soft);
+  color: var(--purple);
 }
 .markdown-before,
 .markdown-after {
@@ -197,11 +334,17 @@
 .markdown-opinion {
   display: flex;
   flex-direction: column;
-  padding: 18px;
-  gap: 12px;
+  padding: 16px;
+  gap: 10px;
+  overflow: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 .markdown-opinion h2 {
   font-size: 17px;
+}
+.markdown-opinion h3 {
+  font-size: 14px;
 }
 .markdown-opinion .muted,
 .markdown-opinion [role='status'] {
@@ -210,8 +353,151 @@
 }
 .markdown-opinion textarea {
   resize: vertical;
-  flex: 1;
   min-height: 130px;
+}
+.markdown-opinion-context {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+.markdown-submission {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber, #c98a2b);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fdfaf3;
+}
+.markdown-submission p {
+  margin: 0;
+}
+.markdown-submission[data-status='ACCEPTED'] {
+  border-left-color: var(--green);
+  background: #f1f8f4;
+}
+.markdown-original {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.markdown-original summary,
+.markdown-unavailable summary,
+.markdown-suggestion summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.markdown-original pre,
+.markdown-suggestion pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  background: #f7f7fa;
+  padding: 8px;
+  margin: 6px 0;
+}
+.markdown-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+.markdown-suggestion label,
+.markdown-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.markdown-unavailable ul {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.markdown-draft-state {
+  min-height: 18px;
+}
+.markdown-directory-dialog {
+  max-width: 720px;
+  width: min(720px, calc(100vw - 32px));
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.markdown-directory-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.markdown-directory {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.markdown-directory details {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.markdown-directory summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.markdown-directory summary span {
+  float: right;
+  color: var(--muted);
+  font-weight: 400;
+}
+.markdown-directory button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  margin: 3px 0;
+  padding: 8px 6px;
+}
+.markdown-directory button span:first-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.markdown-directory button span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markdown-directory button[aria-current='step'] {
+  background: var(--soft);
+  color: var(--purple);
+}
+.markdown-location-missing {
+  color: #b04b40;
+  flex-shrink: 0;
+}
+.markdown-summary ul {
+  padding-left: 18px;
+}
+.markdown-summary li strong {
+  display: block;
+}
+.markdown-summary li span {
+  color: var(--muted);
+  font-size: 12px;
 }
 .markdown-mobile-tabs {
   display: none;
@@ -219,12 +505,11 @@
 .markdown-download-status {
   font-size: 12px;
   color: var(--muted);
-  min-height: 25px;
-  padding-top: 6px;
+  min-height: 18px;
 }
 @media (max-width: 1200px) {
   .markdown-review-layout {
-    grid-template-columns: 200px minmax(0, 1fr) 220px;
+    grid-template-columns: 190px minmax(0, 1fr) 250px;
   }
   .markdown-reading-scroll {
     padding: 18px;
@@ -236,7 +521,7 @@
     height: calc(100dvh - 145px);
   }
   .markdown-review-layout {
-    grid-template-columns: 160px minmax(0, 1fr);
+    grid-template-columns: 150px minmax(0, 1fr);
   }
   .markdown-mobile-tabs {
     display: flex;
@@ -247,7 +532,7 @@
     display: none;
   }
   .markdown-review[data-pane='opinion'] .markdown-reader,
-  .markdown-review[data-pane='opinion'] .markdown-chapters {
+  .markdown-review[data-pane='opinion'] .markdown-files {
     display: none;
   }
   .markdown-review[data-pane='opinion'] .markdown-opinion {
@@ -257,24 +542,20 @@
     align-items: flex-start;
   }
   .markdown-review-header h1 {
-    font-size: 20px;
+    font-size: 18px;
   }
 }
 @media (max-width: 560px) {
   .markdown-review-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 145px minmax(0, 1fr);
+    grid-template-rows: 120px minmax(0, 1fr);
   }
-  .markdown-chapters {
+  .markdown-files {
     padding: 8px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
   }
-  .markdown-chapter-list {
-    grid-column: 1 / -1;
-  }
-  .markdown-chapters > small {
+  .markdown-files label,
+  .markdown-files-summary,
+  .markdown-files > small {
     display: none;
   }
   .markdown-review-header {
