@@ -241,7 +241,8 @@ reviewer and timestamp
 | 精确报告四区与证据 | 同时显示四区，详情往返保留报告/位置；missing/read limit/顾问冲突与修改计划分开 | Analysis presentation unit / built-browser tests |
 | 去重索取与复制失败 | 同 key 合并关联事项；顾问事项排除；全量复制不覆盖勾选，预览可编辑，失败显示手动复制 | Analysis unit / browser |
 | 上下文草稿与提交快照 | 切换模式保留各自输入，重复点击仅一次，pending 可写下一稿，原文/依据不变 | Analysis browser |
-| 新报告与历史 | 到达不跳页；显式应用显示变化摘要；历史只读；旧稿保留并提示重新核对 | Analysis browser |
+| 新报告与历史 | 到达不跳页；显式应用显示变化摘要；历史只读；客户、顾问与计划旧稿均可切换查看和复制，但不能编辑、附加资料或提交；新版同事项不自动迁移旧稿 | Analysis browser |
+| 旧上下文依据 | 两报告复用 evidence ID 且内容不同，旧上下文仅显示原项目/报告/版本依据；缺失或错项目/错版本来源明确不可用并提供原报告入口，不回退新版 | Analysis component / browser |
 | 任意输入与异常结果 | 任意文本/附件无合成结论；failure/unavailable/UNKNOWN 原位保留；回执错上下文不成功 | Analysis unit / browser |
 | 单文件计划意见 | supplied pending 仅限制被引用文件，其他共享计划文件可选；不关闭问题或执行 | Analysis browser |
 | 视口/键盘 | 1280/1440/1920 桌面高度受限，360/320 reflow，窄屏清单/详情切换；焦点可见，dialog Escape 返回触发器 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |

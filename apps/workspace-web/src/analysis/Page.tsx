@@ -22,6 +22,7 @@ const areas = {
 type Area = keyof typeof areas;
 interface Props {
   report: AnalysisReport;
+  contextReport?: AnalysisReport | undefined;
   state: AnalysisState;
   update: (change: (state: AnalysisState) => AnalysisState) => void;
   historical: boolean;
@@ -33,6 +34,7 @@ interface Props {
 }
 export function AnalysisPage({
   report,
+  contextReport,
   state,
   update,
   historical,
@@ -105,6 +107,12 @@ export function AnalysisPage({
     state.context.projectId !== report.projectId ||
     state.context.reportId !== report.reportId ||
     state.context.version !== report.version;
+  const evidenceReport = [report, contextReport].find(
+    (candidate) =>
+      candidate?.projectId === state.context.projectId &&
+      candidate.reportId === state.context.reportId &&
+      candidate.version === state.context.version,
+  );
   const openCopy = (all: boolean) => {
     copyTrigger.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -130,10 +138,10 @@ export function AnalysisPage({
       });
     }
   };
-  const showEvidence = (ids: string[]) => (
+  const showEvidence = (ids: string[], source: AnalysisReport = report) => (
     <div className="analysis-evidence">
       {ids.map((id) => {
-        const evidence = report.evidence.find((entry) => entry.id === id);
+        const evidence = source.evidence.find((entry) => entry.id === id);
         return evidence ? (
           <details key={id}>
             <summary>
@@ -148,7 +156,7 @@ export function AnalysisPage({
             </small>
           </details>
         ) : (
-          <p key={id}>{id} · 当前报告未提供此依据，请重新核对</p>
+          <p key={id}>{id} · 绑定报告未提供此依据，请重新核对</p>
         );
       })}
     </div>
@@ -441,12 +449,11 @@ export function AnalysisPage({
                     </section>
                   ))}
                   <button
-                    disabled={historical}
                     onClick={() => {
                       selectContext(contextFor(report, 'CUSTOMER'));
                     }}
                   >
-                    补充客户资料
+                    {historical ? '查看客户补充草稿' : '补充客户资料'}
                   </button>
                 </>
               ) : judgment && activeArea === 'judgment' ? (
@@ -460,12 +467,11 @@ export function AnalysisPage({
                   </p>
                   {showEvidence(judgment.evidenceIds)}
                   <button
-                    disabled={historical}
                     onClick={() => {
                       selectContext(contextFor(report, 'JUDGMENT', judgment.id));
                     }}
                   >
-                    写意见并提交复核
+                    {historical ? '查看顾问意见草稿' : '写意见并提交复核'}
                   </button>
                 </>
               ) : file && activeArea === 'files' ? (
@@ -484,12 +490,11 @@ export function AnalysisPage({
                       </section>
                     ))}
                   <button
-                    disabled={historical}
                     onClick={() => {
                       selectContext(contextFor(report, 'PLAN', file.id));
                     }}
                   >
-                    对这项计划提意见
+                    {historical ? '查看文件计划草稿' : '对这项计划提意见'}
                   </button>
                 </>
               ) : activeArea === 'evidence' ? (
@@ -528,12 +533,11 @@ export function AnalysisPage({
           <div>
             <h2>{state.context.title}</h2>
             <button
-              disabled={historical}
               onClick={() => {
                 selectContext(contextFor(report, 'CUSTOMER'));
               }}
             >
-              切换客户补充
+              {historical ? '查看客户补充草稿' : '切换客户补充'}
             </button>
             <p className="muted">未提交输入仅本次页面会话保留，未保存到服务器。</p>
           </div>
@@ -577,10 +581,11 @@ export function AnalysisPage({
             说明与意见
             <textarea
               ref={composer}
-              disabled={historical || stale}
+              readOnly={historical || stale}
               value={draft.text}
               onChange={(event) => {
-                setDraft({ text: event.target.value, fixedExample: false });
+                if (!historical && !stale)
+                  setDraft({ text: event.target.value, fixedExample: false });
               }}
               rows={2}
             />
@@ -636,7 +641,16 @@ export function AnalysisPage({
               {state.context.protectedFactIds.join('、') || '无'}；计划：
               {state.context.changeIds.join('、') || '无'}
             </p>
-            {showEvidence(state.context.evidenceIds)}
+            {evidenceReport ? (
+              showEvidence(state.context.evidenceIds, evidenceReport)
+            ) : (
+              <p role="status">
+                原报告依据暂不可用，请打开原报告重新核对；未使用当前报告的同名依据。
+              </p>
+            )}
+            <Link to={`/projects/${state.context.projectId}/analysis/${state.context.reportId}`}>
+              查看原报告第 {state.context.version} 版
+            </Link>
           </details>
           {!submit && <p role="status">上下文提交尚未接入公开操作，不能上传或请求执行。</p>}
           {historical && <p role="status">历史报告只读，请返回当前报告继续填写。</p>}

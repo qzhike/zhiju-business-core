@@ -208,6 +208,12 @@ export function FixtureAnalysis() {
   return (
     <AnalysisPage
       report={report}
+      contextReport={reports.find(
+        (item) =>
+          item.projectId === state.context.projectId &&
+          item.reportId === state.context.reportId &&
+          item.version === state.context.version,
+      )}
       state={state}
       update={(change) => {
         adapter.update(report.reportId, change);
