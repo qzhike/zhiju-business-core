@@ -1,6 +1,6 @@
 # PR #295 独立审查
 
-当前结果：`APPROVE`（2026-10-14 最新 head 复审；Reviewed SHA：`4a3191c26e3e729e6c48e13f3326a9812db2d726`；Draft/code 阶段；R1、R2 均关闭）。下方历史审查保留，当前结论仅绑定此精确版本。
+当前结果：`APPROVE`（2026-10-14 合并前独立复审；Reviewed SHA：`d7576c516228aaab04e0d288679d74126c6498cb`；本地 full PASS，远端 CI 待确认；R1、R2 均关闭）。下方历史审查保留，当前结论仅绑定此精确版本。
 
 ## 初次审查历史
 
@@ -137,3 +137,29 @@
 本轮 exact-head Actions API 返回 `total_count: 0`，PR checks 为空；远端 CI 仍无可用证据或可绑定 waiter 的 run。批准仅覆盖 Draft/code 阶段，转 ready 前仍需适用 `full` 和 environment 前置或许可复用的精确版本 CI。真实服务、Runner、授权重试、服务器草稿/持久化、跨设备、完整平台矩阵与人工验收保持 `NOT RUN`。
 
 本轮仅更新本正式记录，未修改产品、commit、push 或 merge。审查 comment 的发布与读回以 PR 为准；本地记录增量尚未提交，结论不自动绑定后续未知提交。
+
+
+## 当前 main 基线上的合并前独立复审（2026-10-14）
+
+结果：`APPROVE`
+
+- Reviewed SHA：`d7576c516228aaab04e0d288679d74126c6498cb`。
+- Base SHA：当前 main `8afaa30a89e61f9028ccea0031bdc820c6aab3ec`，已包含 startup PR #294。
+- 本地 `vibe repo --json` 与最新远端 PR head/base 一致；最新 Issue #285 无评论，PR 仍 Draft。R1、R2 均保持关闭。
+- 本次仅更新正式 review 记录，未修改产品、提交、推送、发表 GitHub comments、重跑 configured full 或注册/轮询 CI waiter。
+
+先从最新 Issue/PR comments、UI01 #285 Spec/Test、已批准文件进度和重试交互建立预期：确认整份范围是唯一分母，supplied 进度不能由经过时间推导；候选、重试回执和轮次均绑定精确项目/请求/文件，UNKNOWN 保留原 intent 并只读原请求。startup #284/#294 的确认后进度入口应保留原报告版本及 fileIds，原位移除阻塞文件后不能把该文件纳入执行；其 PENDING/UNKNOWN 恢复不应因页面 wrapper 或轮次导航重置。身份清理、生产未注册能力不可用、R1 分层返回和 R2 跨卸载回执通知同样适用。
+
+独立核查 actual diff 及当前上下文：相对当前 main，变更仍限于 workspace-web、相关 Browser/model/component 测试、UI01 Spec/Test、README 和本正式 review。App 保留已合并的 FixtureAnalysisStartup 路由及其 key，增加共享 ExecutionNavigation/FixtureExecutionProvider，并用共享执行页替代旧 elapsed-time 演示。TrustedApp 的新增 provider 位于原 sessionGeneration/principalId 键控且受 live/logout/session gate 控制的 WorkbenchNavigation 内；生产执行入口提供空 rounds 与 UNAVAILABLE，无开发回退或重试动作，既有公开 Markdown 读取路由保持。未增加业务端点、公共 wire contract、Schema、权限、持久化或 Runner 调度语义。
+
+startup 开发 adapter 沿原确认操作生成唯一 request，使用精确 reportId/version/informationRefs/fileIds；FixtureExecution 从该请求逐文件建立 WAITING 输入，report/file 标题按原报告查找，不使用 createdAt 推导就绪。确认后的整份 fileIds 原样成为 confirmedFileIds，原计划意见阻塞文件显式移除后不进入进度分母。现有 startup 旅程改为断言共享清单仅含所确认的预防措施程序，原 UNKNOWN 跨路由查询旅程保留。旧 sessionStorage 演示范围机制来自已合并基线，本 PR 未新增客户数据或凭据存储。
+
+R1 的工作台 returnTo 与精确 candidateReturns 仍分离；R2 的 provider notify、原 intent 同步锁、错回执 UNKNOWN 和 readback 保持。执行 model/component、fixture、相关 Browser 及 TrustedApp 产品差异相对已批准 `4a3191c` 未变；本轮仍重新核查关键边界，并检查其在新基线 full 中的实际回归结果，不把历史批准当成本次 head 的验证。候选快照不可变、后台到达不替换阅读版本/草稿等原检查结论未见反证。
+
+验证采用原会话在本 reviewed SHA 执行的 `vibe verify full --json` 结果，实际读取 `/private/tmp/issue-285-full-final-evidence.txt` 的终端捕获。文件含工具输出截断提示，中间详细 persistence 日志有省略，不能称为完整原始日志。保留的汇总和最终结果明确为 PASS：125 files / 2549 unit/component tests、5 production Browser checks、36 development Browser journeys、58 persistence files / 709 tests；persistence gate passed，最终 Vibe `status=PASS,target=full,exit_code=0`。startup 两个旅程、R1 嵌套返回、R2 UNKNOWN/ACCEPTED 跨轮回执三个既有回归，以及生产执行 fixture 隔离均在本次输出中可见 PASS；Web/BFF 独立构建、架构与 contracts 汇总也 PASS。实际 PostgreSQL/Flyway digest、镜像验证、迁移和 cleanup 结果在该捕获中可见。本轮未重复 full 或另行执行 Browser。
+
+environment 前置结果由原会话本轮实际执行并提供：`vibe verify environment --json` PASS，Docker 29.4.0，endpoint `unix:///Users/galendai/.orbstack/run/docker.sock`，PostgreSQL/Flyway 两个 digest 均 PIN_MATCH。该前置输出未另存文件，本 Reviewer 不声称独立读取其原始日志；本轮独立读取的 full 捕获确认同一 endpoint、固定镜像和实际 container-backed gate 成功。
+
+该 APPROVE 是本地 full 证据充分后的独立 agent 审查结论；远端 exact-head CI 仍待原会话取得和核对，不作为本次 PASS 证据。本 Reviewer 未查询/轮询 CI、未登记 waiter。实际生产部署、真实客户文件进度/Runner 接入、重试授权、执行页服务器草稿及跨设备恢复、完整 Windows/macOS Chrome/Edge 矩阵和独立 Human 业务验收仍 NOT RUN；其他已执行 persistence 技术测试不能替代这些 #285 接入与人验。
+
+下一步：原会话交付本正式记录，针对新增文档提交执行明确 BASE_SHA/GITHUB_SHA 的 configured docs 验证，再请求仅含 review 文档的最终 head 确认，并完成实际最终 head 的远端 CI 与适用交付 gates。PR 本轮仍 Draft；本 APPROVE 不自行授权 ready、merge 或部署，也不自动改标到未知后续修订。
