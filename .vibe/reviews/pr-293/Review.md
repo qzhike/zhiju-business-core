@@ -50,3 +50,37 @@
 - [R2 行内评论](https://github.com/qzhike/zhiju-business-core/pull/293#discussion_r4266254421)。
 
 本地仅新增本审查记录，尚未提交到 Git。
+
+## 2026-10-14 修订复审：44f705f
+
+- Reviewed SHA：`44f705fef5c9bdfb07887a3e142361c32d7e0f1a`，本地与远端 head 一致，PR 仍为 Draft。
+- Reviewer outcome：`APPROVE`。R1、R2 均已闭合，本轮未发现新的阻塞问题。
+- 上方初审 REQUEST_CHANGES 及当时的交付状态保留其历史含义；原记录已由当前提交纳入 Git，本节为本次复审新增，尚未 commit/push，不属于 reviewed SHA。
+
+复审重新读取 Issue #283 及评论、当前 PR/head/评论/检查、两次 reviewed SHA 之间的全部增量，以及受影响 UI01 Spec/Test、组件、adapter 和测试调用链。按原验收和原反例独立判断，未以 Implementer 的完成声明代替证据；其余未变更代码沿用本会话初审结果。
+
+### R1 关闭依据
+
+`evidenceReport` 完整匹配草稿绑定的 projectId/reportId/version，adapter 只提供相符原报告；composer 显式使用该来源解析 evidence ID。缺失或错项目、报告、版本时显示原依据不可用并提供原报告入口，不回退当前报告的同名证据。组件正向及四类负向用例、built-browser 的原 E-ROLE/新版 E-ROLE 内容对照均已检查，覆盖初审反例。
+
+### R2 关闭依据
+
+历史客户补充、顾问判断、单文件计划入口允许切换原上下文；textarea 为 readOnly 且 onChange 拒绝 historical/stale 写入，可以聚焦、选择和复制。附件和提交仍禁用，提交处理器也保留 historical/stale 检查。新版上下文使用独立 key，不自动迁移旧草稿。新增桌面 1440px 与窄屏 360px 场景检查三类文本/附件回读、真实键盘剪贴板、禁止键入、禁止附件/提交及返回新版后的独立草稿。UI01 Spec/Test 已同步这些边界。
+
+### 当前验证证据及范围
+
+- [CI run 38504043063](https://github.com/qzhike/zhiju-business-core/actions/runs/38504043063) 的 headSha 与 reviewed SHA 一致，Verify code 和汇总 verify SUCCESS。
+- 实际日志：Vitest 122 files / 2,531 tests PASS，新增精确上下文组件 5 PASS；production browser 4 PASS，fixture browser 25 PASS，其中 analysis 12 PASS，包含上述三条新增 built-browser 回归。受控 Chromium 156.0.8078.4。
+- production 隔离、架构和契约 Gate PASS。复用当前 exact-revision CI，本轮未重复运行配置目标或本地浏览器测试。
+- full / persistence NOT RUN（CI persistence SKIPPED）；当前 Draft 要求的 code 证据充分，ready 前仍须 full。
+- 真实服务、Runner、上传/上下文命令、服务器草稿、跨设备、完整 Windows/macOS Chrome/Edge 矩阵及人工验收保持 NOT RUN。此结论不授权合并或部署。
+
+### 本次发布
+
+已按用户授权提交 COMMENT review 及原 R1/R2 线程回复，并通过 GitHub API 回读确认正文、原线程和 reviewed SHA：
+
+- [复审总评 5512613905](https://github.com/qzhike/zhiju-business-core/pull/293#pullrequestreview-5512613905)，state 为 COMMENTED，commit_id 为 `44f705fef5c9bdfb07887a3e142361c32d7e0f1a`。
+- [R1 修复确认回复](https://github.com/qzhike/zhiju-business-core/pull/293#discussion_r4266371225)。
+- [R2 修复确认回复](https://github.com/qzhike/zhiju-business-core/pull/293#discussion_r4266371447)。
+
+APPROVE 为独立 Reviewer 结论，不等同 GitHub 原生 APPROVED review。产品代码未修改，未 commit、push 或 merge；本轮仅追加此正式复审记录。`git diff --check` 通过。
