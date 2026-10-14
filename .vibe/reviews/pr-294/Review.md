@@ -41,3 +41,47 @@
 本记录为本轮新增正式审查文档，不属于 reviewed SHA。产品代码未修改，未 commit、push 或 merge。
 
 已按用户授权发布 [PR comment 6161867937](https://github.com/qzhike/zhiju-business-core/pull/294#issuecomment-6161867937)，并通过 GitHub API 回读确认正文、两项发现与 reviewed SHA。`REQUEST_CHANGES` 为 Reviewer 结论；此次发布的是普通 PR comment，不是 GitHub 原生 Request changes review。本地正式审查文档尚未提交。
+
+## 2026-10-14 修订复审：df63815
+
+- Reviewed SHA：`df638150530e948859b5133220f83d2f27f78774`，本地与远端一致，PR 为 Ready。
+- Reviewer outcome：`APPROVE`。R1、R2 均已闭合，未发现新的阻塞项；当前版本完整 CI 已成功，最终证据见本节末尾。下方等待与监控错误记录保留当时事实。
+- 重新读取 #284 及评论、PR/head/评论、两次 reviewed SHA 间全部增量、相关 UI01 Spec/Test、组件、adapter 及新增回归；未变更部分沿用本会话初审结果。
+- 原初审记录已由当前提交纳入 Git；本复审节为本轮未提交增量，不属于 reviewed SHA。
+
+### 修复核实
+
+R1：已选阻塞文件保留原因及禁用勾选，独立移除按钮调用原选择更新逻辑，仅移除用户指定文件；历史或 UNKNOWN 时该操作也禁用。浏览器回归覆盖先勾选纠正文件、提意见、返回选择独立预防文件、明确移除纠正文件，并确认最终进度只包含预防文件。
+
+R2：原意图、报告版本、信息引用及所选完整文件集合移至路由外的 provider 内存。重新进入从 pending scope 恢复选择，UI 和 action 均拒绝修改或再次确认。原请求查询校验原请求 ID 对应结果的报告、版本、信息引用和完整文件集合，匹配后才清除 UNKNOWN 并导航。浏览器故障注入覆盖离开／返回、保留原选择与查询、继续禁确认、查无回执且执行记录为零。UI01 文档明确会话内导航恢复与未来刷新／跨设备恢复的边界。
+
+### 当前证据
+
+- [CI checks 115705592723](https://github.com/qzhike/zhiju-business-core/actions/runs/38519444173/job/115705592723) head_sha 与 reviewed SHA 相符，Verify code SUCCESS。
+- 实际日志：123 个测试文件 / 2,535 项单元测试、4 条生产浏览器与 27 条开发浏览器场景 PASS；两条 startup 回归均 PASS，生产隔离 PASS，受控 Chromium 156.0.8078.4。
+- 复用精确版本 CI，不重复本地配置目标或已覆盖的浏览器路径。读取快照中 persistence 仍 IN_PROGRESS；准备由原会话 agent-ci 等待 run 38519444173、attempt 1、上述完整 SHA 的完成事件。
+- 日志首次读取被 gh 的终端转义保护拒绝；宿主只读 job 探针成功，显式允许读取日志转义后提取测试结果。agent-ci 沙箱 IPC 被拒绝，宿主同一 doctor 探针确认原会话通知可用。
+- 真实服务、Runner、业务持久化、跨设备、完整平台矩阵与人工验收仍 NOT RUN。产品代码未修改，未 commit/push/merge。
+
+复审进展已发布为 [comment 6162335020](https://github.com/qzhike/zhiju-business-core/pull/294#issuecomment-6162335020)，并经 API 回读确认。该 comment 确认两项修复闭合，同时明确最终结论待完整 CI。
+
+### CI 等待事件：监控错误
+
+2026-10-14 已 ack job `d8c40b06be6fecc7b999fc07`、event `bfb711cd-3ab3-4232-b67a-aab929a2ff26`，session `01a138ee-a0ba-7772-8361-8a670c164b31`。事件为 `monitor_error`，原因 `GitHub read timed out`；它不代表 CI 完成或 CI 失败。
+
+沙箱 gh 探针超时后，宿主最小只读恢复探针成功，同时完成本次允许的精确 run 核验：run `38519444173`、attempt `1`、SHA `df638150530e948859b5133220f83d2f27f78774` 仍为 `in_progress`、conclusion null；当前 PR head 未变。两项代码修复已闭合，code 证据有效，最终 APPROVE 仍待完整 CI。原等待任务已结束，不再轮询或为同一事件新建 waiter；当前没有自动完成通知待接收。
+
+### 最终 CI 核验与复审结论
+
+用户再次通知 CI 已结束后，核验 [run 38519444173](https://github.com/qzhike/zhiju-business-core/actions/runs/38519444173)、attempt 1 为 COMPLETED / SUCCESS；run 及各 job 的 head_sha 均为 `df638150530e948859b5133220f83d2f27f78774`，远端 PR head 未变。
+
+- select、checks、persistence、verify 全部 SUCCESS。
+- [Persistence job 115705592720](https://github.com/qzhike/zhiju-business-core/actions/runs/38519444173/job/115705592720) 的 Build persistence prerequisites、Verify persistence 均 SUCCESS，于 2026-10-14 06:41:45 UTC 完成。
+- [汇总 verify 115719069932](https://github.com/qzhike/zhiju-business-core/actions/runs/38519444173/job/115719069932) 的 Require all selected verification results SUCCESS，于 06:41:57 UTC 完成。
+- 当前 Ready PR 所需完整 CI 证据已满足；复用同版本 code 及其浏览器回归证据，不重复本地配置目标。
+
+最终 Reviewer outcome 为 `APPROVE`，取代此前完整 CI 待完成时的暂缓通过状态。初审两项发现已由当前代码和回归闭合，未发现新阻塞项。先前监控错误仅为通知工具读取超时，不作为 CI 失败证据。
+
+该结论限于 #284 的页面工程范围；真实 D14 服务、Runner、该业务意图的持久化与跨设备恢复、完整平台矩阵及人工验收仍 NOT RUN。仓库持久化回归通过不代表未接入业务能力已实现。正式复审记录增量尚未 commit/push；产品代码未修改，未 merge/deploy。
+
+最终结论已发布为 [comment 6162569484](https://github.com/qzhike/zhiju-business-core/pull/294#issuecomment-6162569484)，API 回读确认 APPROVE、reviewed SHA 与验证说明。此次为普通 PR comment，不是 GitHub 原生 APPROVED review，不授权合并。
