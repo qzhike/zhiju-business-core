@@ -1,6 +1,6 @@
 # PR #295 独立审查
 
-当前结果：`APPROVE`（2026-10-14 R2 修复复审；Reviewed SHA：`c2842aeeb148788f86f2f3263bcc77e8a4d4fdbf`；Draft/code 阶段；R1、R2 均关闭）。下方历史审查保留，当前结论仅绑定此精确版本。
+当前结果：`APPROVE`（2026-10-14 最新 head 复审；Reviewed SHA：`4a3191c26e3e729e6c48e13f3326a9812db2d726`；Draft/code 阶段；R1、R2 均关闭）。下方历史审查保留，当前结论仅绑定此精确版本。
 
 ## 初次审查历史
 
@@ -125,3 +125,15 @@
 本 APPROVE 仅为当前有界非持久化 Draft/code 阶段的 agent 审查。远端当前 head CI 由原会话取得，不在本轮证据内，本 Reviewer 未查询、轮询或注册 waiter；不将其标为 PASS。`full` 与适用 environment 前置或允许复用的精确版本 CI 仍为转 ready 前要求。真实服务、Runner、授权重试、服务器草稿/持久化、跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工业务验收仍 NOT RUN。
 
 本记录更新尚未提交/推送；记录交付后的最终 head 应另行确认仅含正式 review 文档差异并绑定最终 reviewed SHA，不构造自指 SHA，也不自动把本次结论改标到未知修订。GitHub comment/PR 证据交付由原会话按现有授权办理。批准不授权合并或部署。
+
+## 最新 head 复审与 comment 交付（2026-10-14）
+
+结果：`APPROVE`；Reviewed SHA：`4a3191c26e3e729e6c48e13f3326a9812db2d726`；Base SHA：`7a7f41d51bb0fa33d9da07be3468d30b6e58ffa1`。本轮响应用户“复审 PR 并提交 comments”，重新读取最新 Issue/PR/comments，确认本地与远端 head 一致、开始时工作区干净、PR 仍为 Draft。
+
+基于前次 R2 的原始失败场景、UI01 Spec/Test 和当前实现，独立核对 `4725646 → 4a3191c` 全部增量。Provider 通知解决卸载实例无法刷新当前消费者的问题；提交同步锁、原 intent 匹配、UNKNOWN 降级、原请求回读与身份退役后的内存隔离仍成立。新增 UNKNOWN/ACCEPTED 回归在返回原轮后才释放原 Promise，并直接检查结果、路由、焦点、单一意图、失败历史和旧候选；释放动作不调用 fixture setState，因此不依赖无关重绘。R2 关闭，R1 保持关闭，未发现新增阻塞项。
+
+实际读取 `/private/tmp/issue-285-r2-code-evidence.txt` 完整输出，确认 configured `code` PASS：124 files / 2545 tests、5 个生产 Browser 检查、34 个开发 Browser 旅程，包含新增两个回执反例与既有 R1 回归。PR 将该日志绑定到 `c2842aeeb148788f86f2f3263bcc77e8a4d4fdbf`；独立检查该提交至 reviewed SHA 的唯一变更为本 review 文档，产品源码、测试及配置未变，因此复用该产品验证证据。本轮未重复整个门禁或新增 Browser 运行，不以历史审查结论代替实现与日志核查。
+
+本轮 exact-head Actions API 返回 `total_count: 0`，PR checks 为空；远端 CI 仍无可用证据或可绑定 waiter 的 run。批准仅覆盖 Draft/code 阶段，转 ready 前仍需适用 `full` 和 environment 前置或许可复用的精确版本 CI。真实服务、Runner、授权重试、服务器草稿/持久化、跨设备、完整平台矩阵与人工验收保持 `NOT RUN`。
+
+本轮仅更新本正式记录，未修改产品、commit、push 或 merge。审查 comment 的发布与读回以 PR 为准；本地记录增量尚未提交，结论不自动绑定后续未知提交。
