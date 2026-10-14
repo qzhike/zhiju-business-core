@@ -1,10 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { WorkspaceData } from './model.js';
 import { ContentBoundary, Missing } from './shell.js';
+import { ExecutionNavigation } from './execution/Page.js';
 import { TrustedApp } from './TrustedApp.js';
 import { WorkbenchNavigation, UnavailablePage } from './workbench/navigation.js';
 const FixtureWorkbenchProvider = lazy(() => {
@@ -60,9 +61,29 @@ const FixtureAnalysisStartup = lazy(() => {
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
 
+const FixtureExecutionProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/execution.js').then((module) => ({
+      default: module.FixtureExecutionProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureExecution = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/execution.js').then((module) => ({
+      default: module.FixtureExecution,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureExecutionReview = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/execution.js').then((module) => ({
+      default: module.FixtureExecutionReview,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+
 const projectId = 'DEMO-PROJECT-01';
-const initialReportId = 'DEMO-STARTUP-REPORT-01';
-const reportPath = (reportId = initialReportId) => `/projects/${projectId}/analysis/${reportId}`;
 
 async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
   if (__DEV_FIXTURE__) {
@@ -187,53 +208,61 @@ function FixtureApp() {
                   <FixtureWorkbenchProvider>
                     <FixtureIntakeProvider>
                       <FixtureAnalysisProvider>
-                        <FixturePageFocus />
-                        <Routes>
-                          <Route path="/" element={<Navigate to="/workbench" replace />} />
-                          <Route path="/workbench" element={<FixtureWorkbench />} />
-                          <Route path="/projects/new" element={<FixtureNewProject />} />
-                          <Route path="/projects/:projectId/intake" element={<FixtureIntake />} />
-                          <Route path="/initial-analysis" element={<FixtureIntake />} />
-                          <Route
-                            path="/projects/:projectId/analysis/:reportId"
-                            element={<FixtureAnalysis />}
-                          />
-                          <Route
-                            path="/projects/:projectId/startup/:reportId"
-                            element={
-                              <FixtureAnalysisStartup data={query.data} key={location.pathname} />
-                            }
-                          />
-                          <Route
-                            path="/projects/:projectId/executions/:requestId"
-                            element={<Execution data={query.data} />}
-                          />
-                          <Route
-                            path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                            element={
-                              <UnavailablePage
-                                title="检查文件"
-                                reason="精确文件检查页面尚未交付；此处保留候选版本入口。"
+                        <ExecutionNavigation>
+                          <FixtureExecutionProvider>
+                            <FixturePageFocus />
+                            <Routes>
+                              <Route path="/" element={<Navigate to="/workbench" replace />} />
+                              <Route path="/workbench" element={<FixtureWorkbench />} />
+                              <Route path="/projects/new" element={<FixtureNewProject />} />
+                              <Route
+                                path="/projects/:projectId/intake"
+                                element={<FixtureIntake />}
                               />
-                            }
-                          />
-                          <Route
-                            path="/projects/:projectId/delivery"
-                            element={
-                              <UnavailablePage
-                                title="项目交付"
-                                reason="项目交付页面尚未交付；此处未生成交付包。"
+                              <Route path="/initial-analysis" element={<FixtureIntake />} />
+                              <Route
+                                path="/projects/:projectId/analysis/:reportId"
+                                element={<FixtureAnalysis />}
                               />
-                            }
-                          />
-                          <Route
-                            path="/projects/:projectId/tasks/:taskId"
-                            element={
-                              <UnavailablePage title="任务详情" reason="任务详情页面尚未交付。" />
-                            }
-                          />
-                          <Route path="*" element={<Missing />} />
-                        </Routes>
+                              <Route
+                                path="/projects/:projectId/startup/:reportId"
+                                element={
+                                  <FixtureAnalysisStartup
+                                    data={query.data}
+                                    key={location.pathname}
+                                  />
+                                }
+                              />
+                              <Route
+                                path="/projects/:projectId/executions/:requestId"
+                                element={<FixtureExecution data={query.data} />}
+                              />
+                              <Route
+                                path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                                element={<FixtureExecutionReview key={location.pathname} />}
+                              />
+                              <Route
+                                path="/projects/:projectId/delivery"
+                                element={
+                                  <UnavailablePage
+                                    title="项目交付"
+                                    reason="项目交付页面尚未交付；此处未生成交付包。"
+                                  />
+                                }
+                              />
+                              <Route
+                                path="/projects/:projectId/tasks/:taskId"
+                                element={
+                                  <UnavailablePage
+                                    title="任务详情"
+                                    reason="任务详情页面尚未交付。"
+                                  />
+                                }
+                              />
+                              <Route path="*" element={<Missing />} />
+                            </Routes>
+                          </FixtureExecutionProvider>
+                        </ExecutionNavigation>
                       </FixtureAnalysisProvider>
                     </FixtureIntakeProvider>
                   </FixtureWorkbenchProvider>
@@ -287,74 +316,5 @@ export function SafeMarkdown({ children }: { children: string }) {
     >
       {children}
     </ReactMarkdown>
-  );
-}
-
-function Execution({ data }: { data: WorkspaceData }) {
-  const params = useParams();
-  const request = data.execution(params.requestId ?? '');
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') setNow(Date.now());
-    }, 5000);
-    const focus = () => {
-      setNow(Date.now());
-    };
-    window.addEventListener('focus', focus);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', focus);
-    };
-  }, []);
-  if (!request || request.projectId !== params.projectId) {
-    if (
-      (params.projectId === projectId || params.projectId === 'DEMO-PROJECT-02') &&
-      params.requestId?.startsWith('WB-')
-    )
-      return (
-        <UnavailablePage
-          title="文件进度"
-          reason="此精确请求的文件进度页面尚未交付；本入口未开始或重试任何工作。"
-        />
-      );
-    return <Missing />;
-  }
-  const report = data.reports.find((r) => r.reportId === request.reportId);
-  const ready = now - request.createdAt >= 5000;
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">青禾制造 · 报告第 {request.version} 版</p>
-          <h1 tabIndex={-1}>本轮执行进度</h1>
-          <p className="muted">{request.requestId}</p>
-        </div>
-        <Link to="/workbench">返回工作台</Link>
-      </div>
-      <section className="panel">
-        <div className="notice" role="status">
-          演示回执与进度 · 未调用 Core 或 Runner，不表示真实业务成功
-        </div>
-        <h2>{ready ? '演示候选已就绪，等待检查' : '演示范围已记录，等待安排'}</h2>
-        <p>
-          精确报告：{request.reportId} · 第 {request.version} 版
-        </p>
-        <p>本轮 {request.fileIds.length} 份文件 · 整份完整计划</p>
-        <ul className="progress-list">
-          {request.fileIds.map((id) => (
-            <li key={id}>
-              <strong>{report?.files.find((f) => f.id === id)?.title}</strong>
-              <span>{ready ? '待检查（演示）' : '待安排（演示）'}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="muted">
-          旧报告和原请求保持，可离开页面后通过本链接回读演示状态。没有真实完成百分比或 Runner
-          Receipt。
-        </p>
-        <Link to={reportPath(request.reportId)}>查看本轮精确报告</Link>
-      </section>
-    </>
   );
 }

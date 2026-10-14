@@ -234,6 +234,21 @@ reviewer and timestamp
 组件/受控 Chromium 证据归 PR。真实创建、ZIP 接收、Runner、持久化、Windows/macOS Chrome/Edge 完整矩阵、独立 exact-head review 及人工验收需单独证据；未执行层 NOT RUN。
 
 
+## #285 文件进度页面验收场景
+
+| 场景 | 预期 | 证据位置 |
+|---|---|---|
+| 范围及混合结果 | 仅确认成员计数；等待/处理中/待检查/失败/待核验可区分；就绪文件立即进入精确候选 | Execution model/component / built-browser |
+| 候选边界 | 缺失或错项目/轮次/文件候选不产生链接、不计待检查；旧候选引用保留 | Execution model/component |
+| 重试及 UNKNOWN | 许可单文件点击一次产生 pending 原 intent，重复点击不提交；错回执和异常保持 UNKNOWN，只读原请求；失败历史与其他文件不变；pending→其他轮→原轮→UNKNOWN/ACCEPTED 即时更新，UNKNOWN 立即开放原请求查询且只提交一个意图 | Execution model/component / browser |
+| 多轮上下文 | 后轮等待时前轮仍处理；搜索/筛选/滚动/展开往返保留；scope/report provenance 不改写 | Execution browser |
+| 后台到达 | 页面、焦点、当前版本/草稿不被替换，展开区保持；另一轮事件不导航 | Execution component / browser |
+| 负向状态 | 空范围/空搜索/读失败/失权各自明确，失权不展示文件；带项目查询及非默认搜索/展开的工作台→轮次→候选→轮次→工作台完整往返保留原 URL、项目和焦点 | Execution component / browser |
+| 视口及键盘 | 1280/1440/1920 桌面清单内部滚动，360/320 reflow；键盘进入候选/切轮，状态不只依赖颜色 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
+| 生产隔离 | production bundle 不含 execution fixture，能力不可用不模拟执行或候选 | Configured code / production browser |
+
+真实服务、Runner、授权重试、持久化、跨设备、完整 Windows/macOS Chrome/Edge 与人工验收：NOT RUN。执行证据记录在 Issue/PR。
+
 ## #283 分析页面验收场景
 
 | 场景 | 预期 | 证据位置 |
