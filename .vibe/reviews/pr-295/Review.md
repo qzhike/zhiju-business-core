@@ -1,6 +1,6 @@
 # PR #295 独立审查
 
-当前结果：`REQUEST_CHANGES`（2026-10-14 新一轮独立审查；Reviewed SHA：`47256468ce16cdab15530f7b0e3404c5310074ea`；R2 待修复）。下方历史 APPROVE 保留，不代表本轮结论。
+当前结果：`APPROVE`（2026-10-14 R2 修复复审；Reviewed SHA：`c2842aeeb148788f86f2f3263bcc77e8a4d4fdbf`；Draft/code 阶段；R1、R2 均关闭）。下方历史审查保留，当前结论仅绑定此精确版本。
 
 ## 初次审查历史
 
@@ -103,3 +103,25 @@
 生产隔离、范围分母、精确候选与未知状态降级等已检查路径未发现新增阻塞项；本轮发现已足以要求修复，不代表穷举全部状态组合。真实进度服务、Runner、授权重试、服务器草稿/持久化、跨设备、Windows/macOS 完整 Chrome/Edge 矩阵及独立人工业务验收仍为 `NOT RUN`。
 
 交接：Implementer 修复 R2 并补充上述回归，取得新 head 的适用配置验证及独立复审。R1 保持关闭。本轮不授权合并或部署。
+
+
+## R2 修复独立复审（2026-10-14）
+
+结果：`APPROVE`
+
+- Reviewed SHA：`c2842aeeb148788f86f2f3263bcc77e8a4d4fdbf`。
+- 比较版本：上一 reviewed head `47256468ce16cdab15530f7b0e3404c5310074ea` → 本次 reviewed SHA；PR 仍 Draft。
+- 最新 Issue #285 无评论；[R2 comment](https://github.com/qzhike/zhiju-business-core/pull/295#issuecomment-6163917295) 与 UI01 Spec/Test、批准交互和工程基线构成验收依据。`vibe repo --json` 与远端 PR head 均确认该精确版本。
+- R2：`CLOSED`；R1 保持关闭。本轮未修改产品、提交、推送或发表 GitHub 评论，仅更新本正式审查文档。
+
+独立预期先于实现检查建立：pending 原请求切到另一轮再回原轮后，其 UNKNOWN/ACCEPTED 回执应直接更新当前显示，不依赖搜索、刷新或再次导航。UNKNOWN 必须立即开放原请求查询；ACCEPTED 仍只表示接收、等待安排。原 intent 与重复提交锁、失败历史、其他文件候选和当前焦点均须保留；身份退役后旧异步闭包不得写入新身份的页面内存。不存在新增业务操作、Runner 或浏览器持久化需求。
+
+实际修复在 `ExecutionNavigation` 的身份边界内保存稳定 Map 与 provider 状态通知函数。提交前同步写入 PENDING，原回执精确匹配或异常/错回执降级 UNKNOWN 后统一通知 provider；provider 给出新的 Context value，使当前 consumer 重绘，而不再调用发起请求但已卸载的 RoundPage 的本地 render。当前轮次重新挂载仍读取原 RoundView，原 intent 与候选返回内存保持原归属。React state setter 与 Map 都属于原 provider；TrustedApp 的 WorkbenchNavigation 由 sessionGeneration/principalId 键控，失权、退出和身份更换卸载该子树。旧闭包最多改变已退役对象，不能填充新 provider 的 Map。本轮对此做静态边界核查，未声称新增真实身份运行旅程。
+
+新增两个 built-browser 旅程覆盖 pending → 后轮 → 原轮 → UNKNOWN/ACCEPTED，双击初次重试并断言只记录一个意图；释放原 Promise 后直接断言结果、原意图、零重复重试入口、原路径与搜索焦点保持。UNKNOWN 随即允许原请求查询，并以同一 intent 读回 ACCEPTED；原失败历史及另一文件精确候选入口继续存在。回执释放按钮只 resolve Promise 和删除 pending Map，不调用 fixture setState；记录意图的 setIntents 在发起请求时执行，因此不会以无关 fixture 重绘掩盖原回执通知缺陷。测试使用程序化 click 保持搜索焦点，无输入、刷新或后续导航促成断言。开发 adapter 的新计数和 ACCEPTED release 仅用于隔离 fixture，生产隔离未改变。
+
+复用实际 `/private/tmp/issue-285-r2-code-evidence.txt` 的完整 `vibe verify code --json` PASS 输出，并由原会话绑定至本次实施 head；工作区审查前干净。输出包含 124 files / 2545 unit/component tests、5 production browser checks、34 development browser journeys，新增 UNKNOWN/ACCEPTED 跨轮回执旅程及既有 R1 嵌套返回旅程均 PASS；format、lint、typecheck、独立 Web/BFF build、architecture 和 contracts 亦通过。未重复配置门禁，未新增独立 browser 运行；本结论来自契约、实际 diff、关键上下文和已执行验证证据的独立核对。
+
+本 APPROVE 仅为当前有界非持久化 Draft/code 阶段的 agent 审查。远端当前 head CI 由原会话取得，不在本轮证据内，本 Reviewer 未查询、轮询或注册 waiter；不将其标为 PASS。`full` 与适用 environment 前置或允许复用的精确版本 CI 仍为转 ready 前要求。真实服务、Runner、授权重试、服务器草稿/持久化、跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工业务验收仍 NOT RUN。
+
+本记录更新尚未提交/推送；记录交付后的最终 head 应另行确认仅含正式 review 文档差异并绑定最终 reviewed SHA，不构造自指 SHA，也不自动把本次结论改标到未知修订。GitHub comment/PR 证据交付由原会话按现有授权办理。批准不授权合并或部署。
