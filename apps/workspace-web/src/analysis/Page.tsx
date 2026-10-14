@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import * as Dialog from '@radix-ui/react-dialog';
 import { SafeMarkdown } from '../App.js';
@@ -55,6 +55,7 @@ export function AnalysisPage({
   const heading = useRef<HTMLHeadingElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const focusComposer = useRef(false);
+  const handledOpinion = useRef('');
   const [preview, setPreview] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState('');
   const [manual, setManual] = useState(false);
@@ -63,6 +64,17 @@ export function AnalysisPage({
   const requests = customerRequests(report);
   const judgments = report.attentionItems.filter((item) => item.audience === 'CONSULTANT');
   const viewKey = `${activeArea ?? 'overview'}:${itemId ?? ''}`;
+  useEffect(() => {
+    const opinionFileId = params.get('file');
+    if (params.get('opinion') !== '1' || !opinionFileId || activeArea) return;
+    if (!report.plannedFiles.some((file) => file.id === opinionFileId)) return;
+    const key = `${report.projectId}:${report.reportId}:${report.version}:${opinionFileId}`;
+    if (handledOpinion.current === key) return;
+    handledOpinion.current = key;
+    focusComposer.current = true;
+    setMobileView('composer');
+    update((current) => ({ ...current, context: contextFor(report, 'PLAN', opinionFileId) }));
+  }, [params, activeArea, itemId, report, update]);
   useLayoutEffect(() => {
     if (reader.current) reader.current.scrollTop = state.scroll[viewKey] ?? 0;
     if (listReader.current) listReader.current.scrollTop = state.scroll[`${activeArea}:list`] ?? 0;

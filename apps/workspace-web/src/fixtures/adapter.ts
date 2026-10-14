@@ -55,6 +55,12 @@ function read(): DemoState {
       item.projectId !== 'DEMO-PROJECT-01' ||
       typeof item.reportId !== 'string' ||
       reports.find((r) => r.reportId === item.reportId)?.version !== item.version ||
+      JSON.stringify(item.informationRefs) !==
+        JSON.stringify(
+          reports
+            .find((r) => r.reportId === item.reportId)
+            ?.information.map((info) => info.candidateRef),
+        ) ||
       !validSelection(item.reportId, item.fileIds) ||
       !item.fileIds.length ||
       typeof item.createdAt !== 'number' ||
@@ -67,6 +73,7 @@ function read(): DemoState {
       projectId: 'DEMO-PROJECT-01',
       reportId: item.reportId,
       version: item.version as number,
+      informationRefs: item.informationRefs as string[],
       fileIds: item.fileIds,
       createdAt: item.createdAt,
     });
@@ -87,6 +94,10 @@ function validSelection(reportId: string, ids: unknown): ids is string[] {
   );
 }
 
+function alreadyIncluded(state: DemoState, ids: string[]): boolean {
+  return state.executions.some((request) => request.fileIds.some((id) => ids.includes(id)));
+}
+
 function write(state: DemoState) {
   sessionStorage.setItem(key, JSON.stringify(state));
 }
@@ -100,6 +111,7 @@ export function loadFixture(): WorkspaceData {
     saveSelection: (reportId, ids) => {
       if (!validSelection(reportId, ids)) throw new Error('UI_FIXTURE_STATE_INVALID');
       const state = read();
+      if (alreadyIncluded(state, ids)) throw new Error('UI_SCOPE_ALREADY_INCLUDED');
       state.selected[reportId] = ids;
       write(state);
     },
@@ -110,20 +122,33 @@ export function loadFixture(): WorkspaceData {
       const state = read();
       const requestId = `DEMO-REQUEST-${intentId}`;
       const existing = state.executions.find((item) => item.requestId === requestId);
-      if (existing) return existing;
+      if (existing) {
+        if (
+          existing.reportId !== reportId ||
+          JSON.stringify(existing.informationRefs) !==
+            JSON.stringify(report.information.map((info) => info.candidateRef)) ||
+          JSON.stringify(existing.fileIds) !== JSON.stringify(ids)
+        )
+          throw new Error('UI_SCOPE_INTENT_MISMATCH');
+        return existing;
+      }
+      if (alreadyIncluded(state, ids)) throw new Error('UI_SCOPE_ALREADY_INCLUDED');
       const item: FixtureExecution = {
         classification: 'DEVELOPMENT_FIXTURE_ONLY',
         requestId,
         projectId: report.projectId,
         reportId,
         version: report.version,
+        informationRefs: report.information.map((info) => info.candidateRef),
         fileIds: [...ids],
         createdAt: Date.now(),
       };
       state.executions.push(item);
+      state.selected[reportId] = [];
       write(state);
       return item;
     },
     execution: (requestId) => read().executions.find((item) => item.requestId === requestId),
+    executions: () => read().executions,
   };
 }
