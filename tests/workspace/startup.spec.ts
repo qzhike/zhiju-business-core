@@ -35,8 +35,9 @@ test('scope filtering, exact plan opinion, and isolated pending file', async ({ 
   await expect(page.getByRole('alertdialog')).toContainText('所选 1 份完整计划');
   await page.getByRole('button', { name: '确认并查看演示进度' }).click();
   await expect(page.getByRole('heading', { name: '本轮执行进度' })).toBeVisible();
-  await expect(page.locator('.progress-list')).toContainText('预防措施程序');
-  await expect(page.locator('.progress-list')).not.toContainText('纠正措施程序');
+  await expect(page.locator('.execution-file')).toHaveCount(1);
+  await expect(page.locator('.execution-list')).toContainText('预防措施程序');
+  await expect(page.locator('.execution-list')).not.toContainText('纠正措施程序');
 });
 
 test('UNKNOWN scope intent stays locked across route navigation and queries the original request', async ({
