@@ -62,7 +62,7 @@ Open `http://127.0.0.1:3100/workbench`. Alternatively use
 `pnpm --filter @zhiju/workspace-web dev:fixture` for Vite development.
 Fixture builds are marked as development artifacts and the static server refuses
 them unless `NODE_ENV=development`. Production builds prune the fixture adapter,
-reports and execution code, including when a development environment switch or
+reports and simulated execution adapters, including when a development environment switch or
 fixture mode is supplied with `NODE_ENV=production`.
 
 The anonymous JSON/Markdown materials in `src/fixtures` originate from the
@@ -144,3 +144,23 @@ composer. Plan-opinion pending presentation affects only its identified file.
 The production report route remains unavailable until the owning public read and
 command capabilities exist; fixture data and simulated receipts are pruned from
 production. No browser customer-data storage or server-draft claim is added.
+
+The shared file-progress page lives in `src/execution`. It displays only confirmed
+scope members and supplied file states, validates exact candidate context, and
+keeps each round's search, filter, scroll and disclosures in session memory.
+Allowed single-file retries lock one intent before submission; pending or UNKNOWN
+receipts cannot create a duplicate. Readback uses that same intent and does not
+claim execution. Existing candidates and failure history remain independent.
+Production progress reads and retries remain unavailable until owning operations
+are registered and authorized; the page never falls back to fixtures.
+
+`src/fixtures/execution.tsx` supplies explicit memory-only events with no timers:
+open `/projects/DEMO-PROJECT-01/executions/WB-SCOPE-01` in a fixture build, then
+expand the development controls. Exercise mixed results, an independently waiting
+later round, long-list scrolling, delayed retry receipts, mismatched receipts,
+read errors and expired access. Candidate entries preserve exact version routes;
+the development candidate view reuses the existing Markdown review page. It
+keeps immutable synthetic versions and an unsaved local note; feedback, approval
+and real file-review integration remain separate page work. Reload clears these event
+fixtures, without resubmitting a business request. Real Runner progress, retry
+authorization, persistence, cross-device drafts and human acceptance remain NOT RUN.

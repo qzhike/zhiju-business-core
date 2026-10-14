@@ -59,14 +59,14 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await page.getByRole('button', { name: '确认信息与范围并开始' }).click();
   await page.getByRole('button', { name: '确认并查看演示进度' }).click();
   await expect(page.getByRole('heading', { name: '本轮执行进度' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('不表示真实业务成功');
+  await expect(page.locator('.execution-controls')).toContainText('不表示真实业务成功');
   const exactUrl = page.url();
   await expect(page.locator('main')).toContainText('DEMO-STARTUP-REPORT-01');
   await page.reload();
   await expect(page).toHaveURL(exactUrl);
-  await expect(page.getByRole('heading', { name: '演示候选已就绪，等待检查' })).toBeVisible({
-    timeout: 12_000,
-  });
+  await expect(page.locator('.execution-counts')).toContainText('等待安排 1');
+  await expect(page.getByRole('link', { name: /检查文件 ·/ })).toHaveCount(0);
+  await page.getByText('本轮范围与报告依据', { exact: true }).click();
   await page.getByRole('link', { name: '查看本轮精确报告' }).click();
   await expect(page).toHaveURL(report);
   await page.getByText('分析演示控制', { exact: true }).click();

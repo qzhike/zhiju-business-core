@@ -77,7 +77,15 @@ export function WorkLink({
   );
 }
 
-export function UnavailablePage({ title, reason }: { title: string; reason: string }) {
+export function UnavailablePage({
+  title,
+  reason,
+  backLabel = '返回我的工作台',
+}: {
+  title: string;
+  reason: string;
+  backLabel?: string;
+}) {
   const memory = useWorkbenchMemory();
   const params = useParams();
   const location = useLocation();
@@ -123,7 +131,7 @@ export function UnavailablePage({ title, reason }: { title: string; reason: stri
         )}
       </dl>
       <p>
-        <Link to={memory.returnTo}>返回我的工作台</Link>
+        <Link to={memory.returnTo}>{backLabel}</Link>
       </p>
     </section>
   );

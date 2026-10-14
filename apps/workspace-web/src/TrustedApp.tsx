@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { ExecutionNavigation, ExecutionPage } from './execution/Page.js';
 import { ContentBoundary, Missing } from './shell.js';
 import { MarkdownReview } from './MarkdownReview.js';
 import { DIRECTORY_SCOPE_KEY } from './trusted/protocol.js';
@@ -199,142 +200,145 @@ export function TrustedApp() {
               <LogoutPanel />
             ) : live ? (
               <WorkbenchNavigation key={`${sessionGeneration}:${principalId ?? ''}`}>
-                <Routes>
-                  <Route
-                    path="/projects/:projectId/artifacts/:artifactId/revisions/:revisionId"
-                    element={
-                      <MarkdownReview
-                        key={`${sessionGeneration}:${reviewScopeKey}`}
-                        sessionGeneration={sessionGeneration}
-                        principalId={principalId ?? ''}
-                        csrfToken={csrfToken}
-                        generation={guard.generation}
-                        guardRef={guardRef}
-                        readBoundary={readBoundary}
-                        scopeKey={reviewScopeKey ?? ''}
-                        onSessionFailure={onSessionFailure}
-                      />
-                    }
-                  />
-                  <Route path="/" element={<Navigate to="/workbench" replace />} />
-                  <Route
-                    path="/workbench"
-                    element={
-                      <TrustedWorkbench
-                        sessionGeneration={sessionGeneration}
-                        principalId={principalId ?? ''}
-                        csrfToken={csrfToken}
-                        generation={guard.generation}
-                        guardRef={guardRef}
-                        readBoundary={readBoundary}
-                        onSessionFailure={onSessionFailure}
-                        selectedKey={selectedKey}
-                        onSelect={(key) => {
-                          const match = /^project:([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/u.exec(
-                            key ?? '',
-                          );
-                          void navigate(
-                            match
-                              ? `/workbench?enterprise=${match[1]}&project=${match[2]}`
-                              : '/workbench',
-                          );
-                        }}
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/new"
-                    element={
-                      <NewProjectPage
-                        customers={[]}
-                        unavailable="客户搜索与资料准备（D14）公开操作尚未注册，不能创建客户或项目。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/intake"
-                    element={
-                      <TrustedIntake
-                        sessionGeneration={sessionGeneration}
-                        principalId={principalId ?? ''}
-                        csrfToken={csrfToken}
-                        generation={guard.generation}
-                        guardRef={guardRef}
-                        readBoundary={readBoundary}
-                        onSessionFailure={onSessionFailure}
-                      />
-                    }
-                  />
-                  <Route
-                    path="/initial-analysis"
-                    element={
-                      <TrustedIntake
-                        sessionGeneration={sessionGeneration}
-                        principalId={principalId ?? ''}
-                        csrfToken={csrfToken}
-                        generation={guard.generation}
-                        guardRef={guardRef}
-                        readBoundary={readBoundary}
-                        onSessionFailure={onSessionFailure}
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/analysis/:reportId"
-                    element={
-                      <UnavailablePage
-                        title="分析总览"
-                        reason="报告读取尚未接入公开操作，不能显示任何替代报告。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/startup/:reportId"
-                    element={
-                      <UnavailablePage
-                        title="核对信息与文件范围"
-                        reason="启动核对尚未接入公开操作；未注册字段不能成为私有入口。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/executions/:requestId"
-                    element={
-                      <UnavailablePage
-                        title="本轮执行进度"
-                        reason="Runner 执行进度尚未接入，不显示合成百分比或回执。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                    element={
-                      <UnavailablePage
-                        title="检查文件"
-                        reason="精确候选读取与检查页面尚未接入，不能据此确认检查或批准。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/delivery"
-                    element={
-                      <UnavailablePage
-                        title="项目交付"
-                        reason="项目交付页面与受控导出尚未接入；不会生成交付包或交付成功记录。"
-                      />
-                    }
-                  />
-                  <Route
-                    path="/projects/:projectId/tasks/:taskId"
-                    element={
-                      <UnavailablePage
-                        title="任务详情"
-                        reason="任务详情页面尚未接入；任务引用不等于执行请求或文件候选。"
-                      />
-                    }
-                  />
-                  <Route path="*" element={<Missing />} />
-                </Routes>
+                <ExecutionNavigation>
+                  <Routes>
+                    <Route
+                      path="/projects/:projectId/artifacts/:artifactId/revisions/:revisionId"
+                      element={
+                        <MarkdownReview
+                          key={`${sessionGeneration}:${reviewScopeKey}`}
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          scopeKey={reviewScopeKey ?? ''}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
+                    <Route path="/" element={<Navigate to="/workbench" replace />} />
+                    <Route
+                      path="/workbench"
+                      element={
+                        <TrustedWorkbench
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          onSessionFailure={onSessionFailure}
+                          selectedKey={selectedKey}
+                          onSelect={(key) => {
+                            const match = /^project:([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/u.exec(
+                              key ?? '',
+                            );
+                            void navigate(
+                              match
+                                ? `/workbench?enterprise=${match[1]}&project=${match[2]}`
+                                : '/workbench',
+                            );
+                          }}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/new"
+                      element={
+                        <NewProjectPage
+                          customers={[]}
+                          unavailable="客户搜索与资料准备（D14）公开操作尚未注册，不能创建客户或项目。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/intake"
+                      element={
+                        <TrustedIntake
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/initial-analysis"
+                      element={
+                        <TrustedIntake
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/analysis/:reportId"
+                      element={
+                        <UnavailablePage
+                          title="分析总览"
+                          reason="报告读取尚未接入公开操作，不能显示任何替代报告。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/startup/:reportId"
+                      element={
+                        <UnavailablePage
+                          title="核对信息与文件范围"
+                          reason="启动核对尚未接入公开操作；未注册字段不能成为私有入口。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/executions/:requestId"
+                      element={
+                        <ExecutionPage
+                          rounds={[]}
+                          phase="UNAVAILABLE"
+                          reason="文件级进度读取与重试尚未接入已注册授权操作，不能显示替代进度或发起重试。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                      element={
+                        <UnavailablePage
+                          title="检查文件"
+                          reason="精确候选读取与检查页面尚未接入，不能据此确认检查或批准。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/delivery"
+                      element={
+                        <UnavailablePage
+                          title="项目交付"
+                          reason="项目交付页面与受控导出尚未接入；不会生成交付包或交付成功记录。"
+                        />
+                      }
+                    />
+                    <Route
+                      path="/projects/:projectId/tasks/:taskId"
+                      element={
+                        <UnavailablePage
+                          title="任务详情"
+                          reason="任务详情页面尚未接入；任务引用不等于执行请求或文件候选。"
+                        />
+                      }
+                    />
+                    <Route path="*" element={<Missing />} />
+                  </Routes>
+                </ExecutionNavigation>
               </WorkbenchNavigation>
             ) : (
               <AccessGate
