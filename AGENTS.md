@@ -70,10 +70,13 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
     evidence;
   - `docs` for a strict documentation-only change limited to Markdown under
     `.vibe/` or the repository README;
-  - `code` for non-persistence implementation while a Pull Request remains Draft;
-  - `full` for ready non-document Pull Requests, migrations, SQL, persistence
-    tests or tooling, module persistence code, verification-policy changes, and
-    unknown or mixed high-risk scope.
+  - `code` for Draft or ready Pull Requests whose complete diff contains only
+    the explicit low-risk UI allowlist and optional strict documentation; see
+    [verification routing](.vibe/high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由).
+    This still includes the workspace build and browser checks;
+  - `full` for non-document main pushes, Core/business/security/contract or
+    persistence changes, dependency/build/verification-policy changes, and
+    unknown or mixed scope. Draft status does not exempt high-risk changes.
     The `full` target includes a clean build and the Docker/PostgreSQL persistence
     gate. Focused diagnostics do not replace the required configured target.
     The persistence tooling respects an explicit `DOCKER_HOST` and otherwise
@@ -82,6 +85,8 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
 - Prefer trustworthy current exact-revision CI evidence. Do not rerun the same
   configured target locally merely to duplicate it; use a focused counterexample
   when independent semantic review requires evidence beyond the configured gate.
+- CI cancels superseded runs only within the same Pull Request. Main runs remain
+  independent; cancellation is not passing evidence for the latest revision.
 - Preserve distinct design, local, persistence, external, and manual evidence.
   Unexecuted acceptance remains `NOT RUN`.
 - Do not commit without explicit user authorization. Push and merge also require
