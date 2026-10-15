@@ -256,7 +256,7 @@ async function startStack() {
       env: { ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument, [CLIENT_SECRET_ENV]: CLIENT_SECRET },
     });
     await bff.listen(bffPort, '127.0.0.1');
-    cleanup.push(httpCleanup('bff', bff.getHttpServer<Server>(), () => bff.close()));
+    cleanup.push(httpCleanup('bff', bff.getHttpServer(), () => bff.close()));
     const artifacts = await startArtifacts(webPort, bffOrigin);
     cleanup.push(cleanupStage('artifact-process', () => artifacts.stop()));
     return {
