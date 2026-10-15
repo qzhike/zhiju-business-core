@@ -196,12 +196,56 @@ export function MarkdownReviewPage({
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [chapterState, setChapterState] = useState<Record<string, boolean>>({});
   const [narrow, setNarrow] = useState(false);
+  const root = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const note = useRef<HTMLTextAreaElement>(null);
   const stepFocus = useRef(false);
   const revisionId = visible.content.revisionRef.objectId;
   const revisionLabel = `版本 ${revisionId.slice(-8)}`;
+  const readIdentity = `${visible.content.authoritativeIdentityMap.artifactRef.objectId}:${revisionId}`;
+  // An explicit file or version switch starts from the change-first view again;
+  // a candidate that merely arrives keeps the current view untouched.
+  useEffect(() => {
+    setTab('changes');
+    setIndex(0);
+    setDirectoryOpen(false);
+  }, [readIdentity]);
+  // The bounded workspace fills whatever space is left below its own top edge,
+  // so a page heading or notice above it never pushes the columns off screen.
+  useLayoutEffect(() => {
+    const node = root.current;
+    if (!node) return;
+    const update = () => {
+      let top = 0;
+      let current: HTMLElement | null = node;
+      while (current) {
+        top += current.offsetTop;
+        current = current.offsetParent instanceof HTMLElement ? current.offsetParent : null;
+      }
+      // Space that must stay free below the workspace inside its own containers.
+      let bottom = 0;
+      for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        bottom +=
+          parseFloat(style.paddingBottom || '0') + parseFloat(style.borderBottomWidth || '0');
+      }
+      const offset = `${Math.round(top)}px`;
+      const inset = `${Math.round(bottom)}px`;
+      if (node.style.getPropertyValue('--review-offset') !== offset)
+        node.style.setProperty('--review-offset', offset);
+      if (node.style.getPropertyValue('--review-bottom') !== inset)
+        node.style.setProperty('--review-bottom', inset);
+    };
+    update();
+    window.addEventListener('resize', update);
+    const observer = new ResizeObserver(update);
+    if (node.parentElement) observer.observe(node.parentElement);
+    return () => {
+      window.removeEventListener('resize', update);
+      observer.disconnect();
+    };
+  }, []);
   const current = visible.changes.entries[Math.min(index, visible.changes.entries.length - 1)];
   const currentPosition = Math.min(index, Math.max(0, visible.changes.entries.length - 1));
   const lastLoaded = visible.changes.entries.length - 1;
@@ -303,9 +347,13 @@ export function MarkdownReviewPage({
   const submission = opinion.submission;
   const frozen = Boolean(submission);
   const draftLabel = frozen ? '下轮意见草稿' : '意见草稿';
+  // A newer candidate marks the viewed version STALE for an ordinary edit; only an
+  // explicitly based Markdown suggestion stays submittable against an older revision.
+  const stale = Boolean(workspace?.candidate) && !suggestion?.text.trim();
   const canSubmit =
     Boolean(opinionActions?.onSubmit) &&
     !submission &&
+    !stale &&
     (opinion.draft.text.trim().length > 0 || Boolean(suggestion?.text.trim())) &&
     (!suggestion?.text.trim() || Boolean(baseline));
   const submitBlocker = !opinionActions?.onSubmit
@@ -314,9 +362,11 @@ export function MarkdownReviewPage({
       ? submission.status === 'UNKNOWN'
         ? '核验期间不能重复提交；仍可写下轮草稿。'
         : '等待本次处理返回，再核对新版本与下轮草稿。'
-      : suggestion?.text.trim() && !baseline
-        ? '请先明确选择改稿的基准版本。'
-        : '';
+      : stale
+        ? '当前阅读版本已被新候选替代，普通意见为待重新核对状态；请显式切换并核对引用后再提交。旧基准 Markdown 改稿可继续复核。'
+        : suggestion?.text.trim() && !baseline
+          ? '请先明确选择改稿的基准版本。'
+          : '';
   const attachSuggestion = opinionActions?.onAttachSuggestion;
   const attach = async (file: File | undefined) => {
     if (!file || !attachSuggestion) return;
@@ -343,12 +393,14 @@ export function MarkdownReviewPage({
     opinion.draft.text.trim().length > 0 || Boolean(suggestion?.text.trim());
   const approvalNote = narrow
     ? '窄屏只支持查看与意见；批准请在桌面检查并完成。'
-    : opinion.approval.available && approvalBlockedByDraft
-      ? '还有未提交的意见或改稿；请先处理或提交后再批准。'
-      : opinion.approval.note;
+    : opinion.approval.available && workspace?.candidate
+      ? '当前阅读版本已被新候选替代；请显式切换并核对后再批准。'
+      : opinion.approval.available && approvalBlockedByDraft
+        ? '还有未提交的意见或改稿；请先处理或提交后再批准。'
+        : opinion.approval.note;
   const files = workspace?.files;
   return (
-    <section className="markdown-review" data-pane={pane}>
+    <section className="markdown-review" data-pane={pane} ref={root}>
       <header className="markdown-review-header">
         <div className="markdown-identity">
           <h1>{visible.content.document.title}</h1>
@@ -799,6 +851,7 @@ export function MarkdownReviewPage({
               !opinion.approval.available ||
               submission?.status === 'UNKNOWN' ||
               approvalBlockedByDraft ||
+              Boolean(workspace?.candidate) ||
               narrow
             }
             onClick={() => {

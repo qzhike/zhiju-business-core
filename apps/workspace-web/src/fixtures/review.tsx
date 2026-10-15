@@ -380,19 +380,21 @@ export function useReviewFixture(): ReviewFixture {
 /** Owning directory for the synthetic 201-file work-file list. */
 export function fixtureFileList(memory: ReviewMemory): ReviewFileDirectory {
   const query = memory.fileQuery.toLocaleLowerCase();
-  const matched = reviewWorkspaceFiles.filter(
+  // Effective states are resolved first, so filtering, counting and paging agree
+  // with what the list shows after an approval.
+  const effective = reviewWorkspaceFiles.map((entry): ReviewFileEntry =>
+    [...memory.approved].some((key) => key.startsWith(`${entry.fileId}:`))
+      ? { ...entry, state: 'APPROVED', detail: '已批准（合成）' }
+      : entry,
+  );
+  const matched = effective.filter(
     (entry) =>
       (memory.fileState === 'ALL' || entry.state === memory.fileState) &&
       `${entry.title} ${entry.code}`.toLocaleLowerCase().includes(query),
   );
-  const approved = (entry: ReviewFileEntry) =>
-    [...memory.approved].some((key) => key.startsWith(`${entry.fileId}:`));
   return {
     totalCount: matched.length,
-    entries: matched.slice(0, memory.loadedFiles).map((entry) => ({
-      ...entry,
-      ...(approved(entry) ? { state: 'APPROVED' as const, detail: '已批准（合成）' } : {}),
-    })),
+    entries: matched.slice(0, memory.loadedFiles),
     currentFileId: memory.currentFileId,
     query: memory.fileQuery,
     stateFilter: memory.fileState,

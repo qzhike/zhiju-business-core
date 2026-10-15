@@ -16,6 +16,10 @@ const controls = async (page: Page) => {
   return details;
 };
 const position = (page: Page) => page.locator('.markdown-change-current small');
+function requiredValue<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined) throw new Error('Missing review test evidence');
+  return value;
+}
 const submit = (page: Page) =>
   page.locator('.markdown-opinion > button', { hasText: '提交并修改' }).first();
 const approve = (page: Page) =>
@@ -131,11 +135,18 @@ test('pages the 201-file directory, keeps each draft and asks to recheck after a
   await expect(files).toContainText('已加载 80 / 共 201 份');
   await page.getByLabel('文件状态').selectOption('READY');
   await expect(files).toContainText('已加载 2 / 共 2 份');
+  await expect(files).toContainText('预防措施程序');
+  await expect(files).toContainText('质量手册');
+  await page.getByLabel('文件状态').selectOption('APPROVED');
+  await expect(files).toContainText('已加载 0 / 共 0 份');
+  await expect(files).toContainText('没有符合条件的文件');
   await page.getByLabel('文件状态').selectOption('ALL');
   await page.getByLabel('查找文件').fill('QH-SC-01');
   await expect(files).toContainText('已加载 1 / 共 1 份');
   const note = page.getByRole('textbox', { name: '意见草稿' });
   await note.fill('第 1 份文件的本页草稿');
+  await page.getByRole('button', { name: '完整文件' }).click();
+  await expect(page.locator('.canonical-document')).toBeVisible();
   await files.getByRole('button', { name: /质量手册/ }).click();
   await expect(page.getByRole('heading', { name: '质量手册（合成）' })).toBeVisible();
   await expect(page.locator('.markdown-reading-scroll .notice')).toContainText(
@@ -143,6 +154,12 @@ test('pages the 201-file directory, keeps each draft and asks to recheck after a
   );
   await expect(page.getByRole('textbox', { name: '意见草稿' })).toHaveValue('');
   await expect(page.locator('.markdown-files')).toContainText('已切换到「质量手册」');
+  // A different file opens on its change details, not on the previous full view.
+  await expect(page.getByRole('button', { name: /变化详情/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: '变化详情 · 1' }).click();
   // Markdown links and raw HTML stay literal text; nothing becomes executable.
   await expect(page.locator('.markdown-after')).toContainText('https://example.invalid/');
   await expect(page.locator('.markdown-after')).toContainText('<a href="javascript:alert(1)">');
@@ -170,10 +187,28 @@ test('retains the reading version and draft when a new candidate arrives, then s
   await expect(position(page)).toContainText('当前 2 / 36');
   await expect(note).toHaveValue('针对第 1 版的引用');
   await expect(page).toHaveURL(workspace);
+  // An ordinary edit of the viewed version is stale once a newer candidate exists.
+  await expect(submit(page)).toBeDisabled();
+  await expect(page.locator('.markdown-opinion')).toContainText('已被新候选替代');
+  await expect(approve(page)).toBeDisabled();
+  // The explicit switch still asks for a recheck, resets to the change-first
+  // view and keeps this version's own draft separate.
+  await page.getByRole('button', { name: '摘要与依据' }).click();
+  await expect(page.getByRole('button', { name: /摘要与依据/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.getByRole('button', { name: '显式切换并核对引用' }).click();
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 1 处修改');
   await expect(page.locator('.markdown-reading-scroll')).toContainText('请重新核对引用位置与草稿');
+  await expect(page.getByRole('button', { name: /变化详情/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.markdown-change')).toBeVisible();
   await expect(note).toHaveValue('');
+  await note.fill('针对第 2 版的意见');
+  await expect(submit(page)).toBeEnabled();
   await page.getByLabel('查看本文件版本').selectOption('DEMO-WS-REV-01');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
   await expect(note).toHaveValue('针对第 1 版的引用');
@@ -281,6 +316,16 @@ test('advances only after a matching approval receipt and keeps unknown results 
     'true',
   );
   await page.getByLabel('查找文件').fill('');
+  // Directory filter, count and page agree with the effective state after approval.
+  await page.getByLabel('文件状态').selectOption('READY');
+  await expect(files).toContainText('已加载 1 / 共 1 份');
+  await expect(files).toContainText('质量手册');
+  await expect(files).not.toContainText('预防措施程序');
+  await page.getByLabel('文件状态').selectOption('APPROVED');
+  await expect(files).toContainText('已加载 1 / 共 1 份');
+  await expect(files.locator('button', { hasText: '预防措施程序' })).toContainText('已批准');
+  await page.getByLabel('文件状态').selectOption('ALL');
+  await expect(files).toContainText('已加载 40 / 共 201 份');
 });
 
 test('keeps the download state separate from reading and reports unavailable representations', async ({
@@ -303,10 +348,35 @@ test('switches reader and opinion panes on narrow viewports with the same exact 
   page,
 }) => {
   await page.goto(workspace);
+  // The workspace starts below this page's own heading and still ends inside the
+  // approved desktop viewports: no part of the columns is pushed off screen.
   for (const [width, height] of [
     [1280, 800],
     [1440, 900],
     [1920, 1080],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    const box = requiredValue(await page.locator('.markdown-review').boundingBox());
+    expect(box.y).toBeGreaterThan(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(height + 1);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1),
+    ).toBe(true);
+    for (const column of ['.markdown-file-list', '.markdown-reading-scroll', '.markdown-opinion']) {
+      expect(
+        await page.locator(column).evaluate((element) => getComputedStyle(element).overflowY),
+      ).toBe('auto');
+    }
+    expect(
+      await page
+        .locator('.markdown-file-list')
+        .evaluate((element) => element.scrollHeight > element.clientHeight),
+    ).toBe(true);
+  }
+  for (const [width, height] of [
     [360, 800],
     [320, 800],
   ] as const) {
@@ -314,19 +384,6 @@ test('switches reader and opinion panes on narrow viewports with the same exact 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    if (width <= 560) continue;
-    const box = await page.locator('.markdown-review').boundingBox();
-    expect((box?.height ?? 0) < height).toBe(true);
-    expect(
-      await page
-        .locator('.markdown-reading-scroll')
-        .evaluate((element) => getComputedStyle(element).overflowY),
-    ).toBe('auto');
-    expect(
-      await page
-        .locator('.markdown-files')
-        .evaluate((element) => element.scrollHeight >= element.clientHeight),
-    ).toBe(true);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

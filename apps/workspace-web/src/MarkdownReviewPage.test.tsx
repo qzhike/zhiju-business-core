@@ -103,6 +103,45 @@ describe('bounded review workspace boundaries', () => {
     expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled');
     expect(html).toContain('跨文件成果目录读取尚未接入');
   });
+  it('marks an ordinary edit stale when a newer candidate arrived and keeps the suggests-only exception', () => {
+    const candidate = {
+      label: '新候选已到达',
+      note: '当前阅读版本保持不变。',
+      onSwitch: () => undefined,
+    };
+    const stale = markup({
+      workspace: { candidate },
+      opinionActions: { onSubmit: () => undefined },
+    });
+    expect(stale).toContain('当前阅读版本已被新候选替代');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(stale)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(stale)?.[0]).toContain('disabled');
+    const suggestion = {
+      name: '改稿.md',
+      text: '# 合成改稿',
+      baseline: {
+        options: [
+          { id: 'revision-1', label: '第 1 版', kind: 'OLDER' as const },
+          { id: 'revision-2', label: '第 2 版', kind: 'LATEST' as const },
+        ],
+        selectedId: 'revision-1',
+      },
+      latestLabel: '第 2 版',
+    };
+    const exception = markup({
+      workspace: { candidate },
+      opinionActions: { onSubmit: () => undefined, onAttachSuggestion: () => undefined },
+      opinion: {
+        ...opinion,
+        draft: { text: '', state: 'SAVED', note: '' },
+        suggestion: {
+          ...suggestion,
+          baseline: { ...suggestion.baseline, selectedId: 'revision-1' },
+        },
+      },
+    });
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(exception)?.[0]).not.toContain('disabled');
+  });
   it('holds approval while an unsent draft exists and states it honestly', () => {
     const html = markup({
       opinion: {
