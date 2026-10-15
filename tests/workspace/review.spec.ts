@@ -438,6 +438,47 @@ test('shows supplied draft save states truthfully and never loses the input', as
   await note.fill('');
 });
 
+test('keeps the reader visible, scrollable, navigable and quotable on narrow viewports', async ({
+  page,
+}) => {
+  for (const [width, height] of [
+    [360, 800],
+    [320, 800],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(workspace);
+    const reader = page.locator('.markdown-reader');
+    // The reader keeps real height instead of being clipped by a bounded parent,
+    // and the page can scroll the whole workspace into reach.
+    expect(await reader.evaluate((element) => element.clientHeight)).toBeGreaterThan(160);
+    expect(
+      await page
+        .locator('.markdown-reading-scroll')
+        .evaluate((element) => element.scrollHeight > element.clientHeight),
+    ).toBe(true);
+    const toolbar = page.locator('.markdown-change-toolbar');
+    await toolbar.scrollIntoViewIfNeeded();
+    await expect(toolbar).toBeInViewport();
+    await expect(page.locator('.markdown-change')).toBeInViewport();
+    // Navigation operates inside the visible reader.
+    await page.getByRole('button', { name: '下一处变化' }).click();
+    await expect(position(page)).toContainText('当前 2 / 36');
+    // Quoting a change opens the same opinion view with the exact version reference.
+    await page.getByRole('button', { name: '对此处提意见' }).click();
+    const note = page.getByRole('textbox', { name: '意见草稿' });
+    await expect(note).toBeVisible();
+    await expect(note).toHaveValue(/第 2 \/ 36 处 · 1 目的与适用范围 \/ 适用范围/u);
+    // Switching panes preserves the input and the document view keeps working.
+    await page.getByRole('button', { name: '查看文档' }).click();
+    await page.locator('.markdown-change-toolbar').scrollIntoViewIfNeeded();
+    await expect(page.locator('.markdown-change')).toBeInViewport();
+    await expect(note).toBeHidden();
+    await page.getByRole('button', { name: '意见与处理' }).click();
+    await expect(note).toHaveValue(/第 2 \/ 36 处 · 1 目的与适用范围 \/ 适用范围/u);
+    await note.fill('');
+  }
+});
+
 test('production build excludes the review workspace fixture and cannot fall back to it', async ({
   page,
 }) => {

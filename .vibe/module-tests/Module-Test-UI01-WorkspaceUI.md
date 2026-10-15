@@ -292,5 +292,5 @@ reviewer and timestamp
 | 草稿保存状态 | adapter 提供的保存中/已保存/保存失败/冲突/UNKNOWN/未接入分别显示，输入始终保留 | Development browser |
 | 批准推进 | 点击只产生待核验意图；UNKNOWN/错上下文不批准不切换；匹配成功回执才批准并进入下一份待检查文件 | Development browser |
 | 下载状态 | 下载/未登记表示与阅读、意见、批准分开显示；无表示时禁用并说明原因 | Development browser |
-| 视口与键盘 | 1280/1440/1920 三栏高度受限于视口且各列内部滚动；360/320 在阅读与意见视图间切换并保留引用输入；键盘可达、焦点回收与 axe 无违规 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
+| 视口与键盘 | 1280/1440/1920 三栏高度受限于视口且各列内部滚动；360/320 下页面滚动可到达正文，阅读区有可用高度并内部滚动、变化导航与正文实际可见、前后导航可操作、引用进入同一意见区且切回保留输入；键盘可达、焦点回收与 axe 无违规 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
 | 生产隔离 | production bundle 不含审查工作区 adapter 与合成内容；未接入时明确不可用、无 fixture fallback | Configured code target / production browser |

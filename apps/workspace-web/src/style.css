@@ -521,8 +521,11 @@
 }
 @media (max-width: 900px) {
   .markdown-review {
-    --review-space: calc(100dvh - var(--review-offset, 145px) - var(--review-bottom, 16px));
-    min-height: min(600px, var(--review-space));
+    /* Narrow viewports switch between the document and the opinion view instead
+       of bounding three columns: the page scrolls, so no pane can be clipped
+       into zero height by a heading, the pane switch or the file list. */
+    height: auto;
+    min-height: 0;
   }
   .markdown-review-layout {
     grid-template-columns: 150px minmax(0, 1fr);
@@ -542,6 +545,17 @@
   .markdown-review[data-pane='opinion'] .markdown-opinion {
     grid-column: 1 / -1;
   }
+  /* The reader keeps a usable height of its own and scrolls internally. */
+  .markdown-reader {
+    height: 65dvh;
+    min-height: 320px;
+  }
+  .markdown-files {
+    max-height: 45dvh;
+  }
+  .markdown-opinion {
+    max-height: 75dvh;
+  }
   .markdown-review-header {
     align-items: flex-start;
   }
@@ -552,15 +566,21 @@
 @media (max-width: 560px) {
   .markdown-review-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 120px minmax(0, 1fr);
+    /* Rows follow the content: the page scrolls instead of clipping a pane. */
+    grid-template-rows: auto auto;
   }
   .markdown-files {
     padding: 8px;
+    max-height: 32dvh;
   }
   .markdown-files label,
   .markdown-files-summary,
   .markdown-files > small {
     display: none;
+  }
+  .markdown-reader {
+    height: 60dvh;
+    min-height: 300px;
   }
   .markdown-review-header {
     flex-direction: column;
