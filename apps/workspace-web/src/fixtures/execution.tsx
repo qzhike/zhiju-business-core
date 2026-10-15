@@ -1,7 +1,9 @@
 // Explicit development events only. No timers, business requests or browser persistence.
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { MarkdownReviewPage, type MarkdownReviewData } from '../MarkdownReviewPage.js';
+import { FixtureReviewControls, useReviewFixture } from './review.js';
+import type { ReviewBaselineOption } from '../review/model.js';
 import { UnavailablePage } from '../workbench/navigation.js';
 import { roundPath, candidatePath } from '../execution/model.js';
 import { ExecutionPage, useExecutionMemory, type ExecutionPageProps } from '../execution/Page.js';
@@ -458,6 +460,8 @@ export function FixtureExecutionReview() {
   const { projectId = '', fileId = '', revisionId = '' } = useParams();
   const adapter = useAdapter();
   const memory = useExecutionMemory();
+  const fixture = useReviewFixture();
+  const navigate = useNavigate();
   const path = `/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(revisionId)}`;
   const snapshot = adapter.candidates.get(path);
   const source = adapter.rounds.find(
@@ -470,31 +474,154 @@ export function FixtureExecutionReview() {
         reason="未取得此精确候选的固定样例，不能借用其他版本正文。"
       />
     );
+  const reviewed = source.files.find((file) => file.id === fileId);
+  const latest = reviewed?.candidate?.revisionId ?? revisionId;
+  const options: ReviewBaselineOption[] = [
+    ...(latest !== revisionId
+      ? [{ id: revisionId, label: '第 1 版', kind: 'OLDER' as const }]
+      : []),
+    {
+      id: latest,
+      label: latest !== revisionId ? '第 2 版（最新候选）' : '当前候选',
+      kind: 'LATEST',
+    },
+  ];
+  const suggestion = fixture.suggestion(path, latest, options);
+  const submission = fixture.submission(path);
+  const intent = fixture.memory.approvals.get(path);
+  const approved = fixture.memory.approved.has(path);
   return (
     <>
       <p className="notice">
         仅开发合成候选 · 无真实正文接纳、保存、批准或交付；示例 Hash 不是业务证明。
       </p>
       <Link to={memory.candidateReturns.get(path) ?? roundPath(source)}>返回本轮文件进度</Link>
+      <Link to="/review-workspace">查看多处修改示例</Link>
       <MarkdownReviewPage
         data={snapshot.data}
-        hasRepresentation={false}
         busy={false}
-        downloadStatus=""
         directoryStatus=""
-        onDownload={() => Promise.resolve()}
         onMore={() => Promise.resolve()}
+        workspace={{
+          files: {
+            list: {
+              totalCount: source.files.length,
+              entries: source.files.map((file) => ({
+                fileId: file.id,
+                code: file.code,
+                title: file.title,
+                state:
+                  file.id === fileId
+                    ? ('READY' as const)
+                    : file.state === 'READY'
+                      ? ('READY' as const)
+                      : file.state,
+                detail: file.id === fileId ? '当前候选' : file.update,
+                openable: Boolean(file.candidate) && file.id !== fileId,
+              })),
+              currentFileId: fileId,
+              query: '',
+              stateFilter: 'ALL',
+              loading: false,
+              status: `本轮 ${source.files.length} 份文件（合成）`,
+            },
+            actions: {
+              onSelect: (selected) => {
+                const file = source.files.find((item) => item.id === selected);
+                const target = file ? candidatePath(source, file) : null;
+                if (target) void navigate(target);
+              },
+            },
+          },
+          ...(fixture.memory.candidates.has(path)
+            ? {
+                candidate: {
+                  label: '新候选已到达',
+                  note: '当前阅读版本、未提交草稿与滚动位置保持不变。',
+                  onSwitch: () => {
+                    const file = source.files.find((item) => item.id === fileId);
+                    const target = file ? candidatePath(source, file) : null;
+                    if (target) {
+                      fixture.memory.recheck.add(target);
+                      void navigate(target);
+                    }
+                  },
+                },
+              }
+            : {}),
+          ...(fixture.memory.recheck.has(path)
+            ? {
+                recheck:
+                  '已显式切换到此精确版本；请重新核对引用位置与草稿后再提交。此前版本的草稿仍单独保留。',
+              }
+            : {}),
+        }}
+        download={{
+          hasRepresentation: false,
+          status: '',
+          note: '此候选未提供已登记表示，下载不可用；阅读与意见不受影响。',
+          onDownload: () => Promise.resolve(),
+        }}
+        opinion={{
+          context: `${snapshot.data.content.document.title} · 版本 ${revisionId.slice(-8)}`,
+          draft: fixture.draft(path),
+          ...(suggestion ? { suggestion } : {}),
+          ...(submission ? { submission } : {}),
+          approval: {
+            available: !approved && !intent && !submission,
+            note: approved
+              ? '本精确版本已批准（演示）；批准不表示发布或交付。'
+              : intent === 'PENDING'
+                ? '批准结果待核验；不会按点击或未知结果切换文件。'
+                : intent === 'MISMATCH'
+                  ? '回执上下文不匹配，未批准、未切换。'
+                  : intent === 'UNKNOWN'
+                    ? '批准结果待核验；不会按未知结果切换。'
+                    : submission
+                      ? '核验期间不能批准；请先完成本次提交的核验。'
+                      : '批准只在服务端返回匹配成功回执后生效并进入下一份；本示例由演示控制返回回执。',
+          },
+          unavailable: [
+            '真实服务器个人草稿、提交并修改与批准尚未接入；本页只演示页面状态。',
+            '真实 Runner 处理、内容复核与交付保持 NOT RUN。',
+          ],
+        }}
+        opinionActions={{
+          onDraftChange: (text) => {
+            fixture.changeDraft(path, text);
+          },
+          onSubmit: () => {
+            fixture.submit(path);
+          },
+          onQuerySubmission: () => {
+            fixture.query(path, false);
+          },
+          onApprove: () => {
+            fixture.approve(path);
+          },
+          onAttachSuggestion: (file) => {
+            fixture.attachSuggestion(path, file);
+          },
+          onRemoveSuggestion: () => {
+            fixture.removeSuggestion(path);
+          },
+          onSelectBaseline: (id) => {
+            fixture.selectBaseline(path, id);
+          },
+        }}
+        controls={<FixtureReviewControls fixture={fixture} contextKey={path} />}
       />
       <details className="execution-controls">
         <summary>候选到达演示事件</summary>
         <button
           onClick={() => {
+            fixture.memory.candidates.add(path);
             adapter.update(source.requestId, (round) => ({
               ...round,
-              files: round.files.map((file) =>
-                file.id === fileId
+              files: round.files.map((item) =>
+                item.id === fileId
                   ? {
-                      ...file,
+                      ...item,
                       state: 'READY',
                       candidate: {
                         projectId,
@@ -504,12 +631,19 @@ export function FixtureExecutionReview() {
                       },
                       update: '新的精确候选已到达，当前阅读版本保持',
                     }
-                  : file,
+                  : item,
               ),
             }));
           }}
         >
           模拟阅读期间新候选到达
+        </button>
+        <button
+          onClick={() => {
+            fixture.applyApprovalReceipt(path);
+          }}
+        >
+          返回批准的选定回执
         </button>
       </details>
     </>

@@ -90,11 +90,30 @@ independent human business acceptance.
 
 ## Exact Markdown review
 
-`MarkdownReviewPage` is the shared, typed presentation component for #279 and
-continued #286 page work. It owns navigation and the single unsaved opinion area;
-`MarkdownReview` supplies authorized content, paged changes and download actions.
-The page has no transport or credential dependency. Development adapters must use
-this component rather than creating a second review page.
+`MarkdownReviewPage` is the shared, typed presentation component for #279 and the
+continued #286 page work. It renders the bounded workspace the approved layout
+requires: a compact work-file list with its owning total and cursor paging, a
+change-first reader (one change at a time, previous/next, a searchable
+chapter-grouped location dialog, summary/evidence and full-document views), and
+one opinion/processing area. File identity is a single line; exact file/version
+context, references and drafts survive navigation, and new candidates never
+replace the page, version or input until an explicit switch. `MarkdownReview`
+supplies authorized content, paged changes and download actions; the page itself
+has no transport or credential dependency. Development adapters must use this
+component rather than creating a second review page.
+
+The opinion area renders adapter-supplied presentation states: draft save state
+(saving/saved/failed/conflict/UNKNOWN/not connected), one explicit “提交并修改”
+that freezes the submitted snapshot while the next-round draft stays editable, a
+read-only original-request query, and one Markdown suggestion whose declared
+baseline, latest candidate and edited text stay distinguishable. Approval and
+submission remain unavailable to the live route — its inputs are preserved and
+the unavailable operations are listed — because no public draft, submission,
+suggestion or approval capability is registered yet. The development adapter
+`src/fixtures/review.tsx` exercises the same component at `/review-workspace`
+(synthetic 36-change/9-chapter document, 201-file directory, save/receipt/
+suggestion/approval/download states); production builds prune it and the
+production route stays explicitly unavailable.
 
 The authenticated `/projects/:projectId/artifacts/:artifactId/revisions/:revisionId`
 route reads a sealed Revision through the four finite ART review/download queries.
@@ -122,8 +141,10 @@ Tickets and content are not stored in browser persistence.
 `workspace-built-browser.test.ts` includes the controlled #279 journey through
 real PostgreSQL, synthetic OIDC HTTP, Core/BFF and the production SPA. It traverses
 36 changes in 9 chapters, retains one unsaved note, inspects all 12 table columns,
-and downloads the same registered bytes twice. Feedback submission, durable drafts
-and approval remain unavailable. Production integrations, the full Windows/macOS
+and downloads the same registered bytes twice. On that live route, feedback
+submission, durable drafts, suggestions and approval stay unavailable (inputs
+preserved, operations listed); `tests/workspace/review.spec.ts` covers the same
+component's adapter-driven states. Production integrations, the full Windows/macOS
 Chrome/Edge matrix and independent Human content acceptance remain NOT RUN.
 
 The shared analysis experience lives in `src/analysis`: exact report presentation,
@@ -164,3 +185,27 @@ keeps immutable synthetic versions and an unsaved local note; feedback, approval
 and real file-review integration remain separate page work. Reload clears these event
 fixtures, without resubmitting a business request. Real Runner progress, retry
 authorization, persistence, cross-device drafts and human acceptance remain NOT RUN.
+
+The shared project-delivery page lives in `src/delivery`. Its typed presentation
+inputs retain exact revisions, qualification observations, plan context and
+round/report provenance. An adapter supplies selection verification and supporting
+requirements; the browser does not evaluate release policy. One explicit
+confirmation freezes an intent, and pending/UNKNOWN recovery reads that same
+intent without resubmission. Package history uses `?view=history&package=...`
+on the project delivery route, preserving the selection while inspecting a fixed
+package. Download observations describe requests and server responses, never
+browser saves, external sending, customer receipt or project completion.
+
+Production renders the shared unavailable boundary until authorized D12 reads,
+confirmation and export capabilities exist. `src/fixtures/delivery.tsx` is an
+isolated, memory-only development adapter using the same page. Open
+`/projects/DEMO-PROJECT-01/delivery` in a fixture build to inspect cross-round
+selection, supplied supporting requirements, changed eligibility/revisions,
+pending/UNKNOWN recovery, unavailable downloads and 200-file scrolling. Its ZIP
+contains explicitly synthetic Markdown and a synthetic manifest, not customer
+bytes or a controlled export. No business endpoint, release policy, browser
+persistence or authorization is added. Narrow screens expose viewing and package
+details; full batch confirmation follows the approved desktop workflow. Viewport
+controls never replace server authorization. Real services, persistence,
+cross-device recovery, the complete Chrome/Edge platform matrix and independent
+Human acceptance remain NOT RUN.
