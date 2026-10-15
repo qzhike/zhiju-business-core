@@ -119,6 +119,9 @@ function ensureBuiltArtifacts(): void {
   execFileSync('pnpm', ['--filter', '@zhiju/workspace-web', 'build'], {
     cwd: repositoryRoot,
     stdio: 'inherit',
+    // The reused artifact must be a production build: an inherited non-production
+    // NODE_ENV would ship a development React bundle into this journey.
+    env: { ...process.env, NODE_ENV: 'production' },
   });
   if (existsSync(join(dist, fixtureArtifactMarker))) {
     throw new Error(
@@ -534,9 +537,11 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
         { cause: error },
       );
     }
-    const directory = page.getByRole('complementary', { name: '变化目录' });
-    expect(await directory.locator('details').count()).toBe(9);
-    expect(await directory.innerText()).toContain('36');
+    const navigator = page.locator('.markdown-change-toolbar');
+    expect(await navigator.innerText()).toContain('本文件共 36 处修改');
+    expect(await page.locator('.markdown-files').innerText()).toContain(
+      '跨文件成果目录读取尚未接入',
+    );
     const note = page.getByRole('textbox', { name: '意见草稿' });
     await note.fill('核对采购凭证；这是未提交的本页记录。');
     const directoryUrl = new URL(
@@ -564,7 +569,7 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
       await route.continue();
     });
     const loadedCount = async () => {
-      const text = await directory.locator(':scope > small').innerText();
+      const text = await navigator.locator('small').first().innerText();
       const match = /已加载 (\d+) \/ 36/u.exec(text);
       return match ? Number(match[1]) : 0;
     };
@@ -572,7 +577,7 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
       expect.poll(loadedCount, { timeout: 5_000 }).toBeGreaterThan(prior);
     const firstPage = await loadedCount();
     await page.getByRole('button', { name: '继续加载变化', exact: true }).click();
-    const paginationStatus = directory.getByRole('status');
+    const paginationStatus = page.locator('.markdown-more-changes [role="status"]');
     await paginationStatus.waitFor({ state: 'visible' });
     expect(await paginationStatus.innerText()).toContain('意见草稿已保留');
     expect(await note.inputValue()).toContain('未提交');
@@ -594,19 +599,22 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
       if (n < 36) await page.getByRole('button', { name: '下一处变化' }).click();
     }
     expect(await note.inputValue()).toContain('未提交');
-    await page.getByRole('searchbox', { name: '搜索章节' }).fill('5 采购');
-    expect(await directory.locator('details').count()).toBe(1);
-    await directory.locator('details button').first().click();
+    await page.getByRole('button', { name: '查看全部位置 ▤' }).click();
+    const dialog = page.getByRole('dialog');
+    expect(await dialog.locator('details').count()).toBe(9);
+    await dialog.getByRole('searchbox', { name: '查找位置' }).fill('5 采购');
+    expect(await dialog.locator('details').count()).toBe(1);
+    await dialog.locator('details button').first().click();
+    await expect.poll(async () => dialog.isVisible()).toBe(false);
     expect(await page.locator('.markdown-change').innerText()).toContain('第 17 / 36 处');
-    await page.getByRole('searchbox', { name: '搜索章节' }).fill('');
-    await page.getByRole('button', { name: '查看全文' }).click();
+    await page.getByRole('button', { name: '完整文件' }).click();
     const table = page.getByRole('region', { name: '完整表格，可横向滚动' });
     expect(await table.locator('th').count()).toBe(12);
     expect(await table.locator('tbody tr').first().locator('td').count()).toBe(12);
     expect(await table.locator('td').nth(0).innerText()).toBe('0');
     expect(await table.locator('td').nth(1).innerText()).toBe('');
     expect(await table.locator('td').last().innerText()).toBe('最后一列完整');
-    expect(await page.getByRole('button', { name: '提交并修改 · 暂不可用' }).isDisabled()).toBe(
+    expect(await page.getByRole('button', { name: '提交并修改', exact: true }).isDisabled()).toBe(
       true,
     );
     await page.screenshot({
@@ -665,10 +673,10 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
       await page.getByRole('button', { name: '下载 Markdown', exact: true }).boundingBox(),
     );
     const tabBounds = requiredValue(
-      await page.getByRole('button', { name: '阅读文件', exact: true }).boundingBox(),
+      await page.getByRole('button', { name: '查看文档', exact: true }).boundingBox(),
     );
     expect(downloadBounds.y + downloadBounds.height).toBeLessThanOrEqual(tabBounds.y);
-    await page.getByRole('button', { name: '本文件意见', exact: true }).click();
+    await page.getByRole('button', { name: '意见与处理', exact: true }).click();
     expect(await note.isVisible()).toBe(true);
     expect(await note.inputValue()).toContain('未提交');
     await page.screenshot({

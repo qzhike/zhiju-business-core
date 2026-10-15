@@ -276,3 +276,21 @@ reviewer and timestamp
 | 未知回执与生产隔离 | PENDING/UNKNOWN 禁重复提交；UNKNOWN 离开范围页再返回仍保留精确原意图、选择及只读查询入口；正式构建无演示适配器或合成成功 | Startup adapter / production build |
 
 页面和匿名适配器的自动化结果记录于 #284 PR；真实服务、Runner、持久化、跨设备、完整 Chrome/Edge 平台矩阵及人工验收仍为 `NOT RUN`。
+
+## #286 有界审查工作区页面验收场景
+
+对应 [UI01 有界审查工作区切片](../module-specs/Module-Spec-UI01-WorkspaceUI.md#已实现的有界审查工作区与唯一意见区页面切片286)。页面/组件证据归 #286 PR；真实服务、Runner、持久化、跨设备与人工内容验收不由这些场景替代。
+
+| 场景 | 预期 | 证据位置 |
+|---|---|---|
+| 有界三栏与 36 变化/9 章 | 固定高度文件列/阅读区/意见区共存；1280/1440/1920 下三栏底部不出视口且整页无纵向滚动、长内容栏内滚动；本文件总数与当前位置可见，上一处/下一处、章节分组可搜索弹窗可跳转，同章节展开保持、意见保留、浏览不标记检查完成 | Review component / development browser |
+| 新增/删除/移动与缺失绑定 | 三类变化分别显示旧位置、原版本位置与两端；绑定无法解析时醒目待核对且不自动改绑相邻内容 | Review unit / browser |
+| 201 份文件目录 | 显示真实分母与已加载数，搜索/状态筛选作用于完整目录，游标继续加载；批准前后 READY/APPROVED/ALL 的筛选、计数与分页一致使用生效状态；无候选文件不可打开；切换文件保留各自草稿、默认回到变化详情并提示重新核对引用 | Review model / development browser |
+| 新候选与显式切换 | 候选到达只更新提示与计数，不替换阅读版本、滚动与输入，普通意见转为待重新核对并阻断提交/批准且保留草稿；显式切换后进入新版本、回到变化详情、提示重新核对引用位置与草稿，切换后可再提交 | Development browser |
+| 提交冻结与回执核验 | 一次“提交并修改”冻结原提交，后续键入不改变快照；UNKNOWN 位于意见区顶部、只查询原请求、禁重复提交与批准，预算用尽提供重新查询 | Review component / development browser |
+| 改稿与基准 | 附上 Markdown 改稿必须显式选择基准；旧基准/最新版本/改稿分别显示，文本按转义预览不执行，未选基准不可提交；候选到达后旧基准改稿复核仍可提交（有界例外） | Review component / development browser |
+| 草稿保存状态 | adapter 提供的保存中/已保存/保存失败/冲突/UNKNOWN/未接入分别显示，输入始终保留 | Development browser |
+| 批准推进 | 点击只产生待核验意图；UNKNOWN/错上下文不批准不切换；匹配成功回执才批准并进入下一份待检查文件 | Development browser |
+| 下载状态 | 下载/未登记表示与阅读、意见、批准分开显示；无表示时禁用并说明原因 | Development browser |
+| 视口与键盘 | 1280/1440/1920 三栏高度受限于视口且各列内部滚动；360/320 下页面滚动可到达正文，阅读区有可用高度并内部滚动、变化导航与正文实际可见、前后导航可操作、引用进入同一意见区且切回保留输入；键盘可达、焦点回收与 axe 无违规 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
+| 生产隔离 | production bundle 不含审查工作区 adapter 与合成内容；未接入时明确不可用、无 fixture fallback | Configured code target / production browser |

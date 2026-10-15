@@ -17,7 +17,7 @@ if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || ups
   throw new Error('Invalid fixed BFF upstream.');
 }
 const page =
-  /^(?:\/|\/workbench|\/initial-analysis|\/projects\/new|\/projects\/[A-Za-z0-9_-]+\/(?:intake|delivery|(?:analysis|startup|executions|tasks)\/[A-Za-z0-9_-]+|(?:files|artifacts)\/[A-Za-z0-9_-]+\/revisions\/[A-Za-z0-9_-]+))$/u;
+  /^(?:\/|\/workbench|\/initial-analysis|\/review-workspace|\/projects\/new|\/projects\/[A-Za-z0-9_-]+\/(?:intake|delivery|(?:analysis|startup|executions|tasks)\/[A-Za-z0-9_-]+|(?:files|artifacts)\/[A-Za-z0-9_-]+\/revisions\/[A-Za-z0-9_-]+))$/u;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
