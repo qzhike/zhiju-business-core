@@ -1493,7 +1493,7 @@ cancel@1.0 的公开 Purpose 精确保留 metadata 中的 `task.execution.reques
 
 ## #277 准备入口增量名称与引用提案
 
-状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。只维护名称/Owner；完整字段分别见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。不改变当前 Registry/历史兼容计数。
+状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节保留 #277 设计时状态，#291 注册增量见文末；完整字段分别见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG #277](../module-specs/Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案)。不改变当前 Registry/历史兼容计数。
 
 | 新名称 / 类型 | 唯一 Owner / 边界 |
 |---|---|
@@ -1601,3 +1601,24 @@ integration.get_markdown_render_binding@1.0
 ```
 
 #279 登记后当前 executable Registry 为 247 项（ART 33、IG 28），冻结历史 200-operation compatibility baseline 不变。新 Markdown 操作使用 shared RepresentationRef，保留旧 ART 局部 media-type/格式接受集；下载票据是独立有界 base64url token，变化 cursor 仍满足共享 opaqueCursor 的 512 字符边界。
+
+
+## #291 准备创建与 ZIP 首次托管注册
+
+本次在已批准 #277 字段基础上增量注册以下 11 项，当前 executable Registry 共 258 项（EP 44、IG 32）；历史 200-operation baseline 字节不变。前六项为 Browser 有限入口，后三项 EP Command/Query 及两个 Event 由 owning 内部消费，注册不开放通用 dispatcher。
+
+```text
+project.find_preparation_enterprises@1.0
+project.request_project_preparation@1.0
+project.get_project_preparation_request@1.0
+integration.request_customer_zip_intake@1.0
+integration.get_customer_zip_intake@1.0
+integration.restart_customer_zip_upload@1.0
+integration.CustomerZipManifestCommitted@1.0
+project.create_preparing_project@1.0
+project.capture_preparation_source@1.0
+project.get_preparation_source@1.0
+project.PreparingProjectCreated@1.0
+```
+
+封闭 payload/result、typed refs、scope、purpose 与 mutation CAS 唯一见对应 EP/IG owning schema。IP Platform 准入、SERVICE exact preset 授权和会员模板仍为独立内部 Port，不新增 Browser 管理面。EP board 新增可选 `preparationEntry={preparationRequestRef,originalPreparationKey}`：仅当前授权的原作者可读，缺权限不返回链接。`PREPARING` 是 Project 生命周期的 additive 值，旧 FULL_START 与既有接收集保留。公开 ZIP 流是技术传输，唯一业务票据 header 为 `X-Intake-Upload-Token`，不计为 operation。TE/Runner 未提供时保留 `WAITING_CAPABILITY`，不注册或伪造分析执行接口。

@@ -53,6 +53,7 @@ import {
   type CompanyRuleSnapshotView,
 } from '@zhiju/contracts';
 import { newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
+import { createPreparationCompanyFixture } from './preparation-company-fixture.js';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const TEST_PROVENANCE = 'ISSUE_267_CONTROLLED_TEST_ONLY';
@@ -119,6 +120,7 @@ describe.skipIf(!databaseUrl)(
     }[] = [];
     const normativeRefs: Common.ContentAddressedRef[] = [],
       requirements: { requirementCode: string; requirementRef: Common.ContentAddressedRef }[] = [];
+    let preparationSourceVersions: string[] = [];
     const pins: { code: string; versionLabel: string; bytesSha256: string }[] = [];
     const clock = () => new Date(clockDate);
     async function grant(
@@ -361,6 +363,42 @@ describe.skipIf(!databaseUrl)(
       code: string,
       options: { authorityCode?: string; validTo?: string; publish?: boolean } = {},
     ): Promise<Common.ContentAddressedRef> {
+      if (Object.keys(options).length === 0) {
+        const existing = (
+          await admin.query<{
+            id: string;
+            version_id: string;
+            content_ref: Common.ContentAddressedRef;
+            content_hash: Buffer;
+            version_label: string;
+            source_ref: { sourceBytesSha256: string; testProvenance: string };
+          }>(
+            "SELECT r.regulatory_reference_id AS id,v.regulatory_reference_version_id AS version_id,v.content_ref,v.content_hash,v.version_label,v.source_ref FROM enterprise_project.regulatory_reference r JOIN enterprise_project.regulatory_reference_version v USING(regulatory_reference_id) WHERE r.authority_code=$1 AND r.jurisdiction='CN' AND r.reference_code=$2 AND v.lifecycle='PUBLISHED' ORDER BY v.version_no DESC LIMIT 1",
+            [options.authorityCode ?? (code.startsWith('ISO') ? 'ISO' : 'CN-NMPA'), code],
+          )
+        ).rows[0];
+        if (existing) {
+          const bytes = readFileSync(
+            new URL('../fixtures/company-startup/normative.txt', import.meta.url),
+          );
+          if (
+            bytesHash(bytes).digest !== existing.content_hash.toString('hex') ||
+            existing.version_label !== 'test-v1' ||
+            existing.source_ref.sourceBytesSha256 !== bytesHash(bytes).digest ||
+            existing.source_ref.testProvenance !== TEST_PROVENANCE
+          )
+            throw new Error('Existing regulatory fixture bytes differ');
+          content.set(existing.content_ref.objectId, bytes);
+          return {
+            kind: 'CONTENT_ADDRESSED',
+            objectType: 'RegulatoryReferenceVersion',
+            objectId: existing.id,
+            immutableVersionId: existing.version_id,
+            scope: {},
+            contentHash: bytesHash(bytes),
+          };
+        }
+      }
       const bytes = readFileSync(
           new URL('../fixtures/company-startup/normative.txt', import.meta.url),
         ),
@@ -452,6 +490,17 @@ describe.skipIf(!databaseUrl)(
       };
     }
     beforeAll(async () => {
+      // Exercise the order that previously failed in the full shared-database gate.
+      const preparation = await createPreparationCompanyFixture(databaseUrl ?? '', crypto);
+      try {
+        preparationSourceVersions = (
+          await preparation.admin.query<{ id: string }>(
+            "SELECT reference_template_version_id AS id FROM enterprise_project.reference_template_version WHERE lifecycle='PUBLISHED' UNION ALL SELECT regulatory_reference_version_id AS id FROM enterprise_project.regulatory_reference_version WHERE lifecycle='PUBLISHED'",
+          )
+        ).rows.map((row) => row.id);
+      } finally {
+        await preparation.close();
+      }
       clockDate = new Date();
       admin = new pg.Client({ connectionString: databaseUrl });
       await admin.connect();
@@ -588,6 +637,47 @@ describe.skipIf(!databaseUrl)(
       ).toBe('COMMITTED');
       // Creation order intentionally differs from canonical template-code order.
       for (const t of [...COMPANY_STARTUP_DEFINITION.templates].reverse()) {
+        const published = (
+          await admin.query<{
+            id: string;
+            version_id: string;
+            content_ref: Common.ContentAddressedRef;
+            content_hash: Buffer;
+            version_label: string;
+            source_ref: { sourceBytesSha256: string; testProvenance: string };
+          }>(
+            "SELECT r.reference_template_id AS id,v.reference_template_version_id AS version_id,v.content_ref,v.content_hash,v.version_label,v.source_ref FROM enterprise_project.reference_template r JOIN enterprise_project.reference_template_version v USING(reference_template_id) WHERE r.reference_code=$1 AND v.lifecycle='PUBLISHED' ORDER BY v.version_no DESC LIMIT 1",
+            [t.code],
+          )
+        ).rows[0];
+        if (published) {
+          const bytes = readFileSync(
+              new URL(`../fixtures/company-startup/${t.code}.md`, import.meta.url),
+            ),
+            hash = bytesHash(bytes);
+          if (
+            hash.digest !== published.content_hash.toString('hex') ||
+            published.version_label !== t.versionLabel ||
+            published.source_ref.sourceBytesSha256 !== hash.digest ||
+            published.source_ref.testProvenance !== TEST_PROVENANCE
+          )
+            throw new Error('Existing template fixture bytes differ');
+          content.set(published.content_ref.objectId, bytes);
+          pins.push({ code: t.code, versionLabel: t.versionLabel, bytesSha256: hash.digest });
+          templates.push({
+            templateCode: t.code,
+            templateRef: {
+              kind: 'CONTENT_ADDRESSED',
+              objectType: 'TemplateVersion',
+              objectId: published.id,
+              immutableVersionId: published.version_id,
+              scope: {},
+              contentHash: hash,
+            },
+            sourceBytesSha256: hash.digest,
+          });
+          continue;
+        }
         const bytes = readFileSync(
             new URL(`../fixtures/company-startup/${t.code}.md`, import.meta.url),
           ),
@@ -761,6 +851,14 @@ describe.skipIf(!databaseUrl)(
       await ipPool.end();
       await epPool.end();
       await admin.end();
+    });
+
+    it('reuses exact published source versions after the preparation fixture has run first', () => {
+      expect(templates).toHaveLength(9);
+      expect(normativeRefs).toHaveLength(3);
+      for (const ref of [...templates.map((item) => item.templateRef), ...normativeRefs]) {
+        expect(preparationSourceVersions).toContain(ref.immutableVersionId);
+      }
     });
 
     it('IP-257-001/006: owning chain records exact three immutable profiles; saving alone never publishes', async () => {

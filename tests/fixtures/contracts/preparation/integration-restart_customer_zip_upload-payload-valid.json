@@ -1,0 +1,18 @@
+{
+  "intakeRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.integration.customer_zip_intake",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  },
+  "originalKey": "integration.request_customer_zip_intake:1.0:0199aabb-ccdd-7000-8000-000000000004",
+  "originalPayloadHash": {
+    "algorithm": "SHA-256",
+    "digest": "1582128922a4b198eea8873db978b57450b7d79d4a7d724c92ccd34b82acf9c3",
+    "canonicalizationVersion": "1"
+  },
+  "expectedUploadGeneration": 1
+}

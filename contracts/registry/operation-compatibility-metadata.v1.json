@@ -1732,6 +1732,83 @@
       "authorizationPurpose": "integration.markdown_render_binding.read",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "markdown-review-download-v1"
+    },
+    {
+      "type": "project.find_preparation_enterprises",
+      "version": "1.0",
+      "authorizationPurpose": "project.enterprise.select",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.request_project_preparation",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.request",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.get_project_preparation_request",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "authorizationPurpose": "integration.customer_zip.intake",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "integration.get_customer_zip_intake",
+      "version": "1.0",
+      "authorizationPurpose": "integration.customer_zip.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "integration.restart_customer_zip_upload",
+      "version": "1.0",
+      "authorizationPurpose": "integration.customer_zip.restart",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "integration.CustomerZipManifestCommitted",
+      "version": "1.0",
+      "authorizationPurpose": "integration.CustomerZipManifestCommitted",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.create_preparing_project",
+      "version": "1.0",
+      "authorizationPurpose": "project.project.prepare.create",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.capture_preparation_source",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.source.capture",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.get_preparation_source",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.source.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.PreparingProjectCreated",
+      "version": "1.0",
+      "authorizationPurpose": "enterprise.project.PreparingProjectCreated",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "preparation-entry-291-v1"
     }
   ]
 }

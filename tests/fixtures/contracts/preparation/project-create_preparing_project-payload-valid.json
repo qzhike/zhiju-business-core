@@ -1,0 +1,48 @@
+{
+  "enterpriseRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.enterprise",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000001",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001"
+    }
+  },
+  "displayCode": "SYNTHETIC-0199aabb-ccdd-7000-8000-000000000002",
+  "title": "Synthetic preparation project",
+  "objective": "Synthetic company objective",
+  "memberPolicyRef": {
+    "kind": "VERSIONED",
+    "objectType": "identity.policy",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000016",
+    "versionId": "0199aabb-ccdd-7000-8000-0000000003fe",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001"
+    }
+  },
+  "memberPolicyHash": {
+    "algorithm": "SHA-256",
+    "digest": "7c5424277e18668450d8f80a8405d4534172a8fadc5e3a59ea23de2697074ad7",
+    "canonicalizationVersion": "1"
+  },
+  "preparationPresetRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.project.preparation_preset",
+    "objectId": "0199aabb-ccdd-7000-8000-00000000000a",
+    "versionId": "0199aabb-ccdd-7000-8000-0000000003f2",
+    "scope": {}
+  },
+  "preparationPresetHash": {
+    "algorithm": "SHA-256",
+    "digest": "fa3d272b8c0abe1b5fdaa97a47a5a405d7b4b79ef0e14e1893749e7b4ad2e739",
+    "canonicalizationVersion": "1"
+  },
+  "preparationRequestRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.preparation_request",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  }
+}

@@ -45,6 +45,7 @@ import {
 import type { LoginTransactionStore } from './transactions.js';
 import type { LoadedBffTrustConfig } from './trust-config.js';
 import { verifiedIdentity, verifyAccessToken, verifyIdToken } from './verify.js';
+import { createBoundedZipBody } from './zip-body.js';
 
 const CORE_RESPONSE_LIMIT = 8 * 1024 * 1024;
 const SESSION_BINDING_BYTES = 32;
@@ -764,15 +765,6 @@ export function createRequestHandler(
         false,
       );
     }
-    if (parsed.kind === 'commands') {
-      return sendSafeError(
-        reply,
-        503,
-        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
-        'Command transport unavailable.',
-        true,
-      );
-    }
     if (!operationRegistered(parsed)) {
       return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Operation not available.', false);
     }
@@ -783,6 +775,7 @@ export function createRequestHandler(
     let result;
     try {
       result = await forwardQuery({
+        kind: parsed.kind,
         operation: parsed.operation,
         version: parsed.version,
         body: body.value,
@@ -884,13 +877,14 @@ export function createRequestHandler(
   }
 
   async function forwardQuery(input: {
+    kind: 'queries' | 'commands';
     operation: string;
     version: string;
     body: Record<string, unknown>;
     record: SessionRecord;
     correlationId: string;
   }): Promise<{ status: number; text: string }> {
-    const url = `${trimTrailingSlash(config.apiBaseUrl)}/queries/${input.operation}/${input.version}`;
+    const url = `${trimTrailingSlash(config.apiBaseUrl)}/${input.kind}/${input.operation}/${input.version}`;
     const response = await context.fetchImpl(url, {
       method: 'POST',
       headers: {
@@ -909,12 +903,13 @@ export function createRequestHandler(
     return { status: response.status, text };
   }
 
-  function handleZip(
+  let activeUploads = 0;
+  async function handleZip(
     request: FastifyRequest,
     reply: FastifyReply,
     path: string,
     method: string,
-  ): boolean {
+  ): Promise<boolean> {
     const segments = path.split('/');
     if (
       segments.length !== 5 ||
@@ -925,6 +920,8 @@ export function createRequestHandler(
     ) {
       return false;
     }
+    if (!isUuidV7(segments[3] ?? ''))
+      return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Operation not available.', false);
     if (path.includes('%')) {
       return sendSafeError(
         reply,
@@ -939,8 +936,95 @@ export function createRequestHandler(
     }
     const guarded = guardProtected(request, reply, ZIP_CONTENT_TYPE);
     if ('handled' in guarded) return true;
-    // No owning registered ZIP transport exists yet: unknown, not a fake success.
-    return sendSafeError(reply, 404, CORE_ERROR.NOT_FOUND, 'Intake upload not available.', false);
+    try {
+      assertNoOverrideHeaders(request.headers);
+    } catch {
+      return sendSafeError(reply, 400, UI_ERROR.CLIENT_STATE_INVALID, 'Upload rejected.', false);
+    }
+    const intakeId = segments[3] ?? '';
+    const token = singleHeaderValue(request.headers['x-intake-upload-token']);
+    const lengthHeader = singleHeaderValue(request.headers['content-length']);
+    if (
+      !isUuidV7(intakeId) ||
+      request.url.includes('?') ||
+      !token ||
+      !/^[A-Za-z0-9_-]{43}$/.test(token) ||
+      request.headers['content-encoding'] !== undefined ||
+      request.headers.range !== undefined ||
+      (lengthHeader !== undefined && !/^[1-9][0-9]*$/.test(lengthHeader))
+    )
+      return sendSafeError(reply, 400, UI_ERROR.CLIENT_STATE_INVALID, 'Upload rejected.', false);
+    if (activeUploads >= config.maxConcurrentUploads)
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upload unavailable.',
+        true,
+      );
+    const fresh = await ensureFreshSession(guarded.record);
+    if (!fresh)
+      return sendSafeError(reply, 401, UI_ERROR.SESSION_EXPIRED, 'Session expired.', true);
+    if (activeUploads >= config.maxConcurrentUploads)
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upload unavailable.',
+        true,
+      );
+    activeUploads += 1;
+    let upload: ReturnType<typeof createBoundedZipBody> | undefined;
+    const abort = () => upload?.abort();
+    request.raw.once('aborted', abort);
+    try {
+      upload = createBoundedZipBody({
+        source: request.raw,
+        currentSession: () => sessions.isCurrent(fresh),
+        cancelSource: () => {
+          if (!request.raw.complete) request.raw.destroy();
+        },
+        ...(lengthHeader === undefined ? {} : { contentLength: Number(lengthHeader) }),
+      });
+      const response = await context.fetchImpl(
+        `${trimTrailingSlash(config.apiBaseUrl)}/customer-intakes/${intakeId}/zip`,
+        {
+          method: 'PUT',
+          redirect: 'error',
+          headers: {
+            'content-type': 'application/zip',
+            'x-intake-upload-token': token,
+            authorization: `Bearer ${fresh.accessToken}`,
+            'x-workspace-session-binding': fresh.sessionBinding,
+            'x-workspace-trust-config-hash': loaded.configHash,
+            ...(lengthHeader === undefined ? {} : { 'content-length': lengthHeader }),
+          },
+          body: upload.body,
+          signal: upload.signal,
+          duplex: 'half',
+        },
+      );
+      const text = await response.text();
+      if (text.length > CORE_RESPONSE_LIMIT) throw new Error('ZIP_UPLOAD_REJECTED');
+      if (!sessions.isCurrent(fresh))
+        return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
+      const value: unknown = JSON.parse(text);
+      if (!isPlainObject(value)) throw new Error('ZIP_UPLOAD_REJECTED');
+      reply.status(response.status).header('content-type', 'application/json').send(value);
+      return true;
+    } catch {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upload result unknown.',
+        false,
+      );
+    } finally {
+      activeUploads -= 1;
+      request.raw.removeListener('aborted', abort);
+      upload?.abort();
+    }
   }
 
   async function handleMarkdownContent(

@@ -190,6 +190,8 @@ export type WorkOrderValidationBoundary =
  * approved entry (Spec 001 §15.10).
  */
 export interface AuthorizationEntryBinding {
+  /** Explicit additive preparation SERVICE native target mapping; historical entries leave this unset. */
+  readonly allowNativeTargetSelector?: boolean;
   readonly commandType: string;
   readonly commandVersion: string;
   readonly authorizationPurpose: string;
@@ -616,6 +618,7 @@ type WorkOrderValidationTarget =
     };
 
 interface WorkOrderValidationGrantQuery {
+  readonly allowNativeTargetSelector?: boolean;
   readonly principalId: string;
   readonly enterpriseId: string;
   readonly projectId: string;
@@ -932,6 +935,7 @@ export async function issueEntryDecision(
       capabilityCode,
       requiredGrantAction: binding.requiredGrantAction,
       selectorType: binding.selectorType,
+      ...(binding.allowNativeTargetSelector ? { allowNativeTargetSelector: true } : {}),
       targetObjectType: target.objectType,
       now: now(),
     });
@@ -1205,6 +1209,7 @@ export async function revalidateEntryDecision(
       capabilityCode,
       requiredGrantAction: binding.requiredGrantAction,
       selectorType: binding.selectorType,
+      ...(binding.allowNativeTargetSelector ? { allowNativeTargetSelector: true } : {}),
       targetObjectType: row.target_object_type,
       policySnapshot: { id: row.policy_snapshot_id, hash: row.policy_snapshot_payload_hash },
       now: trustedNow,
@@ -1888,6 +1893,7 @@ function grantMatchesValidation(
       grant.resource_selectors,
       query.selectorType,
       query.targetObjectType,
+      query.allowNativeTargetSelector,
     )
   );
 }
@@ -1904,6 +1910,7 @@ function selectorsCoverValidationTarget(
   selectors: unknown,
   selectorType: WorkOrderValidationSelectorType,
   targetObjectType: string,
+  allowNativeTargetSelector = false,
 ): boolean {
   if (!Array.isArray(selectors) || selectors.length === 0) return false;
   let matched = false;
@@ -1916,7 +1923,12 @@ function selectorsCoverValidationTarget(
       !keys.every((key) => key === 'selectorType' || key === 'objectType') ||
       candidate.selectorType !== selectorType ||
       typeof candidate.objectType !== 'string' ||
-      !namespaceCodePattern.test(candidate.objectType)
+      !(
+        namespaceCodePattern.test(candidate.objectType) ||
+        (allowNativeTargetSelector &&
+          candidate.objectType === targetObjectType &&
+          ['SourceMaterial', 'Project'].includes(candidate.objectType))
+      )
     ) {
       return false;
     }

@@ -1,4 +1,9 @@
 import guardPolicies from '../generated/payload-guard-policies.json' with { type: 'json' };
+import {
+  preparationProjectSchemaDefinitions,
+  preparationProjectExecutableContracts,
+  preparationProjectInternalContracts,
+} from '../preparation-project.ts';
 
 import type { JsonSchema } from '../schema-types.js';
 
@@ -468,6 +473,10 @@ const namedDefinitions = {
     },
   ),
   projectBoardPage: object(['items', 'snapshotAt', 'sourceWatermarks'], {
+    preparationEntry: object(['preparationRequestRef', 'originalPreparationKey'], {
+      preparationRequestRef: objectReference,
+      originalPreparationKey: text,
+    }),
     items: array(localRef('projectBoardSliceItem')),
     nextCursor: text,
     snapshotAt: instant,
@@ -480,7 +489,7 @@ const namedDefinitions = {
   }),
   // #258 workspace directory: the owning registered Project lifecycle status
   // (ProjectStatus), not the Enterprise status enum of the same spellings.
-  projectStatus: { enum: ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
+  projectStatus: { enum: ['PREPARING', 'ACTIVE', 'SUSPENDED', 'ARCHIVED'] },
   // #258 workspace directory summary: only the minimal display fields read under
   // the caller's per-Project `project.workspace.discover` current authorization.
   workspaceProjectSummary: object(
@@ -912,7 +921,7 @@ const operationDefinitions = Object.fromEntries(
   ]),
 ) as Readonly<Record<string, JsonSchema>>;
 
-export const enterpriseProjectOperationContracts = Object.freeze(
+const baseEnterpriseProjectOperationContracts = Object.freeze(
   Object.fromEntries(
     Object.entries(operationSchemas).map(([type, contract]) => [
       type,
@@ -926,10 +935,28 @@ export const enterpriseProjectOperationContracts = Object.freeze(
   ) as Readonly<Record<string, ExecutableProjectOperationContract>>,
 );
 
+export const enterpriseProjectOperationContracts = Object.freeze({
+  ...baseEnterpriseProjectOperationContracts,
+  ...preparationProjectExecutableContracts,
+  ...preparationProjectInternalContracts,
+});
+
+const preparationAliases: Record<string, JsonSchema> = {};
+for (const [type, contract] of Object.entries({
+  ...preparationProjectExecutableContracts,
+  ...preparationProjectInternalContracts,
+})) {
+  preparationAliases[`${type.replaceAll('.', '_')}_payload`] = { $ref: contract.payloadSchemaRef };
+  if ('resultSchemaRef' in contract)
+    preparationAliases[`${type.replaceAll('.', '_')}_result`] = { $ref: contract.resultSchemaRef };
+}
+
 export const enterpriseProjectSchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $defs: {
+    ...preparationProjectSchemaDefinitions,
+    ...preparationAliases,
     ...namedDefinitions,
     ...operationDefinitions,
     exactTaskCompletionCriteria: object(['profile', 'allOf'], {

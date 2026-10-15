@@ -1,0 +1,43 @@
+{
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "0199aabb-ccdd-7000-8000-00000000000e",
+    "snapshotId": "0199aabb-ccdd-7000-8000-0000000003f6",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "ce27bd78d27f54c95e17e38876327cfe911edc5eb076ab65eca38b78d1eb53a5",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "inputRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "SourceMaterial",
+      "objectId": "0199aabb-ccdd-7000-8000-00000000000f",
+      "scope": {
+        "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+        "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "3b59b24f271554ee549d7f50bbee911b9b4a9a654b34cdbd8b991e4571cd232e",
+        "canonicalizationVersion": "1"
+      }
+    }
+  ],
+  "receiptRef": {
+    "kind": "OBJECT",
+    "objectType": "CommandReceipt",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000011",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  },
+  "validUntil": "2026-10-15T00:05:00.000Z"
+}

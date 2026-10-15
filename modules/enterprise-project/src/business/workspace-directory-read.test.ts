@@ -200,7 +200,7 @@ describe('readWorkspaceProjectSummary', () => {
   });
 
   it('passes the owning Project status through without synthesising it', async () => {
-    for (const status of ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const) {
+    for (const status of ['PREPARING', 'ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const) {
       const harness = new ReadHarness(happyRow({ project_status: status }));
       const summary = await harness.run();
       expect(summary?.status).toBe(status);
@@ -234,7 +234,7 @@ describe('readWorkspaceProjectSummary', () => {
   });
 
   it('rejects an unregistered stored Project status', async () => {
-    const harness = new ReadHarness(happyRow({ project_status: 'PREPARING' }));
+    const harness = new ReadHarness(happyRow({ project_status: 'UNREGISTERED_STATUS' }));
     const rejection = await rejectCode(harness.run());
     expect(rejection.code).toBe(DEPENDENCY_UNAVAILABLE);
   });

@@ -1212,7 +1212,7 @@ const operationDefinitions = Object.fromEntries(
   ]),
 ) as Readonly<Record<string, JsonSchema>>;
 
-export const integrationGatewayOperationContracts = Object.freeze(
+const baseIntegrationGatewayOperationContracts = Object.freeze(
   Object.fromEntries(
     Object.entries(operationSchemas).map(([type, contract]) => [
       type,
@@ -1226,12 +1226,37 @@ export const integrationGatewayOperationContracts = Object.freeze(
   ) as Readonly<Record<string, ExecutableIntegrationGatewayOperationContract>>,
 );
 
+export const integrationGatewayOperationContracts = Object.freeze({
+  ...baseIntegrationGatewayOperationContracts,
+  ...Object.fromEntries(
+    Object.keys(customerZipIntakeContractDefinitions).map((name) => {
+      const operation = name.replace(/^integration_/, 'integration.').replace(/_payload$/, '');
+      const resultName = name.replace(/_payload$/, '_result');
+      return [
+        operation,
+        {
+          payloadSchemaRef: `${schemaId}#/$defs/${name}`,
+          ...(Object.hasOwn(customerZipIntakeResultDefinitions, resultName)
+            ? { resultSchemaRef: `${schemaId}#/$defs/${resultName}` }
+            : {}),
+        },
+      ];
+    }),
+  ),
+});
+
 export const integrationGatewaySchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $defs: {
+    ...customerZipIntakeContractDefinitions,
+    ...customerZipIntakeResultDefinitions,
     ...namedDefinitions,
     ...markdownRenderDefinitions,
     ...operationDefinitions,
   },
 } as const satisfies JsonSchema;
+import {
+  customerZipIntakeContractDefinitions,
+  customerZipIntakeResultDefinitions,
+} from '../preparation-intake.ts';

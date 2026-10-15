@@ -146,3 +146,5 @@ export type {
 } from './workspace-board-entries.js';
 
 export * from './company-rule-entry.js';
+export * from './preparation-composition.js';
+export * from './preparation-workspace-entry.js';

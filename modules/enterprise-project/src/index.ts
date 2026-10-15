@@ -556,3 +556,4 @@ export {
 export * from './persistence/company-startup-db.js';
 export * from './business/company-startup-definition.js';
 export * from './business/company-startup-handlers.js';
+export * from './business/preparation-project.js';

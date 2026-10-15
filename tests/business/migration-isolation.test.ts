@@ -95,6 +95,13 @@ const MARKDOWN_REVIEW_ALLOCATIONS = new Map([
   [7019, 'artifact'],
 ]);
 
+// Issue #291 reserves only these three forward versions for their exact owners.
+const PREPARATION_ALLOCATIONS = new Map([
+  [7020, 'identity_policy'],
+  [7021, 'enterprise_project'],
+  [7022, 'integration_gateway'],
+]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -121,6 +128,13 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const preparationOwner = PREPARATION_ALLOCATIONS.get(version);
+  if (preparationOwner)
+    return directory === preparationOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${preparationOwner} preparation entry`,
+        ];
   const markdownOwner = MARKDOWN_REVIEW_ALLOCATIONS.get(version);
   if (markdownOwner) {
     return directory === markdownOwner
@@ -333,6 +347,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
       ))
         expect(validateMigrationEntry(directory, `V${version}__company_startup.sql`)).toEqual([
           `'${directory}/V${version}__company_startup.sql': version ${version} reserved for ${owner} company startup`,
+        ]);
+    }
+    for (const [version, owner] of PREPARATION_ALLOCATIONS) {
+      expect(validateMigrationEntry(owner, `V${version}__preparation.sql`)).toEqual([]);
+      for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+        (value) => value !== owner,
+      ))
+        expect(validateMigrationEntry(directory, `V${version}__preparation.sql`)).toEqual([
+          `'${directory}/V${version}__preparation.sql': version ${version} reserved for ${owner} preparation entry`,
         ]);
     }
     expect(validateMigrationEntry('identity_policy', '.gitkeep')).toEqual([]);

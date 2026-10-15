@@ -218,6 +218,17 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-277-005 | object写成功link失败、entry或note accept后crash；manifest提交前失败 | 原step IDs/key/Receipt续接，无重复源；已link资料不可cleanup；manifest未commit不READY，说明未接纳不能丢弃后handoff | 未执行 / NOT RUN |
 | IG-277-006 | manifest/Receipt/Event任一写点失败/提交后重复投递；EP暂不可用；TE已接收但无Run | IG同事务回滚或真实完整提交；EP原Eventreadback去重；custody不丢，analysis独立PENDING/UNKNOWN；不将202/Task/Request说成Runner启动 | 未执行 / NOT RUN |
 
+自动化入口：`modules/integration-gateway/src/customer-zip/` 的票据、policy、真实 ZIP/DOCX 扫描、受控 S3 协议和 owning service 权限边界单测；`tests/persistence/preparation-intake.test.ts` 使用真实 PostgreSQL owning 入口验证唯一 intake、并发重放、一次 CAS 重传、旧票据 fencing、活动流拒绝重传及 manifest/Receipt/Outbox 故障回滚。后者的 EP/IP/Object ports 是明确受控依赖，不能替代 `preparation-journey.test.ts` 的真实跨 owner 源接纳/原 binding/当前资格链，也不构成生产 S3/Ceph 或 Runner 证据。测试中的安全失败必须先于 EP 来源接纳；Query 结果不得含 token/locator，也不触发来源或 handoff 命令。
+
+#291 实现矩阵补充（执行结果随精确修订保存在 PR/CI）：
+
+| 场景 | 可核验预期 | 自动化证据入口与边界 |
+|---|---|---|
+| 内容失败与传输中断 | unsafe、资源上限、CRC/格式损坏、零可分析源为终态；即使旧流 CLOSED_NO_OBJECT，Query 也不给 RESTART，显式 restart 拒绝且没有 source/manifest/Event。真正断流或期限中断在 owner 证明无完整对象/链接后仍可执行同一原 bytes 的一次 CAS 重传 | `preparation-intake.test.ts` 通过真实 owning 服务/PG Query 与 restart 验证四类内容失败；EP/Object ports 为明确受控依赖 |
+| DOCX 真实结构 | 非注释的 ContentTypes Override 必须精确指向 `/word/document.xml` 的主文档类型；同一个 package Relationship 必须具有 officeDocument 类型和内部主文档 target。错误 namespace、仅注释中的类型字串、将外部关系与另一条内部 target 拼合均不得成为可分析源 | `zip-safety.test.ts` 包含真实 ZIP/CRC 与普通 OOXML 正例、三个结构误导反例和 DOCX 二级累计预算；只验证安全结构，不声称正文专业验收 |
+| 跨 owner 来源与不可变交接 | 当前 Human 与固定 SERVICE 各自当前授权；IG 在 EP 接纳前持久化稳定 source step/完整 input/真实对象回执，EP 通过 owning readSourceAdmission 逐字核对。真实 SECURITY/INTEGRITY、source receipts、note 与 manifest/event 保留原绑定；重登只读回原命令与当前状态，缺 TE 为 WAITING_CAPABILITY | `preparation-journey.test.ts` 使用真实 IP/EP/IG owning producers、真实 PostgreSQL、实际 ContractRegistry 结果与 SourceMaterialAccepted payload 校验；S3 adapter 使用明确受控传输/实际 bytes，不等于生产 Ceph、外部 Runner 或客户验收 |
+
+
 ## D14 / RD-01 首条资料链路设计场景
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 owning Spec 的 D14 专节与 [Spec Delta](../decisions/d14-rd01-first-customer-flow.md)。下表是未来正链、必要反例与恢复验收；本 Issue 只做设计对账，不写实现测试、不运行客户任务，真实执行均 `NOT RUN`。后续使用脱敏独立 Runner 原输出、真实 owning receipts 和 PostgreSQL/HTTP/Browser 分层取证，不用合成 snapshot 代替。

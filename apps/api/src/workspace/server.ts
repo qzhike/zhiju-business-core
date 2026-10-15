@@ -28,6 +28,7 @@ import { createEnterpriseProjectDatabase } from '@zhiju/enterprise-project';
 import { createTaskExecutionDatabase } from '@zhiju/task-execution';
 import { newUuidV7, sha256CanonicalJson } from '@zhiju/shared-kernel';
 
+import { createPreparationEnvironment } from './preparation-environment.js';
 import { createAccessTokenVerifier } from './access-token.js';
 import { CORE_ERROR_CODE, WorkspaceCoreError, type CoreErrorCode } from './errors.js';
 import { peerAllowed } from './net.js';
@@ -43,6 +44,7 @@ import type {
   WorkspaceDispatchRequest,
   WorkspaceDispatchResponse,
   WorkspaceVerifiedAccess,
+  WorkspaceZipUploadRequest,
 } from './controller.js';
 
 /** Fixed, secret-free code reported when the workspace entry cannot start. */
@@ -241,7 +243,10 @@ function parseBoardPolicyRefs(raw: string): ReadonlyMap<string, Common.Versioned
  */
 export function createWorkspaceCoreFromEnv(
   env: NodeJS.ProcessEnv,
-  options: { markdown?: WorkspaceDispatchConfig['markdown'] } = {},
+  options: {
+    markdown?: WorkspaceDispatchConfig['markdown'];
+    preparation?: WorkspaceDispatchConfig['preparation'];
+  } = {},
 ): WorkspaceCoreRuntime {
   const loaded = loadCoreTrustConfigFromEnv(env);
   if (!loaded.ok) {
@@ -283,15 +288,33 @@ export function createWorkspaceCoreFromEnv(
   );
   const crypto = createIdentityCryptoPorts(lookupKey, fieldKey);
 
-  const identityDb = createIdentityPolicyDatabase(openPool(identityUrl));
-  const enterpriseProjectDb = createEnterpriseProjectDatabase(openPool(enterpriseUrl));
+  const identityPool = openPool(identityUrl);
+  const enterprisePool = openPool(enterpriseUrl);
+  const identityDb = createIdentityPolicyDatabase(identityPool);
+  const enterpriseProjectDb = createEnterpriseProjectDatabase(enterprisePool);
   const taskExecutionDb = createTaskExecutionDatabase(openPool(taskExecutionUrl));
   const repo = new IdentityPolicyRepository(crypto);
 
   const capabilityCodes = trustConfig.capabilityCodes;
 
+  const preparation =
+    options.preparation ??
+    createPreparationEnvironment({
+      env,
+      identityPool,
+      enterprisePool,
+      integrationPool: openPool(env.ZHIJU_WORKSPACE_INTEGRATION_DATABASE_URL ?? databaseUrl),
+      crypto,
+      identityResolutionDeps: (access) => ({
+        db: identityDb,
+        repo,
+        crypto,
+        context: technicalIdentityContext(access.context, crypto, new Date()),
+      }),
+    });
   const verifier = createAccessTokenVerifier({ trustConfig });
   const dispatch: WorkspaceDispatch = createWorkspaceDispatch({
+    ...(preparation ? { preparation } : {}),
     ...(options.markdown ? { markdown: options.markdown } : {}),
     identity: { db: identityDb, repo, crypto },
     enterpriseProjectDb,
@@ -337,6 +360,9 @@ export function createWorkspaceCoreFromEnv(
       }
     },
     streamMarkdown: (request) => dispatch.stream(request),
+    ...(preparation
+      ? { uploadZip: (request: WorkspaceZipUploadRequest) => dispatch.upload(request) }
+      : {}),
     dispatch: async (request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse> =>
       dispatch.execute(request),
   };

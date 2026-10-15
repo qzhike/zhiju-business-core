@@ -693,3 +693,12 @@ integration.request_markdown_render@1.0是独立新操作，closed flat请求及
 新PUT /api/markdown-suggestion-intakes/{intakeId}/content是IG-issued one-intake原流，10MiB/实际hash/UTF-8及same-originSession/CSRF当前权限，BFF只boundedstream不写objects。新GET /api/markdown-representations/{representationId}/content是ART exact注册表示的只读stream，downloadTicket置header且≤60秒，重新授权并核实际checksum；sharedRepresentationRef所有identity字段精确比较，opaque storage locator不等于bytes权限或URL。无注册handler/stream时不可用，不由BFF取得private库权限补齐。
 
 Command受理成功不推RUNNING或候选，request数据disposition与stepFacts分开；UNKNOWN回读原target/key/requestPayloadHash和原提交，private pending snapshot不当Receipt。确认未接收仅owning完整索引+本人原snapshot证明；统一masked NOT_FOUND/403、依赖503不推未提交，不自动新键重发。Byte SHA、intent/snapshot Hash、Canonical Hash、Diff Hash、Representation checksum分域。所有内容受权/no-store、安全编码与有限日志allowlist，下载不增加Approval/Release/客户收件事实。
+
+
+## #291 准备创建与首次 ZIP 托管传输实现
+
+有限 Workspace 路由增加已批准的 EP entry/request/read、IG request/read/restart 六项，均 `@1.0`；Browser projection 不得携带 actor/requester/authorizationDecisionRef 等身份覆写。Core 使用受信 verifier context 解析实际 Human，Query 纯读且 AUTHORITATIVE，Command owning 验证完整原 projection/key/hash/Scope/CAS，结果按 executable closed schema 复验；不开放内部 source/handoff/管理入口。
+
+ZIP 只有 `PUT /bff/customer-intakes/{intakeId}/zip` → `/api/customer-intakes/{intakeId}/zip`，`Content-Type: application/zip` 与 `X-Intake-Upload-Token`，当前 session/CSRF/Origin 仍必需。无额外 Enterprise/Project/generation header；owner 从原 intake 导出。拒 Range、Content-Encoding、长度不一致与超过 100 MiB；支持无 Content-Length 的有界流。票据五分钟固定、同原命令重放不续期。上传断连/未知结果须原 ID 查询，不能创建替代上传或回删已托管事实。预设/Policy/公司规则缺失、当前撤权和分析能力不可用分别保留原 owning 状态，不伪造成功空值。
+
+生产 `ZHIJU_PREPARATION_CONFIG` 是闭集 JSON：`grantAdministrators`、独立 `companyRuleGrantAdministrators`、`administratorPolicySnapshotRef`、`servicePrincipalId`、`enterpriseCapabilities={select,create}`、有限 `capabilityCodes`、`selection={preparationPresetRef,preparationPresetHash,publicationRef}`、不可变 `policies`、`s3={endpoint,bucket,region}`、`ticket={activeKeyId}`、`companySources`。后者每项为 `{sha256,objectKey,locators:[{locator,offset,byteLength}]}`，显式绑定经批准公司来源实际字节与唯一切片；S3 精确读取后核实际 hash，EP 再核生产 pins、当前发布与切片唯一性，不能使用测试来源或未发布默认。密钥独立由 `ZHIJU_PREPARATION_TICKET_KEYS`（keyId→base64 AES-256）、`ZHIJU_PREPARATION_CURSOR_KEY`、`ZHIJU_PREPARATION_S3_ACCESS_KEY_ID`、`ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY` 与可选 `ZHIJU_PREPARATION_S3_SESSION_TOKEN` 提供，不属于 Browser JSON。IG 数据库可用显式 `ZHIJU_WORKSPACE_INTEGRATION_DATABASE_URL`，否则沿已有 Workspace 共享数据库连接配置，事务仍由 owning Role/RLS 隔离。配置不发布预设/Grant，不绕过当前 Human/SERVICE 授权；缺配置能力不可用，格式错误只报无秘密启动错误。

@@ -1,0 +1,59 @@
+{
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000002",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  },
+  "intakeManifestRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.integration.customer_input_manifest",
+    "objectId": "0199aabb-ccdd-7000-8000-00000000000d",
+    "snapshotId": "0199aabb-ccdd-7000-8000-0000000003f5",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "7dafcf5a3fba83246c2d1848aeaca33506d72a878ffc646c6134949c43cfd58c",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "templateRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.project.template_version",
+      "objectId": "0199aabb-ccdd-7000-8000-000000000017",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "7617270fd4331c369b1c677e586ab17c547c09eda75662afe2606508a6fde8ea",
+        "canonicalizationVersion": "1"
+      }
+    }
+  ],
+  "ruleBundleRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "identity.policy_snapshot",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000014",
+    "snapshotId": "0199aabb-ccdd-7000-8000-0000000003fc",
+    "scope": {},
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "digest": "6162a141143e1213918cebfb1d2e9d360de76346f7f2bdac0116a1aae53d50a6",
+      "canonicalizationVersion": "1"
+    }
+  },
+  "trustedDecisionRefs": [],
+  "purpose": "preparation.analysis",
+  "audience": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000018",
+    "scope": {}
+  }
+}

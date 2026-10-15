@@ -43,3 +43,5 @@ Credential 与连接池接入由后续实现配置，本地 Gate 使用 NOINHERI
 该权限边界。
 
 Flyway history 表为 `public.flyway_schema_history`。已应用的 migration 不允许修改（checksum drift 会让 Gate 失败）。
+
+Issue #291 reserves exactly `V7020` for IdentityPolicy preparation authority/admission, `V7021` for EnterpriseProject preparation requests/source/handoff and the additive PREPARING lifecycle, and `V7022` for IntegrationGateway customer ZIP intake/manifest. Each forward-only file stays in its owning schema with no cross-owner foreign keys or SQL. Existing migration checksums, version ranges and disabled out-of-order execution are preserved. Deployment logins must explicitly receive SET membership of the owning roles used by these entry ports; migrations do not grant a universal application login or bypass RLS.

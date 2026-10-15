@@ -933,7 +933,7 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 ## #277 准备入口预设与原请求交接提案
 
-状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；本修订的批准范围见 Delta 与正式审查记录。
+状态：`T2 / DESIGN APPROVED / IMPLEMENTATION IN PROGRESS`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；本修订的批准范围见 Delta 与正式审查记录。
 
 ### 技术预设的唯一生产与精确选择
 
@@ -953,6 +953,14 @@ EP 内部 `PreparationPresetPublisher@1.0` / `PreparationPresetResolver@1.0` 拥
 resolver 输入 `{preparationPresetRef,preparationPresetHash,publicationRef}`，输出 `{payload,publicationRef,useStatus:USABLE|NOT_YET_EFFECTIVE|SUPERSEDED|WITHDRAWN,checkedAt,sourceWatermarks}`；重算 hash、核验 publication 对应版本/hash、当前 withdrawal/同 code 单后继无环 supersession。新并行版本不自动停旧版；只有实际取代生效/撤回才失效。所有受保护读取前/返回前重验权限。缺失/错 hash/错 profile 拒绝；依赖故障不冒充缺失。真实 publisher/resolver/grants/PolicySnapshot/refs/hashes 是部署输入，测试自有 fixture 不成为生产 publication。
 
 服务端显式安装唯一 `PreparationEntrySelection={preparationPresetRef,preparationPresetHash,publicationRef}`，由 EP resolver 校验。不是员工设置，不从版本排序挑 latest；选择变更不改已有 request/project。EP `find_preparation_enterprises@1.0` 在原 Page 外增加 `entryBinding:{preparationPresetRef,preparationPresetHash,publicationRef,intakePolicyRef,intakePolicyHash}; newCustomerAllowed:boolean`；intake policy 两字段由该 exact preset.payload.intakePolicy 的完整 ref/payloadHash 投影，不能由 Browser/BFF 解析配置。payload 仍 `{searchText,page:{limit:1..50,cursor?}}`，searchText UTF-8 ≤512 bytes，空串表示本人候选第一页。无配置/无可用发布返回明确依赖/资格错误，不回空成功。IP self 候选新增接受集见 IP #277；EP 逐 Enterprise 当前 select Decision + RLS 后返回安全名称，不枚举整个企业库。page cursor 绑定 Principal/session、filter、preset选择、IP/EP 水位，扫描预算 200 项/5秒，空页+cursor 继续，旧 cursor 失效不误判 EMPTY。
+
+### #291 准备入口实现边界
+
+`createPreparationProjectService` 实现受控技术预设发布/解析/撤回、当前选择、本人 Enterprise 候选扫描、不可变原准备 Command、分步恢复、PREPARING Root/ScopeClaim/Receipt/Event 原子提交及独立 IP provisioning。`V7021__preparation_entry.sql` 持有 append-only preparation facts、原 intent Scope/Actor mirror 与精确 Enterprise/Project FORCE RLS；不含 IP 跨 schema 外键或写入。
+
+PREPARING 的 IG 来源适配固定 source/validation/command 身份，保存 SECURITY/INTEGRITY、Origin、接纳 Receipt 和 SourceMaterialAccepted Event。manifest 的唯一原 intake 交接先 owning readback，再建立固定 source/task/analysis 身份；来源快照锁定原 manifest、原预设 rule publication、完整 sources 与公司模板。Query 只读；缺当前 SERVICE、audience、原 Human ANALYZE 当前性检查或 TE 适配时保留 custody 并返回 WAITING_CAPABILITY。实际部署必须提供 IP owning Session/Actor/Decision/Policy proof 与精确 company rule/intake/template 依赖；测试端口和 fixture 不成为生产值。 TE adapter callback 的存在不表示 selector 已安装：EP 同时要求真实 ContractRegistry 中两条 preparation execution selector 为 FULL 且具有 owning result schema；当前未注册时保留 SOURCE 事实并返回 WAITING_CAPABILITY，create/request/read 均不调用。内部稳定 Command 使用 canonical zhiju.execution.*，TASK 返回 definitionSnapshotRef 再原样映射为 ANALYSIS_REQUEST 的 taskDefinitionSnapshotRef；未来已注册结果仍须 owning schema 与原 Command 只读回读一致后才能记成功。
+
+PARTIAL 结果仅以 `CONTINUE_ORIGINAL` 许可重放已保存的同一 public Command；UNKNOWN/STALE 不提供此动作。原字符串以深相等核对，cv1 Hash 相同也不允许更换 Unicode 表示。目录水位由实际 IP 候选水位和 EP 返回投影 Hash 的前 48 bit 映射，observedAt 为该次 owning 观察时间；不声称全局 outbox 顺序。
 
 ### 原准备请求、预创建 Scope 与恢复
 
@@ -1008,6 +1016,8 @@ handoff 查询字段为 `{intakeRef,manifestRef?,status:WAITING_INPUT|PENDING|WA
 | `project.create_preparing_project` / CREATE project | `enterpriseRef; displayCode; title; objective; memberPolicyRef; preparationPresetRef`；#277 已批准设计增加 `memberPolicyHash; preparationPresetHash; preparationRequestRef` | projectRef + aggregateVersion=1 + creationMode=PREPARATION/status=PREPARING + receiptRef；`project.project.prepare.create`；单 Project 事务创建 Root/Claim/最小 Event，无 start refs |
 | `project.capture_preparation_source` / CREATE snapshot | `projectRef; intakeManifestRef; templateRefs:NonEmptySet<CONTENT_ADDRESSED>; ruleBundleRef; previousReportRef?; trustedDecisionRefs:Set; purpose:preparation.analysis; audience:PrincipalRef` | preparationSourceRef + bytes manifest binding + coverage/omissions/redactions + validUntil；`project.preparation.source.capture`；只纳当前 ACCEPTED 源与 published refs |
 | `project.get_preparation_source` / Query | `preparationSourceRef; purpose:preparation.analysis; audience:PrincipalRef` | 原不可变 source payload + currentUsability/reasons/validUntil；`project.preparation.source.read` |
+
+此 Query 在当前 exact SERVICE 读取授权下保留原 source payload：绑定 preset/成员模板/公司规则依赖已撤回时 currentUsability 为 STALE，当前性无法核验时为 UNKNOWN。历史 resolver 不替换原选集，也不续执行 handoff；capture、continue 与新 intake 仍严格验证当前依赖。
 | `project.accept_preparation_report` / CREATE report snapshot | `projectRef; expectedPreparationVersion; analysisResultRef:CONTENT_ADDRESSED; analysisResultAcceptanceRef:CONTENT_ADDRESSED; preparationSourceRef; expectedPreviousReportRef?; outputProfileRef:VERSIONED` | reportRef + candidateSetRef + planRef + becameCurrent + receiptRef；`project.preparation.report.accept`；EP Validator SERVICE，经 TE result Query 取真实 outputs，不接 caller JSON |
 | `project.get_startup_review` / Query | `projectRef; reportRef?` | binding + informationGroups + candidateReviews/evidenceViews + required/confirmationCandidateIds + plannedFiles/blockers + allowedActions + currentUsability；`project.startup.review.read` |
 | `project.request_startup_confirmation` / CREATE startup_request | `binding:StartupBinding; confirmationCandidateIds:NonEmptySet; selectedFileIds:NonEmptySet` | requestRef + immutableIntentHash + per-step refs/disposition + permittedRecoveryActions；`project.startup.confirm`，Human-only；客户端不提交批准人、值修改或 start refs |

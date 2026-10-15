@@ -180,7 +180,7 @@ export interface QmsConfigurationRevisionTable {
 // Issue #60 #1). The ScopeClaim is the authoritative source of that
 // pair used by other modules. The SnapshotBinding is INSERT-only and
 // records the exact StartSnapshot consumed at create time.
-export type ProjectStatus = 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
+export type ProjectStatus = 'PREPARING' | 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
 export type ProjectScopeClaimStatus = 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 export type ProjectSnapshotBindingPurpose = 'PROJECT_START';
 

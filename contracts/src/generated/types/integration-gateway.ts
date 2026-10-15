@@ -548,4 +548,685 @@ export namespace IntegrationGateway {
 }
   /** Result of `integration.get_markdown_render_binding` (QUERY). */
   export type IntegrationGetMarkdownRenderBindingResult = IntegrationGateway.MarkdownRenderBinding;
+  /** Payload of `integration.request_customer_zip_intake` (COMMAND). */
+  export type IntegrationRequestCustomerZipIntakePayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalPreparationKey: string;
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+  readonly scope?: Record<string, never>;
+};
+  readonly preparationPresetHash: Common.ContentHash;
+  readonly originalName: string;
+  readonly declaredByteLength: number;
+  readonly zipBytesSha256: Common.ContentHash;
+  readonly intakePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_policy";
+  readonly scope?: Record<string, never>;
+};
+  readonly intakePolicyHash: Common.ContentHash;
+  readonly submittedNote?: string;
+  readonly analysisIntent: "ANALYZE";
+};
+  /** Result of `integration.request_customer_zip_intake` (COMMAND). */
+  export type IntegrationRequestCustomerZipIntakeResult = {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalCommandId: Common.UuidV7;
+  readonly originalKey: string;
+  readonly payloadHash: Common.ContentHash;
+  readonly receiptRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.command_receipt";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly upload?: {
+  readonly generation: 1 | 2;
+  readonly token: string;
+  readonly expiresAt: Common.UtcInstant;
+  readonly method: "PUT";
+  readonly path: string;
+  readonly expectedByteLength: number;
+  readonly expectedZipBytesSha256: string;
+};
+  readonly disposition: "ACCEPTED" | "IDEMPOTENT_REPLAY";
+  readonly analysis: {
+  readonly status: "WAITING_INPUT" | "PENDING" | "WAITING_CAPABILITY" | "BLOCKED_AUTHORIZATION" | "PARTIAL" | "UNKNOWN" | "STALE" | "ACCEPTED";
+  readonly reasonCodes?: readonly Common.ReasonCode[];
+  readonly sourceReceiptRefs?: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs?: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly taskRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly analysisRequestRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.preparation_analysis_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly preparationSourceRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly intakeRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly manifestRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly steps?: {
+  readonly SOURCE: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+  readonly TASK: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+  readonly ANALYSIS_REQUEST: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+};
+  readonly sourceWatermarks?: readonly Common.SourceWatermark[];
+};
+};
+  /** Payload of `integration.get_customer_zip_intake` (QUERY). */
+  export type IntegrationGetCustomerZipIntakePayload = {
+  readonly by: "INTAKE";
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+} | {
+  readonly by: "PREPARATION_REQUEST";
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalPreparationKey: string;
+};
+  /** Result of `integration.get_customer_zip_intake` (QUERY). */
+  export type IntegrationGetCustomerZipIntakeResult = {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly aggregateVersion: number;
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalCommand: {
+  readonly commandId: Common.UuidV7;
+  readonly type: "integration.request_customer_zip_intake";
+  readonly version: "1.0";
+  readonly scopeRef: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly targetRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly idempotencyKey: string;
+  readonly correlationId: Common.UuidV7;
+  readonly requestedAt: Common.UtcInstant;
+  readonly payload: {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalPreparationKey: string;
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+  readonly scope?: Record<string, never>;
+};
+  readonly preparationPresetHash: Common.ContentHash;
+  readonly originalName: string;
+  readonly declaredByteLength: number;
+  readonly zipBytesSha256: Common.ContentHash;
+  readonly intakePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_policy";
+  readonly scope?: Record<string, never>;
+};
+  readonly intakePolicyHash: Common.ContentHash;
+  readonly submittedNote?: string;
+  readonly analysisIntent: "ANALYZE";
+};
+  readonly integrity: {
+  readonly canonicalizationVersion: "1";
+  readonly payloadHash: Common.ContentHash;
+};
+  readonly causationId?: Common.UuidV7;
+  readonly deadline?: Common.UtcInstant;
+};
+  readonly originalKey: string;
+  readonly payloadHash: Common.ContentHash;
+  readonly restartCommand?: {
+  readonly commandId: Common.UuidV7;
+  readonly type: "integration.restart_customer_zip_upload";
+  readonly version: "1.0";
+  readonly scopeRef: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+  readonly targetRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly idempotencyKey: string;
+  readonly correlationId: Common.UuidV7;
+  readonly requestedAt: Common.UtcInstant;
+  readonly payload: {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalKey: string;
+  readonly originalPayloadHash: Common.ContentHash;
+  readonly expectedUploadGeneration: 1;
+};
+  readonly integrity: {
+  readonly canonicalizationVersion: "1";
+  readonly payloadHash: Common.ContentHash;
+};
+  readonly expectedAggregateVersion: number;
+  readonly causationId?: Common.UuidV7;
+  readonly deadline?: Common.UtcInstant;
+};
+  readonly submittedNote?: string;
+  readonly analysisIntent: "ANALYZE";
+  readonly uploadState: {
+  readonly generation: 1 | 2;
+  readonly state: "ISSUED" | "RECEIVING" | "CLOSED_NO_OBJECT" | "STAGED" | "UNKNOWN";
+  readonly restartsUsed: 0 | 1;
+  readonly expiresAt: Common.UtcInstant;
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly custody: {
+  readonly status: "RECEIVING" | "STAGED" | "EXTRACTING" | "READY" | "PARTIAL" | "FAILED" | "UNKNOWN";
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly manifestRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly entries?: readonly ({
+  readonly entryId: Common.UuidV7;
+  readonly ordinal: number;
+  readonly originalName: string;
+  readonly normalizedPath: string;
+  readonly mediaType: string;
+  readonly byteLength: number;
+  readonly bytesSha256: Common.ContentHash;
+  readonly sourceRef: (Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.source_material";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+} & {
+  readonly objectType?: "SourceMaterial";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+});
+  readonly validationRef: (Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.validation_result";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+} & {
+  readonly objectType?: "ValidationResult";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+});
+  readonly status: "ANALYZABLE" | "UNSUPPORTED" | "CORRUPT" | "READ_LIMITED";
+  readonly reasonCodes: readonly Common.ReasonCode[];
+})[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly analysis: {
+  readonly status: "WAITING_INPUT" | "PENDING" | "WAITING_CAPABILITY" | "BLOCKED_AUTHORIZATION" | "PARTIAL" | "UNKNOWN" | "STALE" | "ACCEPTED";
+  readonly reasonCodes?: readonly Common.ReasonCode[];
+  readonly sourceReceiptRefs?: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs?: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly taskRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly analysisRequestRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.preparation_analysis_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly preparationSourceRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly intakeRef?: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly manifestRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly steps?: {
+  readonly SOURCE: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+  readonly TASK: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+  readonly ANALYSIS_REQUEST: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial" | "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+  readonly immutableVersionId?: Common.UuidV7;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly aggregateVersion?: number;
+};
+};
+  readonly sourceWatermarks?: readonly Common.SourceWatermark[];
+};
+  readonly allowedActions: readonly "RESTART"[];
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
+};
+  /** Payload of `integration.restart_customer_zip_upload` (COMMAND). */
+  export type IntegrationRestartCustomerZipUploadPayload = {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalKey: string;
+  readonly originalPayloadHash: Common.ContentHash;
+  readonly expectedUploadGeneration: 1;
+};
+  /** Result of `integration.restart_customer_zip_upload` (COMMAND). */
+  export type IntegrationRestartCustomerZipUploadResult = {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly originalKey: string;
+  readonly originalPayloadHash: Common.ContentHash;
+  readonly upload?: {
+  readonly generation: 1 | 2;
+  readonly token: string;
+  readonly expiresAt: Common.UtcInstant;
+  readonly method: "PUT";
+  readonly path: string;
+  readonly expectedByteLength: number;
+  readonly expectedZipBytesSha256: string;
+};
+  readonly receiptRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.command_receipt";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+};
+  /** Payload of `integration.CustomerZipManifestCommitted` (EVENT). */
+  export type IntegrationCustomerZipManifestCommittedPayload = {
+  readonly intakeRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_intake";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly manifestRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+  readonly scope?: {
+  readonly enterpriseId: Common.UuidV7;
+  readonly projectId: Common.UuidV7;
+};
+};
+  readonly submissionPayloadHash: Common.ContentHash;
+  readonly analysisIntent: "ANALYZE";
+};
 }

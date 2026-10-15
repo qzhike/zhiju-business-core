@@ -30,11 +30,13 @@ export function NewProjectPage({
   unavailable,
   create,
   controls,
+  newCustomerAllowed = true,
 }: {
   customers: readonly Customer[];
   unavailable?: string;
   create?: (intent: CreationIntent) => Promise<CreationReceipt>;
   controls?: ReactNode;
+  newCustomerAllowed?: boolean;
 }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
@@ -87,14 +89,14 @@ export function NewProjectPage({
           }
           const customer: CustomerIntent | null =
             mode === 'NEW'
-              ? { kind: 'NEW', name: name.trim() }
+              ? { kind: 'NEW', name }
               : selected === null
                 ? null
                 : { kind: 'EXISTING', customer: selected };
           if (customer === null) return;
           const intent: CreationIntent = {
             id: crypto.randomUUID(),
-            title: title.trim(),
+            title,
             customer,
           };
           lock.current = true;
@@ -107,7 +109,10 @@ export function NewProjectPage({
                 setError('创建结果待核验，回执与原输入不匹配；未进入其他项目。');
                 return;
               }
-              void navigate(`/projects/${encodeURIComponent(receipt.project.id)}/intake`);
+              void navigate(
+                receipt.recoveryHref ??
+                  `/projects/${encodeURIComponent(receipt.project.id)}/intake`,
+              );
             })
             .catch(() => {
               if (live.current) setError('未取得匹配创建回执，输入已保留；创建结果待核验。');
@@ -212,7 +217,7 @@ export function NewProjectPage({
           </p>
           <button
             type="button"
-            disabled={pending || lock.current}
+            disabled={pending || lock.current || (mode === 'EXISTING' && !newCustomerAllowed)}
             onClick={() => {
               setMode(mode === 'NEW' ? 'EXISTING' : 'NEW');
               setSelected(null);
@@ -247,6 +252,9 @@ export function NewProjectPage({
 }
 
 export interface IntakePageProps {
+  selectedProjectId?: string;
+  firstIntakeImmutable?: boolean;
+  submissionPending?: boolean;
   projects: readonly IntakeProject[];
   unavailable?: string;
   directoryNotice?: ReactNode;
@@ -258,9 +266,10 @@ export interface IntakePageProps {
 }
 export function IntakePage(props: IntakePageProps) {
   const params = useParams();
+  const selectedProjectId = props.selectedProjectId ?? params.projectId;
   const navigate = useNavigate();
-  const project = props.projects.find((item) => item.id === params.projectId);
-  if (!params.projectId)
+  const project = props.projects.find((item) => item.id === selectedProjectId);
+  if (!selectedProjectId)
     return (
       <div className="panel">
         <h1 tabIndex={-1}>提交客户资料</h1>
@@ -304,6 +313,8 @@ function ProjectIntake({
   unavailable,
   controls,
   directoryNotice,
+  firstIntakeImmutable,
+  submissionPending,
 }: IntakePageProps & { project: IntakeProject }) {
   const [zip, setZip] = useState<ZipSelection | null>(null);
   const [note, setNote] = useState('');
@@ -321,14 +332,14 @@ function ProjectIntake({
     (receipt) => receipt.input.projectId === project.id,
   );
   const current = history.at(-1);
-  const replaceable = current?.stage === 'PREPARATION_FAILED';
+  const replaceable = !firstIntakeImmutable && current?.stage === 'PREPARATION_FAILED';
   useEffect(() => {
     if (current?.stage === 'PREPARATION_FAILED' || current?.stage === 'ANALYSIS_FAILED')
       lock.current = false;
   }, [current?.stage]);
-  const frozen = current !== undefined && !replaceable;
-  const shownZip = frozen ? current.input.zip : zip;
-  const shownNote = frozen ? current.input.note : note;
+  const frozen = (current !== undefined && !replaceable) || submissionPending === true;
+  const shownZip = frozen && current ? current.input.zip : zip;
+  const shownNote = frozen && current ? current.input.note : note;
   return (
     <div className="intake-page">
       <div className="page-head">
@@ -374,7 +385,9 @@ function ProjectIntake({
             />
           </label>
           <p className="muted">
-            当前页面不读取、解包或分析本地文件。未接入上传能力时，文件不会上传。
+            {firstIntakeImmutable
+              ? 'ZIP 与说明将作为原始客户资料保存；提交后冻结。页面只核对文件身份，不执行分析。'
+              : '当前页面不读取、解包或分析本地文件。未接入上传能力时，文件不会上传。'}
           </p>
         </div>
         {shownZip && (

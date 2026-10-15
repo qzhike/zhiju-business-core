@@ -877,8 +877,8 @@ describe('trusted human session', () => {
             integrity: null,
           }),
         });
-        expect(command.status).toBe(503);
-        expect((command.json as Record<string, unknown>).code).toBe('DEPENDENCY_UNAVAILABLE');
+        expect(command.status).toBe(404);
+        expect((command.json as Record<string, unknown>).code).toBe('NOT_FOUND');
 
         const zip = await stack.inject({
           method: 'PUT',

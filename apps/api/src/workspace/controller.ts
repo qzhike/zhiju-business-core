@@ -99,6 +99,14 @@ export interface WorkspaceMarkdownStreamRequest extends WorkspaceVerifiedAccess 
   readonly signal: AbortSignal;
 }
 
+export interface WorkspaceZipUploadRequest extends WorkspaceVerifiedAccess {
+  readonly intakeId: string;
+  readonly token: string;
+  readonly bytes: AsyncIterable<Uint8Array>;
+  readonly contentLength?: number;
+  readonly signal: AbortSignal;
+}
+
 /**
  * The trusted runtime behind the HTTP surface. Every method fails closed: it
  * either returns a verified result or throws `WorkspaceCoreError` with a code
@@ -114,6 +122,7 @@ export interface WorkspaceTransportRuntime {
   }): Promise<WorkspaceVerifiedAccess>;
   bootstrapHuman(access: WorkspaceVerifiedAccess): Promise<WorkspaceHumanBootstrap>;
   dispatch(request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse>;
+  uploadZip?(request: WorkspaceZipUploadRequest): Promise<unknown>;
   streamMarkdown?(request: WorkspaceMarkdownStreamRequest): Promise<{
     bytes: AsyncIterable<Buffer>;
     byteLength: number;
@@ -177,14 +186,19 @@ async function reject(
 /**
  * Registers the transport-level guard on the underlying Fastify instance. It
  * runs on `onRequest`, i.e. before the body is parsed, so a non-peer is rejected
- * with a safe 403 and the ZIP route with a safe 404 without ever reading a byte
- * of the body. It also enforces the fixed JSON content type and the 64 KiB body
- * limit. Health and any non-workspace route are untouched.
+ * with a safe 403 before consuming the body. An unconfigured ZIP route is
+ * a safe 404; configured ZIP bodies remain streams for the owning byte limits.
+ * Other operations retain the fixed JSON content type and 64 KiB body limit. Health and any non-workspace route are untouched.
  */
 export function registerWorkspaceTransport(
   server: FastifyInstance,
-  runtime: Pick<WorkspaceTransportRuntime, 'isTrustedPeer'>,
+  runtime: Pick<WorkspaceTransportRuntime, 'isTrustedPeer' | 'uploadZip'>,
 ): void {
+  if (!server.hasContentTypeParser('application/zip')) {
+    server.addContentTypeParser('application/zip', (_request, payload, done) => {
+      done(null, payload);
+    });
+  }
   server.addHook('onRequest', async (request, reply) => {
     if (!isWorkspacePath(request.url)) return;
     reply.header('Cache-Control', 'no-store');
@@ -206,7 +220,24 @@ export function registerWorkspaceTransport(
     // The ZIP route has no registered owning transport in this release: reply
     // 404 without consuming the (potentially large) request body.
     if (request.method === 'PUT' && pathOf(request.url).startsWith('/api/customer-intakes/')) {
-      await reject(reply, correlationId, CORE_ERROR_CODE.NOT_FOUND);
+      if (!runtime.uploadZip) {
+        await reject(reply, correlationId, CORE_ERROR_CODE.NOT_FOUND);
+        return;
+      }
+      if (
+        !/^\/api\/customer-intakes\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/zip$/.test(
+          request.url,
+        ) ||
+        headerValue(request, 'content-type') !== 'application/zip' ||
+        request.headers['content-encoding'] !== undefined ||
+        request.headers.range !== undefined
+      ) {
+        await reject(reply, correlationId, CORE_ERROR_CODE.API_VALUE_INVALID);
+        return;
+      }
+      const length = headerValue(request, 'content-length');
+      if (length !== undefined && (!/^[1-9][0-9]*$/.test(length) || Number(length) > 104_857_600))
+        await reply.status(413).send(transportBody('PAYLOAD_TOO_LARGE', correlationId));
       return;
     }
 
@@ -283,10 +314,41 @@ export class WorkspaceController {
 
   @Put('api/customer-intakes/:intakeId/zip')
   async customerIntakeZip(
+    @Param('intakeId') intakeId: string,
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    await reject(reply, correlationOf(request), CORE_ERROR_CODE.NOT_FOUND);
+    const abort = new AbortController();
+    const disconnect = () => {
+      abort.abort();
+    };
+    request.raw.once('aborted', disconnect);
+    reply.raw.once('close', disconnect);
+    try {
+      if (!this.runtime.uploadZip) throw new WorkspaceCoreError(CORE_ERROR_CODE.NOT_FOUND);
+      const access = await this.authenticate(request);
+      const token = headerValue(request, 'x-intake-upload-token');
+      if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token))
+        throw new WorkspaceCoreError(CORE_ERROR_CODE.API_VALUE_INVALID);
+      const stream = request.body as AsyncIterable<Uint8Array> | undefined;
+      if (!stream || typeof stream[Symbol.asyncIterator] !== 'function')
+        throw new WorkspaceCoreError(CORE_ERROR_CODE.API_VALUE_INVALID);
+      const length = headerValue(request, 'content-length');
+      const data = await this.runtime.uploadZip({
+        ...access,
+        intakeId,
+        token,
+        bytes: stream,
+        signal: abort.signal,
+        ...(length === undefined ? {} : { contentLength: Number(length) }),
+      });
+      await reply.status(200).send(data);
+    } catch (error) {
+      await this.fail(reply, error, correlationOf(request));
+    } finally {
+      request.raw.removeListener('aborted', disconnect);
+      reply.raw.removeListener('close', disconnect);
+    }
   }
 
   @Get('api/markdown-representations/:representationId/content')

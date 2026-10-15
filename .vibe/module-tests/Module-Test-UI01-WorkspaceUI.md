@@ -276,3 +276,8 @@ reviewer and timestamp
 | 未知回执与生产隔离 | PENDING/UNKNOWN 禁重复提交；UNKNOWN 离开范围页再返回仍保留精确原意图、选择及只读查询入口；正式构建无演示适配器或合成成功 | Startup adapter / production build |
 
 页面和匿名适配器的自动化结果记录于 #284 PR；真实服务、Runner、持久化、跨设备、完整 Chrome/Edge 平台矩阵及人工验收仍为 `NOT RUN`。
+
+
+## #291 准备旅程实现测试入口
+
+新增 `tests/persistence/preparation-built-browser.test.ts` 使用当前 production SPA 制品、真实 HTTP BFF/Core 与 owning PostgreSQL，前置公司规则/预设/准入由 owner Port 发布；受控本地 OIDC 和对象传输显式限定，不能视为外部 Provider/Ceph/Runner 验收。`preparation-journey.test.ts` 核对跨 owner 的 NEW/EXISTING 创建、ZIP+note 原文恢复、source/manifest/handoff 与无 TE 的诚实状态；IP/EP/IG 各有独立持久化故障/权限/CAS测试。`tests/workspace/preparation-transport.test.ts` 核 raw payload 与 cv1/NFC 的不同职责、完整 Scope/伪造 actor/hash 拒绝和安全恢复 URL；BFF zip-body 验证 backpressure、累计/声明长度、失权和超时。状态与精确 revision 的运行证据保留在 Issue/PR，人工/真实外部能力仍 NOT RUN。

@@ -72,6 +72,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'company_rule_withdrawal',
     'company_rule_receipt',
     'company_rule_audit',
+    // IM-UI-01 T2 (#291): owning preparation admission and membership facts.
+    'preparation_fact',
   ],
   enterprise_project: [
     'business_probe',
@@ -128,6 +130,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'company_startup_requirement',
     'company_startup_requirement_publication',
     'company_startup_receipt',
+    // IM-UI-01 T2 (#291): owning preparation creation and handoff facts.
+    'preparation_fact',
     // IM-03 WI-09 (issue #65): Project-owned GapAnalysis input, version,
     // finding and Human decision facts.
     'gap_analysis',
@@ -300,6 +304,9 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'runtime_attempt_observation',
     'runtime_adapter_identity',
     'runtime_final_observation',
+    // IM-UI-01 T2 (#291): owning ZIP custody and immutable manifest facts.
+    'customer_zip_intake',
+    'customer_zip_manifest',
   ],
 };
 

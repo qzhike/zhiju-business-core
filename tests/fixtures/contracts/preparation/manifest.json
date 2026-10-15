@@ -1,0 +1,299 @@
+{
+  "provenance": "SYNTHETIC_CONTRACT_FIXTURES_ONLY",
+  "fixtures": [
+    {
+      "file": "project-find_preparation_enterprises-payload-valid.json",
+      "operation": "project.find_preparation_enterprises",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-request_project_preparation-payload-valid.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-get_project_preparation_request-payload-valid.json",
+      "operation": "project.get_project_preparation_request",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "integration-request_customer_zip_intake-payload-valid.json",
+      "operation": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "integration-get_customer_zip_intake-payload-valid.json",
+      "operation": "integration.get_customer_zip_intake",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "integration-restart_customer_zip_upload-payload-valid.json",
+      "operation": "integration.restart_customer_zip_upload",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "integration-CustomerZipManifestCommitted-payload-valid.json",
+      "operation": "integration.CustomerZipManifestCommitted",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-create_preparing_project-payload-valid.json",
+      "operation": "project.create_preparing_project",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-capture_preparation_source-payload-valid.json",
+      "operation": "project.capture_preparation_source",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-get_preparation_source-payload-valid.json",
+      "operation": "project.get_preparation_source",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-PreparingProjectCreated-payload-valid.json",
+      "operation": "project.PreparingProjectCreated",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project-find_preparation_enterprises-result-valid.json",
+      "operation": "project.find_preparation_enterprises",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-request_project_preparation-result-valid.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-get_project_preparation_request-result-valid.json",
+      "operation": "project.get_project_preparation_request",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "integration-request_customer_zip_intake-result-valid.json",
+      "operation": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "integration-get_customer_zip_intake-result-valid.json",
+      "operation": "integration.get_customer_zip_intake",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "integration-restart_customer_zip_upload-result-valid.json",
+      "operation": "integration.restart_customer_zip_upload",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-create_preparing_project-result-valid.json",
+      "operation": "project.create_preparing_project",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-capture_preparation_source-result-valid.json",
+      "operation": "project.capture_preparation_source",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-get_preparation_source-result-valid.json",
+      "operation": "project.get_preparation_source",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "request-payload-extra-actor.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "request-payload-weak-preset-ref.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "find-payload-extra-scope.json",
+      "operation": "project.find_preparation_enterprises",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "intake-payload-extra-objective.json",
+      "operation": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "intake-payload-incomplete-project-scope.json",
+      "operation": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "intake-payload-invalid-hash.json",
+      "operation": "integration.request_customer_zip_intake",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "restart-payload-second-restart.json",
+      "operation": "integration.restart_customer_zip_upload",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "capture-payload-missing-rule-publication.json",
+      "operation": "project.capture_preparation_source",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "source-query-weak-snapshot.json",
+      "operation": "project.get_preparation_source",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "preparing-event-extra-status.json",
+      "operation": "project.PreparingProjectCreated",
+      "version": "1.0",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "request-result-extra-original-actor.json",
+      "operation": "project.get_project_preparation_request",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "request-result-invented-native-receipt.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "request-result-hash-with-contenthash-on-versioned.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "intake-result-fake-report.json",
+      "operation": "integration.get_customer_zip_intake",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "intake-result-weak-source-ref.json",
+      "operation": "integration.get_customer_zip_intake",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "restart-result-extra-new-intake.json",
+      "operation": "integration.restart_customer_zip_upload",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "request-original-command-valid.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "command",
+      "valid": true
+    },
+    {
+      "file": "request-original-command-wrong-scope.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "command",
+      "valid": false
+    },
+    {
+      "file": "request-original-command-wrong-payload-hash.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "command",
+      "valid": false
+    },
+    {
+      "file": "request-original-command-extra-actor.json",
+      "operation": "project.request_project_preparation",
+      "version": "1.0",
+      "mode": "command",
+      "valid": false
+    },
+    {
+      "file": "project-get_preparation_source-result-unknown.json",
+      "operation": "project.get_preparation_source",
+      "version": "1.0",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project-get_preparation_source-result-invented-status.json",
+      "operation": "project.get_preparation_source",
+      "version": "1.0",
+      "mode": "result",
+      "valid": false
+    }
+  ]
+}
