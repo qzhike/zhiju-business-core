@@ -1,5 +1,39 @@
 # PR #299 独立代码审查
 
+## 最新整合复审：08713bb / APPROVE
+
+- 日期：2026-10-15；PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)。
+- Reviewed product SHA：`08713bbd5c8a8294a7191ec1f79bbae542a9129c`，Reviewer 独立执行 `vibe repo --json` 确认；正式记录前工作树干净。
+- Reviewer outcome：`APPROVE`。本轮核对最新 main 整合、冲突解决和精确修订的 configured full 证据，未发现剩余可证实阻塞；R1、R2 维持关闭。此为独立代码审查结论，不是 GitHub 原生 APPROVED review，也不替代最终远端 required checks 或自动执行合并。
+
+### 本轮独立范围与冲突复核
+
+基于此前 R2 产品复核，重新检查 `f30ffd13a66cda63ad6217470b67018b3f131f33` 到本次 head 的增量、当前 PR 相对 main `f823a81b2ccd14207c242fed54c51d25387d55f0` 的差异及手工冲突交集。既有 main 新增的 Markdown review/delivery 页面与其测试、文档按已合并基线辨认，本轮重点检查它们与 #291 准备旅程的整合，不把其他审查记录的结论当作此次冲突已正确解决的证据。
+
+- `serve.mjs` 同时保留 main 的 `/review-workspace` 和 #291 的 `/preparations/<UUIDv7>`；旧有页面 routes 保留。Reviewer 对实际正则运行七组独立对照：两个新增入口及旧 `/projects/new`、delivery 路径匹配；UUIDv4、额外子路径和路径穿越形式拒绝。
+- `TrustedApp` 保留 main 的 DeliveryPage UNAVAILABLE 接线，同时保留 #291 的 LiveNewProject、LivePreparationRequest 与当前 Session/Scope guard；未见冲突解决移除准备流程或将开发 fixture 引入生产。未改变的准入、授权、ZIP/XML 安全、source/manifest/handoff 实现沿用此前已核对的代码边界。
+- UI owning Module-Test 完整保留 #286 有界审查工作区十一项场景、#287 页面工程接受集和 #291 准备旅程测试入口；各自受控本地与真实服务/外部/人工 NOT RUN 的边界未混同。
+- 中间 merge SHA `1318ca69e2e39ef749d75302166d923bc91ff967` 的 serve 正则行缺少缩进，Reviewer focused Prettier 确认失败并要求修正。`1318ca6 → 08713bb` 仅补该行两空格，不改变任何正则字符；精确 head 上 focused Prettier 检查 `serve.mjs` 与 UI Module-Test 已 PASS，该阻塞已闭合。
+
+### 精确 head 验证与证据限制
+
+Reviewer 独立读取原主会话 `80981` 的实际工具返回文本导出 `/tmp/pr-299-merge-full-tool-output.txt`，核对其产品 SHA、命令、退出码、可见摘要、持久化 gate/清理及最终 JSON。该导出明确声明工具截断，正文还存在内嵌截断；它不是完整原始日志，临时文件不作为仓库交付物。
+
+- `vibe verify full --json` 实际工具退出码 **0**；最终结果为 `{"status":"PASS","target":"full","command":"pnpm clean && pnpm verify","exit_code":0}`。此结果对应 `08713bb`，没有沿用整合前 head 的 full；Reviewer 未重复运行 full。
+- 可见普通测试摘要为 **142 files / 2952 tests PASS**，production browser 为 **7 passed**，包含 review/delivery 生产隔离对照。
+- fixture browser 可见启动 **53** 项用例，但该部分最终摘要已被截断；本记录不填入未经读回的 passed 数。PostgreSQL 的 test files/tests 汇总和第二次 migration 摘要同样不可见，不从前一修订复制计数或将不可见内容写作本轮独立核对事实。
+- 可见 PostgreSQL **gate passed**、临时容器移除；BFF/Core 清理时 active requests 均为 **0**，runtime/owning pools 以及其余清理阶段正常结束。关闭回调时尚有待派发 close 事件的 idle connections 不表示活动上传。configured full 的最终成功与这些可见记录一致。
+- focused 路由对照与格式检查只证明冲突交集，不代替上述 configured full。远端最终 head 的 CI 状态本轮未查询；本地 full 不能冒充 GitHub required checks 通过，后续文档子提交仍须由原主会话完成精确 head 交付检查。
+
+### 人类批准与剩余交付门禁
+
+下方保留的用户明确“批准”绑定 `f30ffd1`，满足已审 #291 实现与 R2 修订的人类技术审核门槛。本轮辨认该已批准产品语义仍保留：新增准入/隔离/XML 安全代码没有在 main 整合中被另行修改；冲突交集是既有 main 页面与两条入口、owning 测试文档的并存，以及格式修正。因此没有据无关 main 整合重新制造同一 #291 技术批准请求，也没有将旧批准伪写为用户对本次具体 SHA 的新批准。用户后续合并授权由原主会话掌握，必须与 required checks 等实际交付门禁分别处理。
+
+真实生产 Ceph/OIDC、native TE/Runner、报告、完整浏览器平台矩阵和独立人工/客户验收仍为 `NOT RUN`，本次整合与自动验证不提升这些层的状态。原主会话在审查记录文档子提交后执行文档验证、最终推送、精确 head CI 与已获授权的交付；本 Reviewer 只追加该记录，未修改产品、commit、push、merge 或轮询 CI。以下所有历史原文完整保留。
+
+---
+
+
 ## 2026-10-15 人类技术批准：f30ffd1
 
 用户在原会话收到下方 `f30ffd1 / HUMAN_REVIEW_REQUIRED` 复审结论后明确回复“批准”。本次批准绑定 `f30ffd13a66cda63ad6217470b67018b3f131f33`，覆盖已审 #291 实现及 R2 修订的人类技术批准门禁。记录前重新核验远端 head 未变化，PR 为 OPEN / Draft。
