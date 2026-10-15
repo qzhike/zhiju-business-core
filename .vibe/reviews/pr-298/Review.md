@@ -1,3 +1,21 @@
+APPROVE — `1bbb9173e6499a326c0e45a6fb8c5fd4e54d64d1` 的主干集成与 App.tsx 冲突解决经独立复审未发现实现阻塞；新 final head 的必需远端检查仍须完成，不将父提交的 full 结果改标为本提交的结果。下方完整保留此前审查与 CI 历史。
+
+## 2026-10-15 main 集成独立复审
+
+审查对象：[PR #298](https://github.com/qzhike/zhiju-business-core/pull/298) 的本地提议 head `1bbb9173e6499a326c0e45a6fb8c5fd4e54d64d1`。`vibe repo --json` 与 Git merge metadata 一致：父提交为已审查的 `60bf1bb0179aedbf8a0857018517bd365a40f25f` 与已合并 PR #297 的 main `4a07307`。本轮读回时远端 PR 仍为 `60bf1bb` / Draft，未声称新本地 head 已发布。Issue #287 与最新 PR comments 的精确选择、原意图恢复及下载事实要求没有改变。
+
+- 独立检查了 merge combined diff、相对两个父提交的 App.tsx 增量及完整相对 main 的变更路径。手动冲突解决同时保留 `FixtureReviewProvider` / `FixtureReviewWorkspace` 和 `FixtureDeliveryProvider` / delivery route；两者嵌套于既有 Execution provider 内且位于 Routes 外。普通路由导航不会因本次嵌套而卸载 Delivery provider 的原意图/下载读模型，Review workspace 的 Context 仍覆盖自身与执行页审阅入口。
+- 两组 fixture lazy imports 均保留 `__DEV_FIXTURE__` 编译分支，Production 仍通过 TrustedApp；没有将合成 Review/Delivery 入口接入生产。相对 `60bf1bb` 的 delivery 页面、模型、adapter、focused browser 回归及 TrustedApp 均无变更，R1/R2 的原锁、id/checkToken/精确成员核对、观察保留/去重与迟到回执保护继续适用。
+- 主干带入的 #286 Review workspace 及 UI01 权威增量保留，#287 页面边界与接受集也未被覆盖。相对 main 的工作项增量仍限于既有 #287 页面/文档/测试范围；未新增 Core、公开业务 Contract、权限或持久化行为。已目视检查集成验证生成的 1280px 与 320px delivery 截图，未发现主干共享样式影响交付清单或窄屏查看的回归。
+- 当前集成内容的实际 `vibe verify code --json` 由原会话执行并转交：session `59170` / chunk `ad68cd`，PASS；129 files / 2725 tests、7 production checks + 53 fixture journeys 全部通过。此证据覆盖合并后的共存入口、生产隔离与两组页面回归；本 Reviewer 未重复运行 configured target，`git diff --check 60bf1bb..1bbb917` 通过。
+- [run 38690448023 / attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/38690448023) 的完整 SUCCESS 精确绑定父提交 `60bf1bb0179aedbf8a0857018517bd365a40f25f`（最终 verify 于 `2026-10-15T06:49:19Z` 完成）。按用户要求复用该已完成证据，不重复本地 full；它证明父提交已验证，不自动证明 `1bbb917` 或随后文档提交的 final SHA 完整 CI 通过。新 push 的自动 CI 照常由原会话取得，final head 的必需检查全部通过后才可执行已获授权的 merge / Issue 关闭 / 分支清理。
+- 结论为 `APPROVE`，绑定 `1bbb9173e6499a326c0e45a6fb8c5fd4e54d64d1` 的当前集成实现审查，没有尚需修复的实现阻塞。新的远端 full/汇总结果仍是交付门禁；本轮未查询 CI、启动 waiter、修改产品代码、commit、push 或 merge，只追加正式记录并完整保留历史。
+- 真实 D12 服务、发布授权、受控归档/下载传输、Runner、生产与跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工验收仍为 **NOT RUN**；本次主干集成和 code PASS 不改变这些边界。
+
+---
+
+以下为完整保留的此前审查；当前实现审查以上方精确修订为准。
+
 APPROVE — `60bf1bb0179aedbf8a0857018517bd365a40f25f` 的 R1、R2 已独立验证修复，未发现阻塞缺陷；同一 head 的完整 CI 已通过，本轮复审完成。下方保留此前修订的审查历史。
 
 ## 2026-10-15 用户请求的最新 head 复审
