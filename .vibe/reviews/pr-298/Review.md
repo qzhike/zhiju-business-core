@@ -1,3 +1,34 @@
+APPROVE — 2026-10-15 对 `0181999219dcdee2cf8b1e846675770836189473` 的独立复审确认 R1、R2 已修复，当前 Draft 阶段未发现阻塞问题；本结论不将 full / Ready / Delivery 门禁记为通过。下方完整保留 REQUEST_CHANGES 与旧 APPROVE 历史。
+
+## 2026-10-15 R1 / R2 修复独立复审
+
+审查对象：[PR #298](https://github.com/qzhike/zhiju-business-core/pull/298)，完整 SHA `0181999219dcdee2cf8b1e846675770836189473`，关联 [Issue #287](https://github.com/qzhike/zhiju-business-core/issues/287)。`vibe repo --json` 与本轮 GitHub 读回的 PR head 一致，PR 仍为 Draft。先读取最新 [REQUEST_CHANGES comment](https://github.com/qzhike/zhiju-business-core/pull/298#issuecomment-6185339833)、Issue、UI01 Spec/Test 与既有 D12 原意图/下载事实约束，再检查修复 diff 及相关实现、回归断言；未依据 Implementer 的修复说明直接认可结果。
+
+### R1：原意图导航恢复已满足
+
+`FixtureDeliveryProvider` 在当前内存会话保存 receipt 与原 intents；共享 `DeliveryPage` 接收类型化 recovery 输入，重挂载时从同一 receipt 初始化显示与 confirmation lock。导航返回后可查询原意图，未核实原请求时不能再次确认。adapter 的只读恢复按同一 intent id 查找，继续同时验证原 checkToken 与 selectionKey；后者包含 Project、context、接收范围及精确文件/Revision/资格观察/来源。页面接收回执时仍使用 matchingReceipt 核对原 id、checkToken、exact members 与固定包成员，不以 read 替代成新的 confirm。
+
+新 built-browser 回归先确认 UNKNOWN，明确等待工作台可见及交付页卸载后再返回，比较原回执，检查确认入口禁用、同一 intent 回读、固定包 URL 与原 CORR-REV-01 成员，确认调用仍为一次。该测试针对原反例补齐了此前遗漏的路由卸载边界。
+
+访问 EXPIRED / UNAVAILABLE 或恢复输入与当前 Project/context/接收范围不匹配时，恢复 receipt 清空；workspace key 随该范围变化而重挂载。既有 alive 与 request generation 防护仍约束迟到确认/回读，旧页面卸载后不会重新写入 recovery。已检查既有 access-expiration / late-receipt 回归仍覆盖清空与忽略迟到回执；未把静态 Scope 分支检查冒充真实 Session/跨 Scope 服务验收。
+
+### R2：同包下载观察导航保留已满足
+
+开发 adapter 将每条已供应的 DownloadFact 写回同一 package 的内存 downloads，以 observation id 防止重复；共享详情将 package 已保存观察与本地返回观察按同一 id 合并。更新仅追加下载事实，不修改原包成员、Revision、来源或引入保存/发送/收件成功标记。显式供应的 UNKNOWN 与 REQUESTED、FAILED、RESPONSE_STARTED、RESPONSE_SENT 分别保留。
+
+新 built-browser 回归对五类观察逐次下载并离开到工作台，等待卸载后返回相同 package URL；每次检查累计记录数及全部已供应状态仍存在。REQUESTED 路径实际捕获合成 ZIP download 事件；返回前后计数一致，也覆盖同一观察同时存在于 provider 与页面时不重复显示。真实受控下载或跨设备恢复没有因此被宣告实现。
+
+### 当前证据与交接
+
+- 原会话转交的实际 `vibe verify code --json` 执行证据绑定本次提交内容，提交前无后续实现变化：session `60944` / chunk `023960`，PASS、exit `0`；127 files / 2712 tests、6 production checks + 43 fixture browser journeys 全部通过，包括上述两条卸载返回回归。复用该可信证据，未重复运行 configured target。
+- 独立检查了完整修复 diff、当前 matchingReceipt / selectionKey、原请求锁、失效及迟到回执保护、同包观察合并与配套 UI01 Spec/Test 更新。修复限于既有页面/内存 adapter 与接受集，无新公开 Contract、业务 API、权限、浏览器持久存储或持久化变化；未发现新增阻塞问题。
+- 本轮仅更新本正式 review，完整保留下方历史；未修改产品代码、commit、push、发布 GitHub review 或启动/轮询 CI waiter。远端 CI 与 full 证据由原会话继续处理，历史运行不作为新 SHA 的 full PASS。
+- 当前结论为 `APPROVE`，绑定 `0181999219dcdee2cf8b1e846675770836189473` 的 Draft 实现审查。进入 Ready / Delivery 前仍须满足最终 SHA 的 full 与必需远端检查；本结论不授权 merge。真实 D12 服务、发布授权、受控归档/下载传输、Runner、持久化、跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工验收仍为 **NOT RUN**。
+
+---
+
+以下为完整保留的历史审查；当前结论以上方精确修订复审为准。
+
 REQUEST_CHANGES — 2026-10-15 对 `b8a879150bca12e97b2beaf1a56b20adee16bfe4` 的独立复审发现两项同标签页导航恢复缺陷；须修复后复审新 head。下方保留先前审查作为历史记录。
 
 ## 2026-10-15 当前 head 独立复审
