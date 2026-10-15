@@ -1,3 +1,23 @@
+APPROVE — `60bf1bb0179aedbf8a0857018517bd365a40f25f` 的 R1、R2 已独立验证修复，未发现阻塞缺陷；同一 head 的完整 CI 已通过，本轮复审完成。下方保留此前修订的审查历史。
+
+## 2026-10-15 用户请求的最新 head 复审
+
+审查对象：[PR #298](https://github.com/qzhike/zhiju-business-core/pull/298)，head `60bf1bb0179aedbf8a0857018517bd365a40f25f`，base `08b3fe57fc6cef5176295cfecc2222c6a6ad4183`。重新读取最新 Issue #287、PR/comments、修复 diff、受影响 UI01 Spec/Test 及相关页面/adapter/测试；先前审查所依据的 D12 精确引用、原意图和下载事实约束继续适用。
+
+- R1 已修复：恢复 receipt 与 intent 存在 provider 的内存会话中，页面重挂载恢复原锁；read 校验原 id、checkToken 与 selectionKey。UNKNOWN 导航返回可查询原意图，确认调用仍为一次。
+- R2 已修复：adapter 将供应的下载观察追加至同一包的 downloads，页面合并时按 observation id 去重；五类供应观察导航返回后仍存在，固定成员不变。
+- 本轮独立运行 `tests/workspace/delivery.spec.ts` 的全部 7 项非 production 用例，受控 Chromium `156.0.8078.4`，**7 passed / 15.7s / exit 0**。运行方式为当前源码的本机 Vite fixture server + Playwright；包括两条导航返回回归、资格/配套失效、UNKNOWN、固定 ZIP、下载观察、失权/迟到回执、200 文件、视口、键盘与 axe。此证据是 focused development-browser 验证，不冒充新执行的 production build 或完整 configured target。
+- `0181999..60bf1bb` 仅追加正式审查文档；本轮仍独立检查当前代码及测试，不把此前 Reviewer 的 APPROVE 当作本轮结果。
+- 当前完整 PR 含 App.tsx、TrustedApp.tsx 及新增页面等 full 路径，按验证基准 §2.1.1 保留完整 CI Gate。用户通知 CI 已完成后，本轮读取 [run 38690448023 / attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/38690448023) 的最终结果，并确认 PR head 仍为 `60bf1bb0179aedbf8a0857018517bd365a40f25f`：整体 COMPLETED / SUCCESS，select SUCCESS、[checks SUCCESS](https://github.com/qzhike/zhiju-business-core/actions/runs/38690448023/job/116275093247)、[persistence SUCCESS](https://github.com/qzhike/zhiju-business-core/actions/runs/38690448023/job/116275093138)、[verify SUCCESS](https://github.com/qzhike/zhiju-business-core/actions/runs/38690448023/job/116288462057)。Verify code 与 Verify persistence 步骤均实际成功执行，汇总于 `2026-10-15T06:49:19Z` 完成；当前修订所需完整 CI 证据已齐备，复用此证据，不重复运行本地 full。
+- 监测历史保留：此前 waiter job `54f6d483bef9baa6514a3a54` / event `43c2e5d4-f526-4bdc-83c7-54260521c7e7`（原 session `01a13e0f-43b1-73c3-9531-77f431750840`）以 `monitor_error: GitHub read timed out` 结束且已 ACK。当时一次核对仍为 persistence IN_PROGRESS；该事件没有被用作 CI 完成证据，也未重启同一事件的 waiter。本轮成功结论来自随后用户明确通知后的最终 GitHub 结果。
+- 真实 D12 服务、发布授权、受控归档/下载传输、Runner、生产与跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工验收仍 NOT RUN。focused 页面测试不构成持久化证据。
+- 本轮仅更新正式审查记录与授权的 PR comment，不修改实现、不 commit/push/merge。
+- 最终结论 `APPROVE` 仅绑定上述已审查 SHA 与 Issue #287 的页面工程范围。PR 读取时仍为 Draft；后续进入交付流程须满足正式文档交付及适用人类门禁，任何新 head 均须重新核对变更与证据。本结论不授权 merge 或宣告真实业务人工验收完成。
+
+---
+
+以下为先前修订的审查历史。
+
 APPROVE — 2026-10-15 对 `0181999219dcdee2cf8b1e846675770836189473` 的独立复审确认 R1、R2 已修复，当前 Draft 阶段未发现阻塞问题；本结论不将 full / Ready / Delivery 门禁记为通过。下方完整保留 REQUEST_CHANGES 与旧 APPROVE 历史。
 
 ## 2026-10-15 R1 / R2 修复独立复审
