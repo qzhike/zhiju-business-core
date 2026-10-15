@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { DeliveryPage } from './delivery/Page.js';
 import { ExecutionNavigation, ExecutionPage } from './execution/Page.js';
 import { ContentBoundary, Missing } from './shell.js';
 import { MarkdownReview } from './MarkdownReview.js';
@@ -320,12 +321,7 @@ export function TrustedApp() {
                     />
                     <Route
                       path="/projects/:projectId/delivery"
-                      element={
-                        <UnavailablePage
-                          title="项目交付"
-                          reason="项目交付页面与受控导出尚未接入；不会生成交付包或交付成功记录。"
-                        />
-                      }
+                      element={<DeliveryPage phase="UNAVAILABLE" />}
                     />
                     <Route
                       path="/projects/:projectId/tasks/:taskId"
