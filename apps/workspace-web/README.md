@@ -164,3 +164,27 @@ keeps immutable synthetic versions and an unsaved local note; feedback, approval
 and real file-review integration remain separate page work. Reload clears these event
 fixtures, without resubmitting a business request. Real Runner progress, retry
 authorization, persistence, cross-device drafts and human acceptance remain NOT RUN.
+
+The shared project-delivery page lives in `src/delivery`. Its typed presentation
+inputs retain exact revisions, qualification observations, plan context and
+round/report provenance. An adapter supplies selection verification and supporting
+requirements; the browser does not evaluate release policy. One explicit
+confirmation freezes an intent, and pending/UNKNOWN recovery reads that same
+intent without resubmission. Package history uses `?view=history&package=...`
+on the project delivery route, preserving the selection while inspecting a fixed
+package. Download observations describe requests and server responses, never
+browser saves, external sending, customer receipt or project completion.
+
+Production renders the shared unavailable boundary until authorized D12 reads,
+confirmation and export capabilities exist. `src/fixtures/delivery.tsx` is an
+isolated, memory-only development adapter using the same page. Open
+`/projects/DEMO-PROJECT-01/delivery` in a fixture build to inspect cross-round
+selection, supplied supporting requirements, changed eligibility/revisions,
+pending/UNKNOWN recovery, unavailable downloads and 200-file scrolling. Its ZIP
+contains explicitly synthetic Markdown and a synthetic manifest, not customer
+bytes or a controlled export. No business endpoint, release policy, browser
+persistence or authorization is added. Narrow screens expose viewing and package
+details; full batch confirmation follows the approved desktop workflow. Viewport
+controls never replace server authorization. Real services, persistence,
+cross-device recovery, the complete Chrome/Edge platform matrix and independent
+Human acceptance remain NOT RUN.

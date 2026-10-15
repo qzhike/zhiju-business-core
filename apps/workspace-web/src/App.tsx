@@ -83,6 +83,19 @@ const FixtureExecutionReview = lazy(() => {
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
 
+const FixtureDeliveryProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/delivery.js').then((module) => ({
+      default: module.FixtureDeliveryProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureDelivery = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/delivery.js').then((module) => ({ default: module.FixtureDelivery }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+
 const projectId = 'DEMO-PROJECT-01';
 
 async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
@@ -210,57 +223,54 @@ function FixtureApp() {
                       <FixtureAnalysisProvider>
                         <ExecutionNavigation>
                           <FixtureExecutionProvider>
-                            <FixturePageFocus />
-                            <Routes>
-                              <Route path="/" element={<Navigate to="/workbench" replace />} />
-                              <Route path="/workbench" element={<FixtureWorkbench />} />
-                              <Route path="/projects/new" element={<FixtureNewProject />} />
-                              <Route
-                                path="/projects/:projectId/intake"
-                                element={<FixtureIntake />}
-                              />
-                              <Route path="/initial-analysis" element={<FixtureIntake />} />
-                              <Route
-                                path="/projects/:projectId/analysis/:reportId"
-                                element={<FixtureAnalysis />}
-                              />
-                              <Route
-                                path="/projects/:projectId/startup/:reportId"
-                                element={
-                                  <FixtureAnalysisStartup
-                                    data={query.data}
-                                    key={location.pathname}
-                                  />
-                                }
-                              />
-                              <Route
-                                path="/projects/:projectId/executions/:requestId"
-                                element={<FixtureExecution data={query.data} />}
-                              />
-                              <Route
-                                path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                                element={<FixtureExecutionReview key={location.pathname} />}
-                              />
-                              <Route
-                                path="/projects/:projectId/delivery"
-                                element={
-                                  <UnavailablePage
-                                    title="项目交付"
-                                    reason="项目交付页面尚未交付；此处未生成交付包。"
-                                  />
-                                }
-                              />
-                              <Route
-                                path="/projects/:projectId/tasks/:taskId"
-                                element={
-                                  <UnavailablePage
-                                    title="任务详情"
-                                    reason="任务详情页面尚未交付。"
-                                  />
-                                }
-                              />
-                              <Route path="*" element={<Missing />} />
-                            </Routes>
+                            <FixtureDeliveryProvider>
+                              <FixturePageFocus />
+                              <Routes>
+                                <Route path="/" element={<Navigate to="/workbench" replace />} />
+                                <Route path="/workbench" element={<FixtureWorkbench />} />
+                                <Route path="/projects/new" element={<FixtureNewProject />} />
+                                <Route
+                                  path="/projects/:projectId/intake"
+                                  element={<FixtureIntake />}
+                                />
+                                <Route path="/initial-analysis" element={<FixtureIntake />} />
+                                <Route
+                                  path="/projects/:projectId/analysis/:reportId"
+                                  element={<FixtureAnalysis />}
+                                />
+                                <Route
+                                  path="/projects/:projectId/startup/:reportId"
+                                  element={
+                                    <FixtureAnalysisStartup
+                                      data={query.data}
+                                      key={location.pathname}
+                                    />
+                                  }
+                                />
+                                <Route
+                                  path="/projects/:projectId/executions/:requestId"
+                                  element={<FixtureExecution data={query.data} />}
+                                />
+                                <Route
+                                  path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                                  element={<FixtureExecutionReview key={location.pathname} />}
+                                />
+                                <Route
+                                  path="/projects/:projectId/delivery"
+                                  element={<FixtureDelivery />}
+                                />
+                                <Route
+                                  path="/projects/:projectId/tasks/:taskId"
+                                  element={
+                                    <UnavailablePage
+                                      title="任务详情"
+                                      reason="任务详情页面尚未交付。"
+                                    />
+                                  }
+                                />
+                                <Route path="*" element={<Missing />} />
+                              </Routes>
+                            </FixtureDeliveryProvider>
                           </FixtureExecutionProvider>
                         </ExecutionNavigation>
                       </FixtureAnalysisProvider>
