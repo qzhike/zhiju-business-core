@@ -1,6 +1,85 @@
 # PR #299 独立代码审查
 
-## 最新复审：#291 完整修订
+## 最新复审：R2 修订 / 967e333 / HUMAN_REVIEW_REQUIRED
+
+- 日期：2026-10-15；Issue：[#291](https://github.com/qzhike/zhiju-business-core/issues/291)，PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)，仍为 Draft。
+- Reviewed product SHA：`967e333b27acb2ec29e0c85ae98c0867da934dee`。Reviewer 独立运行 `vibe repo --json` 确认；复核时唯一未提交差异是用户上一轮 R2 正式审查记录，产品工作树没有其他差异。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。R2 已证实的 XML 反例及本轮另发现的 namespace trim 反例均已修复，当前复核未发现新的可证实阻塞实现缺陷；#291 整体的适用人类技术审核仍须完成，不据本结论合并或认定生产验收完成。
+- R1 的实现范围缺口继续保持已关闭；下方 `508987c / REQUEST_CHANGES` 为修订前的有效历史发现，完整保留，不代表本产品 SHA 仍接受那些反例。此前所有审查与验证记录同样保留其各自修订含义。
+
+### 独立范围、反例与修订核对
+
+重新读取 [R2 comment](https://github.com/qzhike/zhiju-business-core/pull/299#issuecomment-6189936913)、IG owning Spec/Test 和 D14 ZIP 边界，并检查该产品提交的七个文件。预期是从真实 XML 根及直接子元素判断 OOXML、完成良构性校验、禁止 DTD/外部实体且保持原资源上限；正常 DOCX 应可分析，坏 DOCX 与合法 Markdown 共存时保留 CORRUPT/PARTIAL，零可分析源不得形成成功交接。此轮不重新定义 DOCX 专业内容验收或实现新的提取/Runner 能力。
+
+- `zip-safety.ts` 已移除三套正则 XML 路径，改用固定 `saxes@6.0.0` 的单一路径、命名空间感知 SAX 事件。实际根的 local name/URI、直接子 Override 和同一内部 officeDocument Relationship 分别核验；注释、CDATA、PI 不构成元素证据。
+- parser error 与 doctype 事件即拒绝，不安装外部实体 resolver；重复属性（含不同前缀但相同 expanded name）、非法字符/字符引用、未绑定前缀等由严格解析拒绝。原 ZIP/CRC、DOCX 二级累计展开和至少一个可分析条目的闸门保留。
+- Reviewer 另独立复现 saxes 会 trim namespace 声明 URI 的边界：前后空格包围的错误 URI曾被转换成批准 URI，导致 DOCX-only 错误 ANALYZABLE。修订在 attribute callback 使用原解析值拒绝 namespace whitespace/trim 差异，先于 binding 与 tag.uri 判断；原复现 ZIP 直接运行修订源码现返回 `INTEGRATION_NO_ANALYZABLE_SOURCE`。三 XML 部件的 literal/entity padding 正负对照已加入。
+- XML 解析不建立 DOM，分块处理沿用本次 ZIP 的 120 秒墙钟预算，并在解码前预留 UTF-16/token buffers、对 live frames/attributes 计入现有 512 MiB 保守预算。deep-frame 测试使用默认 namespace，避免祖先前缀解析成本掩盖测试目的。没有放宽 ZIP policy 的任何上限。
+- `pnpm-lock.yaml` 的最终变化仅为新 parser 与其 `xmlchars` 依赖；临时顺带出现的 picomatch 更新已恢复。owning Spec/Test 更新与实际严格解析及失败语义一致。
+- owning PostgreSQL 新四项测试保留真实 ZIP/CRC。mixed 包验证实际 IG custody/manifest 为 PARTIAL、三类坏 DOCX 为 CORRUPT 且 analyzable=false；三个 DOCX-only 反例验证零 source 调用、object、manifest、event、handoff，原请求 replay 不改失败事实。该测试使用真实 IG owning 服务与 PostgreSQL，EP/object 端口为明确受控依赖，不能称为本轮 native EP/TE/Runner 外部验收。
+
+### 该产品修订的实际验证证据
+
+Reviewer 独立读取 `/tmp/pr-299-r2-full-tool-output.txt` 中原主会话 `82320` 的实际工具返回文本，核对产品 SHA、命令、工具退出码、汇总、migration/清理和最终 JSON。导出明确含工具截断声明，不是完整未截断日志；该临时文件不提交仓库，Reviewer 没有重复运行 full。
+
+- `vibe verify full --json` 工具退出码 **0**，最终结果 `{"status":"PASS","target":"full","command":"pnpm clean && pnpm verify","exit_code":0}`。
+- 普通测试 **139 files / 2936 tests PASS**；production browser **5 PASS**；fixture browser **36 PASS**。
+- Catalog/Registry/FULL 均 **258**；compatibility baseline 的 frozen **200 PASS**，未扩大本轮公共操作接受集。
+- PostgreSQL **64 files / 739 tests PASS**；第二次 migration 无待应用变更，gate passed，临时 PostgreSQL 容器移除。清理记录中 BFF/Core active requests 均为 0，runtime/owning pools 和其余清理阶段正常结束；未把关闭回调时待派发 close 事件的 idle connections 当作活动上传。
+- Reviewer 在上述精确产品 SHA 独立执行 `./node_modules/.bin/vitest run modules/integration-gateway/src/customer-zip/zip-safety.test.ts`，**1 file / 68 tests PASS**。此为反例与正常对照的 focused 核对，不能替代 configured full。
+
+### 保留门禁与交付边界
+
+本地 full 通过不等于远端 CI 通过。形成本记录时，本轮精确最终 head 的远端 required checks 尚无通过证据；由原主会话在文档提交后确认 CI，并按既有规则绑定原会话等待。该文档子提交不在 reviewed product SHA 中，不改变上述产品实现。
+
+真实生产 Ceph/OIDC 部署、native TE preparation engine、Runner/真实 execution ack、报告、完整浏览器平台矩阵与独立人工/客户验收仍为 `NOT RUN`。受控本地与协议测试只证明其实际覆盖层。适用人类技术审核、最终 CI 和合并授权继续独立保留，#277 的设计批准不被提升为本次实现的生产批准。
+
+本轮仅追加本正式复审记录；完整保留下方用户 R2 与更早轮次原文，未修改产品代码、commit、push、merge 或提交 GitHub 原生 review。
+
+---
+
+
+## 2026-10-15 独立复审：508987c / REQUEST_CHANGES
+
+- Reviewed SHA：`508987c520929005b638014bf76f54ee710aad1c`；本地 `vibe repo --json` 与发布前 GitHub head 一致，PR 仍为 Draft，开始时工作区干净。
+- Reviewer outcome：`REQUEST_CHANGES`。原 R1 的实现范围缺口已有实质交付；本轮独立反例发现 R2：DOCX XML 校验接受伪造命名空间与非良构 XML。下方其他轮次的 `HUMAN_REVIEW_REQUIRED` 和本地 full 记录保留历史含义，不能覆盖本次新发现。
+
+### 复审范围与 R1
+
+重新读取最新 #291（无新评论）、PR/head/评论、项目配置与 Reviewer/contract-review 规则，按 EP/IP/IG #277 owning 规格、D14 ZIP 限制和 API transport 建立独立预期。核对自原 `12a1cb2` 起的变更范围，检查真实 production routing/composition、前端创建与原请求恢复、IG request/query/upload/restart/source/manifest 流程、权限组合、迁移和相关 schema/fixtures；没有将其他审查者的结论当作本轮批准依据。
+
+原 R1 所指“仅有独立票据 helper、生产仍全部返回未实现”已不再成立：新增 production composition、有限 EP/IG handlers、React/BFF 接线、owning 服务及迁移都已存在。此项范围缺口关闭，不表示所有新增行为已经验收通过。本轮发现以下确定性缺陷后，按 Reviewer 规则报告阻塞，不宣称穷尽了整个新增实现的所有缺陷。
+
+### R2 / P2：DOCX XML 检查把损坏文件标为可分析
+
+定位：[zip-safety.ts L291–303](https://github.com/qzhike/zhiju-business-core/blob/508987c520929005b638014bf76f54ee710aad1c/modules/integration-gateway/src/customer-zip/zip-safety.ts#L291)，相关 `validXml` 为 L261–288，最终判定为 L443–462。
+
+`rootNamespace` 在原始 XML 文本上取第一个正则匹配，不排除注释。保持合法的 ZIP central/local headers、CRC、ContentTypes Override 和 package Relationship，仅将 `word/document.xml` 换成下列内容，当前 `scanCustomerZip` 仍返回 `ANALYZABLE`、空 reasonCodes：
+
+```xml
+<!-- <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/> -->
+<w:document xmlns:w="urn:wrong"><w:body/></w:document>
+```
+
+删除注释但保留同一错误根命名空间时，正确触发 `INTEGRATION_NO_ANALYZABLE_SOURCE`。注释本身不改变实际根元素的 expanded name，因此这是明确绕过，不是合法 OOXML 的另一种表示。
+
+同一 XML 检查边界另有两个干净负例：正确根命名空间下，根元素增加 `a="one" a="two"` 重复属性，或在 `<w:t>` 中放 `&#0;`，当前也均为 `ANALYZABLE`。Python 标准 XML parser 独立确认前者为 duplicate attribute，后者为 invalid character number；`validXml` 只匹配标签及实体字面模式，没有完成良构性检查。
+
+影响：只含该损坏 DOCX 的 ZIP 通过末尾“至少一个可分析条目”检查。`intake-service.ts` 按 scanner 结果设置 source 的 `validation.analyzable`，并将其写入 manifest；全条目被标可分析时 custody 可成为 READY。这违反 #291 Acceptance、[D14 §2](../../decisions/d14-rd01-first-customer-flow.md) 与 IG owning 规格的“损坏 DOCX 逐项 CORRUPT、零可分析源拒绝分析”要求。这里没有声称已复现外部 Runner 执行或代码执行。
+
+修复要求：从完成良构性验证的实际 XML 根元素取得命名空间，不让注释/CDATA/PI 充当元素证据；拒绝重复属性和非法字符引用，继续禁止 DTD/外部实体，并保持有界资源限制。新增正常 DOCX 正例、同包仅修改 document.xml 的上述负例，以及有合法 Markdown 时 CORRUPT/PARTIAL、仅坏 DOCX 时零可分析源拒绝的回归。由 Implementer 修改产品代码，修订后再次独立审查。
+
+### 本轮验证与门禁
+
+- 直接调用当前源码 `scanCustomerZip`，以 Python `zipfile` 生成普通 stored ZIP/内层 DOCX，实际重算 CRC 和长度；临时样本在 `/private/tmp/pr299-review-repro/`。正常 DOCX → ANALYZABLE；错误 namespace 无注释 → INTEGRATION_NO_ANALYZABLE_SOURCE；注释伪装、重复属性、非法字符引用 → 错误 ANALYZABLE。正常/错误 namespace 的标准 XML parser 读回分别为 `{http://schemas.openxmlformats.org/wordprocessingml/2006/main}document` / `{urn:wrong}document`，注释伪装仍是后者。
+- focused 命令：`./node_modules/.bin/vitest run modules/integration-gateway/src/customer-zip/zip-safety.test.ts modules/integration-gateway/src/customer-zip/upload-ticket.test.ts contracts/src/preparation-fixtures.test.ts contracts/src/preparation-intake.test.ts tests/workspace/preparation-transport.test.ts`；**5 files / 97 tests PASS**。现有测试通过不覆盖上述新反例，也不代替 full。
+- 当前 GitHub `statusCheckRollup=[]`；对精确 head 查询 workflow run 结果为 `[]`。远端 CI 为 NOT RUN，不沿用 helper head 的旧成功或运行状态，不注册无 run/attempt 可绑定的 waiter。
+- PR 与既有正式记录报告产品 SHA `e4b4359` 的本地 full PASS。本轮核对该 SHA 到 reviewed SHA 仅新增正式 Review.md；该事实说明产品代码未再变化，但未将他人记录写成本轮亲自执行的 full。已有明确实现缺陷，本轮未重复运行 full，也不以等待 CI 为由延迟报告 R2。
+- 原生 TE/Runner、真实生产 Ceph/OIDC 部署、完整平台浏览器矩阵与独立人工/客户验收仍 NOT RUN；适用人类技术批准和最终 CI 门禁继续保留，应先修复已证实问题再进入最终审核。
+
+本次仅追加正式审查记录，未修改产品实现，未 commit/push/merge。已按用户授权发布 [复审 comment 6189936913](https://github.com/qzhike/zhiju-business-core/pull/299#issuecomment-6189936913)，并通过 GitHub API 回读确认完整正文、reviewed SHA、R1 关闭与 R2 结论。这是普通 PR comment，不是 GitHub 原生 Request changes review。`git diff --check` 与本文件 Prettier check 通过。
+
+## 先前复审记录：#291 完整修订
 
 - 日期：2026-10-15。
 - PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)，Draft；Issue：[#291](https://github.com/qzhike/zhiju-business-core/issues/291)，T2。
