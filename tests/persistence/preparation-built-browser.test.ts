@@ -48,9 +48,9 @@ const lookupKey = Buffer.from('11'.repeat(32), 'hex'),
   fieldKey = Buffer.from('22'.repeat(32), 'hex');
 function cleanupStage(name: string, close: () => Promise<unknown>): () => Promise<void> {
   return async () => {
-    process.stdout.write(`Preparation cleanup ${name} start\n`);
+    process.stderr.write(`Preparation cleanup ${name} start\n`);
     await close();
-    process.stdout.write(`Preparation cleanup ${name} end\n`);
+    process.stderr.write(`Preparation cleanup ${name} end\n`);
   };
 }
 function httpCleanup(name: string, server: Server, close: () => Promise<unknown>) {
@@ -69,7 +69,7 @@ function httpCleanup(name: string, server: Server, close: () => Promise<unknown>
     response.once('close', done);
   });
   return cleanupStage(name, async () => {
-    process.stdout.write(
+    process.stderr.write(
       `Preparation HTTP ${name} active=${requests.size} connections=${sockets.size} routes=${[...requests.values()].join(',')}\n`,
     );
     const closed = close();
@@ -77,7 +77,7 @@ function httpCleanup(name: string, server: Server, close: () => Promise<unknown>
     // finish normally, and any hanging request remains visible in this stage.
     server.closeIdleConnections();
     await closed;
-    process.stdout.write(
+    process.stderr.write(
       `Preparation HTTP ${name} closed active=${requests.size} connections=${sockets.size}\n`,
     );
   });
