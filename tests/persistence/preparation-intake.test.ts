@@ -75,6 +75,76 @@ function zip(): Buffer {
   end.writeUInt32LE(local.length + name.length + bytes.length, 16);
   return Buffer.concat([local, name, bytes, central, name, end]);
 }
+function storedZip(entries: readonly { name: string; bytes: Buffer }[]): Buffer {
+  const locals: Buffer[] = [],
+    directories: Buffer[] = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name),
+      local = Buffer.alloc(30),
+      directory = Buffer.alloc(46),
+      crc = zipCrc32(entry.bytes);
+    local.writeUInt32LE(0x04034b50);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x800, 6);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(entry.bytes.length, 18);
+    local.writeUInt32LE(entry.bytes.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    directory.writeUInt32LE(0x02014b50);
+    directory.writeUInt16LE(20, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(0x800, 8);
+    directory.writeUInt32LE(crc, 16);
+    directory.writeUInt32LE(entry.bytes.length, 20);
+    directory.writeUInt32LE(entry.bytes.length, 24);
+    directory.writeUInt16LE(name.length, 28);
+    directory.writeUInt32LE(offset, 42);
+    locals.push(local, name, entry.bytes);
+    directories.push(directory, name);
+    offset += local.length + name.length + entry.bytes.length;
+  }
+  const directory = Buffer.concat(directories),
+    end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, end]);
+}
+const wordNamespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const malformedDocuments = [
+  {
+    name: 'comment-root.docx',
+    xml: `<!-- <w:document xmlns:w="${wordNamespace}"/> --><w:document xmlns:w="urn:wrong"><w:body/></w:document>`,
+  },
+  {
+    name: 'duplicate-attribute.docx',
+    xml: `<w:document xmlns:w="${wordNamespace}" a="one" a="two"><w:body/></w:document>`,
+  },
+  {
+    name: 'illegal-character.docx',
+    xml: `<w:document xmlns:w="${wordNamespace}"><w:body><w:p><w:r><w:t>&#0;</w:t></w:r></w:p></w:body></w:document>`,
+  },
+].map(({ name, xml }) => ({
+  name,
+  bytes: storedZip([
+    {
+      name: '[Content_Types].xml',
+      bytes: Buffer.from(
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+      ),
+    },
+    {
+      name: '_rels/.rels',
+      bytes: Buffer.from(
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+      ),
+    },
+    { name: 'word/document.xml', bytes: Buffer.from(xml) },
+  ]),
+}));
 describe.skipIf(!enabled)(
   'IG preparation intake owning PostgreSQL boundary with controlled EP/object ports',
   () => {
@@ -101,7 +171,9 @@ describe.skipIf(!enabled)(
     function fixture(inputBytes?: Buffer) {
       let clock = new Date();
       const objects = new Map<string, Buffer>(),
-        sourceCalls = new Map<string, number>();
+        sourceCalls = new Map<string, number>(),
+        sourceInputs = new Map<string, CustomerZipSourceInput>();
+      let handoffCalls = 0;
       let failHandoff = false;
       const policyRef = {
         ...ref('zhiju.integration.customer_zip_policy', newUuidV7()),
@@ -229,6 +301,7 @@ describe.skipIf(!enabled)(
             }),
           acceptSource: (_s, input: CustomerZipSourceInput) => {
             sourceCalls.set(input.sourceId, (sourceCalls.get(input.sourceId) ?? 0) + 1);
+            sourceInputs.set(input.sourceId, input);
             return Promise.resolve({
               sourceRef: {
                 ...ref('SourceMaterial', input.sourceId),
@@ -248,10 +321,12 @@ describe.skipIf(!enabled)(
             });
           },
           sourceLinks: () => Promise.resolve({ hasLinks: sourceCalls.size > 0 }),
-          acceptHandoff: () =>
-            failHandoff
+          acceptHandoff: () => {
+            handoffCalls += 1;
+            return failHandoff
               ? Promise.reject(new Error('EP_UNAVAILABLE'))
-              : Promise.resolve({ status: 'WAITING_CAPABILITY' }),
+              : Promise.resolve({ status: 'WAITING_CAPABILITY' });
+          },
           queryHandoff: () => Promise.resolve({ status: 'WAITING_CAPABILITY' }),
         },
       });
@@ -293,6 +368,8 @@ describe.skipIf(!enabled)(
         query,
         restart,
         sourceCalls,
+        sourceInputs,
+        handoffCalls: () => handoffCalls,
         objects,
         setClock: (value: Date) => {
           clock = value;
@@ -486,6 +563,92 @@ describe.skipIf(!enabled)(
       expect((await f.query()).custody.status).toBe('READY');
       expect([...f.sourceCalls.values()]).toEqual([1, 1, 1]);
     });
+    it('commits PARTIAL custody and a manifest retaining three malformed DOCX entries beside analyzable Markdown', async () => {
+      const f = fixture(
+        storedZip([
+          { name: 'valid.md', bytes: Buffer.from('# Customer source\n') },
+          ...malformedDocuments,
+        ]),
+      );
+      const created = await f.service.request(session, f.original);
+      async function* stream() {
+        yield f.bytes;
+      }
+      await f.service.upload(session, {
+        intakeId: f.intake.objectId,
+        token: required(created.upload).token,
+        stream: stream(),
+        contentLength: f.bytes.length,
+      });
+      const query = await f.query();
+      expect(query.originalCommand).toEqual(f.original);
+      expect(query.custody.status).toBe('PARTIAL');
+      expect(query.custody.manifestRef).toBeDefined();
+      expect(query.custody.entries).toHaveLength(4);
+      expect(query.custody.entries).toContainEqual(
+        expect.objectContaining({ originalName: 'valid.md', status: 'ANALYZABLE' }),
+      );
+      for (const { name } of malformedDocuments) {
+        expect(query.custody.entries).toContainEqual(
+          expect.objectContaining({
+            originalName: name,
+            status: 'CORRUPT',
+            reasonCodes: ['INVALID_DOCX'],
+          }),
+        );
+      }
+      for (const { name } of malformedDocuments) {
+        const source = [...f.sourceInputs.values()].find((input) => input.originalName === name);
+        expect(source?.validation.analyzable).toBe(false);
+      }
+      expect(f.handoffCalls()).toBe(1);
+      const manifests = await admin.query<{ payload: { entries: unknown[] } }>(
+        'SELECT payload FROM integration_gateway.customer_zip_manifest WHERE intake_id=$1',
+        [f.intake.objectId],
+      );
+      expect(manifests.rows).toHaveLength(1);
+      expect(manifests.rows[0]?.payload.entries).toEqual(query.custody.entries);
+    });
+    it.each(malformedDocuments)(
+      'rejects an upload containing only $name without accepting sources, manifest or handoff',
+      async (document) => {
+        const f = fixture(storedZip([document]));
+        const created = await f.service.request(session, f.original);
+        async function* stream() {
+          yield f.bytes;
+        }
+        await expect(
+          f.service.upload(session, {
+            intakeId: f.intake.objectId,
+            token: required(created.upload).token,
+            stream: stream(),
+            contentLength: f.bytes.length,
+          }),
+        ).rejects.toThrow('INTEGRATION_NO_ANALYZABLE_SOURCE');
+        const failed = await f.query();
+        expect(failed.originalCommand).toEqual(f.original);
+        expect(failed.custody.status).toBe('FAILED');
+        expect(failed.custody.reasonCodes).toEqual(['INTEGRATION_NO_ANALYZABLE_SOURCE']);
+        expect(failed.custody.manifestRef).toBeUndefined();
+        expect(failed.analysis).toEqual({ status: 'WAITING_INPUT' });
+        expect(failed.allowedActions).toEqual([]);
+        expect(f.sourceCalls.size).toBe(0);
+        expect(f.handoffCalls()).toBe(0);
+        expect(f.objects.size).toBe(0);
+        await f.service.request(session, f.original);
+        const recovered = await f.query();
+        expect(recovered.originalCommand).toEqual(f.original);
+        expect(recovered.custody).toEqual(failed.custody);
+        expect(f.sourceCalls.size).toBe(0);
+        expect(f.handoffCalls()).toBe(0);
+        expect(JSON.stringify(recovered)).not.toContain(required(created.upload).token);
+        const rows = await admin.query(
+          'SELECT (SELECT count(*) FROM integration_gateway.customer_zip_manifest WHERE intake_id=$1) AS manifests, (SELECT count(*) FROM integration_gateway.outbox_event WHERE aggregate_id=$1) AS events',
+          [f.intake.objectId],
+        );
+        expect(rows.rows[0]).toEqual({ manifests: '0', events: '0' });
+      },
+    );
     it.each(['UNSAFE', 'LIMIT', 'NO_ANALYZABLE', 'CORRUPT'] as const)(
       'keeps %s content failures terminal and rejects actual owner restart',
       async (kind) => {

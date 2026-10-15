@@ -55,6 +55,74 @@ function zip(
   return Buffer.concat([...locals, directory, end]);
 }
 const md = { name: '材料.md', bytes: Buffer.from('# 客户材料\n<script>untrusted</script>\n') };
+const docxXml = {
+  document:
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Customer text</w:t></w:r></w:p></w:body></w:document>',
+  types:
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+  relationships:
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+};
+type DocxPart = keyof typeof docxXml;
+function docx(overrides: Partial<Record<DocxPart, string>> = {}): Buffer {
+  const parts = { ...docxXml, ...overrides };
+  // Both the inner OOXML package and outer upload use real ZIP headers and CRCs.
+  return zip([
+    { name: '[Content_Types].xml', bytes: Buffer.from(parts.types) },
+    { name: '_rels/.rels', bytes: Buffer.from(parts.relationships) },
+    { name: 'word/document.xml', bytes: Buffer.from(parts.document) },
+  ]);
+}
+const malformedXmlCases = (Object.keys(docxXml) as DocxPart[]).flatMap((part) => {
+  const original = docxXml[part];
+  const opening = original.slice(0, original.indexOf('>') + 1);
+  const rootName =
+    part === 'document' ? 'w:document' : part === 'types' ? 'Types' : 'Relationships';
+  return [
+    {
+      label: `${part}: comment impersonates a namespace-valid root`,
+      part,
+      xml:
+        `<!-- ${opening.replace(/>$/u, '/>')} -->` +
+        original.replace(
+          /xmlns(?::w)?="[^"]+"/u,
+          part === 'document' ? 'xmlns:w="urn:wrong"' : 'xmlns="urn:wrong"',
+        ),
+    },
+    ...([' ', '&#32;'] as const).map((padding) => ({
+      label: `${part}: namespace URI padded with ${padding === ' ' ? 'literal' : 'numeric'} spaces`,
+      part,
+      xml: original.replace(/(xmlns(?::w)?=")([^"]+)(")/u, `$1${padding}$2${padding}$3`),
+    })),
+    {
+      label: `${part}: duplicate attributes`,
+      part,
+      xml: original.replace('>', ' a="one" a="two">'),
+    },
+    {
+      label: `${part}: duplicate expanded-name attributes with different prefixes`,
+      part,
+      xml: original.replace('>', ' xmlns:a="urn:x" xmlns:b="urn:x" a:k="1" b:k="2">'),
+    },
+    {
+      label: `${part}: forbidden numeric character reference in text`,
+      part,
+      xml: original.replace('>', '>&#0;'),
+    },
+    {
+      label: `${part}: DTD declaration`,
+      part,
+      xml: `<!DOCTYPE ${rootName}>` + original,
+    },
+    {
+      label: `${part}: external entity declaration and reference`,
+      part,
+      xml:
+        `<!DOCTYPE ${rootName} [<!ENTITY external SYSTEM "https://external.example.test/source">]>` +
+        original.replace('>', '>&external;'),
+    },
+  ];
+});
 describe('real ZIP safety boundary', () => {
   it('preserves exact original Markdown and unsupported bytes with ordinal identities', () => {
     const result = scanCustomerZip(
@@ -149,6 +217,63 @@ describe('real ZIP safety boundary', () => {
     const result = scanCustomerZip(zip([md, { name: 'fake.docx', bytes: packageBytes }]));
     expect(result[1]?.status).toBe('CORRUPT');
     expect(result[1]?.reasonCodes).toEqual(['INVALID_DOCX']);
+  });
+  it('accepts a genuine CRC-valid DOCX control and preserves its original bytes', () => {
+    const bytes = docx();
+    const result = scanCustomerZip(zip([{ name: 'customer.docx', bytes }]));
+    expect(result).toHaveLength(1);
+    expect(result[0]?.status).toBe('ANALYZABLE');
+    expect(result[0]?.reasonCodes).toEqual([]);
+    expect(result[0]?.bytes).toEqual(bytes);
+  });
+  it('ignores legal comments, CDATA and processing instructions when identifying XML roots', () => {
+    const bytes = docx({
+      document:
+        '<?xml version="1.0"?><!-- <w:document xmlns:w="urn:wrong"/> -->' +
+        '<?customer <w:document xmlns:w="urn:wrong"/> ?>' +
+        docxXml.document.replace(
+          'Customer text',
+          '<![CDATA[<w:document xmlns:w="urn:wrong"/>]]> &amp; &#65;',
+        ),
+      types: '<!-- <Types xmlns="urn:wrong"/> --><?customer ignored?>' + docxXml.types,
+      relationships:
+        '<!-- <Relationships xmlns="urn:wrong"/> --><?customer ignored?>' + docxXml.relationships,
+    });
+    expect(scanCustomerZip(zip([{ name: 'customer.docx', bytes }]))[0]?.status).toBe('ANALYZABLE');
+  });
+  it.each(malformedXmlCases)('rejects a DOCX-only upload with XML $label', ({ part, xml }) => {
+    const bytes = docx({ [part]: xml });
+    expect(() => scanCustomerZip(zip([{ name: 'invalid.docx', bytes }]))).toThrow(
+      'INTEGRATION_NO_ANALYZABLE_SOURCE',
+    );
+  });
+  it.each(malformedXmlCases)(
+    'retains valid Markdown alongside DOCX XML $label',
+    ({ part, xml }) => {
+      const bytes = docx({ [part]: xml });
+      const result = scanCustomerZip(zip([md, { name: 'invalid.docx', bytes }]));
+      expect(result.map((entry) => entry.status)).toEqual(['ANALYZABLE', 'CORRUPT']);
+      expect(result[0]?.bytes).toEqual(md.bytes);
+      expect(result[0]?.reasonCodes).toEqual([]);
+      expect(result[1]?.bytes).toEqual(bytes);
+      expect(result[1]?.reasonCodes).toEqual(['INVALID_DOCX']);
+    },
+  );
+  it('charges live XML parser frames against the existing cumulative memory budget', () => {
+    const depth = 80_000;
+    // Use default namespace declarations to avoid prefixed-declaration ancestor scans.
+    const attributes = Array.from({ length: 8 }, (_, index) => ` a${index}="value"`).join('');
+    const opening =
+      '<p xmlns="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' + attributes + '>';
+    const document =
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      opening.repeat(depth) +
+      '</p>'.repeat(depth) +
+      '</w:document>';
+    const bytes = docx({ document });
+    expect(() => scanCustomerZip(zip([{ name: 'deep.docx', bytes }]))).toThrow(
+      'INTEGRATION_ZIP_LIMIT_EXCEEDED',
+    );
   });
   it('validates OOXML package bytes and cumulative nested budgets', () => {
     const docx = zip([

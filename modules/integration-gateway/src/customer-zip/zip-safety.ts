@@ -1,6 +1,7 @@
 /* eslint-disable no-control-regex -- ZIP paths and XML must reject forbidden ASCII control characters. */
 import { inflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
+import { SaxesParser } from 'saxes';
 
 export class CustomerZipSafetyError extends Error {
   constructor(
@@ -259,149 +260,112 @@ function unpack(bytes: Buffer, budget: Budget): ScannedZipEntry[] {
   return result;
 }
 
-function validXml(value: string, expectedRoot: string): boolean {
-  if (/<!DOCTYPE|<!ENTITY|[\x00-\x08\x0b\x0c\x0e-\x1f]/iu.test(value)) return false;
-  if (/&(?!amp;|lt;|gt;|apos;|quot;|#\d+;|#x[0-9a-f]+;)/iu.test(value)) return false;
-  const stack: string[] = [];
-  let cursor = 0,
-    roots = 0;
-  const token =
-    /<\?(?:[^?]|\?(?!>))*\?>|<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\/?[A-Za-z_][\w:.-]*(?:\s+[A-Za-z_][\w:.-]*\s*=\s*(?:"[^"<]*"|'[^'<]*'))*\s*\/?>/gu;
-  for (const match of value.matchAll(token)) {
-    const before = value.slice(cursor, match.index);
-    if (before.includes('<') || (!stack.length && before.trim())) return false;
-    const markup = match[0];
-    cursor = match.index + markup.length;
-    if (markup.startsWith('<?') || markup.startsWith('<!--') || markup.startsWith('<![')) continue;
-    const name = /^<\/?([\w:.-]+)/u.exec(markup)?.[1];
-    if (!name) return false;
-    if (markup.startsWith('</')) {
-      if (stack.pop() !== name) return false;
-    } else {
-      if (!stack.length) {
-        roots++;
-        if (name.split(':').at(-1) !== expectedRoot) return false;
-      }
-      if (!markup.endsWith('/>')) stack.push(name);
-    }
-  }
-  return roots === 1 && stack.length === 0 && !value.slice(cursor).trim();
+const CONTENT_TYPES_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/content-types';
+const RELATIONSHIPS_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/relationships';
+const OFFICE_DOCUMENT_TYPES = [
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+  'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument',
+];
+interface DocxXml {
+  mainOverrides: number;
+  mainDocumentType: boolean;
+  mainRelationships: number;
+  internalMainRelationship: boolean;
 }
 
-function rootNamespace(value: string, root: string, namespaces: readonly string[]): boolean {
-  const match = new RegExp('<((?:[A-Za-z_][\\w.-]*:)?' + root + ')(?=[\\s>/])([^>]*)>', 'u').exec(
-    value,
-  );
-  if (!match) return false;
-  const name = match[1] ?? '',
-    attributes = match[2] ?? '',
-    prefix = name.includes(':') ? name.split(':')[0] : undefined;
-  const declaration = new RegExp(
-    '\\bxmlns' + (prefix ? ':' + prefix : '') + '\\s*=\\s*["\']([^"\']+)["\']',
-    'u',
-  ).exec(attributes)?.[1];
-  return declaration !== undefined && namespaces.includes(declaration);
-}
-
-interface XmlElement {
-  readonly depth: number;
-  readonly localName: string;
-  readonly namespace: string;
-  readonly attributes: Readonly<Record<string, string>>;
-}
-function xmlElements(value: string): readonly XmlElement[] {
-  const result: XmlElement[] = [],
-    scopes: Readonly<Record<string, string>>[] = [];
-  const tokens =
-    /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<\/?[A-Za-z_][\w:.-]*(?:\s+[A-Za-z_][\w:.-]*\s*=\s*(?:"[^"<]*"|'[^'<]*'))*\s*\/?>/gu;
-  const decode = (text: string) =>
-    text.replace(/&(?:amp|lt|gt|apos|quot|#\d+|#x[0-9a-f]+);/giu, (entity) => {
-      if (entity.startsWith('&#')) {
-        const numeric = entity.startsWith('&#x')
-          ? Number.parseInt(entity.slice(3, -1), 16)
-          : Number.parseInt(entity.slice(2, -1), 10);
-        if (
-          (numeric < 32 && ![9, 10, 13].includes(numeric)) ||
-          numeric > 0x10ffff ||
-          (numeric >= 0xd800 && numeric <= 0xdfff)
-        )
-          fail('INTEGRATION_ZIP_CORRUPT');
-        return String.fromCodePoint(numeric);
-      }
-      return (
-        (
-          { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&apos;': "'", '&quot;': '"' } as Record<
-            string,
-            string
-          >
-        )[entity] ?? entity
-      );
-    });
-  for (const match of value.matchAll(tokens)) {
-    const token = match[0];
-    if (token.startsWith('<!') || token.startsWith('<?')) continue;
-    if (token.startsWith('</')) {
-      scopes.pop();
-      continue;
+/** Validate the complete XML stream; only actual root/direct-child events are evidence. */
+function parseDocxXml(
+  bytes: Buffer,
+  expectedRoot: string,
+  namespaces: readonly string[],
+  budget: Budget,
+): DocxXml {
+  // Reserve decoded UTF-16 plus parser token buffers before decoding any XML.
+  const xmlBuffers = 4 * bytes.length;
+  let metadata = 0;
+  const frames: number[] = [];
+  const checkMemory = () => {
+    if (
+      budget.retained + 134217728 + budget.transientReserve + xmlBuffers + metadata >
+      ZIP_LIMITS.memoryBytes
+    )
+      fail('INTEGRATION_ZIP_LIMIT_EXCEEDED');
+  };
+  checkMemory();
+  const value = text(bytes);
+  const result: DocxXml = {
+    mainOverrides: 0,
+    mainDocumentType: false,
+    mainRelationships: 0,
+    internalMainRelationship: false,
+  };
+  const parser = new SaxesParser({ xmlns: true, defaultXMLVersion: '1.0', forceXMLVersion: true });
+  let depth = 0;
+  parser.on('doctype', () => fail('INTEGRATION_ZIP_CORRUPT'));
+  parser.on('error', () => fail('INTEGRATION_ZIP_CORRUPT'));
+  // Conservative live-frame/attribute reservations bound the SAX stack as well as bytes.
+  parser.on('opentagstart', (tag) => {
+    const size = 4096 + 8 * tag.name.length;
+    frames.push(size);
+    metadata += size;
+    checkMemory();
+  });
+  parser.on('attribute', (attribute) => {
+    // Saxes trims namespace bindings; an altered URI must not become an exact OOXML match.
+    if (
+      (attribute.name === 'xmlns' || attribute.prefix === 'xmlns') &&
+      (/[\t\n\r ]/u.test(attribute.value) || attribute.value !== attribute.value.trim())
+    )
+      fail('INTEGRATION_ZIP_CORRUPT');
+    const size = 1024 + 8 * (attribute.name.length + attribute.value.length);
+    const current = frames.length - 1;
+    frames[current] = (frames[current] ?? 0) + size;
+    metadata += size;
+    checkMemory();
+  });
+  parser.on('opentag', (tag) => {
+    if (depth === 0 && (tag.local !== expectedRoot || !namespaces.includes(tag.uri)))
+      fail('INTEGRATION_ZIP_CORRUPT');
+    const attribute = (name: string) => {
+      const item = tag.attributes[name];
+      return item?.uri === '' ? item.value : undefined;
+    };
+    if (
+      depth === 1 &&
+      tag.uri === CONTENT_TYPES_NAMESPACE &&
+      tag.local === 'Override' &&
+      attribute('PartName') === '/word/document.xml'
+    ) {
+      result.mainOverrides++;
+      result.mainDocumentType =
+        attribute('ContentType') ===
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     }
-    const qualified = /^<([\w:.-]+)/u.exec(token)?.[1] ?? '',
-      attributes: Record<string, string> = {},
-      namespaces: Record<string, string> = { ...(scopes.at(-1) ?? {}) };
-    for (const attribute of token.matchAll(/([A-Za-z_][\w:.-]*)\s*=\s*(["'])(.*?)\2/gu)) {
-      const name = attribute[1] ?? '';
-      if (Object.hasOwn(attributes, name)) fail('INTEGRATION_ZIP_CORRUPT');
-      const decoded = decode(attribute[3] ?? '');
-      attributes[name] = decoded;
-      if (name === 'xmlns') namespaces[''] = decoded;
-      else if (name.startsWith('xmlns:')) namespaces[name.slice(6)] = decoded;
+    if (
+      depth === 1 &&
+      tag.uri === RELATIONSHIPS_NAMESPACE &&
+      tag.local === 'Relationship' &&
+      OFFICE_DOCUMENT_TYPES.includes(attribute('Type') ?? '')
+    ) {
+      result.mainRelationships++;
+      result.internalMainRelationship =
+        ['word/document.xml', '/word/document.xml'].includes(attribute('Target') ?? '') &&
+        (attribute('TargetMode') === undefined || attribute('TargetMode') === 'Internal');
     }
-    const colon = qualified.indexOf(':'),
-      prefix = colon < 0 ? '' : qualified.slice(0, colon),
-      localName = colon < 0 ? qualified : qualified.slice(colon + 1);
-    result.push({
-      localName,
-      namespace: namespaces[prefix] ?? '',
-      attributes,
-      depth: scopes.length,
-    });
-    if (!token.endsWith('/>')) scopes.push(namespaces);
+    depth++;
+  });
+  parser.on('closetag', () => {
+    depth--;
+    metadata -= frames.pop() ?? 0;
+  });
+  // Keep parsing incremental, retain no DOM/text nodes, and charge the same ZIP wall-clock budget.
+  for (let cursor = 0; cursor < value.length; cursor += 16384) {
+    if (Date.now() - budget.started > ZIP_LIMITS.wallClockMs)
+      fail('INTEGRATION_ZIP_LIMIT_EXCEEDED');
+    parser.write(value.slice(cursor, cursor + 16384));
   }
+  parser.close();
   return result;
-}
-function hasMainDocumentOverride(value: string): boolean {
-  const overrides = xmlElements(value).filter(
-    (element) =>
-      element.depth === 1 &&
-      element.localName === 'Override' &&
-      element.namespace === 'http://schemas.openxmlformats.org/package/2006/content-types' &&
-      element.attributes.PartName === '/word/document.xml',
-  );
-  return (
-    overrides.length === 1 &&
-    overrides[0]?.attributes.ContentType ===
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
-  );
-}
-function hasInternalMainRelationship(value: string): boolean {
-  const officeTypes = [
-    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
-    'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument',
-  ];
-  const main = xmlElements(value).filter(
-    (element) =>
-      element.depth === 1 &&
-      element.localName === 'Relationship' &&
-      element.namespace === 'http://schemas.openxmlformats.org/package/2006/relationships' &&
-      officeTypes.includes(element.attributes.Type ?? ''),
-  );
-  const element = main[0];
-  return (
-    main.length === 1 &&
-    element !== undefined &&
-    (element.attributes.Target === 'word/document.xml' ||
-      element.attributes.Target === '/word/document.xml') &&
-    (element.attributes.TargetMode === undefined || element.attributes.TargetMode === 'Internal')
-  );
 }
 
 export function scanCustomerZip(bytes: Buffer): readonly ScannedZipEntry[] {
@@ -437,22 +401,30 @@ export function scanCustomerZip(bytes: Buffer): readonly ScannedZipEntry[] {
           !types ||
           !doc ||
           !relations ||
-          nested.some((e) => /vbaProject|\.bin$/iu.test(e.normalizedPath)) ||
-          !hasMainDocumentOverride(text(types.bytes)) ||
-          !validXml(text(types.bytes), 'Types') ||
-          !validXml(text(doc.bytes), 'document') ||
-          !rootNamespace(text(types.bytes), 'Types', [
-            'http://schemas.openxmlformats.org/package/2006/content-types',
-          ]) ||
-          !rootNamespace(text(doc.bytes), 'document', [
+          nested.some((e) => /vbaProject|\.bin$/iu.test(e.normalizedPath))
+        )
+          return { ...entry, status: 'CORRUPT' as const, reasonCodes: ['INVALID_DOCX'] };
+        const contentTypes = parseDocxXml(types.bytes, 'Types', [CONTENT_TYPES_NAMESPACE], budget);
+        parseDocxXml(
+          doc.bytes,
+          'document',
+          [
             'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
             'http://purl.oclc.org/ooxml/wordprocessingml/main',
-          ]) ||
-          !validXml(text(relations.bytes), 'Relationships') ||
-          !rootNamespace(text(relations.bytes), 'Relationships', [
-            'http://schemas.openxmlformats.org/package/2006/relationships',
-          ]) ||
-          !hasInternalMainRelationship(text(relations.bytes))
+          ],
+          budget,
+        );
+        const relationships = parseDocxXml(
+          relations.bytes,
+          'Relationships',
+          [RELATIONSHIPS_NAMESPACE],
+          budget,
+        );
+        if (
+          contentTypes.mainOverrides !== 1 ||
+          !contentTypes.mainDocumentType ||
+          relationships.mainRelationships !== 1 ||
+          !relationships.internalMainRelationship
         )
           return { ...entry, status: 'CORRUPT' as const, reasonCodes: ['INVALID_DOCX'] };
         return {

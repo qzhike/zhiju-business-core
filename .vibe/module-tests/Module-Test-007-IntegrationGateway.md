@@ -225,7 +225,7 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | 场景 | 可核验预期 | 自动化证据入口与边界 |
 |---|---|---|
 | 内容失败与传输中断 | unsafe、资源上限、CRC/格式损坏、零可分析源为终态；即使旧流 CLOSED_NO_OBJECT，Query 也不给 RESTART，显式 restart 拒绝且没有 source/manifest/Event。真正断流或期限中断在 owner 证明无完整对象/链接后仍可执行同一原 bytes 的一次 CAS 重传 | `preparation-intake.test.ts` 通过真实 owning 服务/PG Query 与 restart 验证四类内容失败；EP/Object ports 为明确受控依赖 |
-| DOCX 真实结构 | 非注释的 ContentTypes Override 必须精确指向 `/word/document.xml` 的主文档类型；同一个 package Relationship 必须具有 officeDocument 类型和内部主文档 target。错误 namespace、仅注释中的类型字串、将外部关系与另一条内部 target 拼合均不得成为可分析源 | `zip-safety.test.ts` 包含真实 ZIP/CRC 与普通 OOXML 正例、三个结构误导反例和 DOCX 二级累计预算；只验证安全结构，不声称正文专业验收 |
+| DOCX 真实结构 | 非注释的 ContentTypes Override 必须精确指向 `/word/document.xml` 的主文档类型；同一个 package Relationship 必须具有 officeDocument 类型和内部主文档 target。错误 namespace、仅注释中的类型字串、将外部关系与另一条内部 target 拼合均不得成为可分析源；三个 XML 部件中的注释伪根、重复属性、非法字符引用、命名空间 URI 字面/实体空格、DTD/外部实体均拒绝，合法 comments/CDATA/PI 不替代真实根。仅坏 DOCX 拒绝；合法 MD + 坏 DOCX 保留 ANALYZABLE/CORRUPT 两项 | `zip-safety.test.ts` 包含真实 ZIP/CRC 与普通 OOXML 正例、三个结构误导反例和 DOCX 二级累计预算；只验证安全结构，不声称正文专业验收 |
 | 跨 owner 来源与不可变交接 | 当前 Human 与固定 SERVICE 各自当前授权；IG 在 EP 接纳前持久化稳定 source step/完整 input/真实对象回执，EP 通过 owning readSourceAdmission 逐字核对。真实 SECURITY/INTEGRITY、source receipts、note 与 manifest/event 保留原绑定；重登只读回原命令与当前状态，缺 TE 为 WAITING_CAPABILITY | `preparation-journey.test.ts` 使用真实 IP/EP/IG owning producers、真实 PostgreSQL、实际 ContractRegistry 结果与 SourceMaterialAccepted payload 校验；S3 adapter 使用明确受控传输/实际 bytes，不等于生产 Ceph、外部 Runner 或客户验收 |
 
 
