@@ -409,6 +409,8 @@ Query 的 `aggregateVersion` 是当前 intake Root 的真实版本，与 `upload
 
 ### Upload ticket 与唯一有界恢复
 
+实现边界（#291 进行中）：`src/customer-zip/upload-ticket.ts` 已提供独立的票据加密组件，使用显式配置的 256-bit key、AES-256-GCM 和 256-bit 随机 token；认证数据绑定原 intake/作者/完整 Scope/payload hash/ZIP hash 与长度/generation/keyId/原期限。该组件只负责加密、原票据重放和 token 比对，不提供授权、持久化、流 claim 或 restart；这些 owning 集成尚未完成，不能据此宣布上传接口可用。密钥缺失、篡改或到期均拒绝，不自动续期或替换票据。
+
 upload 闭集 `{generation,token,expiresAt,method:PUT,path,expectedByteLength,expectedZipBytesSha256}`；path 只为固定 `/api/customer-intakes/<intakeId>/zip`，BFF 转为同形 `/bff/…`，不能携带任意 origin。token 随机性/抗猜测强度至少256 bits，只绑定 intake、creator、完整 Scope、原 payloadHash、ZIP hash/长度、generation、固定期限；不是通用 bearer，不替代当次 Session/CSRF/IP 权限。每代有效期5分钟，不延长；流的总时限5分钟/无数据30秒沿 #258，token 到期即停止读流，完成提交前仍需 generation/权限有效。
 
 IG 保存 ticket digest 与受控加密 token（专用 keyId、密文；明文只在签发/受权 replay 时出现），期限后不可再返回；不放普通 Receipt/Event/Audit/日志。该短期存储只用于原 CommandResult 的授权重放；成功 Receipt 保存 generation/expiry/绑定，不保存明文 token。key 不可用则安全依赖失败，不随机换 token。相同 CREATE/restart key 的合法重复只读同代同 token/原 expiry，不增加次数、不重新签发。另一个 Human、原作者失权或错误原 hash 都不得取 token。
