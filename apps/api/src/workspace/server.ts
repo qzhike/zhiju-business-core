@@ -246,6 +246,8 @@ export function createWorkspaceCoreFromEnv(
   options: {
     markdown?: WorkspaceDispatchConfig['markdown'];
     preparation?: WorkspaceDispatchConfig['preparation'];
+    /** Trusted composition factory; the caller owns injected pools' lifecycle. */
+    openPool?: (url: string) => Pool;
   } = {},
 ): WorkspaceCoreRuntime {
   const loaded = loadCoreTrustConfigFromEnv(env);
@@ -288,11 +290,12 @@ export function createWorkspaceCoreFromEnv(
   );
   const crypto = createIdentityCryptoPorts(lookupKey, fieldKey);
 
-  const identityPool = openPool(identityUrl);
-  const enterprisePool = openPool(enterpriseUrl);
+  const createPool = options.openPool ?? openPool;
+  const identityPool = createPool(identityUrl);
+  const enterprisePool = createPool(enterpriseUrl);
   const identityDb = createIdentityPolicyDatabase(identityPool);
   const enterpriseProjectDb = createEnterpriseProjectDatabase(enterprisePool);
-  const taskExecutionDb = createTaskExecutionDatabase(openPool(taskExecutionUrl));
+  const taskExecutionDb = createTaskExecutionDatabase(createPool(taskExecutionUrl));
   const repo = new IdentityPolicyRepository(crypto);
 
   const capabilityCodes = trustConfig.capabilityCodes;
@@ -303,7 +306,7 @@ export function createWorkspaceCoreFromEnv(
       env,
       identityPool,
       enterprisePool,
-      integrationPool: openPool(env.ZHIJU_WORKSPACE_INTEGRATION_DATABASE_URL ?? databaseUrl),
+      integrationPool: createPool(env.ZHIJU_WORKSPACE_INTEGRATION_DATABASE_URL ?? databaseUrl),
       crypto,
       identityResolutionDeps: (access) => ({
         db: identityDb,

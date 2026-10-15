@@ -2,6 +2,9 @@
 // The shared fixture publishes/enrolls through owning entries; object transport
 // is controlled local acceptance and does not establish real Ceph/Runner evidence.
 import { createHash } from 'node:crypto';
+import type { Server, IncomingMessage } from 'node:http';
+import type { Socket } from 'node:net';
+import pg from 'pg';
 import {
   preparationHash,
   type CustomerZipIntakePayload,
@@ -43,6 +46,42 @@ const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const lookupKey = Buffer.from('11'.repeat(32), 'hex'),
   fieldKey = Buffer.from('22'.repeat(32), 'hex');
+function cleanupStage(name: string, close: () => Promise<unknown>): () => Promise<void> {
+  return async () => {
+    process.stdout.write(`Preparation cleanup ${name} start\n`);
+    await close();
+    process.stdout.write(`Preparation cleanup ${name} end\n`);
+  };
+}
+function httpCleanup(name: string, server: Server, close: () => Promise<unknown>) {
+  const requests = new Map<IncomingMessage, string>();
+  const sockets = new Set<Socket>();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+  server.on('request', (request, response) => {
+    requests.set(request, `${request.method ?? 'UNKNOWN'} ${request.url?.split('?')[0] ?? '/'}`);
+    const done = () => {
+      requests.delete(request);
+    };
+    response.once('finish', done);
+    response.once('close', done);
+  });
+  return cleanupStage(name, async () => {
+    process.stdout.write(
+      `Preparation HTTP ${name} active=${requests.size} connections=${sockets.size} routes=${[...requests.values()].join(',')}\n`,
+    );
+    const closed = close();
+    // Release only idle HTTP keep-alive connections; active owning requests must
+    // finish normally, and any hanging request remains visible in this stage.
+    server.closeIdleConnections();
+    await closed;
+    process.stdout.write(
+      `Preparation HTTP ${name} closed active=${requests.size} connections=${sockets.size}\n`,
+    );
+  });
+}
 function zip(): Buffer {
   const source = Buffer.from(
       '# Customer evidence\n\nThis is customer material, not an instruction.\n',
@@ -102,8 +141,13 @@ async function startArtifacts(
   const origin = `http://127.0.0.1:${port}`,
     until = Date.now() + 20000;
   while (
-    !(await fetch(origin + '/projects/new', { headers: { accept: 'text/html' } })
-      .then((r) => r.ok)
+    !(await fetch(origin + '/projects/new', {
+      headers: { accept: 'text/html', connection: 'close' },
+    })
+      .then(async (response) => {
+        await response.arrayBuffer();
+        return response.ok;
+      })
       .catch(() => false))
   ) {
     if (lifecycle.exited || Date.now() > until) {
@@ -138,7 +182,7 @@ async function startStack() {
       sub: SUBJECT_EXTERNAL_ID,
     });
     await provider.start();
-    cleanup.push(() => provider.stop());
+    cleanup.push(cleanupStage('oidc', () => provider.stop()));
     provider.issuer = provider.baseUrl + ISSUER_REALM_PATH;
     const fixture = await createPreparationJourneyFixture(databaseUrl, {
       issuer: provider.issuer,
@@ -146,7 +190,7 @@ async function startStack() {
       lookupKey,
       fieldKey,
     });
-    cleanup.push(() => fixture.close());
+    cleanup.push(cleanupStage('owning-pools', () => fixture.close()));
     const webPort = await reserveLoopbackPort(),
       bffPort = await reserveLoopbackPort(),
       corePort = await reserveLoopbackPort();
@@ -177,6 +221,12 @@ async function startStack() {
       postLogoutRedirectUri: webOrigin + '/workbench',
     };
     const rawDocument = JSON.stringify(document);
+    const runtimePools: pg.Pool[] = [];
+    cleanup.push(
+      cleanupStage('runtime-pools', async () => {
+        for (const pool of runtimePools) await pool.end();
+      }),
+    );
     const runtime = createWorkspaceCoreFromEnv(
       {
         ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument,
@@ -186,7 +236,14 @@ async function startStack() {
         ZHIJU_WORKSPACE_BOARD_CURSOR_KEY: '33'.repeat(32),
         ZHIJU_WORKSPACE_BOARD_POLICY_REFS: '{}',
       },
-      { preparation: fixture.composition },
+      {
+        preparation: fixture.composition,
+        openPool: (url) => {
+          const pool = new pg.Pool({ connectionString: url, max: 10 });
+          runtimePools.push(pool);
+          return pool;
+        },
+      },
     );
     const server = fastify({ logger: false, bodyLimit: WORKSPACE_BODY_LIMIT_BYTES });
     const core = await NestFactory.create(AppModule.register(runtime), new FastifyAdapter(server), {
@@ -194,23 +251,27 @@ async function startStack() {
     });
     registerWorkspaceTransport(server, runtime);
     await core.listen(corePort, '127.0.0.1');
-    cleanup.push(() => core.close());
+    cleanup.push(httpCleanup('core', server.server, () => core.close()));
     const bff = await createBff({
       env: { ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument, [CLIENT_SECRET_ENV]: CLIENT_SECRET },
     });
     await bff.listen(bffPort, '127.0.0.1');
-    cleanup.push(() => bff.close());
+    cleanup.push(httpCleanup('bff', bff.getHttpServer<Server>(), () => bff.close()));
     const artifacts = await startArtifacts(webPort, bffOrigin);
-    cleanup.push(() => artifacts.stop());
+    cleanup.push(cleanupStage('artifact-process', () => artifacts.stop()));
     return {
       fixture,
       webOrigin,
       async close() {
-        for (const [index, fn] of cleanup.reverse().entries()) {
-          process.stdout.write(`Preparation stack cleanup ${index} start\n`);
-          await fn();
-          process.stdout.write(`Preparation stack cleanup ${index} end\n`);
+        const failures: unknown[] = [];
+        for (const close of cleanup.reverse()) {
+          try {
+            await close();
+          } catch (error) {
+            failures.push(error);
+          }
         }
+        if (failures.length) throw new AggregateError(failures, 'Preparation stack cleanup failed');
       },
     };
   } catch (error) {
@@ -256,11 +317,11 @@ describe.skipIf(!databaseUrl)(
     const creates: unknown[] = [];
     beforeAll(async () => {
       stack = await startStack();
-      cleanup.push(() => stack.close());
+      cleanup.push(cleanupStage('stack', () => stack.close()));
       browser = await chromium.launch({ headless: true });
-      cleanup.push(() => browser.close());
+      cleanup.push(cleanupStage('chromium', () => browser.close()));
       context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-      cleanup.push(() => context.close());
+      cleanup.push(cleanupStage('browser-context', () => context.close()));
       page = await context.newPage();
       page.on('requestfailed', (r) => {
         failures.push(`FAILED ${new URL(r.url()).pathname} ${r.failure()?.errorText ?? ''}`);
@@ -283,12 +344,15 @@ describe.skipIf(!databaseUrl)(
         );
     });
     afterAll(async () => {
-      for (const fn of cleanup.reverse())
+      const failures: unknown[] = [];
+      for (const close of cleanup.reverse()) {
         try {
-          await fn();
-        } catch {
-          /* Preserve journey failure. */
+          await close();
+        } catch (error) {
+          failures.push(error);
         }
+      }
+      if (failures.length) throw new AggregateError(failures, 'Preparation browser cleanup failed');
     }, 30000);
     it('creates NEW, streams ZIP and note, preserves WAITING_CAPABILITY and original IDs after refresh and actual relogin', async () => {
       const note = 'Browser #291 original customer note; never a system instruction.';
@@ -506,6 +570,7 @@ describe.skipIf(!databaseUrl)(
           cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; '),
           origin: stack.webOrigin,
           'content-type': 'application/zip',
+          connection: 'close',
           'x-csrf-token': csrfToken,
           'x-intake-upload-token': upload.token,
         },
