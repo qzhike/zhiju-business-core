@@ -1,6 +1,46 @@
 # PR #299 独立代码审查
 
-## 最新复审：R2 修订 / 967e333 / HUMAN_REVIEW_REQUIRED
+## 2026-10-15 人类技术批准：f30ffd1
+
+用户在原会话收到下方 `f30ffd1 / HUMAN_REVIEW_REQUIRED` 复审结论后明确回复“批准”。本次批准绑定 `f30ffd13a66cda63ad6217470b67018b3f131f33`，覆盖已审 #291 实现及 R2 修订的人类技术批准门禁。记录前重新核验远端 head 未变化，PR 为 OPEN / Draft。
+
+该人类技术批准门禁已满足；下方各轮结论保留当时的历史状态。批准不改变测试与外部验收事实：远端 checks 仍为空，最新 head CI 尚无通过证据；真实生产/外部/人工客户验收边界不升级。本次“批准”不扩展为 commit、push、合并或部署授权，正式记录的本地增量仍未提交。
+
+已同步 [PR 批准记录 comment 6193691162](https://github.com/qzhike/zhiju-business-core/pull/299#issuecomment-6193691162)，并经 GitHub API 回读确认批准原文来源、精确 SHA 与保留门禁。
+
+## 2026-10-15 最新远端修订复审：f30ffd1 / HUMAN_REVIEW_REQUIRED
+
+- Reviewed SHA：`f30ffd13a66cda63ad6217470b67018b3f131f33`；`vibe repo --json` 与发布前 GitHub head 一致，开始时工作区干净，PR 仍为 Draft。
+- Reviewer outcome：`HUMAN_REVIEW_REQUIRED`。原 R2 的独立反例已闭合，本次增量复审未发现新的可证实阻塞实现缺陷；原 R1 维持关闭。#291 新准入、授权、隔离与托管的适用人类技术审核仍须完成，不能据此合并。
+- 本次范围为 `508987c` 后的全部八文件增量：parser、scanner/owning persistence 回归、精确依赖与 lockfile、IG Spec/Test 和正式审查记录。未变化部分沿用本会话此前核对；没有将已有 Reviewer 的结论当作本轮独立验证结果。
+
+### R2 关闭依据
+
+依据最新 Issue/评论、IG owning Spec/Test 和原 D14 ZIP 接受集复核：坏 DOCX 必须 CORRUPT，合法 Markdown 可保留部分结果，零可分析来源不得成功交接。三个 XML 部件现在统一采用 `saxes@6.0.0` namespace-aware SAX 解析；只有实际根/直接子元素建立 OOXML 证据。错误事件和 DTD 均直接拒绝，没有外部实体 resolver。namespace 原属性空白检查先于 tag URI 判定，避免 parser trim 把错误 URI 变为批准值；原 ZIP 限额及累计 XML 时间/内存检查保留。
+
+直接对当前源码重放上一轮保留的五个独立 ZIP 样本（`/private/tmp/pr299-review-repro/`），未用修复方新 fixture 替代原反例：
+
+| 样本 | 当前实际结果 |
+| --- | --- |
+| 正常 DOCX | ANALYZABLE，空 reasonCodes |
+| 错误根 namespace，无注释 | INTEGRATION_NO_ANALYZABLE_SOURCE |
+| 注释伪根 + 实际错误 namespace | INTEGRATION_NO_ANALYZABLE_SOURCE |
+| 正确 namespace + 重复属性 | INTEGRATION_NO_ANALYZABLE_SOURCE |
+| 正确 namespace + 非法 `&#0;` | INTEGRATION_NO_ANALYZABLE_SOURCE |
+
+新增 scanner 用例在三个 XML 部件分别覆盖原反例、重复 expanded-name 属性、namespace 字面/实体空格、DTD/外部实体，保留正常 comments/CDATA/PI 正例及深层 parser frame 预算反例。owning PostgreSQL 新四例从真实 ZIP/CRC 经 IG upload 路径验证：mixed 包持久化 PARTIAL/三项 CORRUPT，三个 DOCX-only 包零 source/object/manifest/event/handoff。已检查这些断言与原请求 replay；它们的 EP/object ports 仍是明确受控依赖。
+
+### 本轮证据与保留门禁
+
+- 本轮独立 focused Vitest：`./node_modules/.bin/vitest run modules/integration-gateway/src/customer-zip/zip-safety.test.ts modules/integration-gateway/src/customer-zip/upload-ticket.test.ts contracts/src/preparation-fixtures.test.ts contracts/src/preparation-intake.test.ts tests/workspace/preparation-transport.test.ts`；**5 files / 148 tests PASS**，含 scanner 68 项。原反例另直接经 Node transform-types 执行当前源码，结果见上表。
+- 读取 `/tmp/pr-299-r2-full-tool-output.txt` 的已有工具输出导出，核对产品 SHA `967e333b27acb2ec29e0c85ae98c0867da934dee`、configured `vibe verify full --json`、exit 0/PASS、普通 **139 files / 2936 tests**、PostgreSQL **64 files / 739 tests**、二次 migration no-op 和容器清理。该导出明确被截断，不是完整原日志；属于已存在的本地执行证据，不声称本轮重新执行 full，也不从截断部分推断单例明细。
+- `967e333` 到本次 reviewed SHA 仅修改正式 Review.md，产品代码与依赖无差异；据此复用该产品 full 证据，避免重复数据库运行。完整 PR 仍属于 full 范围，不因最后的文档提交降级。
+- 本轮 GitHub 精确 head 的 checks 和 workflow run 查询均为空：远端 CI **NOT RUN**。没有可绑定的 run/attempt，不注册 waiter，也不使用旧 head 的 CI。最终 required checks 仍待交付方补齐。
+- 真实生产 Ceph/OIDC、native TE/Runner、完整浏览器平台矩阵及独立人工/客户验收仍 NOT RUN。人类技术审核、远端 CI 和合并授权分别保留；本轮不提交 GitHub 原生 APPROVED review。
+
+本轮仅追加本正式文档，未修改产品代码，未 commit/push/merge。已按用户授权发布 [复审 comment 6193428932](https://github.com/qzhike/zhiju-business-core/pull/299#issuecomment-6193428932)，并通过 GitHub API 回读确认正文、reviewed SHA、R2 关闭及保留门禁。发布为普通 PR comment，不是 GitHub 原生 APPROVED review。`git diff --check` 与本文件 Prettier check 通过。
+
+## 先前复审：R2 修订 / 967e333 / HUMAN_REVIEW_REQUIRED
 
 - 日期：2026-10-15；Issue：[#291](https://github.com/qzhike/zhiju-business-core/issues/291)，PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)，仍为 Draft。
 - Reviewed product SHA：`967e333b27acb2ec29e0c85ae98c0867da934dee`。Reviewer 独立运行 `vibe repo --json` 确认；复核时唯一未提交差异是用户上一轮 R2 正式审查记录，产品工作树没有其他差异。
