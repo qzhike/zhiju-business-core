@@ -281,3 +281,70 @@ test('delivery ignores late original receipts after readback and access expirati
   await page.getByLabel('交付读取场景').selectOption('AVAILABLE');
   await expect(page.locator('.delivery-receipt')).toHaveCount(0);
 });
+
+test('delivery restores the original UNKNOWN intent after leaving and returning', async ({
+  page,
+}) => {
+  await page.goto(route);
+  await controls(page);
+  await page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('UNKNOWN');
+  await choose(page);
+  await openReview(page);
+  await page.getByRole('button', { name: '确认版本并生成交付包' }).click();
+  await expect(page.locator('.delivery-receipt')).toContainText('生成结果待核实');
+  const before = await page.locator('.delivery-receipt').innerText();
+  const intent = /原意图 ([^ ]+)/u.exec(before)?.[1];
+  expect(intent).toBeTruthy();
+  await page.getByRole('link', { name: '返回工作台', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '我的工作台' })).toBeVisible();
+  await expect(page.locator('.delivery-receipt')).toHaveCount(0);
+  await page.goBack();
+  await expect(page.locator('.delivery-receipt')).toHaveText(before, { useInnerText: true });
+  await expect(page.getByRole('button', { name: '核对本批版本', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '查询原生成意图' }).click();
+  await expect(page.locator('.delivery-receipt')).toContainText('交付包已可用');
+  await expect(page.locator('.delivery-receipt')).toContainText(`原意图 ${intent}`);
+  await controls(page);
+  await expect(page.locator('.delivery-controls')).toContainText('确认调用数：1');
+  await page.getByRole('link', { name: '查看本批交付包' }).click();
+  await expect(page).toHaveURL(new RegExp(`package=DEMO-PACKAGE-${intent}`));
+  await expect(page.locator('.delivery-detail')).toContainText('CORR-REV-01');
+  await expect(page.locator('.delivery-detail')).not.toContainText('MANUAL-REV-01');
+});
+
+test('delivery retains supplied download observations on the same package after navigation', async ({
+  page,
+}) => {
+  await page.goto(route);
+  await createPackage(page);
+  const packageUrl = page.url();
+  await controls(page);
+  const observations = [
+    ['REQUESTED', '已请求下载，保存情况未知'],
+    ['UNKNOWN', '下载结果待核实'],
+    ['FAILED', '下载响应失败或中断'],
+    ['RESPONSE_STARTED', '服务端已开始下载响应'],
+    ['RESPONSE_SENT', '服务端已发送下载响应'],
+  ] as const;
+  for (const [index, [state, label]] of observations.entries()) {
+    await controls(page);
+    await page.getByLabel('下载观察').selectOption(state);
+    const downloaded = state === 'REQUESTED' ? page.waitForEvent('download') : null;
+    await page.getByRole('button', { name: '下载合成示例包 .zip' }).click();
+    if (downloaded) expect((await downloaded).suggestedFilename()).toContain('SYNTHETIC.zip');
+    await expect(page.locator('.delivery-detail')).toContainText(label);
+    await expect(
+      page.getByRole('heading', { name: `下载记录 · ${index + 1}`, exact: true }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: '返回工作台', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '我的工作台' })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(packageUrl);
+    await expect(
+      page.getByRole('heading', { name: `下载记录 · ${index + 1}`, exact: true }),
+    ).toBeVisible();
+    for (const [, savedLabel] of observations.slice(0, index + 1))
+      await expect(page.locator('.delivery-detail')).toContainText(savedLabel);
+    await expect(page.locator('.delivery-detail')).toContainText('MANUAL-REV-01');
+  }
+});

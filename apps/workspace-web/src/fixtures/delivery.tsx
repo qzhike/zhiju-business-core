@@ -9,6 +9,7 @@ import {
   type DeliveryIntent,
   type DeliveryPackage,
   type DeliveryReceipt,
+  type DownloadFact,
   type Selection,
 } from '../delivery/model.js';
 const marker = 'DELIVERY_DEVELOPMENT_ADAPTER_ONLY';
@@ -55,23 +56,32 @@ interface Adapter {
   data: DeliveryData;
   setData: (change: (data: DeliveryData) => DeliveryData) => void;
   intents: Map<string, DeliveryIntent>;
+  receipt: DeliveryReceipt | null;
+  setReceipt: (receipt: DeliveryReceipt | null) => void;
+  calls: number;
+  setCalls: (change: (calls: number) => number) => void;
 }
 const Context = createContext<Adapter | null>(null);
 export function FixtureDeliveryProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState(initial);
   const [intents] = useState(() => new Map<string, DeliveryIntent>());
-  return <Context.Provider value={{ data, setData, intents }}>{children}</Context.Provider>;
+  const [receipt, setReceipt] = useState<DeliveryReceipt | null>(null);
+  const [calls, setCalls] = useState(0);
+  return (
+    <Context.Provider value={{ data, setData, intents, receipt, setReceipt, calls, setCalls }}>
+      {children}
+    </Context.Provider>
+  );
 }
 export function FixtureDelivery() {
   const adapter = useContext(Context);
   if (!adapter) throw new Error(marker);
-  const { data, setData, intents } = adapter;
+  const { data, setData, intents, receipt, setReceipt, calls, setCalls } = adapter;
   const [phase, setPhase] = useState<NonNullable<DeliveryPageProps['phase']>>('AVAILABLE');
   const [outcome, setOutcome] = useState<DeliveryReceipt['state'] | 'HOLD' | 'MISMATCH'>(
     'PACKAGE_READY',
   );
   const [readOutcome, setReadOutcome] = useState<DeliveryReceipt['state']>('PACKAGE_READY');
-  const [calls, setCalls] = useState(0);
   const [downloadOutcome, setDownloadOutcome] = useState('REQUESTED');
   const pending = useRef<((value: DeliveryReceipt) => void) | null>(null);
   const current = useRef(data);
@@ -149,7 +159,10 @@ export function FixtureDelivery() {
     read: async (intent) => {
       await Promise.resolve();
       const original = intents.get(intent.id);
-      if (!original || selectionKey(original.selection) !== selectionKey(intent.selection))
+      if (
+        original?.checkToken !== intent.checkToken ||
+        selectionKey(original.selection) !== selectionKey(intent.selection)
+      )
         throw new Error(marker);
       return result(original, readOutcome);
     },
@@ -165,7 +178,7 @@ export function FixtureDelivery() {
         link.click();
         URL.revokeObjectURL(url);
       }
-      return {
+      const fact: DownloadFact = {
         id: crypto.randomUUID(),
         packageId: pkg.id,
         at: stamp,
@@ -176,8 +189,19 @@ export function FixtureDelivery() {
               ? 'RESPONSE_SENT'
               : downloadOutcome === 'RESPONSE_STARTED'
                 ? 'RESPONSE_STARTED'
-                : 'REQUESTED',
+                : downloadOutcome === 'UNKNOWN'
+                  ? 'UNKNOWN'
+                  : 'REQUESTED',
       };
+      setData((prior) => ({
+        ...prior,
+        packages: prior.packages.map((item) =>
+          item.id === pkg.id && !item.downloads.some((saved) => saved.id === fact.id)
+            ? { ...item, downloads: [...item.downloads, fact] }
+            : item,
+        ),
+      }));
+      return fact;
     },
   };
   const availability = (value: DeliveryPackage['availability']) => {
@@ -202,6 +226,7 @@ export function FixtureDelivery() {
       data={data}
       phase={phase}
       actions={actions}
+      recovery={{ receipt, update: setReceipt }}
       reload={() => {
         setPhase('AVAILABLE');
         setData((prior) => ({ ...prior, completeness: 'COMPLETE' }));
@@ -257,11 +282,16 @@ export function FixtureDelivery() {
                   setDownloadOutcome(event.target.value);
                 }}
               >
-                {['REQUESTED', 'FAILED', 'THROW', 'RESPONSE_STARTED', 'RESPONSE_SENT'].map(
-                  (value) => (
-                    <option key={value}>{value}</option>
-                  ),
-                )}
+                {[
+                  'REQUESTED',
+                  'UNKNOWN',
+                  'FAILED',
+                  'THROW',
+                  'RESPONSE_STARTED',
+                  'RESPONSE_SENT',
+                ].map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
               </select>
             </label>
             <label>

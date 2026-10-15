@@ -23,12 +23,27 @@ export interface DeliveryPageProps {
   data?: DeliveryData;
   phase?: 'AVAILABLE' | 'LOADING' | 'ERROR' | 'EXPIRED' | 'UNAVAILABLE';
   actions?: DeliveryActions;
+  recovery?: {
+    receipt: DeliveryReceipt | null;
+    update: (receipt: DeliveryReceipt | null) => void;
+  };
   reload?: () => void;
   controls?: ReactNode;
 }
 export function DeliveryPage(props: DeliveryPageProps) {
   const { projectId } = useParams();
   const phase = props.phase ?? 'AVAILABLE';
+  const saved = props.recovery?.receipt;
+  const recoveryMatches =
+    !saved ||
+    (saved.intent.selection.projectId === projectId &&
+      saved.intent.selection.contextKey === props.data?.contextKey &&
+      saved.intent.selection.recipient === props.data.recipient);
+  const invalidated = phase === 'EXPIRED' || phase === 'UNAVAILABLE' || !recoveryMatches;
+  const updateRecovery = props.recovery?.update;
+  useEffect(() => {
+    if (invalidated) updateRecovery?.(null);
+  }, [invalidated, updateRecovery]);
   if (
     !props.data ||
     props.data.projectId !== projectId ||
@@ -54,7 +69,16 @@ export function DeliveryPage(props: DeliveryPageProps) {
         {props.controls}
       </section>
     );
-  return <DeliveryWorkspace key={props.data.projectId} {...props} data={props.data} />;
+  return (
+    <DeliveryWorkspace
+      key={`${props.data.projectId}:${props.data.contextKey}:${props.data.recipient}`}
+      {...props}
+      {...(props.recovery
+        ? { recovery: { ...props.recovery, receipt: recoveryMatches ? (saved ?? null) : null } }
+        : {})}
+      data={props.data}
+    />
+  );
 }
 function FileFacts({ file }: { file: DeliveryFile }) {
   return (
@@ -78,6 +102,7 @@ function DeliveryWorkspace({
   data,
   phase = 'AVAILABLE',
   actions,
+  recovery,
   reload,
   controls,
 }: DeliveryPageProps & { data: DeliveryData }) {
@@ -92,12 +117,16 @@ function DeliveryWorkspace({
   const [check, setCheck] = useState<SelectionCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState('');
-  const [receipt, setReceipt] = useState<DeliveryReceipt | null>(null);
+  const [receipt, setLocalReceipt] = useState<DeliveryReceipt | null>(recovery?.receipt ?? null);
+  const setReceipt = (value: DeliveryReceipt | null) => {
+    setLocalReceipt(value);
+    recovery?.update(value);
+  };
   const [reading, setReading] = useState(false);
   const [returnedPackages, setReturnedPackages] = useState<DeliveryPackage[]>([]);
   const [downloads, setDownloads] = useState<DownloadFact[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
-  const locked = useRef<DeliveryIntent | null>(null);
+  const locked = useRef<DeliveryIntent | null>(receipt?.intent ?? null);
   const checkGeneration = useRef(0);
   const requestGeneration = useRef(0);
   const alive = useRef(false);

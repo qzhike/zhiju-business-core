@@ -207,8 +207,8 @@ reviewer and timestamp
 |---|---|---|
 | 章节与来源 | 跨轮次/Human 文件、内部获批但无发布资格、默认不选、搜索/资格筛选及空结果；每行保留精确版本/报告与等待原因 | Component / built browser |
 | 单次核对 | 多选后一次弹窗显示精确版本、接收范围及适配器给出的配套要求；缺配套、资格变化、版本消失及读取 PARTIAL/STALE 阻断，其他选择及弹窗保留 | Model / built browser |
-| 原意图恢复 | 双击只提交一次；pending、UNKNOWN、拒绝/失败、确认待生成、生成中、包可用分开；错意图/错成员回执不晋升成功；只查询原请求 | Model / built browser |
-| 固定包与下载 | 新候选不改变历史成员/来源；深链接包详情；可用/失权/过期/失败、请求与响应事实；合成 ZIP 明确标记，不能推断保存/发送/收件/项目完成 | Built browser |
+| 原意图恢复 | 双击只提交一次；pending、UNKNOWN、拒绝/失败、确认待生成、生成中、包可用分开；错意图/错成员回执不晋升成功；只查询原请求；UNKNOWN 离开到工作台并等待卸载后返回，恢复同一 id/checkToken/精确成员，确认调用仍为一次 | Model / built browser |
+| 固定包与下载 | 新候选不改变历史成员/来源；深链接包详情；可用/失权/过期/失败、请求与响应事实；合成 ZIP 明确标记，不能推断保存/发送/收件/项目完成；下载后离开再返回同一包，REQUESTED/UNKNOWN/FAILED/RESPONSE_STARTED/RESPONSE_SENT 观察与去重计数保留 | Built browser |
 | 上下文与清理 | 后台更新保持搜索、选择、详情、弹窗及焦点；空/部分/陈旧/读取失败/失权与迟到响应安全；无浏览器持久化 | Built browser |
 | 布局与键盘 | 1280/1440/1920 桌面内部滚动、200 项、320/360 reflow；窄屏列表/详情/包查看与桌面确认提示；键盘入弹窗、焦点圈定/Escape/回焦、自动可访问性诊断 | Controlled Chromium |
 | 生产隔离 | 生产制品排除开发适配器与 ZIP 合成标识；缺 D12 能力诚实不可用，不 fallback 样例，不注册业务操作 | Production bundle / browser |

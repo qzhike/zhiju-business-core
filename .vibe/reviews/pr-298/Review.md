@@ -1,4 +1,41 @@
-APPROVE — 当前 Draft 阶段的 T1 页面实现满足 Issue #287 的范围与接受条件，未发现阻塞问题；本结论不将仍在进行的 `full` / Ready / Delivery 门禁记为通过。
+REQUEST_CHANGES — 2026-10-15 对 `b8a879150bca12e97b2beaf1a56b20adee16bfe4` 的独立复审发现两项同标签页导航恢复缺陷；须修复后复审新 head。下方保留先前审查作为历史记录。
+
+## 2026-10-15 当前 head 独立复审
+
+审查对象：[PR #298](https://github.com/qzhike/zhiju-business-core/pull/298)，完整 SHA `b8a879150bca12e97b2beaf1a56b20adee16bfe4`，关联 [Issue #287](https://github.com/qzhike/zhiju-business-core/issues/287)。先依据 Issue、UI01 Spec/Test、已批准 D12 设计及工程基线重建预期，再检查完整 diff、页面/模型/adapter/浏览器断言。当前结论为 `REQUEST_CHANGES`；先前的 APPROVE 不覆盖本次已复现反例。
+
+### R1 / P2：离开页面后无法恢复 UNKNOWN 原意图
+
+位置：`apps/workspace-web/src/delivery/Page.tsx:95`、`:100`；`apps/workspace-web/src/fixtures/delivery.tsx:60`。
+
+复现：开发场景设置确认回执为 UNKNOWN，选中纠正措施程序并确认；出现原意图 `10c16eb1-5cbd-4451-9729-e8181205d650`。点击“返回工作台”，等待交付页卸载，再浏览器后退。原回执和“查询原生成意图”入口消失；重新选择同一文件可以确认，并产生新意图 `dc6e66a7-b5df-4129-af6b-711fcfd4df99` 和新包。
+
+原因：receipt 与 locked 仅保存在路由页面的 state/ref，卸载即丢失；provider 虽保留 intents，页面没有发现或重新挂接它们的输入/入口。原请求尚未核实时，正常应用导航使恢复路径消失，用户只能开始新的意图。违反 Issue #287 的原意图恢复要求及 D12 §4 的 UNKNOWN 回读原请求约束。
+
+修复要求：在当前授权范围的内存 adapter/controller 中保留可恢复意图，并允许页面返回后挂接和查询同一 id、checkToken、精确成员；不得通过重新确认替代恢复。保持 Session/Scope 清理与迟到回执防护。增加 UNKNOWN → 工作台 → 返回 → 查询原意图的浏览器反例，确认无第二次 confirm。此要求不新增浏览器持久存储、真实 API 或跨设备恢复。
+
+### R2 / P2：下载观察在普通导航后丢失
+
+位置：`apps/workspace-web/src/delivery/Page.tsx:98`；`apps/workspace-web/src/fixtures/delivery.tsx:168`。
+
+复现：生成合成包并点击“下载合成示例包 .zip”，实际捕获下载事件，详情显示“下载记录 · 1 / 已请求下载，保存情况未知”。点击“返回工作台”，等待卸载，再后退到同一 package URL；固定包仍在，但变成“下载记录 · 0 / 尚无可核实的下载记录”。
+
+原因：download 返回的观察只进入页面 downloads state，adapter 未将其写回同一内存 package 的 downloads。普通导航保留包却丢失已经供应的观察，不能满足 Issue #287 的包/下载记录查看及 UI01 #287 固定包与下载接受集。
+
+修复要求：将适配器供应的下载观察保留在同一包的内存读模型中，返回详情时读回并按观察 id 去重；加入“下载 → 离开 → 同包详情返回”的测试。继续区分 REQUESTED、UNKNOWN、响应观察与失败，不推导保存或发送成功。
+
+### 本次证据与边界
+
+- 两项反例均在上述未修改的代码 head、本机 Vite fixture 模式、1440×900 受控 Chromium 中独立执行；探针明确等待交付页卸载，退出码为 0。不是静态推测，也不是完整 built-browser/configured target 的重跑。
+- 沙箱 Chromium 首次启动被 macOS MachPort 权限拒绝；经宿主执行机制完成定向验证。较早探针的定位器/导航等待问题已修正，未将其失败当作产品证据。
+- 本轮读取的当前 head CI [run 38687485397](https://github.com/qzhike/zhiju-business-core/actions/runs/38687485397) 快照为 select SUCCESS、checks/persistence IN_PROGRESS；没有据此声明 full PASS。已确认的实现缺陷无需等待 CI 才反馈。
+- 既有测试只验证页面保持挂载时的原意图/下载状态，没有覆盖上述离开页面后的恢复。此前 code PASS 和历史 APPROVE 不消除这两个反例。
+- 真实 D12 服务、发布授权、受控归档/下载传输、Runner、持久化、跨设备、完整 Windows/macOS Chrome/Edge 矩阵及独立人工验收仍为 NOT RUN。
+- 本轮仅更新正式审查文档并按用户授权提交 PR comment；不修改产品实现，不 commit、push 或 merge。Implementer 修复并补回归后，应取得适用配置验证证据并重新审查新 head。
+
+---
+
+历史结论：APPROVE — 当时针对 `6da87a7f718add4213dadc3d63f15187a4ce97c9` 的 Draft 页面审查，原文如下；当前结论以上方复审为准。
 
 # PR #298 独立实现审查
 
