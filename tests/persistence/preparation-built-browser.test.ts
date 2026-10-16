@@ -358,6 +358,7 @@ describe.skipIf(!databaseUrl)(
       if (failures.length) throw new AggregateError(failures, 'Preparation browser cleanup failed');
     }, 30000);
     it('creates NEW, streams ZIP and note, preserves WAITING_CAPABILITY and original IDs after refresh and actual relogin', async () => {
+      const deadline = Date.now() + 120000;
       const note = 'Browser #291 original customer note; never a system instruction.';
       await signIn(page, stack.webOrigin + '/projects/new');
       await page
@@ -392,8 +393,19 @@ describe.skipIf(!databaseUrl)(
         buffer: zip(),
       });
       await page.locator('textarea').fill(note);
-      await page.getByRole('button', { name: '提交并分析', exact: true }).click();
       try {
+        const [completedUpload] = await Promise.all([
+          page.waitForResponse(
+            (response) =>
+              response.request().method() === 'PUT' &&
+              new URL(response.url()).pathname ===
+                `/bff/customer-intakes/${currentIds(page).intakeId}/zip`,
+            { timeout: Math.max(1, deadline - Date.now()) },
+          ),
+          page.getByRole('button', { name: '提交并分析', exact: true }).click(),
+        ]);
+        expect(completedUpload.status()).toBe(200);
+        expect(await completedUpload.finished()).toBeNull();
         await expectBody(page, '资料已接收，分析能力暂不可用。');
       } catch (error) {
         throw new Error(
@@ -489,6 +501,7 @@ describe.skipIf(!databaseUrl)(
       expect(await page.locator('body').innerText()).not.toContain('Browser EXISTING preparation');
     }, 60000);
     it('restarts an actually truncated upload through the permitted file picker and preserves the original intake', async () => {
+      const deadline = Date.now() + 120000;
       await signIn(page, stack.webOrigin + '/projects/new');
       const command = await stack.fixture.preparationCommand({
         mode: 'NEW',
@@ -595,20 +608,21 @@ describe.skipIf(!databaseUrl)(
       await page.goto(href);
       const picker = page.getByLabel('重新上传这份 ZIP（仅一次、必须为原文件）', { exact: true });
       await picker.waitFor({ timeout: 30000 });
-      const uploadResponse = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'PUT' &&
-          new URL(response.url()).pathname === upload.path.replace(/^\/api\//, '/bff/'),
-        { timeout: 30000 },
-      );
-      await picker.setInputFiles({
-        name: 'restart-original.zip',
-        mimeType: 'application/zip',
-        buffer: bytes,
-      });
+      const [completedUpload] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === 'PUT' &&
+            new URL(response.url()).pathname === upload.path.replace(/^\/api\//, '/bff/'),
+          { timeout: Math.max(1, deadline - Date.now()) },
+        ),
+        picker.setInputFiles({
+          name: 'restart-original.zip',
+          mimeType: 'application/zip',
+          buffer: bytes,
+        }),
+      ]);
       // The owning query may expose committed custody before the upload handler
       // returns. Finish this exact transport before the suite closes its stack.
-      const completedUpload = await uploadResponse;
       expect(completedUpload.status()).toBe(200);
       expect(await completedUpload.finished()).toBeNull();
       await expectBody(page, '资料已接收，分析能力暂不可用。');

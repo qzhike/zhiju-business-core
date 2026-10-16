@@ -512,13 +512,13 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     const boardRows = boardSection.locator('ul.progress-list li');
     await boardRows.first().waitFor({ state: 'visible', timeout: 30_000 });
     expect(await boardRows.count()).toBe(1);
+    await boardSection
+      .getByText('该项目任务看板当前不可用', { exact: true })
+      .waitFor({ state: 'visible', timeout: 30_000 });
     const boardsText = (await boardSection.innerText()).replace(/\s+/gu, ' ');
     expect(boardsText).toContain('本次读取 1 条');
     expect(boardsText).toContain('Board Item');
     expect(boardsText).toContain('READY · APPROVED');
-    await page
-      .getByText('该项目任务看板当前不可用', { exact: true })
-      .waitFor({ state: 'visible', timeout: 30_000 });
     expect(boardsText).toContain('DEPENDENCY_UNAVAILABLE');
 
     // 5. Evidence that the *real* controlled Keycloak performed the
