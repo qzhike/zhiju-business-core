@@ -1,5 +1,46 @@
 # PR #299 独立代码审查
 
+## 最新浏览器预算复审：b27f278 / APPROVE
+
+- 日期：2026-10-16；PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)。
+- Reviewed SHA：`b27f278b3b6b2e7e162a22a33067ba8bc0b7d45a`，Reviewer 独立运行 `vibe repo --json` 确认；写入本记录前工作树干净。
+- Reviewer outcome：`APPROVE`。相对 `50c7ec38df14679b5260a343d91cdeebeb75d576`，该提交只修改两份持久化浏览器测试，未修改产品、业务预算、受控 fixture 或权限/事实接受集；独立检查修订与慢 owner 对照、精确 head full 后未发现新的可证实阻塞。上轮远端 CI 的失败仍是有效历史，新远端最终 head 的 CI 尚待取得实际通过证据。
+
+### 失败、干净对照与修订判断
+
+Reviewer 读取缓存 CI run `38852056576` 的 `1_persistence.txt`，确认该 run 不能由普通 checks 通过而认定整体成功：持久化有三项断言失败，包括 NEW 的三十秒 UI 等待、restart 的三十秒 PUT response 等待和 Keycloak 看板文本快照竞态；还发生 afterAll 三十秒超时，Core 存在正文已完整接收但尚未结束响应的活动 PUT。该远端 run 的失败不被此前本地 full 或审查 APPROVE 覆盖。
+
+为区分合法慢处理与业务失败，原主会话在临时受控诊断中，仅在每次真实 EP acceptSource 前等待十二秒，保留实际 owning PostgreSQL/receipts 链。Reviewer 独立读取两个诊断文件：
+
+| 对照 | 实际可见证据与解释 |
+| --- | --- |
+| `/tmp/preparation-upload-slow-baseline.log` | 旧 NEW 用例因三十秒 UI 子等待失败；真实 owning/runtime 随后在约 49.903/49.908 秒完成并触发 onSend/onResponse；afterAll 仍超时，运行最终 FAIL。说明业务仍在既有预算内完成时，旧子窗口会过早结束测试，不能把该运行写成成功。 |
+| `/tmp/preparation-upload-slow-fixed.log` | 同一慢处理条件下，owning/runtime 约 48.930/48.934 秒完成，NEW 用例 PASS，BFF/Core active requests=0 且清理正常结束。该 focused 只选 NEW，另外两项过滤 skip，不作为整套浏览器通过；临时诊断不构成生产性能或容量认证。 |
+
+最终提交中已移除所有临时 sleep、owning/runtime wrapper 和 server hooks。实际测试修订如下：
+
+- NEW 在提交点击前注册同原 intake 路径的 PUT 响应等待；restart 继续匹配已知 intake 的固定路径。两项均使用 **case 启动时的原 120 秒 deadline 剩余预算**，没有把 case 总时限提高至五分钟，也没有新增随机 sleep。
+- response waiter 与 action 以 Promise.all 连接，要求 **200、response.finished() 无错误**之后才检查 UI。STAGED/READY、manifest、WAITING_CAPABILITY、generation、原 command/身份及重登等原断言保留；实际 503、响应中断或超过 case 总预算仍失败。afterAll 仍为 **30 秒**，不强杀活动请求，不吞掉清理错误。
+- Keycloak 用例先等待任务看板的不可用状态出现，再读取同一 boardSection 的文本快照；原行数、READY/APPROVED、DEPENDENCY_UNAVAILABLE 及其余权限断言没有删除。该调整修复读取快照早于异步状态完成的竞态，不放宽业务预期。
+
+### 精确修订的完整验证
+
+Reviewer 独立读取 `/tmp/pr-299-browser-budget-full-tool-output.txt` 中原主会话 `20891` 的实际工具返回文本，核对该 SHA、命令、退出状态、可见汇总、第二次 migration、gate 与清理。导出声明工具截断，不是完整原始日志；不提交该临时文件，也没有由 Reviewer 重复执行 full。
+
+- `vibe verify full --json` 实际工具退出码 **0**，最终 JSON 为 `{"status":"PASS","target":"full","command":"pnpm clean && pnpm verify","exit_code":0}`。
+- 普通测试 **143 files / 2955 tests PASS**；production browser **7 PASS**；fixture browser **53 PASS**。
+- PostgreSQL **64 files / 739 tests PASS**；第二次 migration 无待应用变更，gate passed，临时 PostgreSQL 容器移除。本轮完整通过覆盖两份已修订测试，未把 focused 的过滤 skip 推广为全量完成。
+- BFF/Core 清理时 active requests 均为 **0**，两者 closed，runtime/owning pools、OIDC、浏览器和 stack 清理阶段正常结束。关闭回调后的 idle connection close 事件不被误写为未完成的活动请求。
+
+### 批准与仍待交付的证据
+
+产品与 `50c7ec3` 无差异，先前已记录的人类技术批准及产品审查边界保持；本轮未引入需另定的架构、授权、数据或业务预算选择。该独立 APPROVE 不是 GitHub 原生 review，也不把旧失败 run 升级为新 CI 通过。由原主会话在正式文档子提交和最终推送后，绑定精确最终 head 核对远端 required checks；不能沿用其他 head 的 CI。
+
+真实生产 Provider/Ceph、native TE/Runner、报告、完整浏览器平台矩阵、性能/容量以及独立人工/客户验收仍为 `NOT RUN`。本 Reviewer 只追加正式记录，未改产品或测试，未 commit、push、merge、运行 full 或查询 CI。下方所有历史原文保留各自精确修订与当时结论，不被覆盖。
+
+---
+
+
 ## 最新传输修订复审：204b7ee / APPROVE
 
 - 日期：2026-10-16；PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)。
