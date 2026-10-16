@@ -1,5 +1,41 @@
 # PR #299 独立代码审查
 
+## 最新传输修订复审：204b7ee / APPROVE
+
+- 日期：2026-10-16；PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)。
+- Reviewed product SHA：`204b7ee5f23b12ef7de62906af24026de04053d5`，Reviewer 独立通过 `vibe repo --json` 确认。冻结产品未再修改；随后规划对账与本正式记录为文档增量，不包含在该产品 SHA 中。
+- Reviewer outcome：`APPROVE`。本轮重新核对 ZIP 传输修复、增强的浏览器完成条件和该精确产品的 configured full，未发现新的可证实阻塞。此前 CI 的清理超时是实际失败，不能由其测试断言全部通过而抹掉；当前仅确认修订后的本地完整验证通过，远端最终 head 仍须重新检查。
+
+### 失败证据与独立范围
+
+本轮读取缓存 CI run `38753381512 / attempt 1` 的 `2_persistence.txt`：第三个上传 case 后 Core 仍有活动 PUT，随后 afterAll 超时。初始修订仅增强测试等待，真实响应 503 仍会暴露，不能把这一步称为根因已修复。最终产品还修正两项传输行为，并保持原权限、存储、source/manifest/handoff 与不可变原请求边界。
+
+- 静态 Web 代理此前对所有请求使用十五秒 socket 超时。现在仅对 `PUT` 加固定 UUIDv7 `/bff/customer-intakes/<id>/zip` 路径使用 **300 秒 socket inactivity timeout**，允许正文结束后合法的 owning 处理继续；普通请求仍为十五秒，固定 upstream 未改变。该参数不是独立绝对总时钟；Browser 的五分钟 AbortSignal 与 BFF/IG 原上传总时限、空闲、大小和授权限制保持，不从代理 timeout 推导更宽的业务接受集。
+- Browser `uploadPreparationZip` 在成功 headers 后继续消费完整 response body，正文尚未结束不能返回成功，正文中断仍失败。对失败/UNKNOWN 仍沿原 intake 查询，不改变键、Project 或原 bytes，不制造 replacement。
+- 浏览器重传测试在 file picker 操作前注册同一 intake 精确 PUT 响应等待，要求 **200 且 response.finished() 无错误**，再核对 generation 2、STAGED、READY、manifest 和真实 WAITING_CAPABILITY 摘要。不能只用 owner 已提交事实或 UI 文字代替 HTTP transport 完成。
+- 新真实 HTTP proxy 回归让受控 upstream 在收到完整正文后处理十六秒，验证原 bytes 和完整成功响应。Browser transport 正负对照分别让 200 headers 先到而 body 延迟或中断。本轮最终产品上 Reviewer 独立执行 transport **8/8 PASS**；真实 HTTP proxy 回归由 configured full 覆盖，受控 upstream 不冒充真实 BFF/业务验收。
+- cleanup 的三十秒 hook 与 case timeout 没有提高，没有跳过、强杀活动请求或吞错。保留的诊断只有去 query 的路径与 HTTP 状态布尔量，不包含 token/note；临时 fetch/runtime handler 包装未进入产品。测试路径迁移至既有 typed test project，没有修改 tsconfig 或验证政策。
+
+### 精确产品验证证据
+
+Reviewer 独立读取 `/tmp/pr-299-transport-full-tool-output.txt` 中原主会话 `34025` 的实际工具返回文本，核对产品 SHA、命令、退出码、汇总、第二次 migration、gate/容器与 HTTP/pool 清理。文件明确声明工具截断，不是完整原始日志；临时导出不提交仓库，Reviewer 未重复运行 full。
+
+- `vibe verify full --json` 实际工具退出码 **0**；最终结果 `{"status":"PASS","target":"full","command":"pnpm clean && pnpm verify","exit_code":0}`。
+- 普通测试 **143 files / 2955 tests PASS**；production browser **7 PASS**；fixture browser **53 PASS**。
+- PostgreSQL **64 files / 739 tests PASS**；第二次 migration 无待应用变更，gate passed，临时 PostgreSQL 容器移除。
+- 清理时 BFF active requests=0、Core active requests=0；runtime/owning pools、OIDC、浏览器与 stack 清理阶段均正常结束。Core close 回调后待派发 close 事件的 idle connections 不等于未完成的活动上传。本轮没有用断言通过数掩盖 hook/suite 失败。
+
+### 文档对账、批准与交付边界
+
+同时语义核对 Planner 提供的三文档增量：roadmap 与 EP/IG owning 状态明确 #291 已实现的准备创建、首包托管/说明及原请求恢复切片；后续意图仍是准备分析、报告接纳、启动核对与整份选择，并要求重新核对 NOW + READY。它们不制造已合并、真实公司发布、native TE/Runner、完整客户链或 IM-UI-01 完成事实，验收证据继续归 Issue/PR。该对账不改变公共字段、Policy 或产品行为。
+
+原用户对已审 #291/R2 的技术批准与后续合并授权仍按下方历史原文保留。本轮是实现既有五分钟 ZIP 传输边界、补全成功响应完成语义的修复，没有新增架构/授权/数据边界；没有据此制造新的技术批准请求或伪写用户对 `204b7ee` 的新精确批准。独立代码审查 APPROVE 不代表新的 GitHub 原生 review，也不替代最终 head 的 required checks。旧 CI 失败不能自动提升为已修订远端 CI 通过；由原主会话在文档子提交、最终推送后核对。
+
+真实生产 Ceph/OIDC、native TE/Runner、报告、完整浏览器平台矩阵及独立人工/客户验收仍为 `NOT RUN`。本 Reviewer 仅追加正式记录，未修改产品、commit、push、merge 或查询 CI；下方全部历史审查和人工批准原文完整保留。
+
+---
+
+
 ## 最新整合复审：08713bb / APPROVE
 
 - 日期：2026-10-15；PR：[PR #299](https://github.com/qzhike/zhiju-business-core/pull/299)。

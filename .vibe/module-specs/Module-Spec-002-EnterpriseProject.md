@@ -933,7 +933,7 @@ derivedStatus由本Item当前pointer和已消费revocation的独立重算给出�
 
 ## #277 准备入口预设与原请求交接提案
 
-状态：`T2 / DESIGN APPROVED / IMPLEMENTATION IN PROGRESS`。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为未注册 D14 字段的显式补充，除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；本修订的批准范围见 Delta 与正式审查记录。
+状态：`T2 / DESIGN APPROVED`。#291 当前修订实现准备入口切片，实现边界见下方「#291 准备入口实现边界」；验收证据以 Issue/PR 为准，生产/人工仍 NOT RUN。选择与 trace 见 [#277 Delta](../decisions/preparation-entry-bootstrap.md)。以下为 D14 准备入口的已批准字段补充，当前实现范围见下方 #291 实现边界；除下述 board 可选结果外不修改既有 @1.0 接受集，旧 Project 创建与公司 startup bundle 保持；本修订的批准范围见 Delta 与正式审查记录。
 
 ### 技术预设的唯一生产与精确选择
 

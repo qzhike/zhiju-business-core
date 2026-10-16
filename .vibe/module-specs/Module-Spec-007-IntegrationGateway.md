@@ -389,7 +389,7 @@ late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Atte
 
 ## #277 ZIP 提交意图与一次完整重传提案
 
-状态：`T2 / DESIGN APPROVED / IMPLEMENTED LOCALLY / ACCEPTANCE PENDING`。本节定义准备入口 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是已批准设计增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
+状态：`T2 / DESIGN APPROVED`。#291 当前修订实现首次 ZIP 托管切片，实现边界见本节；验收证据以 Issue/PR 为准，生产/人工仍 NOT RUN。本节定义准备入口 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是已批准设计增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
 
 | 拟公开 operation@1.0 | 封闭 payload / Result 增量 |
 |---|---|
