@@ -145,6 +145,7 @@ export async function uploadPreparationZip(
     signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
   });
   if (!response.ok) throw new BffFailure(readApiFailure(response.status, await response.json()));
+  await response.arrayBuffer();
 }
 
 export function preparationHref(requestId: string, scope: JsonRecord): string {

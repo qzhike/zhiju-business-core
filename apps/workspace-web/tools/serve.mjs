@@ -39,12 +39,18 @@ const server = createServer(async (req, res) => {
     /^\/api\/markdown-representations\/[0-9a-f-]+\/content$/.test(path ?? '')
   ) {
     const send = upstream.protocol === 'https:' ? httpsRequest : httpRequest;
+    const zipUpload =
+      req.method === 'PUT' &&
+      /^\/bff\/customer-intakes\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/zip$/u.test(
+        path ?? '',
+      );
     const proxy = send(
       new URL(req.url ?? '/', upstream),
       {
         method: req.method,
         headers: { ...req.headers, host: upstream.host },
-        timeout: 15_000,
+        // Owning ZIP custody can finish after the incoming body has ended.
+        timeout: zipUpload ? 300_000 : 15_000,
       },
       (response) => {
         // Forward the upstream status and headers (Location, Set-Cookie,

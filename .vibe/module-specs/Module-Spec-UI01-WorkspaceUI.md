@@ -428,3 +428,5 @@ BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，
 `/projects/new` 通过当前 Human 的公开 entry Query 选择 NEW/EXISTING；`/preparations/{requestId}?enterprise=…&project=…` 为安全原请求恢复入口，首次 intake 写前只追加 intake UUID，不放 note/token。创建与提交均在第一次写前固定原 UUID/key/hash，提交原始字符串，响应丢失只查询原身份。PARTIAL 只有 owning `CONTINUE_ORIGINAL` 才显式原命令重放；重传只有原文件 bytes/hash/length 完全相同且当前 owning 许可，CAS aggregateVersion 与 generation 分离。当前原作者授权的 EP board 可回到原请求；PREPARING 不自动请求 TE Task board。页面只显示实际 custody/entry limitation/receipt/handoff 状态，暂无真实执行不显示分析中。
 
 BFF 仅 six-operation allowlist + 固定 ZIP PUT，逐次 session/CSRF/Origin 校验。ZIP 流 1 MiB 缓冲、100 MiB 累计、5 分钟总时限和 30 秒空闲时限，限流使用部署 maxConcurrentUploads；无解压或内容分析。Core 从实际 OIDC Human 形成 Session，调用真实 IP/EP/IG composition；`ZHIJU_PREPARATION_CONFIG` 不配置时这条能力保持不可用，有配置则闭集验证并要求独立密钥、持久化池及 S3。BFF 的显式 return-route 配置须纳入 `/preparations/:requestId`。受控 OIDC/本地对象端口的自动化结果与真实 Provider/Ceph/Runner、全浏览器矩阵及人工验收分开，执行证据归 #291/PR #299。
+
+静态 Web 对精确同源 ZIP PUT 的固定 BFF 代理沿用五分钟调用预算，不能使用普通 JSON 请求的十五秒 socket 超时截断合法 owning 处理；BFF/IG 的大小、流空闲与总时限仍独立成立。浏览器上传 helper 在成功响应体完整读完后才结束本次传输，响应头为 200 但正文中断仍为待核验失败。owning Query 可先观察到已提交托管事实，该事实不等于上传 HTTP 响应已结束。

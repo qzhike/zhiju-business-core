@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   canonicalize,
   sha256CanonicalJson,
@@ -8,7 +8,9 @@ import {
 import { assertPreparationCommand, preparationHash, samePreparationValue } from '@zhiju/contracts';
 import {
   canonicalPreparationJson,
+  bytesSha256,
   preparationCommand,
+  uploadPreparationZip,
 } from '../../apps/workspace-web/src/intake/live-client.js';
 import { safeReturnTo } from '../../apps/workspace-web/src/trusted/session.js';
 
@@ -91,4 +93,58 @@ describe('preparation public command integrity', () => {
     ])
       expect(safeReturnTo(unsafe)).toBe('/workbench');
   });
+});
+
+describe('preparation ZIP transport completion', () => {
+  it.each(['complete', 'interrupted'] as const)(
+    'awaits the response body after HTTP 200: %s',
+    async (ending) => {
+      const file = new File(['controlled original bytes'], 'original.zip');
+      const upload = {
+        path: `/api/customer-intakes/${newUuidV7()}/zip`,
+        token: 'A'.repeat(43),
+        method: 'PUT',
+        expectedByteLength: file.size,
+        expectedZipBytesSha256: await bytesSha256(await file.arrayBuffer()),
+      };
+      let body!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            body = controller;
+          },
+        }),
+        { status: 200 },
+      );
+      const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      let completed = false;
+      const result = uploadPreparationZip(
+        file,
+        upload,
+        'controlled-csrf',
+        new AbortController().signal,
+      );
+      const observed = result.then(
+        () => {
+          completed = true;
+          return 'COMPLETE';
+        },
+        () => 'INTERRUPTED',
+      );
+      try {
+        await vi.waitFor(() => {
+          expect(fetch).toHaveBeenCalledOnce();
+        });
+        expect(completed).toBe(false);
+        if (ending === 'complete') {
+          body.enqueue(new TextEncoder().encode('{"disposition":"STAGED"}'));
+          body.close();
+        } else body.error(new Error('Response interrupted'));
+        expect(await observed).toBe(ending === 'complete' ? 'COMPLETE' : 'INTERRUPTED');
+      } finally {
+        if (!response.bodyUsed) body.close();
+        fetch.mockRestore();
+      }
+    },
+  );
 });

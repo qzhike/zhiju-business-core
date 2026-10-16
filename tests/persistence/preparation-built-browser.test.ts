@@ -2,7 +2,7 @@
 // The shared fixture publishes/enrolls through owning entries; object transport
 // is controlled local acceptance and does not establish real Ceph/Runner evidence.
 import { createHash } from 'node:crypto';
-import type { Server, IncomingMessage } from 'node:http';
+import type { Server, IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import pg from 'pg';
 import {
@@ -54,14 +54,17 @@ function cleanupStage(name: string, close: () => Promise<unknown>): () => Promis
   };
 }
 function httpCleanup(name: string, server: Server, close: () => Promise<unknown>) {
-  const requests = new Map<IncomingMessage, string>();
+  const requests = new Map<IncomingMessage, { route: string; response: ServerResponse }>();
   const sockets = new Set<Socket>();
   server.on('connection', (socket) => {
     sockets.add(socket);
     socket.once('close', () => sockets.delete(socket));
   });
   server.on('request', (request, response) => {
-    requests.set(request, `${request.method ?? 'UNKNOWN'} ${request.url?.split('?')[0] ?? '/'}`);
+    requests.set(request, {
+      route: `${request.method ?? 'UNKNOWN'} ${request.url?.split('?')[0] ?? '/'}`,
+      response,
+    });
     const done = () => {
       requests.delete(request);
     };
@@ -70,7 +73,7 @@ function httpCleanup(name: string, server: Server, close: () => Promise<unknown>
   });
   return cleanupStage(name, async () => {
     process.stderr.write(
-      `Preparation HTTP ${name} active=${requests.size} connections=${sockets.size} routes=${[...requests.values()].join(',')}\n`,
+      `Preparation HTTP ${name} active=${requests.size} connections=${sockets.size} routes=${[...requests].map(([request, { route, response }]) => `${route} complete=${request.complete} ended=${request.readableEnded} requestDestroyed=${request.destroyed} responseEnded=${response.writableEnded} responseFinished=${response.writableFinished} responseDestroyed=${response.destroyed}`).join(',')}\n`,
     );
     const closed = close();
     // Release only idle HTTP keep-alive connections; active owning requests must
@@ -592,11 +595,22 @@ describe.skipIf(!databaseUrl)(
       await page.goto(href);
       const picker = page.getByLabel('重新上传这份 ZIP（仅一次、必须为原文件）', { exact: true });
       await picker.waitFor({ timeout: 30000 });
+      const uploadResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          new URL(response.url()).pathname === upload.path.replace(/^\/api\//, '/bff/'),
+        { timeout: 30000 },
+      );
       await picker.setInputFiles({
         name: 'restart-original.zip',
         mimeType: 'application/zip',
         buffer: bytes,
       });
+      // The owning query may expose committed custody before the upload handler
+      // returns. Finish this exact transport before the suite closes its stack.
+      const completedUpload = await uploadResponse;
+      expect(completedUpload.status()).toBe(200);
+      expect(await completedUpload.finished()).toBeNull();
       await expectBody(page, '资料已接收，分析能力暂不可用。');
       expect(currentIds(page).intakeId).toBe(intakeRef.objectId);
       expect(await page.locator('textarea').inputValue()).toBe(payload.submittedNote);
@@ -608,6 +622,10 @@ describe.skipIf(!databaseUrl)(
         }),
       );
       expect(readback.uploadState).toMatchObject({ generation: 2, restartsUsed: 1 });
+      expect(readback.uploadState.state).toBe('STAGED');
+      expect(readback.custody.status).toBe('READY');
+      expect(readback.custody.manifestRef).toBeDefined();
+      expect(readback.analysis).toMatchObject({ status: 'WAITING_CAPABILITY' });
       expect(readback.originalCommand).toEqual(intake);
     }, 120000);
   },
