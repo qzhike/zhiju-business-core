@@ -1,4 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
+import { readExactQuery } from '../trusted/client.js';
+import { asRecord } from '../trusted/values.js';
+import { isUuidV7 } from '../trusted/identity.js';
+import { preparationHref } from '../intake/live-client.js';
 import { usePageChain } from '../trusted/hooks.js';
 import type { LiveGuard, ReadBoundary } from '../trusted/guard.js';
 import {
@@ -86,6 +91,7 @@ function SelectedWorkbench({
   });
   const tasks = usePageChain<BoardRow>({
     ...shared,
+    enabled: selected !== undefined && selected.status !== 'PREPARING',
     operation: TASK_BOARD_OPERATION,
     buildBody: buildTasks,
     parsePage: parseTaskBoardPage,
@@ -101,6 +107,15 @@ function SelectedWorkbench({
     : [];
   return (
     <Workbench
+      controls={
+        selected?.status === 'PREPARING' ? (
+          <PreparationRecovery
+            key={`${props.sessionGeneration}:${selected.key}`}
+            {...props}
+            card={selected}
+          />
+        ) : undefined
+      }
       projects={projects}
       selectedKey={props.selectedKey}
       onSelect={props.onSelect}
@@ -109,7 +124,9 @@ function SelectedWorkbench({
         selected
           ? [
               chainNotice('delivery', '交付项看板（EP）', delivery),
-              chainNotice('tasks', '任务看板（TE）', tasks),
+              ...(selected.status === 'PREPARING'
+                ? []
+                : [chainNotice('tasks', '任务看板（TE）', tasks)]),
             ]
           : []
       }
@@ -128,4 +145,55 @@ function SelectedWorkbench({
       }
     />
   );
+}
+
+/** Optional owning board metadata is read under the same live Human session. */
+function PreparationRecovery(props: TrustedProps & { card: DirectoryCard }) {
+  const [href, setHref] = useState<string | null>(null);
+  const { card, csrfToken, generation, principalId, guardRef, onSessionFailure } = props;
+  useEffect(() => {
+    const abort = new AbortController();
+    setHref(null);
+    const read = async () => {
+      const result = asRecord(
+        await readExactQuery(
+          PROJECT_BOARD_OPERATION,
+          { enterpriseId: card.enterpriseId, projectId: card.projectId },
+          { projectRef: card.projectRef, statuses: [], itemTypes: [], page: { pageSize: 1 } },
+          csrfToken,
+          abort.signal,
+        ),
+      );
+      if (
+        abort.signal.aborted ||
+        guardRef.current.generation !== generation ||
+        guardRef.current.principalId !== principalId
+      )
+        return;
+      const entry = asRecord(result?.preparationEntry);
+      const ref = asRecord(entry?.preparationRequestRef);
+      const scope = asRecord(ref?.scope);
+      if (
+        ref?.objectType === 'zhiju.project.preparation_request' &&
+        isUuidV7(String(ref.objectId)) &&
+        scope?.enterpriseId === card.enterpriseId &&
+        scope.projectId === card.projectId &&
+        entry?.originalPreparationKey ===
+          `project.request_project_preparation:1.0:${String(ref.objectId)}`
+      )
+        setHref(
+          preparationHref(String(ref.objectId), {
+            enterpriseId: card.enterpriseId,
+            projectId: card.projectId,
+          }),
+        );
+    };
+    void read().catch(() => {
+      /* Missing recovery permission never creates a replacement request. */
+    });
+    return () => {
+      abort.abort();
+    };
+  }, [card, csrfToken, generation, principalId, guardRef, onSessionFailure]);
+  return href ? <Link to={href}>查看原准备请求与资料接纳状态</Link> : null;
 }

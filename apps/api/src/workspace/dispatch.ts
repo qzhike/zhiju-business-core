@@ -1,22 +1,8 @@
-// IM-UI-01 (#266/#258): the closed operation dispatch of the Core workspace
-// transport (Session Delta §5).
-//
-// The transport mounts exactly three read operations and nothing else. There is
-// no generic registry dispatch, no private repository proxy, no management or
-// worker operation and no command: a request for any other operation is a safe
-// 404, and an operation the approved route set lists but does not yet implement
-// is a safe 503. The URL operation/version is compared verbatim with the body
-// `type`/`version` (one canonical parse; a mismatch is `API_VALUE_INVALID`), and
-// any Browser business override field (`actor`, `actingFor`, `requester`,
-// `authorizationDecisionRef`, `authenticationContextRef`, `roles`,
-// `policySnapshot`) is refused before anything else runs.
-//
-// For the three implemented reads the dispatch resolves the verified Human
-// through the owning IdentityPolicy Port and completes the shared Query
-// Envelope (requester / authenticationContextRef from the trusted identity, not
-// from the payload) before handing it to the matching entry. Every failure is
-// projected onto the frozen `errors.ts` table via `WorkspaceCoreError`, so a
-// dependency failure is a 503 and never an empty successful page.
+// The trusted workspace has an explicit finite dispatch table. Preparation
+// commands/queries are enabled only by the deployment-owned IP/EP/IG assembly;
+// unavailable capabilities retain the safe dependency error. Browser identity
+// overrides are rejected before resolving the actual verified Human. Owning
+// operations validate the original projection, current authorization and result.
 
 import type { Kysely } from 'kysely';
 import type { Common } from '@zhiju/contracts';
@@ -33,7 +19,7 @@ import {
 } from '@zhiju/identity-policy';
 import type { EnterpriseProjectDb } from '@zhiju/enterprise-project';
 import type { TaskExecutionDb } from '@zhiju/task-execution';
-import { newUuidV7, sha256CanonicalJson } from '@zhiju/shared-kernel';
+import { newUuidV7, sha256CanonicalJson, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 import {
   createWorkspaceDirectoryEntry,
   WORKSPACE_DIRECTORY_QUERY,
@@ -60,6 +46,12 @@ import {
 } from './errors.js';
 import type { WorkspaceDispatchRequest, WorkspaceDispatchResponse } from './controller.js';
 import type { WorkspaceMarkdownStreamRequest } from './controller.js';
+import type { WorkspaceZipUploadRequest } from './controller.js';
+import {
+  createPreparationWorkspaceEntry,
+  PREPARATION_PUBLIC_OPERATIONS,
+  type PreparationWorkspaceServices,
+} from '../composition/preparation-workspace-entry.js';
 import {
   createMarkdownReviewEntry,
   type MarkdownReviewEntryConfig,
@@ -71,6 +63,7 @@ export type WorkspaceDispatchCapabilityCodes = WorkspaceDirectoryCapabilityCodes
   WorkspaceBoardCapabilityCodes;
 
 export interface WorkspaceDispatchConfig {
+  readonly preparation?: PreparationWorkspaceServices;
   readonly markdown?: Pick<
     MarkdownReviewEntryConfig,
     'review' | 'representations' | 'capabilityCodes'
@@ -93,6 +86,7 @@ export interface WorkspaceDispatchConfig {
 }
 
 export interface WorkspaceDispatch {
+  upload(request: WorkspaceZipUploadRequest): Promise<unknown>;
   execute(request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse>;
   stream(
     request: WorkspaceMarkdownStreamRequest,
@@ -113,11 +107,6 @@ const IMPLEMENTED_QUERIES: ReadonlySet<string> = new Set([
  * the route's existence.
  */
 const ALLOWLISTED_UNIMPLEMENTED: ReadonlySet<string> = new Set([
-  'project.find_preparation_enterprises@1.0',
-  'project.request_project_preparation@1.0',
-  'project.get_project_preparation_request@1.0',
-  'integration.request_customer_zip_intake@1.0',
-  'integration.get_customer_zip_intake@1.0',
   'project.get_startup_review@1.0',
   'project.request_startup_confirmation@1.0',
   'project.get_startup_request@1.0',
@@ -146,6 +135,18 @@ const BOOTSTRAP_PRINCIPAL_ID = '00000000-0000-7000-8000-000000000001';
 
 /** Internal owning codes projected onto the frozen public table. */
 const PUBLIC_CODE_BY_INTERNAL: Readonly<Record<string, CoreErrorCode>> = Object.freeze({
+  AUTHORIZATION_DENIED: CORE_ERROR_CODE.AUTHORIZATION_REVOKED,
+  SESSION_EXPIRED: CORE_ERROR_CODE.AUTHORIZATION_REVOKED,
+  PREPARATION_NOT_VISIBLE: CORE_ERROR_CODE.NOT_FOUND,
+  NOT_FOUND: CORE_ERROR_CODE.NOT_FOUND,
+  INTEGRATION_INTAKE_NOT_FOUND: CORE_ERROR_CODE.NOT_FOUND,
+  PREPARATION_PAYLOAD_INVALID: CORE_ERROR_CODE.API_VALUE_INVALID,
+  PREPARATION_IDENTITY_CONFLICT: CORE_ERROR_CODE.API_VALUE_INVALID,
+  IDEMPOTENCY_PAYLOAD_CONFLICT: CORE_ERROR_CODE.API_VALUE_INVALID,
+  IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD: CORE_ERROR_CODE.API_VALUE_INVALID,
+  INTEGRATION_ZIP_UPLOAD_GENERATION_CONFLICT: CORE_ERROR_CODE.API_VALUE_INVALID,
+  INTEGRATION_ZIP_UPLOAD_RESTART_NOT_ALLOWED: CORE_ERROR_CODE.API_VALUE_INVALID,
+  INTEGRATION_ZIP_UPLOAD_RESTART_EXHAUSTED: CORE_ERROR_CODE.API_VALUE_INVALID,
   ARTIFACT_QUERY_NOT_FOUND: CORE_ERROR_CODE.NOT_FOUND,
   ARTIFACT_STRUCTURED_DOCUMENT_BASE_INVALID: CORE_ERROR_CODE.NOT_FOUND,
   ARTIFACT_CONTENT_READBACK_MISMATCH: CORE_ERROR_CODE.NOT_FOUND,
@@ -213,6 +214,9 @@ function bootstrapContext(params: {
 }
 
 export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): WorkspaceDispatch {
+  const preparation = config.preparation
+    ? createPreparationWorkspaceEntry(config.preparation)
+    : undefined;
   const markdown = config.markdown
     ? createMarkdownReviewEntry({
         ...config.markdown,
@@ -322,12 +326,49 @@ export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): Worksp
       return directoryEntry.findWorkspaceProjects(envelope, session);
     }
     if (key === `${PROJECT_BOARD_SLICE_QUERY}@${PROJECT_BOARD_SLICE_QUERY_VERSION}`) {
-      return projectBoardEntry.getProjectBoardSlice(envelope, session);
+      const result = await projectBoardEntry.getProjectBoardSlice(envelope, session);
+      const preparationServices = config.preparation;
+      if (!preparationServices) return result;
+      // The optional recovery link is independently authorized for this creator.
+      let entry;
+      try {
+        entry = await preparationServices.run(request, resolution, (current) =>
+          preparationServices.project.boardEntry(
+            current,
+            (body.payload as { projectRef: Common.ObjectRef }).projectRef,
+          ),
+        );
+      } catch {
+        return result;
+      }
+      if (!entry) return result;
+      const { resultHash: _oldHash, ...publicResult } = result;
+      void _oldHash;
+      const complete = {
+        ...publicResult,
+        data: { ...(publicResult.data as Record<string, unknown>), preparationEntry: entry },
+      };
+      return {
+        ...complete,
+        resultHash: {
+          algorithm: 'SHA-256',
+          canonicalizationVersion: '1',
+          digest: sha256CanonicalJson(complete as unknown as CanonicalJsonValue),
+        },
+      };
     }
     return taskBoardEntry.getTaskBoardSlice(envelope, session);
   }
 
   return {
+    async upload(request) {
+      try {
+        if (!preparation) throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
+        return await preparation.upload(request, await resolveHuman(request.context));
+      } catch (error) {
+        throw toWorkspaceCoreError(error);
+      }
+    },
     async stream(request) {
       try {
         if (!markdown) throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
@@ -360,6 +401,11 @@ export function createWorkspaceDispatch(config: WorkspaceDispatchConfig): Worksp
           throw new WorkspaceCoreError(CORE_ERROR_CODE.API_VALUE_INVALID);
         }
         const key = `${request.operation}@${request.version}`;
+        if (request.version === '1.0' && PREPARATION_PUBLIC_OPERATIONS.has(request.operation)) {
+          if (!preparation) throw new WorkspaceCoreError(CORE_ERROR_CODE.DEPENDENCY_UNAVAILABLE);
+          const payload = await preparation.execute(request, await resolveHuman(request.context));
+          return { status: 200, payload };
+        }
         if (request.kind !== 'QUERY' || !IMPLEMENTED_QUERIES.has(key)) {
           throw new WorkspaceCoreError(
             ALLOWLISTED_UNIMPLEMENTED.has(key)

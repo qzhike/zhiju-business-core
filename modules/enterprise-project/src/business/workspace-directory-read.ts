@@ -34,7 +34,7 @@ export interface WorkspaceProjectSummaryView {
   readonly enterpriseDisplayName: string;
   readonly displayCode: string;
   readonly title: string;
-  readonly status: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
+  readonly status: 'PREPARING' | 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
   readonly aggregateVersion: number;
 }
 
@@ -45,6 +45,7 @@ export interface WorkspaceProjectSummaryRequest {
 }
 
 const PROJECT_STATUSES: Readonly<Record<string, true>> = {
+  PREPARING: true,
   ACTIVE: true,
   SUSPENDED: true,
   ARCHIVED: true,

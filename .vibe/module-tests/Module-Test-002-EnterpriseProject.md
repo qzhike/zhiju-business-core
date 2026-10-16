@@ -551,7 +551,7 @@ pnpm persistence:gate
 
 ## #277 准备预设、原请求与交接设计场景
 
-状态：`DESIGN APPROVED / NOT RUN`。字段见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)。本表追加，不替换 EP-D14/EP-257/EP-WS 既有接受集。
+状态：`DESIGN APPROVED / IMPLEMENTATION IN PROGRESS`。字段见 [EP #277](../module-specs/Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)。本表追加，不替换 EP-D14/EP-257/EP-WS 既有接受集。
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
@@ -561,6 +561,10 @@ pnpm persistence:gate
 | EP-277-004 | preset未发布/未来/撤回/显式取代；rule publication不存在/失效；只缺Runner | 前两者创建前拒绝、创建后STALE保留事实；不原地换binding。单缺Runner可完成资料入口，分析WAITING_CAPABILITY；不制造生产值 | 未执行 / NOT RUN |
 | EP-277-005 | request提交后response-loss、重登、双Tab同键；原URL跨Human；original payload遗失且无已提交Root | 当前授权原key读回同refs；无未知时新建企业/项目；无服务器原意图则不能猜payload重发；安全404不证明NOT_COMMITTED | 未执行 / NOT RUN |
 | EP-277-006 | manifest重复Event、note/source已接纳；EP/TE各step提交后crash；TE缺接口或UNKNOWN | Inbox/单intake唯一handoff，note纳入source且不作系统objective；真实每step refs；缺能力等待、UNKNOWN同Receipt/Attemptreadback，零第二调用/报告/start；查询零写 | 未执行 / NOT RUN |
+
+历史依赖反例见 `tests/persistence/preparation-history-recovery.test.ts`：实际准入/创建/ZIP/SourceMaterial acceptance/manifest/handoff/source capture 后，经 owning 模板撤回入口追加失效事实；当前 Human 的原 request 保留原 command 和 tuple 并为 STALE，当前 exact SERVICE 的 source Query 返回相同 immutable payload 和 STALE，跨 Scope ref 拒绝，新 intake 不得提交。该组合使用真实 PostgreSQL producers 与受控 S3 协议传输，不替代真实 Ceph/Runner 或人工验收。
+
+#291 新增 EP owning 证据入口：`modules/enterprise-project/src/business/preparation-project.test.ts` 覆盖封闭原命令、Scope/key/hash、UTF-8 限制和真实 Session verifier 前置拒绝；`tests/persistence/preparation-project.test.ts` 通过 EP owning 发布/请求/查询操作验证 NEW、原命令重放、Project/Claim/Receipt 与零 PROJECT_START、provisioning 部分失败恢复、同 hash Unicode 原字符冲突与跨 Human 拒绝。后者显式隔离 IP test port，仅证明 EP 持久化行为，不替代真实 IP/IG/transport/browser 贯通验收。EP 隔离层的 12 个边界用例与 7 个 PostgreSQL owning 用例已通过聚焦诊断，包含真实迁移及二次 migrate；原准备请求 result 已经实际 ContractRegistry 校验。此层使用明确的 IP test port，不声明跨 Owner 认证通过。公司真实部署发布实例、外部 TE/Runner、部署及人工验收保持 NOT RUN。
 
 ## D14 / RD-01 首条资料链路设计场景
 

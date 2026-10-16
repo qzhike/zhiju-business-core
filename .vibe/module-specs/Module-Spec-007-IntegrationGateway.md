@@ -389,7 +389,7 @@ late consumer 的两个 Query 各以自身 current IP Decision 读取 exact Atte
 
 ## #277 ZIP 提交意图与一次完整重传提案
 
-状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节补齐下方 D14 未注册 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是已批准设计增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
+状态：`T2 / DESIGN APPROVED`。#291 当前修订实现首次 ZIP 托管切片，实现边界见本节；验收证据以 Issue/PR 为准，生产/人工仍 NOT RUN。本节定义准备入口 intake 字段；[选择/trace](../decisions/preparation-entry-bootstrap.md) 和 [IP 授权](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案) 是已批准设计增量。ZIP 安全/资源上限沿原批准 D14，不能以本节放宽。
 
 | 拟公开 operation@1.0 | 封闭 payload / Result 增量 |
 |---|---|
@@ -409,6 +409,8 @@ Query 的 `aggregateVersion` 是当前 intake Root 的真实版本，与 `upload
 
 ### Upload ticket 与唯一有界恢复
 
+实现边界（#291）：`src/customer-zip/intake-service.ts` 实现当前 Session 与 IP 双授权、EP 原绑定核验、唯一原 intake/Command/Receipt 持久化、独占流 claim、一次 CAS/fencing 重传、隔离对象核验、稳定 EP source steps 与 manifest/Receipt/Outbox 原子提交。`policy.ts` 只解析部署显式加载的批准 artifact，重算 cv1 hash 并固定 D14 限额；`zip-safety.ts` 检查 ZIP 完整性、路径/类型/CRC/展开预算与 DOCX 二级累计预算。`upload-ticket.ts` 使用显式配置的 256-bit key、AES-256-GCM 和 256-bit 随机 token，认证数据绑定原 intake/作者/完整 Scope/payload hash/ZIP hash 与长度/generation/keyId/原期限。密钥缺失、篡改或到期均拒绝，不自动续期或替换票据。公开传输与跨 owner 的完整持久化验收仍须独立证据，不以组件单测声明生产可用。 DOCX 的 ContentTypes、package Relationships 和主文档 XML 必须先经命名空间感知的严格良构性解析，再从实际根元素及直接子元素核验 OOXML 结构；注释、CDATA、处理指令不构成元素证据。重复（含展开名相同的）属性、非法字符/字符引用、未绑定前缀、DTD/外部实体均拒绝；不得使用第二套正则解析结果覆盖严格解析结果，也不得 trim 命名空间声明后将错误 URI 视为批准命名空间。解析沿本次 ZIP 累计资源预算，不建立完整 DOM；坏 DOCX 逐项 CORRUPT，合法 Markdown 可保留部分结果，零可分析源仍拒绝。
+
 upload 闭集 `{generation,token,expiresAt,method:PUT,path,expectedByteLength,expectedZipBytesSha256}`；path 只为固定 `/api/customer-intakes/<intakeId>/zip`，BFF 转为同形 `/bff/…`，不能携带任意 origin。token 随机性/抗猜测强度至少256 bits，只绑定 intake、creator、完整 Scope、原 payloadHash、ZIP hash/长度、generation、固定期限；不是通用 bearer，不替代当次 Session/CSRF/IP 权限。每代有效期5分钟，不延长；流的总时限5分钟/无数据30秒沿 #258，token 到期即停止读流，完成提交前仍需 generation/权限有效。
 
 IG 保存 ticket digest 与受控加密 token（专用 keyId、密文；明文只在签发/受权 replay 时出现），期限后不可再返回；不放普通 Receipt/Event/Audit/日志。该短期存储只用于原 CommandResult 的授权重放；成功 Receipt 保存 generation/expiry/绑定，不保存明文 token。key 不可用则安全依赖失败，不随机换 token。相同 CREATE/restart key 的合法重复只读同代同 token/原 expiry，不增加次数、不重新签发。另一个 Human、原作者失权或错误原 hash 都不得取 token。
@@ -416,6 +418,7 @@ IG 保存 ticket digest 与受控加密 token（专用 keyId、密文；明文�
 uploadState 为 `{generation:1|2,state:ISSUED|RECEIVING|CLOSED_NO_OBJECT|STAGED|UNKNOWN,restartsUsed:0|1,expiresAt,reasonCodes}`。IG 开流用 generation+CAS 独占 claim，重复流不能覆盖 staging；旧连接/旧 token/迟到 finish 通过 generation/fencing 拒绝。实际完成 hash/长度和隔离对象 durable receipt 已验证才 STAGED；数据库/对象结果不确定为 UNKNOWN。BFF 断开/超时本身不将状态改 FAILED/CLOSED。
 
 restart 只在 generation=1、restartsUsed=0、当前 Human 同时具 intake/read/restart 与 analysis-admit 权限、原内容全等、owner 确认旧流已关闭且**没有完整 staged object、EP link 或 manifest** 时允许。IG 独立 readback 对账 stream lease/object receipt 与 EP 步骤；无证明保持 UNKNOWN，Query不给 RESTART。部分 bytes 可保留隔离供审计，不能作为客户源；只对确定未 link 且满足 retention 的孤立对象 cleanup。restart 事务 CAS 到 generation=2、原子废止旧票据/claim、保存新 Receipt/token；从 byte 0 上传同一原 ZIP，Range/分片/Content-Encoding 拒绝。STAGED/EXTRACTING/READY/PARTIAL 只续服务器原工序，不重传。第二代失败/超时无第三代；返回停止/受权运维核对原 intake 的明确结果，不自动新建 intake 或 invoke。
+内容安全/完整性失败、ZIP/DOCX 资源上限及零可分析源是原内容的终态：不因 `CLOSED_NO_OBJECT` 开放重传，Query 不返回 RESTART，显式 restart 同样拒绝；真正未完整读入的传输中断单独记录，仍须上述 owner proof/CAS。内部 source admission 读取在当前专用 SERVICE 的 `integration.customer_zip.submission.read` 授权下返回已持久化的原 source step/input/object receipt，EP 比对后才接纳，不凭 SERVICE 自报 JSON 接纳来源。
 
 ### Manifest、说明与可靠交接
 
@@ -427,7 +430,7 @@ immutable `customer_input_manifest` payload 闭集 `{intakeRef,preparationReques
 
 custody result 沿既有 `RECEIVING/STAGED/EXTRACTING/READY/PARTIAL/FAILED/UNKNOWN`，包含各源实际 refs/Receipts、逐 entry 限制、manifestRef?。analysis 仅组合 EP PreparationAnalysisHandoff 当前授权摘要；EP 依赖503时保留 custody，analysis `{status:UNKNOWN,reasonCodes:[DEPENDENCY_UNAVAILABLE]}`。取得 TE analysisRequest Receipt 仍不显示 RUNNING；只有原 IG Attempt/真实 ack 与 TE Run 事实才允许该层状态。缺 Runner/锁、当前撤权、UNKNOWN 不删已链接源、不伪造报告、不发 PROJECT_START。
 
-错误新增 `INTEGRATION_ZIP_UPLOAD_RESTART_NOT_ALLOWED`、`INTEGRATION_ZIP_UPLOAD_RESTART_EXHAUSTED`、`INTEGRATION_ZIP_UPLOAD_GENERATION_CONFLICT`，原键异内容沿共享冲突；unsafe/limit/corrupt/zero analyzable 沿原 D14。所有 transport 与 source 验证真实执行仍 NOT RUN。
+错误新增 `INTEGRATION_ZIP_UPLOAD_RESTART_NOT_ALLOWED`、`INTEGRATION_ZIP_UPLOAD_RESTART_EXHAUSTED`、`INTEGRATION_ZIP_UPLOAD_GENERATION_CONFLICT`，原键异内容沿共享冲突；unsafe/limit/corrupt/zero analyzable 沿原 D14。ZIP/policy 组件回归已有本地执行；transport、真实 source 接纳、PostgreSQL/跨 owner 恢复与生产验收分别由完整验证证据确认，未执行层仍为 NOT RUN。
 
 ## D14 / RD-01 ZIP intake 与真实报告观察提案
 

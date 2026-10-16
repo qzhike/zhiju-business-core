@@ -12,7 +12,7 @@ import { ExecutionNavigation, ExecutionPage } from './execution/Page.js';
 import { ContentBoundary, Missing } from './shell.js';
 import { MarkdownReview } from './MarkdownReview.js';
 import { DIRECTORY_SCOPE_KEY } from './trusted/protocol.js';
-import { NewProjectPage } from './intake/Pages.js';
+import { LiveNewProject, LivePreparationRequest } from './intake/LivePreparation.js';
 import { TrustedIntake } from './intake/TrustedIntake.js';
 import { TrustedWorkbench } from './workbench/TrustedWorkbench.js';
 import { WorkbenchNavigation, UnavailablePage } from './workbench/navigation.js';
@@ -248,9 +248,29 @@ export function TrustedApp() {
                     <Route
                       path="/projects/new"
                       element={
-                        <NewProjectPage
-                          customers={[]}
-                          unavailable="客户搜索与资料准备（D14）公开操作尚未注册，不能创建客户或项目。"
+                        <LiveNewProject
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/preparations/:requestId"
+                      element={
+                        <LivePreparationRequest
+                          key={`${sessionGeneration}:${location.pathname}${location.search}`}
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          generation={guard.generation}
+                          guardRef={guardRef}
+                          readBoundary={readBoundary}
+                          onSessionFailure={onSessionFailure}
                         />
                       }
                     />

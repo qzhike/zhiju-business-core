@@ -1,0 +1,106 @@
+{
+  "operation": "ANALYSIS_REQUEST",
+  "originalCommand": {
+    "commandId": "0199bbcc-ddee-7000-8000-00000000000c",
+    "type": "execution.request_preparation_analysis",
+    "version": "1.0",
+    "scopeRef": {
+      "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+      "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+    },
+    "targetRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.preparation_analysis_request",
+      "objectId": "0199bbcc-ddee-7000-8000-00000000000b",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      }
+    },
+    "idempotencyKey": "execution.request_preparation_analysis:1.0:0199bbcc-ddee-7000-8000-00000000000b",
+    "correlationId": "0199bbcc-ddee-7000-8000-000000000009",
+    "requestedAt": "2026-10-15T00:00:00.000Z",
+    "payload": {
+      "taskRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.execution.task",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000003",
+        "scope": {
+          "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+          "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+        }
+      },
+      "taskDefinitionSnapshotRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "zhiju.execution.task_definition_snapshot",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000004",
+        "scope": {
+          "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+          "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "923ad35ad9df741ffac84512ff3399029eaf256e4355aafcb3325a3458c9500e",
+          "canonicalizationVersion": "1"
+        }
+      },
+      "expectedTaskAggregateVersion": 7,
+      "preparationSourceRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.preparation_source",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000005",
+        "scope": {
+          "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+          "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "79a0c4fe23e402fefb30c0ed536622e14df53ebae69267df3d3662443776caf9",
+          "canonicalizationVersion": "1"
+        },
+        "snapshotId": "0199bbcc-ddee-7000-8000-0000000003ed"
+      },
+      "analysisProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.analysis_profile",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000006",
+        "versionId": "0199bbcc-ddee-7000-8000-0000000003ee",
+        "scope": {}
+      }
+    },
+    "integrity": {
+      "canonicalizationVersion": "1",
+      "payloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "95caf35ab9e37c4ff11f93e2d99fecdbd92b5e06583018587eb0609cf4fbcb99",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "result": {
+    "analysisRequestRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.preparation_analysis_request",
+      "objectId": "0199bbcc-ddee-7000-8000-00000000000b",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      }
+    },
+    "receiptRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "CommandReceipt",
+      "objectId": "0199bbcc-ddee-7000-8000-00000000000e",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "not-sha256",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "valid": false
+}

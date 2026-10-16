@@ -5,5 +5,16 @@
     "lib": ["ES2024", "DOM"],
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "references": [
+    {
+      "path": "../../apps/workspace-web"
+    },
+    {
+      "path": "../../contracts"
+    },
+    {
+      "path": "../../packages/shared-kernel"
+    }
+  ]
 }

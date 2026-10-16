@@ -2560,3 +2560,12 @@ OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中�
 `V7018__markdown_render_binding.sql`：IG `render_attempt` 增加 original operation 与实际 source Command Receipt；旧行默认 `integration.request_render`。新 `markdown_render_work` 保存唯一原工作窗口，`markdown_render_output` 保存 immutable 实际对象版本/原 receipt 对象版本、完整 round-trip validation 与 observedAt。两表强制 Project RLS，app 仅 SELECT/INSERT；原命令/Scope/hash 与及时观察不一致不能转 SUCCEEDED。已有终态/过渡函数与技术 Receipt/Outbox 继续承担事务原子性。
 
 `V7019__markdown_representation.sql`：ART 表示格式允许精确 `zhiju.markdown`/`text/markdown; charset=utf-8`，Validation 允许新 Binding operation。旧登记函数拒绝 Markdown；新 `register_markdown_representation` 只接受原 PENDING Markdown 登记 Receipt、当前 FROZEN Revision 和原成功 Binding 的精确身份，以原 Attempt 保持唯一/幂等。PDF/DOCX/XLSX 原接受集不变。无客户发送/审批/Gate 或业务完成状态新增。
+
+
+## #291 准备入口持久化实现
+
+- `V7020`：IP `preparation_fact` 保存 immutable Actor/Decision、独立 authority Grant、Enrollment、Admission、Bootstrap、模板/member policy、Provisioning 与 Receipt；专用 NOLOGIN/NOBYPASSRLS writer/self-reader。maxUses 与原 request/Scope/作者/原文 hash 的占用同事务序列化，撤销追加事实，不删除旧准入。实际 creator `capability_grant` 为完整 PROJECT scope，技术 session 本身不授业务权。
+- `V7021`：EP `preparation_fact` 的 REQUEST/STEP/SOURCE_LINK/SOURCE/HANDOFF/INBOX/ATTEMPT/RESULT 为 append-only，唯一 `(kind,identity_key)` 限定原命令与步骤。Root 创建前的准入事实不冒充 ProjectScopeClaim；实际 Enterprise/Project/Claim/Receipt/Outbox 由所属事务创建。Project 新增 PREPARING/creation_mode，旧行保持 FULL_START。新事件 guard 只为批准的封闭 PreparingProjectCreated/canonical SourceMaterialAccepted 从完整引用核 Scope，旧事件 mirror 校验保持。
+- `V7022`：IG intake root 固定原 command/key/hash/作者/Scope/原 ZIP、aggregateVersion 与 uploadGeneration；restart CAS 只到 generation 2，旧流 fencing。manifest、真实 Receipt 和 Outbox 同事务；manifest 对 intake/receipt/event 仅同 Schema FK。受权 minimal scope lookup 仅原作者/ID 元数据，随后仍须当前 IP 决策。
+
+Owner 之间只经 exact TypedReference 与当前授权 Port；数据库连接池、Role SET 权和已发布 preset/company rules/template/policy、真实 SERVICE grants 必须部署显式配置。对象存储托管是独立事实：写入成功须按精确 bytes/hash/length 读回确认；未知状态不删除资料、不签发替代 intake。

@@ -1,0 +1,128 @@
+{
+  "operation": "TASK",
+  "originalCommand": {
+    "commandId": "0199bbcc-ddee-7000-8000-00000000000a",
+    "type": "execution.create_preparation_analysis_task",
+    "version": "1.0",
+    "scopeRef": {
+      "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+      "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+    },
+    "targetRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.task",
+      "objectId": "0199bbcc-ddee-7000-8000-000000000003",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      }
+    },
+    "idempotencyKey": "execution.create_preparation_analysis_task:1.0:0199bbcc-ddee-7000-8000-000000000003",
+    "correlationId": "0199bbcc-ddee-7000-8000-000000000009",
+    "requestedAt": "2026-10-15T00:00:00.000Z",
+    "payload": {
+      "projectRef": {
+        "kind": "OBJECT",
+        "objectType": "zhiju.project.project",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000002",
+        "scope": {
+          "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+          "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+        }
+      },
+      "preparationSourceRef": {
+        "kind": "SNAPSHOT",
+        "objectType": "zhiju.project.preparation_source",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000005",
+        "scope": {
+          "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+          "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "79a0c4fe23e402fefb30c0ed536622e14df53ebae69267df3d3662443776caf9",
+          "canonicalizationVersion": "1"
+        },
+        "snapshotId": "0199bbcc-ddee-7000-8000-0000000003ed"
+      },
+      "analysisProfileRef": {
+        "kind": "VERSIONED",
+        "objectType": "zhiju.execution.analysis_profile",
+        "objectId": "0199bbcc-ddee-7000-8000-000000000006",
+        "versionId": "0199bbcc-ddee-7000-8000-0000000003ee",
+        "scope": {}
+      },
+      "definition": {
+        "kind": "PREPARATION_ANALYSIS",
+        "objective": "Synthetic fixed company objective",
+        "inputRefs": [
+          {
+            "kind": "CONTENT_ADDRESSED",
+            "objectType": "SourceMaterial",
+            "objectId": "0199bbcc-ddee-7000-8000-000000000007",
+            "scope": {
+              "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+              "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+            },
+            "contentHash": {
+              "algorithm": "SHA-256",
+              "digest": "d487929e379d2d4626626561634e012f4b4287b5f29850e88344d12d9e12ec7e",
+              "canonicalizationVersion": "1"
+            }
+          }
+        ],
+        "expectedReportProfileRef": {
+          "kind": "VERSIONED",
+          "objectType": "zhiju.project.preparation_report_profile",
+          "objectId": "0199bbcc-ddee-7000-8000-000000000008",
+          "versionId": "0199bbcc-ddee-7000-8000-0000000003f0",
+          "scope": {}
+        }
+      }
+    },
+    "integrity": {
+      "canonicalizationVersion": "1",
+      "payloadHash": {
+        "algorithm": "SHA-256",
+        "digest": "91c4a075f53ece80fa54f248abdedff7eae4435f0b7c86331069750c40f5341e",
+        "canonicalizationVersion": "1"
+      }
+    }
+  },
+  "result": {
+    "taskRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.execution.task",
+      "objectId": "0199bbcc-ddee-7000-8000-000000000003",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      }
+    },
+    "definitionSnapshotRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.execution.task_definition_snapshot",
+      "objectId": "0199bbcc-ddee-7000-8000-000000000004",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "digest": "923ad35ad9df741ffac84512ff3399029eaf256e4355aafcb3325a3458c9500e",
+        "canonicalizationVersion": "1"
+      }
+    },
+    "aggregateVersion": 1.5,
+    "receiptRef": {
+      "kind": "OBJECT",
+      "objectType": "CommandReceipt",
+      "objectId": "0199bbcc-ddee-7000-8000-00000000000d",
+      "scope": {
+        "enterpriseId": "0199bbcc-ddee-7000-8000-000000000001",
+        "projectId": "0199bbcc-ddee-7000-8000-000000000002"
+      }
+    }
+  },
+  "valid": false
+}

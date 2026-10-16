@@ -5,6 +5,9 @@ import { isPlainObject, isUuidLike } from './support.js';
  * Registry operations: the URL token must be one of these verbatim.
  */
 const QUERY_OPERATIONS: Record<string, true> = {
+  'project.find_preparation_enterprises@1.0': true,
+  'project.get_project_preparation_request@1.0': true,
+  'integration.get_customer_zip_intake@1.0': true,
   'artifact.get_file_review_content@1.0': true,
   'artifact.get_file_change_directory@1.0': true,
   'artifact.resolve_file_review_locations@1.0': true,
@@ -15,8 +18,11 @@ const QUERY_OPERATIONS: Record<string, true> = {
   'quality.get_evidence@1.0': true,
 };
 
-/** No command has an owning registered transport in the first version. */
-const COMMAND_OPERATIONS: Record<string, true> = {};
+const COMMAND_OPERATIONS: Record<string, true> = {
+  'project.request_project_preparation@1.0': true,
+  'integration.request_customer_zip_intake@1.0': true,
+  'integration.restart_customer_zip_upload@1.0': true,
+};
 
 const OVERRIDE_BODY_KEYS: Record<string, true> = {
   actor: true,

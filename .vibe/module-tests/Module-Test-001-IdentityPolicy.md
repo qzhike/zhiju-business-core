@@ -350,7 +350,7 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 
 ## #277 准备准入与创建者授权设计场景
 
-状态：`DESIGN APPROVED / NOT RUN`。字段见 [IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)，所有前置通过 owning 管理/发布入口形成，不能直接 SQL 造中间授权。
+状态：`DESIGN APPROVED / IMPLEMENTED / PERSISTENCE ACCEPTANCE PENDING`。字段见 [IP #277](../module-specs/Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)，所有前置通过 owning 管理/发布入口形成，不能直接 SQL 造中间授权。
 
 | ID | 输入 / 故障 | 必须观察的 owning 结果 | 实际 / 结果 |
 |---|---|---|---|
@@ -360,6 +360,10 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 | IP-277-004 | 模板精确物化、Project提交后逐项Grant；少intake/read/discovery任一项；已授一项后重启/撤销 | 保留各真实Grant/Receipt，access INCOMPLETE/REVOKED，不进入ZIP页；同slot无重复，已撤销不自动补发；明确管理员修复才续原slot | 未执行 / NOT RUN |
 | IP-277-005 | 另一Principal枚举Enterprise、借pending Project Scope读board/source；跨Project target/hash；目录cursor水位变更 | self reader只本人候选，EP逐项当前Decision/RLS；普通protected reads=0，cursor拒绝；旧PROJECT-only reader/旧policy/company registry接受集不扩大 | 未执行 / NOT RUN |
 | IP-277-006 | 原Human意图保存后撤link/Grant/Policy或到期；SERVICE拥有执行权但Human无ANALYZE；反向Human有权SERVICE失权 | 后台逐步当前复验拒绝；历史intent/Grant/Receipt保留，零新task/invoke；只读恢复也须独立current许可 | 未执行 / NOT RUN |
+
+`tests/persistence/preparation-history-recovery.test.ts` 通过实际 IP/EP/IG owning 组合验证模板撤回后的原 HUMAN 恢复权与独立 SERVICE 历史读取：原 command/tuple/成功 steps 保留，原 source payload 不改并返回 STALE，新 intake 在依赖失效处拒绝且无提交事实。SERVICE 的历史纯读仍依赖当前 exact Grant、原 HUMAN ACTIVE/link/enrollment，跨 Project ref 拒绝；此反例不证明生产 Ceph/Runner 或客户业务正确性。
+
+定向验证入口：`modules/identity-policy/src/commands/preparation-identity.test.ts` 覆盖七类闭集模板拒绝与当前 Session verifier 先于受保护存储读取；PostgreSQL owning-entry 正反例为 `tests/persistence/preparation-identity.test.ts`，已通过三项定向 PostgreSQL 测试：NEW/同键/跨主体和 target/撤销、maxUses 并发、模板撤回；两次迁移验证一致。表内包含 EXISTING、真实 EP 创建后的物化/provisioning、跨 Owner 和后台 SERVICE 的完整场景在对应目标实际运行前继续保持 `NOT RUN`，不能用已通过子集替代。
 
 ## D14 / RD-01 首条资料链路设计场景
 

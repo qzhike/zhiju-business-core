@@ -1,0 +1,35 @@
+{
+  "intakeRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.integration.customer_zip_intake",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  },
+  "originalKey": "integration.request_customer_zip_intake:1.0:0199aabb-ccdd-7000-8000-000000000004",
+  "originalPayloadHash": {
+    "algorithm": "SHA-256",
+    "digest": "1582128922a4b198eea8873db978b57450b7d79d4a7d724c92ccd34b82acf9c3",
+    "canonicalizationVersion": "1"
+  },
+  "receiptRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.integration.command_receipt",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000013",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  },
+  "upload": {
+    "generation": 2,
+    "token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expiresAt": "2026-10-15T00:05:00.000Z",
+    "method": "PUT",
+    "path": "/api/customer-intakes/0199aabb-ccdd-7000-8000-000000000004/zip",
+    "expectedByteLength": 128,
+    "expectedZipBytesSha256": "4c85255c465ab5751c0308556b8b1681c84b9daea1702add82f6aa41a26c5033"
+  }
+}

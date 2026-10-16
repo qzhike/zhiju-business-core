@@ -137,7 +137,12 @@ const CURSOR_MAX_SERVED_OBSERVATIONS = 1024;
 const CURSOR_CAPACITY_MESSAGE = 'the chain served set exceeded the declared cursor capacity';
 
 /** The closed EnterpriseProject status enum of one carried observation. */
-const DIRECTORY_STATUS_CODES = Object.freeze(['ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const);
+const DIRECTORY_STATUS_CODES = Object.freeze([
+  'ACTIVE',
+  'SUSPENDED',
+  'ARCHIVED',
+  'PREPARING',
+] as const);
 
 const MIN_PAGE_SIZE = 1;
 const MAX_PAGE_SIZE = 50;

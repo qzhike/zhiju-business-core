@@ -16,7 +16,8 @@
     "@zhiju/contracts": "workspace:*",
     "@zhiju/shared-kernel": "workspace:*",
     "kysely": "0.29.5",
-    "pg": "8.23.0"
+    "pg": "8.23.0",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "@types/pg": "8.15.5"

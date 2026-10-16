@@ -310,3 +310,9 @@ reviewer and timestamp
 | 下载状态 | 下载/未登记表示与阅读、意见、批准分开显示；无表示时禁用并说明原因 | Development browser |
 | 视口与键盘 | 1280/1440/1920 三栏高度受限于视口且各列内部滚动；360/320 下页面滚动可到达正文，阅读区有可用高度并内部滚动、变化导航与正文实际可见、前后导航可操作、引用进入同一意见区且切回保留输入；键盘可达、焦点回收与 axe 无违规 | Controlled Chromium browser; actual Chrome/Edge matrix NOT RUN |
 | 生产隔离 | production bundle 不含审查工作区 adapter 与合成内容；未接入时明确不可用、无 fixture fallback | Configured code target / production browser |
+
+## #291 准备旅程实现测试入口
+
+新增 `tests/persistence/preparation-built-browser.test.ts` 使用当前 production SPA 制品、真实 HTTP BFF/Core 与 owning PostgreSQL，前置公司规则/预设/准入由 owner Port 发布；受控本地 OIDC 和对象传输显式限定，不能视为外部 Provider/Ceph/Runner 验收。`preparation-journey.test.ts` 核对跨 owner 的 NEW/EXISTING 创建、ZIP+note 原文恢复、source/manifest/handoff 与无 TE 的诚实状态；IP/EP/IG 各有独立持久化故障/权限/CAS测试。`tests/workspace/preparation-transport.test.ts` 核 raw payload 与 cv1/NFC 的不同职责、完整 Scope/伪造 actor/hash 拒绝和安全恢复 URL；BFF zip-body 验证 backpressure、累计/声明长度、失权和超时。状态与精确 revision 的运行证据保留在 Issue/PR，人工/真实外部能力仍 NOT RUN。
+
+ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理超过十五秒仍返回完整响应；浏览器 transport 用例覆盖 200 响应头先到、正文延迟或中断。真实重传浏览器场景必须等待同一 intake 的精确 PUT 返回 200 且响应完整结束，并核验 STAGED/READY、manifest 和真实 handoff 摘要后才允许 suite teardown；generation 更新或页面文字不单独证明传输完成。清理保持原三十秒失败门禁，不强杀活动请求或吞掉清理错误。

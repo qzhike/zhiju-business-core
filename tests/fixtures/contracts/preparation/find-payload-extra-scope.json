@@ -1,0 +1,10 @@
+{
+  "searchText": "Synthetic",
+  "page": {
+    "limit": 10
+  },
+  "scopeRef": {
+    "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+    "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+  }
+}

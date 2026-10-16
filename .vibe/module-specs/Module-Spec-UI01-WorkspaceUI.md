@@ -266,7 +266,7 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 
 ## #277 两字段创建与单次提交交接提案
 
-状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
+状态：`T2 / DESIGN APPROVED / REGISTERED AND IMPLEMENTED (#291) / ACCEPTANCE EVIDENCE IN ISSUE-PR / PRODUCTION AND MANUAL NOT RUN`。保留 [两字段原型](../prototypes/workspace-mvp/README.md) 的客户/项目标题、一个 ZIP/可选说明和“提交并分析”；[EP](Module-Spec-002-EnterpriseProject.md#277-准备入口预设与原请求交接提案)、[IP](Module-Spec-001-IdentityPolicy.md#277-准备入口准入与显式项目授权提案)、[IG](Module-Spec-007-IntegrationGateway.md#277-zip-提交意图与一次完整重传提案) 拥有真实字段，本节只组合。
 
 表单先公开 find_preparation_enterprises 读取公司 entryBinding 与本人可选客户；同一个客户字段明确 NEW 或选择 exact EXISTING。两种模式仍只由用户填客户和项目标题；浏览器生成 request/project 及 NEW enterprise UUIDv7、固定原键/完整 Scope，在原 payload 中原样回送 presetRef/hash，服务器复验公司选择。无可用 preset/publication/准入权限显示具体不可操作原因。配置、memberPolicy、Runtime/model、授权字段不成为员工表单选项，登录成功不显示“已获项目权限”。
 
@@ -276,7 +276,7 @@ UI-WI-03 至 UI-WI-06 可以在稳定公共 API 和 shared shell 前提下局部
 
 跳转在首写前保存安全 request ID/Scope ID 到当前路由（不放客户名、note、token、完整 payload），沿 #258 原请求链接恢复；重新登录先 current auth，再 EP get 原 request，IG 用 PREPARATION_REQUEST selector 找回唯一 intake。浏览器业务写自动重试仍为0；请求 UNKNOWN 只查原事实，不显示“重新创建”。原 Query 返回许可 RESTART 时用户可在同页“重新上传这份 ZIP”，最多一次，重新选择文件须同 hash/长度；原 note 不可在重传中编辑。首次 restart 的 expectedAggregateVersion 取同次 IG Query.aggregateVersion，expectedUploadGeneration 取 uploadState.generation，不能互相替代或猜创建版本；提交时竞态拒绝后回读。原重传 Command 响应丢失按同 key/原 payload readback/replay，已保存的 restartCommand 不替换 CAS 版本，绝不第三代/新 intake。
 
-finite route 增量只有 `POST /bff/commands/integration.restart_customer_zip_upload/1.0` → 固定同形 `/api/commands/…`；EP entry/preparation 与 IG intake/query 使用 #258 已批准候选 token，PUT 仍唯一 `/bff/customer-intakes/{intakeId}/zip`。空 Scope 增量仅 EP find_preparation_enterprises 的明确 self 候选 profile；request/read/restart 都有完整 Scope/精确 target，并沿 IP 专用 bootstrap 或普通 Project 当前权限。Core/BFF 同步逐字 allowlist/schema/结果检查，未注册/未实现保持不可用，不扩大任意 dispatcher。当前运行代码仍只有 #266 三项 Query，不能据本段宣布路由可用。
+finite route 增量只有 `POST /bff/commands/integration.restart_customer_zip_upload/1.0` → 固定同形 `/api/commands/…`；EP entry/preparation 与 IG intake/query 使用 #258 已批准候选 token，PUT 仍唯一 `/bff/customer-intakes/{intakeId}/zip`。空 Scope 增量仅 EP find_preparation_enterprises 的明确 self 候选 profile；request/read/restart 都有完整 Scope/精确 target，并沿 IP 专用 bootstrap 或普通 Project 当前权限。Core/BFF 同步逐字 allowlist/schema/结果检查，未注册/未实现保持不可用，不扩大任意 dispatcher。实际有限路由已由 #291 接入，配置缺失保持不可用，运行与验收证据独立见 Issue/PR。
 
 所有失败保留原可读成功 facts；403/401 先清敏感缓存，重登后不把旧作者换成当前 Human。分析能力恢复后的推进是 EP owning 原 Process 的受权运维动作，首版不暴露“重新分析”或自动新 Run。已有资料不删除、不制造报告/PROJECT_START；完整失败 trace 与 NOT RUN 验收见 [#277 Delta](../decisions/preparation-entry-bootstrap.md#4-失败保留事实与有界恢复)。
 
@@ -421,3 +421,12 @@ BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，
 `StartupPage` 接受精确报告、三类必要信息、文件计划、已确认轮次、阻塞原因与确认状态等 typed presentation inputs/actions。沿用三摘要与依据展开、章节导航和一个确认操作；文件列表在桌面有界滚动，支持名称/编号搜索与状态筛选，选择计数和确认始终可见。文件默认不选，选择代表整份计划；暂不能处理原因紧贴文件标题并关联禁用的复选框。必要启动依据缺失保留选择但阻确认，浏览器不自行裁定业务资格。
 
 从文件计划进入分析页唯一意见区时，传递精确项目、报告和单文件标识；开发 adapter 的待复核仅阻该文件。已选文件若随后变为暂不能处理，仍显示原选择及阻塞原因，并提供显式移除操作，使其他独立文件可形成新的合法选择。新报告到达使旧报告无法确认，原选择留作核对，新版需重新选择。已确认范围保留精确请求与进度入口，后续轮次排除其中的文件；PENDING/UNKNOWN 不重提原确认。开发 adapter 将 UNKNOWN 原意图按精确报告保留在路由外的当前会话内存，往返分析页仍只能只读查询同一请求，不把未核验结果重置为 READY；刷新/跨设备的正式恢复仍取决于 owning 公开能力。开发 adapter 只生成合成回执，未注册生产启动/范围能力仍不可用；不据页面动作宣称 Core 启动、Runner 执行或服务器保存。
+
+
+## #291 准备旅程实际接线
+
+`/projects/new` 通过当前 Human 的公开 entry Query 选择 NEW/EXISTING；`/preparations/{requestId}?enterprise=…&project=…` 为安全原请求恢复入口，首次 intake 写前只追加 intake UUID，不放 note/token。创建与提交均在第一次写前固定原 UUID/key/hash，提交原始字符串，响应丢失只查询原身份。PARTIAL 只有 owning `CONTINUE_ORIGINAL` 才显式原命令重放；重传只有原文件 bytes/hash/length 完全相同且当前 owning 许可，CAS aggregateVersion 与 generation 分离。当前原作者授权的 EP board 可回到原请求；PREPARING 不自动请求 TE Task board。页面只显示实际 custody/entry limitation/receipt/handoff 状态，暂无真实执行不显示分析中。
+
+BFF 仅 six-operation allowlist + 固定 ZIP PUT，逐次 session/CSRF/Origin 校验。ZIP 流 1 MiB 缓冲、100 MiB 累计、5 分钟总时限和 30 秒空闲时限，限流使用部署 maxConcurrentUploads；无解压或内容分析。Core 从实际 OIDC Human 形成 Session，调用真实 IP/EP/IG composition；`ZHIJU_PREPARATION_CONFIG` 不配置时这条能力保持不可用，有配置则闭集验证并要求独立密钥、持久化池及 S3。BFF 的显式 return-route 配置须纳入 `/preparations/:requestId`。受控 OIDC/本地对象端口的自动化结果与真实 Provider/Ceph/Runner、全浏览器矩阵及人工验收分开，执行证据归 #291/PR #299。
+
+静态 Web 对精确同源 ZIP PUT 的固定 BFF 代理沿用五分钟调用预算，不能使用普通 JSON 请求的十五秒 socket 超时截断合法 owning 处理；BFF/IG 的大小、流空闲与总时限仍独立成立。浏览器上传 helper 在成功响应体完整读完后才结束本次传输，响应头为 200 但正文中断仍为待核验失败。owning Query 可先观察到已提交托管事实，该事实不等于上传 HTTP 响应已结束。

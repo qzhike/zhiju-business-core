@@ -1014,7 +1014,17 @@ cursor authorizationSourceHash由IP owning Port返回：canonical排序后的act
 
 ## #277 准备入口准入与显式项目授权提案
 
-状态：`T2 / DESIGN APPROVED / NOT REGISTERED / NOT IMPLEMENTED`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
+状态：`T2 / DESIGN APPROVED / IMPLEMENTED / ACCEPTANCE PENDING`。本节是 [#277](../decisions/preparation-entry-bootstrap.md) 独立 additive authority；不把 #258 的空 Scope self 项目目录改成全局业务权限，也不借 #267 的公司发布 authority/九项 internal operations 授予客户创建权。现有 `check_enterprise_access`/`check_project_access`、Grant/Actor/Decision 的 scope 闭合和当前撤权语义保留。
+
+实现入口是 `createPreparationIdentityPort`（独立 PostgreSQL `preparation_fact` authority、准入、模板、成员策略及 provisioning）与 `createPreparationProjectAuthorizationPort`（复用既有 scoped Actor/Decision/Grant owning producer 与当前复验）。`lookupAdmission` 仅按当前原 HUMAN、完整 requestRef Scope 和 originalKey 读取原准入，支持创建者尚未 provisioning 完成时的恢复；它不读取 EP 客户正文。SERVICE 的 Platform preset/template 读取通过管理员显式 `grantAuthority/revokeAuthority` 管理的新 preparation authority facts 求值，不借公司发布表。所有实际 capabilityCode、管理员当前 PolicySnapshot、SERVICE 名单和 Session verifier 均为受信部署输入；缺值拒绝。
+
+创建前 SERVICE 不依赖尚不存在 Project 的普通 PROJECT Grant。受权管理员用独立 `grantAuthority` 为 `PREPARATION_SERVICE_AUTHORITY_OPERATIONS` 内每项步骤发布 exact preset 的 Platform 执行权（模板读取绑定 exact 模板）；`authorizeServiceBootstrap` 另读该 SERVICE 当前独立授权、原 HUMAN 当前 enrollment/ACTIVE 身份及链接与 IP 原准入，固定唯一 Enterprise/Project/目标/hash，持久化真正 scoped bootstrap Grant/Actor/Decision。成员策略物化、原策略读取、creator provisioning 及后续受控 owning SERVICE 步骤均经此有限 producer；原 Human 权限与 SERVICE 权限不能互相替代。后续 Owner 仍必须核验原 intake/source/manifest 事实，bootstrap 不证明材料已经接纳或任务已经执行。
+
+原请求恢复和当前 creator access 摘要可读取已撤回模板绑定的不可变 admission，但仍要求原 HUMAN 当前 ACTIVE、有效 enrollment/Policy 与 exact 原键/Scope；它们不重新物化或 provision。SERVICE 的历史依赖放宽仅限闭集 `project.preparation.source.read`、`project.preparation.handoff.read`、`integration.customer_zip.submission.read`，同时检查独立 exact SERVICE 授权及原 HUMAN 当前身份链接/准入。后续写入、原分析资格检查和新 intake 继续严格复验当前模板，不把历史可读当作依赖可用。
+
+`revalidateOriginalPreparationAnalysis` 独立校验原 HUMAN 的真实分析 ALLOW Decision/Actor、原 intake/hash/Scope 和当前 ACTIVE Human、ACTIVE 身份链接、实际分析 Grant/Policy；执行者另取自己的 SERVICE Decision。历史 Human Decision 可以保留为意图 provenance，但不得替代当前 Human 资格，也不制造离线 Human Session。该方法不创建 Task、Run 或 dispatch。
+
+验证分层：封闭模板及不可信 Session 的定向反例已运行；新增 owning-entry PostgreSQL 场景位于 `tests/persistence/preparation-identity.test.ts`，持久化、跨 Owner、HTTP、浏览器和最终完整目标的实际结果由 PR 记录，本节不把实现存在等同验收通过。
 
 ### 现有能力与必须新增的准入
 
@@ -1067,7 +1077,7 @@ creator Grants 的授予依据是管理员已批准并向该 Human 委托的 exa
 
 `project.preparation.analysis.admit` 是 HUMAN 将本次 ZIP/note 交给分析的权限：绑定原 intake payloadHash、Project、预设和固定 profile，不能把 intake-only 权限提升为分析。IG 提交同时验证 intake+analysis 两份当前 Decision；后台推进每个步骤前重新核验原 Human 当前资格并取得 SERVICE 自身当次授权，不复用过期 Human Decision，也不伪装离线 Human token。撤销阻后续步骤但不改原 Human 意图；admission recovery read 当前有效时仅可读原步骤安全摘要，读取 Project/ZIP 正文仍需独立 grant。
 
-新准入 admin、模板 publish、NEW permission、reserved Scope/recovery read 都是本 Issue 的新增接受集，已获独立 T2 Review 与精确修订 Human 技术批准。实现必须同步 Policy/注册元数据/封闭 fixtures、独立 RLS/ACL 与当前撤权反例；当前无这些生产权限或 provisioner。不存在/不可见返回同一安全外观，失权 protected reads/writes=0，旧 URL、key、创建人字段和 ScopeClaim 均不替代权限。
+新准入 admin、模板 publish、NEW permission、reserved Scope/recovery read 都是本 Issue 的新增接受集，已获独立 T2 Review 与精确修订 Human 技术批准。实现必须同步 Policy/注册元数据/封闭 fixtures、独立 RLS/ACL 与当前撤权反例；上述 producer/provisioner 已实现；生产授权实值和发布实例仍须由受信部署显式提供并单独验收。不存在/不可见返回同一安全外观，失权 protected reads/writes=0，旧 URL、key、创建人字段和 ScopeClaim 均不替代权限。
 
 ## D14 / RD-01 准备分析与 Human 决定授权提案
 

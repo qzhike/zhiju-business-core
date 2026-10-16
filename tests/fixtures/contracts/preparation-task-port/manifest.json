@@ -1,0 +1,30 @@
+{
+  "provenance": "SYNTHETIC_MAPPING_ONLY_NO_NATIVE_TE_EXECUTION",
+  "fixtures": [
+    "task-result-valid.json",
+    "analysis-result-valid.json",
+    "task-wrong-target.json",
+    "task-legacy-task-type.json",
+    "task-wrong-project-scope.json",
+    "task-weak-definition-ref.json",
+    "task-wrong-definition-type.json",
+    "task-invalid-definition-hash.json",
+    "task-wrong-definition-scope.json",
+    "task-zero-aggregate-version.json",
+    "task-fractional-aggregate-version.json",
+    "task-unsafe-aggregate-version.json",
+    "task-extra-run.json",
+    "task-normalized-instead-of-approved-field.json",
+    "task-original-command-wrong-hash.json",
+    "task-wrong-receipt-scope.json",
+    "task-external-receipt.json",
+    "analysis-wrong-target.json",
+    "analysis-legacy-target-type.json",
+    "analysis-wrong-scope.json",
+    "analysis-extra-report.json",
+    "analysis-invalid-receipt-hash.json",
+    "readback-valid.json",
+    "readback-different-definition-hash.json",
+    "readback-different-receipt.json"
+  ]
+}

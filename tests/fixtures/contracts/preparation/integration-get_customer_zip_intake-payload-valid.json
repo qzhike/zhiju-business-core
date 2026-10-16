@@ -1,0 +1,12 @@
+{
+  "by": "INTAKE",
+  "intakeRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.integration.customer_zip_intake",
+    "objectId": "0199aabb-ccdd-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "0199aabb-ccdd-7000-8000-000000000001",
+      "projectId": "0199aabb-ccdd-7000-8000-000000000002"
+    }
+  }
+}

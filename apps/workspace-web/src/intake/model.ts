@@ -17,6 +17,7 @@ export interface CreationIntent {
   title: string;
 }
 export interface CreationReceipt {
+  recoveryHref?: string;
   intent: CreationIntent;
   project: IntakeProject;
 }

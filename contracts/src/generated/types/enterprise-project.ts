@@ -5,6 +5,538 @@ import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
 
 export namespace EnterpriseProject {
+  export type PreparationRequestPayload = {
+  readonly customer: {
+  readonly mode: "NEW";
+  readonly displayName: string;
+} | {
+  readonly mode: "EXISTING";
+  readonly enterpriseRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.enterprise";
+};
+};
+  readonly projectTitle: string;
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+};
+  readonly preparationPresetHash: Common.ContentHash;
+};
+  export type PreparationRequestQuery = {
+  readonly requestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+};
+  readonly originalKey: Common.NonEmptyString;
+};
+  export interface PreparationEnterpriseSearchPayload {
+  readonly searchText: string;
+  readonly page: {
+  readonly limit: number;
+  readonly cursor?: Common.OpaqueCursor;
+};
+}
+  export type PreparationEnterprisePage = {
+  readonly items: readonly ({
+  readonly enterpriseRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.enterprise";
+};
+  readonly displayName: Common.NonEmptyString;
+  readonly displayCode: Common.NonEmptyString;
+})[];
+  readonly nextCursor?: Common.OpaqueCursor;
+  readonly snapshotAt: Common.UtcInstant;
+  readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
+  readonly entryBinding: {
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+};
+  readonly preparationPresetHash: Common.ContentHash;
+  readonly publicationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset_publication";
+};
+  readonly intakePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_policy";
+};
+  readonly intakePolicyHash: Common.ContentHash;
+};
+  readonly newCustomerAllowed: boolean;
+};
+  export type PreparationRequestResult = {
+  readonly requestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+};
+  readonly originalCommand: {
+  readonly commandId: Common.UuidV7;
+  readonly type: "project.request_project_preparation";
+  readonly version: "1.0";
+  readonly scopeRef: Common.ScopeRef;
+  readonly targetRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+};
+  readonly expectedAggregateVersion?: number;
+  readonly idempotencyKey: Common.NonEmptyString;
+  readonly correlationId: Common.UuidV7;
+  readonly causationId?: Common.UuidV7;
+  readonly requestedAt: Common.UtcInstant;
+  readonly deadline?: Common.UtcInstant;
+  readonly payload: EnterpriseProject.PreparationRequestPayload;
+  readonly integrity: {
+  readonly canonicalizationVersion: "1";
+  readonly payloadHash: Common.ContentHash;
+};
+};
+  readonly originalCommandId: Common.UuidV7;
+  readonly originalKey: Common.NonEmptyString;
+  readonly payloadHash: Common.ContentHash;
+  readonly scopeRef: Common.ScopeRef;
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+};
+  readonly preparationPresetHash: Common.ContentHash;
+  readonly intakePolicyRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.integration.customer_zip_policy";
+};
+  readonly intakePolicyHash: Common.ContentHash;
+  readonly disposition: "ACCEPTED" | "PARTIAL" | "UNKNOWN" | "STALE";
+  readonly steps: {
+  readonly ADMISSION: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly ENTERPRISE: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly MEMBER_POLICY: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly PROJECT: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+  readonly CREATOR_ACCESS: {
+  readonly status: "NOT_STARTED" | "PENDING" | "OBSERVED" | "COMMITTED" | "FAILED" | "UNKNOWN";
+  readonly refs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly reasonCodes: readonly Common.ReasonCode[];
+};
+};
+  readonly access: {
+  readonly status: "PENDING" | "USABLE" | "INCOMPLETE" | "REVOKED";
+  readonly provisioningReceiptRef?: Common.ContentAddressedRef;
+  readonly checkedAt: Common.UtcInstant;
+};
+  readonly permittedActions: readonly ("SUBMIT_ZIP" | "CONTINUE_ORIGINAL" | "RETRY_ORIGINAL")[];
+  readonly sourceWatermarks: readonly EnterpriseProject.SourceWatermark[];
+};
+  export type CreatePreparingProjectPayload = {
+  readonly enterpriseRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.enterprise";
+};
+  readonly displayCode: Common.NonEmptyString;
+  readonly title: string;
+  readonly objective: Common.NonEmptyString;
+  readonly memberPolicyRef: Common.VersionedRef & {
+  readonly objectType?: "identity.policy";
+};
+  readonly memberPolicyHash: Common.ContentHash;
+  readonly preparationPresetRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_preset";
+};
+  readonly preparationPresetHash: Common.ContentHash;
+  readonly preparationRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.preparation_request";
+};
+};
+  export type CreatePreparingProjectResult = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly projectScopeClaimRef: {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+};
+  readonly aggregateVersion: 1;
+  readonly creationMode: "PREPARATION";
+  readonly status: "PREPARING";
+  readonly receiptRef: {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+};
+};
+  export type CapturePreparationSourcePayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly intakeManifestRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+};
+  readonly templateRefs: readonly Common.ContentAddressedRef[];
+  readonly ruleBundleRef: Common.SnapshotRef;
+  readonly companyRulePublicationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.identity.company_rule_publication";
+};
+  readonly previousReportRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_report";
+};
+  readonly trustedDecisionRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly purpose: "preparation.analysis";
+  readonly audience: Common.ObjectRef & {
+  readonly objectType?: "identity.principal";
+};
+};
+  export type CapturePreparationSourceResult = {
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly inputRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly receiptRef: {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+};
+  readonly validUntil: Common.UtcInstant;
+};
+  export type GetPreparationSourcePayload = {
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly purpose: "preparation.analysis";
+  readonly audience: Common.ObjectRef & {
+  readonly objectType?: "identity.principal";
+};
+};
+  export type PreparingProjectCreatedEvent = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly enterpriseRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.enterprise";
+};
+  readonly creationMode: "PREPARATION";
+  readonly createdAt: Common.UtcInstant;
+};
+  export type PreparationSourcePayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly intakeManifestRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.integration.customer_input_manifest";
+};
+  readonly templateRefs: readonly Common.ContentAddressedRef[];
+  readonly ruleBundleRef: Common.SnapshotRef;
+  readonly companyRulePublicationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.identity.company_rule_publication";
+};
+  readonly purpose: "preparation.analysis";
+  readonly audience: Common.ObjectRef & {
+  readonly objectType?: "identity.principal";
+};
+  readonly sources: readonly {
+  readonly sourceRef: {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+};
+  readonly bytesSha256: string;
+  readonly byteLength: number;
+  readonly objectRef: Common.NonEmptyString;
+  readonly classification: "CUSTOMER_MATERIAL";
+  readonly role?: "CUSTOMER_NOTE";
+}[];
+  readonly trustedDecisionRefs: readonly never[];
+  readonly coverage: {
+  readonly acceptedSources: number;
+};
+  readonly omissions: readonly never[];
+  readonly redactions: readonly never[];
+  readonly validUntil: Common.UtcInstant;
+};
+  export type GetPreparationSourceResult = {
+  readonly payload: EnterpriseProject.PreparationSourcePayload;
+  readonly currentUsability: "USABLE" | "EXPIRED" | "STALE" | "UNKNOWN";
+  readonly reasons: readonly Common.ReasonCode[];
+  readonly validUntil: Common.UtcInstant;
+};
   export type DirectoryCursor = string;
   export type EnterpriseStatus = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   export type FactStatus = "PROPOSED" | "CONFIRMED" | "DISPUTED" | "SUPERSEDED";
@@ -216,6 +748,10 @@ export namespace EnterpriseProject {
   readonly blockerRefs: readonly Common.TypedReference[];
 }
   export type ProjectBoardPage = {
+  readonly preparationEntry?: {
+  readonly preparationRequestRef: Common.ObjectRef;
+  readonly originalPreparationKey: Common.NonEmptyString;
+};
   readonly items: readonly EnterpriseProject.ProjectBoardSliceItem[];
   readonly nextCursor?: Common.NonEmptyString;
   readonly snapshotAt: Common.UtcInstant;
@@ -226,7 +762,7 @@ export namespace EnterpriseProject {
   readonly projectionLag?: number;
   readonly projectionStatus?: "READY" | "STALE" | "REBUILDING" | "FAILED";
 };
-  export type ProjectStatus = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  export type ProjectStatus = "PREPARING" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   export interface WorkspaceProjectSummary {
   readonly enterpriseRef: Common.ObjectRef;
   readonly projectRef: Common.ObjectRef;
@@ -620,4 +1156,30 @@ export namespace EnterpriseProject {
 }
   /** Result of `project.find_workspace_projects` (QUERY). */
   export type ProjectFindWorkspaceProjectsResult = EnterpriseProject.WorkspaceProjectPage;
+  /** Payload of `project.find_preparation_enterprises` (QUERY). */
+  export type ProjectFindPreparationEnterprisesPayload = EnterpriseProject.PreparationEnterpriseSearchPayload;
+  /** Result of `project.find_preparation_enterprises` (QUERY). */
+  export type ProjectFindPreparationEnterprisesResult = EnterpriseProject.PreparationEnterprisePage;
+  /** Payload of `project.request_project_preparation` (COMMAND). */
+  export type ProjectRequestProjectPreparationPayload = EnterpriseProject.PreparationRequestPayload;
+  /** Result of `project.request_project_preparation` (COMMAND). */
+  export type ProjectRequestProjectPreparationResult = EnterpriseProject.PreparationRequestResult;
+  /** Payload of `project.get_project_preparation_request` (QUERY). */
+  export type ProjectGetProjectPreparationRequestPayload = EnterpriseProject.PreparationRequestQuery;
+  /** Result of `project.get_project_preparation_request` (QUERY). */
+  export type ProjectGetProjectPreparationRequestResult = EnterpriseProject.PreparationRequestResult;
+  /** Payload of `project.create_preparing_project` (COMMAND). */
+  export type ProjectCreatePreparingProjectPayload = EnterpriseProject.CreatePreparingProjectPayload;
+  /** Result of `project.create_preparing_project` (COMMAND). */
+  export type ProjectCreatePreparingProjectResult = EnterpriseProject.CreatePreparingProjectResult;
+  /** Payload of `project.capture_preparation_source` (COMMAND). */
+  export type ProjectCapturePreparationSourcePayload = EnterpriseProject.CapturePreparationSourcePayload;
+  /** Result of `project.capture_preparation_source` (COMMAND). */
+  export type ProjectCapturePreparationSourceResult = EnterpriseProject.CapturePreparationSourceResult;
+  /** Payload of `project.get_preparation_source` (QUERY). */
+  export type ProjectGetPreparationSourcePayload = EnterpriseProject.GetPreparationSourcePayload;
+  /** Result of `project.get_preparation_source` (QUERY). */
+  export type ProjectGetPreparationSourceResult = EnterpriseProject.GetPreparationSourceResult;
+  /** Payload of `project.PreparingProjectCreated` (EVENT). */
+  export type ProjectPreparingProjectCreatedPayload = EnterpriseProject.PreparingProjectCreatedEvent;
 }

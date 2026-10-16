@@ -396,7 +396,7 @@ describe.skipIf(!databaseUrl)(
       expect(items.map((entry) => entry.itemKey)).toEqual([stack.workspace.boardItemKey]);
     });
 
-    it('answers the Task Board slice and any command with the configured 503 dependency result', async () => {
+    it('returns the configured Task Board dependency failure and rejects commands outside the finite allowlist', async () => {
       const login = await fetch(
         `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
         { method: 'GET', redirect: 'manual' },
@@ -464,10 +464,8 @@ describe.skipIf(!databaseUrl)(
           ),
         },
       );
-      expect(command.status).toBe(503);
-      expect(((await command.json()) as Record<string, unknown>).code).toBe(
-        'DEPENDENCY_UNAVAILABLE',
-      );
+      expect(command.status).toBe(404);
+      expect(((await command.json()) as Record<string, unknown>).code).toBe('NOT_FOUND');
     });
 
     it('creates no session for an error callback and only shows the fixed safe code', async () => {
