@@ -1,12 +1,9 @@
 import { digestCanonicalPayload } from '@zhiju/task-execution';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { createTaskCompletedDeliveryEntry } from '@zhiju/api/composition';
 import type { Common } from '@zhiju/contracts';
 import type { LocalSyntheticRuntimeDriver } from '@zhiju/integration-gateway';
 import { canonicalize, newUuidV7, type CanonicalJsonObject } from '@zhiju/shared-kernel';
-import { describe, expect, it } from 'vitest';
-import { postgresImageReference } from '../../tools/persistence/baseline.mjs';
-import { runFlyway } from '../../tools/persistence/flyway.mjs';
+import { describe, expect } from 'vitest';
 import { createExitQueries } from './controlled-exit-queries.js';
 import {
   contentHash,
@@ -15,43 +12,31 @@ import {
   record,
   type ControlledExitHooks,
 } from './initial-context-fixtures.js';
-import { createRunScenario } from './initial-context-scenario.js';
 import type { ScenarioBoardProbe } from './initial-context-scenario-types.js';
-import { createInitialContextSuite } from './initial-context-suite.js';
+import {
+  registerIsolatedInitialContextGroups,
+  type IsolatedInitialContextCase,
+} from './initial-context-isolated-cases.js';
 
-// Each primary chain owns a migrated empty TE database. The Release-required
-// counterexample uses an additional legal chain and is counted independently.
+// Each primary chain owns a migrated empty TE database. Only independent
+// chains overlap; the Release-required counterexample stays inside its chain.
 describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
+  const cases: IsolatedInitialContextCase[] = [];
   for (const profile of ['normal', 'recovered', 'cancel', 'cancel-progress'] as const)
-    it(`EXIT-D-${profile === 'normal' ? '001/003/006' : profile === 'recovered' ? '002/003/006' : '005/006'} ${profile} unified owning chain`, async () => {
-      const cancellation = profile === 'cancel' || profile === 'cancel-progress';
-      const container = await new PostgreSqlContainer(postgresImageReference())
-        .withDatabase('zhiju_core')
-        .withUsername('postgres')
-        .withPassword('zhiju-gate-test')
-        .withStartupTimeout(120_000)
-        .start();
-      const suite = createInitialContextSuite({
-        databaseUrl: container.getConnectionUri(),
-        registerHooks: false,
-      });
-      const evidence: Record<string, unknown> = { profile, faults: [], stages: [], delivery: [] };
-      const faults = evidence.faults as unknown[];
-      const stages = evidence.stages as unknown[];
-      const delivery = evidence.delivery as unknown[];
-      let driver: LocalSyntheticRuntimeDriver | undefined;
-      const invocations: { primary: readonly string[]; releaseRequired?: readonly string[] } = {
-        primary: [],
-      };
-      const runs = new Map<string, Common.ObjectRef>();
-      try {
-        await runFlyway(container.getId(), {
-          command: 'migrate',
-          database: 'zhiju_core',
-          username: 'postgres',
-          password: 'zhiju-gate-test',
-        });
-        await suite.prepareSuite(true);
+    cases.push({
+      name: `EXIT-D-${profile === 'normal' ? '001/003/006' : profile === 'recovered' ? '002/003/006' : '005/006'} ${profile} unified owning chain`,
+      timeout: 900_000,
+      run: async (suite, runScenario) => {
+        const cancellation = profile === 'cancel' || profile === 'cancel-progress';
+        const evidence: Record<string, unknown> = { profile, faults: [], stages: [], delivery: [] };
+        const faults = evidence.faults as unknown[];
+        const stages = evidence.stages as unknown[];
+        const delivery = evidence.delivery as unknown[];
+        let driver: LocalSyntheticRuntimeDriver | undefined;
+        const invocations: { primary: readonly string[]; releaseRequired?: readonly string[] } = {
+          primary: [],
+        };
+        const runs = new Map<string, Common.ObjectRef>();
         for (const table of ['task', 'work_order', 'run', 'agent_result', 'information_request'])
           expect(
             (await suite.admin.query(`SELECT count(*)::int n FROM task_execution.${table}`)).rows,
@@ -376,7 +361,6 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
             });
           },
         };
-        const runScenario = createRunScenario(suite);
         await runScenario(
           cancellation
             ? 'RUN_CANCEL'
@@ -556,16 +540,19 @@ describe.skipIf(!gateEnabled)('TD-07 controlled exit (real PostgreSQL)', () => {
             freshness: evidence.freshness,
           })}`,
         );
-      } finally {
-        try {
-          await suite.drain();
-        } finally {
-          try {
-            await suite.dispose();
-          } finally {
-            await container.stop();
-          }
-        }
-      }
-    }, 900_000);
+      },
+    });
+  registerIsolatedInitialContextGroups(
+    [
+      {
+        label: 'controlled exit normal and cancel',
+        cases: [definedValue(cases[0]), definedValue(cases[2])],
+      },
+      {
+        label: 'controlled exit recovered and cancel-progress',
+        cases: [definedValue(cases[1]), definedValue(cases[3])],
+      },
+    ],
+    { databasePerCase: true, deliveryOnly: true },
+  );
 });
