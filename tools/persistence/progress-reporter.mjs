@@ -2,11 +2,16 @@ import { performance } from 'node:perf_hooks';
 // Vitest 4 reporter events stream before the final summary, including hooks.
 import { setInterval, clearInterval } from 'node:timers';
 import pg from 'pg';
+import { assertCriticalCaseExecution } from './critical-case-inventory.mjs';
 
 export default class PersistenceProgressReporter {
   active = new Map();
   sampling = false;
   skipped = 0;
+
+  onInit(context) {
+    this.root = context.config.root;
+  }
 
   onTestRunStart() {
     this.heartbeat = setInterval(() => {
@@ -76,10 +81,17 @@ export default class PersistenceProgressReporter {
     this.active.delete(`file ${module.moduleId} (including setup/cleanup)`);
     process.stdout.write(`[persistence-test] file end: ${module.moduleId}\n`);
   }
-  async onTestRunEnd() {
+  async onTestRunEnd(modules) {
     clearInterval(this.heartbeat);
     await this.pendingSample;
-    if (this.skipped > 0 && process.env.ZJU_PERSISTENCE_FOCUSED !== '1') {
+    if (process.env.ZJU_PERSISTENCE_FOCUSED === '1') {
+      process.stdout.write(
+        '[persistence-test] critical inventory not checked: focused diagnostic only\n',
+      );
+      return;
+    }
+    assertCriticalCaseExecution(this.root, modules);
+    if (this.skipped > 0) {
       throw new Error(`full persistence verification unexpectedly skipped ${this.skipped} tests`);
     }
   }

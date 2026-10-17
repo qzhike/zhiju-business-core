@@ -214,6 +214,10 @@ Task Runtime、Dispatcher 循环、业务 Repository 与 payload↔hash Gate 仍
 
 实施入口为 `tests/persistence/controlled-exit.test.ts`；normal/recovered/cancel/cancel-progress 四个场景分别独立迁移、断言空 TE 业务库，再经真实 owning 入口产生正向来源。正常链记录原已接纳 Agent 声明；恢复链分别读 Run-1/Run-2 的 UNKNOWN，不跨 Run 合并。可选提交后 hook 同时覆盖既有重建 Result submit 入口；五个边界必须显式 reached=COMMITTED，原 Receipt/事件材料重放和最终 EP readback 才算通过。取消按批准澄清（TD-07 决定 §8）分两条独立来源：迟到主链在 ABANDONED 后首次释放 final，取消/到期前 final/Observation 不存在，无进度恢复 tick 不新建或执行；独立同 profile 场景预先合法观察 final、建立原 Progress，Human cancel 后重建 tick 保持 SUSPENDED/来源不变。原 Progress 技术证据不作为 Completion。
 
+四例的执行组织为 normal→cancel 与 recovered→cancel-progress 两个串行组，组间最多两例交错执行真实等待，每例仍独占完整数据库环境。复用 `initial-context-isolated-cases.ts` 的实例身份、角色/行锁/时钟/SQL 隔离验证及失败/超时/迟到 setup 清理；禁止全局文件并行或共用可变来源。原叶级名称、900 秒超时、所有 `runScenario` 调用参数、Task-only/Task+Release 顺序、完整业务链和断言保留。性能对比计入准备、迁移、业务与退出，不能以缩短真实期限或减少场景取样获得收益。
+
+关键执行清单 `tools/persistence/critical-cases.json` 独立列出本入口 4 例和四个 initial-context 入口 92 例。完整 Gate 对实际文件/叶名多重集合与结束状态逐项核对；排除整个入口、删除/改名/重复用例、意外新增或移位、skip/未完成均失败。分组名称不作为业务身份；合法清单变化须与业务规范一起审查。普通回归通过真实 Vitest 收集/执行和 reporter 验证这些反例；单文件诊断只报告聚焦结果。清单防止漏执行，不替代业务断言或 PostgreSQL 隔离证据。
+
 EXIT-D-004 的原可执行反例由 `initial-context.test.ts` 的 final/blocked-input Process 矩阵（`initial-context-verify-process-recovery.ts`、`initial-context-verify-bounded-recovery.ts`）、`initial-context-delivery-cases.ts` 的 owning dispatch DEAD/有限恢复、`run-cancellation.test.ts` 的旧 profile/权限/并发，以及既有 formal Quality/SQL/RLS 场景共同承载，不复制全排列。EXIT-D-006 依赖完整收集与注册/历史兼容门禁。required `vibe verify full --json`；新/变化容器先 `environment`，聚焦诊断不替代 full，最终 revision 与原始动态 `EXIT_EVIDENCE`、各层实际结果维护在 Issue/PR。独立设计审查仍 NOT RUN；实施/Git 交付由后续用户“实施Issue#250并提交PR”授权。IM-06 与外部/人工/PolicySnapshot 原边界不变。
 
 ## 创建 Purpose 兼容性（#190 APPROVED）
