@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:zhiju:runner:analysis-validation:0.2.0",
+  "title": "Caller-owned validation context; not a platform authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "analysisRequestKey",
+    "inputManifestSha256",
+    "previousReportSourceId",
+    "sourceReportIds",
+    "vocabulary",
+    "requirementBindings"
+  ],
+  "properties": {
+    "version": {
+      "const": "0.2.0"
+    },
+    "analysisRequestKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputManifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "previousReportSourceId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceReportIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "factType",
+        "riskLevel",
+        "productType",
+        "markets",
+        "choiceOptions",
+        "decisionOutcomes"
+      ],
+      "properties": {
+        "factType": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "riskLevel": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "productType": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "markets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "choiceOptions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "decisionOutcomes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          },
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "requirementBindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceId",
+          "locator",
+          "requirementCode"
+        ],
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requirementCode": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$"
+          }
+        }
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

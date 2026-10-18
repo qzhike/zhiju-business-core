@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "instanceId": "replace-by-env-b-init",
+  "dataDir": "/absolute/path/to/private/environment-b-data",
+  "ports": {
+    "web": 3200,
+    "bff": 3201,
+    "core": 3202,
+    "identity": 3280,
+    "database": 55432,
+    "control": 3290
+  },
+  "runner": {
+    "projectRoot": "/absolute/path/to/your/runner-project",
+    "profileFile": null
+  }
+}

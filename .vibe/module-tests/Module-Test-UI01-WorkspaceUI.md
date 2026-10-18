@@ -316,3 +316,42 @@ reviewer and timestamp
 新增 `tests/persistence/preparation-built-browser.test.ts` 使用当前 production SPA 制品、真实 HTTP BFF/Core 与 owning PostgreSQL，前置公司规则/预设/准入由 owner Port 发布；受控本地 OIDC 和对象传输显式限定，不能视为外部 Provider/Ceph/Runner 验收。`preparation-journey.test.ts` 核对跨 owner 的 NEW/EXISTING 创建、ZIP+note 原文恢复、source/manifest/handoff 与无 TE 的诚实状态；IP/EP/IG 各有独立持久化故障/权限/CAS测试。`tests/workspace/preparation-transport.test.ts` 核 raw payload 与 cv1/NFC 的不同职责、完整 Scope/伪造 actor/hash 拒绝和安全恢复 URL；BFF zip-body 验证 backpressure、累计/声明长度、失权和超时。状态与精确 revision 的运行证据保留在 Issue/PR，人工/真实外部能力仍 NOT RUN。
 
 ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理超过十五秒仍返回完整响应；浏览器 transport 用例覆盖 200 响应头先到、正文延迟或中断。真实重传浏览器场景必须等待同一 intake 的精确 PUT 返回 200 且响应完整结束，并核验 STAGED/READY、manifest 和真实 handoff 摘要后才允许 suite teardown；generation 更新或页面文字不单独证明传输完成。清理保持原三十秒失败门禁，不强杀活动请求或吞掉清理错误。
+
+### macOS 环境 B 的基础设施验收
+
+| 场景 | 必须结果 |
+|---|---|
+| 配置与数据 | 拒绝未知字段、环境 A 端口、重复端口、输入/数据目录重叠；私有文件权限受限且不入 Git；仓库内自定义数据目录未被整体忽略或含已跟踪文件时，在写入前拒绝，包含符号链接路径 |
+| 重复初始化 | 保留密钥和账号，通过 owning 命令与真实 OIDC 绑定，不产生重复身份或虚构业务成果 |
+| 初始化中断 | 两个容器均运行但初始化未完成时仍为 PARTIAL；INITIALIZED 必须匹配本实例、当前配置和身份文件；重试前撤销旧完成记录，成功后重新记录 |
+| 归属与恢复 | 端口占用、资源归属不符、实例配置漂移安全拒绝；Runner 目录移走仍可 status/stop；依赖停止不报 RUNNING；部分启动失败可重试，不触及其他进程/容器 |
+| 常驻与停止 | 启动命令退出后 Web/BFF/Core 仍可访问；停止只操作本实例，数据卷保留，再启可登录 |
+| A/B 同时运行 | B 初始化、启停前后 A 的 3100/3101 服务保持可用 |
+| 证据分层 | 本地基础环境、公司规则/上传、真实 OMP 调用、报告接纳和人工验收分别记录；未执行保持 NOT RUN |
+
+
+### 环境 B v0.2 / 本机 OMP 分析验收（待执行适配批准）
+
+对应 Deployment/Security Baseline 的本机分析适配提案。以下均为待实现/待执行场景，不继承基础设施或独立 Runner 工具的 PASS。
+
+| 场景 | 必须结果 |
+|---|---|
+| 本地 profile 隔离 | 仅 B 显式测试模式可选本机 profile；生产 loader 拒绝；不得用 Darwin 观察填 Ubuntu 执行锁 |
+| 存储与恢复 | 实际 ZIP/来源/报告字节重启保留；同 key 不同内容、穿越、链接和崩溃歧义失败；失败不伪造存储或来源 Receipt |
+| 受信上下文 | 原始请求、manifest、前版、已发布词表/规则和 Hash 不匹配时拒绝；用户上传的 AGENTS/上下文不得成为执行配置 |
+| 真实 OMP | 实际调用读取本轮固定 AGENTS 和授权材料；禁用额外发现/工具；配置改变、启动失败或模型不可用显示真实失败，不替换模型 |
+| 重复与中断 | 重复提交/进程崩溃/超时先查原 Run；UNKNOWN 不创建第二次副作用；迟到结果不能越过 lease/fencing |
+| v0.2 拒绝链 | 模板冒充客户事实、假冲突、错误缺失字段、词表越界、跨来源提取件、依赖环、遗漏旧事项、MD 漂移均不得成为 accepted report |
+| 人工浏览器闭环 | 通过真实登录上传脱敏 ZIP，页面展示本次 OMP 返回且 TE/EP 接纳的报告；刷新/重启可回看，UNKNOWN/冲突不自动放行启动 |
+| 验收范围 | A 保持可用；基础设施、固定工具、真实 Provider、平台接纳、人工验收分别取证；不把分析通过记作生成/批准/发布或完整 E2E 通过 |
+
+## 模板驱动首次分析验收（2026-10-18）
+
+对应 [校正决定](../decisions/template-driven-preparation.md)。设计场景均为 `NOT RUN`；实际本地、持久化、Provider、浏览器和人工证据分别记录。
+
+| ID | 输入/故障 | 必须成立的结果 |
+| --- | --- | --- |
+| UI-TB-001 | 新基准准备项目、无公司规范发布 | 现有创建/ZIP/报告流程，无额外法规表单；展示真实状态 |
+| UI-TB-002 | 公司配置缺失、客户资料缺失、未实现后续能力 | 明确区分原因；不让客户补公司规范，不用 fixture 冒充 Runner 或生成成功 |
+
+补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。

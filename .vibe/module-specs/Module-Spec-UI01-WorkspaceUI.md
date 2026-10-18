@@ -430,3 +430,17 @@ BFF 只新增四个 Human Query allowlist 与固定同源 Markdown GET stream，
 BFF 仅 six-operation allowlist + 固定 ZIP PUT，逐次 session/CSRF/Origin 校验。ZIP 流 1 MiB 缓冲、100 MiB 累计、5 分钟总时限和 30 秒空闲时限，限流使用部署 maxConcurrentUploads；无解压或内容分析。Core 从实际 OIDC Human 形成 Session，调用真实 IP/EP/IG composition；`ZHIJU_PREPARATION_CONFIG` 不配置时这条能力保持不可用，有配置则闭集验证并要求独立密钥、持久化池及 S3。BFF 的显式 return-route 配置须纳入 `/preparations/:requestId`。受控 OIDC/本地对象端口的自动化结果与真实 Provider/Ceph/Runner、全浏览器矩阵及人工验收分开，执行证据归 #291/PR #299。
 
 静态 Web 对精确同源 ZIP PUT 的固定 BFF 代理沿用五分钟调用预算，不能使用普通 JSON 请求的十五秒 socket 超时截断合法 owning 处理；BFF/IG 的大小、流空闲与总时限仍独立成立。浏览器上传 helper 在成功响应体完整读完后才结束本次传输，响应头为 200 但正文中断仍为待核验失败。owning Query 可先观察到已提交托管事实，该事实不等于上传 HTTP 响应已结束。
+
+### macOS 环境 B 的常驻人工入口
+
+环境 A 继续承担匿名页面检查。环境 B 使用 production Web/BFF/Core、独立持久 PostgreSQL 和 Keycloak，提供可重复的 init/start/status/stop 本机命令，配置中的 Runner 项目目录可以修改。私有凭据与运行状态不入 Git，停止保留数据，重复初始化保留既有身份。缺公司发布/预设、对象存储或 D14 能力时沿现有真实服务边界显示不可用；基础环境启动不等于客户 ZIP 到报告已贯通。详见 [macOS 联调手册](../runbooks/workspace-mvp-e2e-macos.md)。
+
+写入私有数据前校验实际目录；若位于 Git 工作区内，整个目录必须已被忽略且不能含已跟踪文件。初始化完成记录须绑定实例、配置和身份文件，不能仅以数据库和登录容器运行判定初始化成功；中断后允许保留数据重试。
+
+## 模板驱动准备入口（2026-10-18）
+
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。普通 MVP 主流程使用客户资料、项目固定模板和工作规则；顾问不必先提交法规原文，不增加法规配置表单或“环境 B 特殊分析”入口。现有创建、单 ZIP、分析总览布局保持。
+
+公开准备 Envelope 不变的前提是新版本仅存在于服务端精确 preset/source 的已注册 profile；BFF 不解析业务配置或替换原键。后续若需要公开新版本，必须同步明确 allowlist 和 Web 的原请求版本，不能通过 fallback 猜测。真实报告显示所用模板版本、缺失资料、读取限制、冲突和修改建议；公司配置故障不能包装成客户缺文件。当前未接通的修订/确认动作明确不可用，不把前端模拟或“报告就绪”当执行成功。
+
+BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0` allowlist；Web 从同版 v0.2 内容映射总览，保留读取限制及当前不可用原因。旧 startup review/确认保持原接受集，不复用其必填法规规则 binding。

@@ -1622,3 +1622,18 @@ project.PreparingProjectCreated@1.0
 ```
 
 封闭 payload/result、typed refs、scope、purpose 与 mutation CAS 唯一见对应 EP/IG owning schema。IP Platform 准入、SERVICE exact preset 授权和会员模板仍为独立内部 Port，不新增 Browser 管理面。EP board 新增可选 `preparationEntry={preparationRequestRef,originalPreparationKey}`：仅当前授权的原作者可读，缺权限不返回链接。`PREPARING` 是 Project 生命周期的 additive 值，旧 FULL_START 与既有接收集保留。公开 ZIP 流是技术传输，唯一业务票据 header 为 `X-Intake-Upload-Token`，不计为 operation。TE/Runner 未提供时保留 `WAITING_CAPABILITY`，不注册或伪造分析执行接口。
+
+## 模板驱动准备分析引用增量（2026-10-18）
+
+状态 `BASIS AND SOURCE V2 REGISTERED / REPORT OPERATIONS NOT REGISTERED`，见 [校正决定](../decisions/template-driven-preparation.md)。EP 新增 VERSIONED `zhiju.project.preparation_analysis_basis`，其完整 payload Hash 独立传递；新增 CONTENT_ADDRESSED `zhiju.project.preparation_analysis_basis_publication`。Platform scope 为 `{}`；内层实际 TemplateVersion 保持其原生精确版本身份，不变成法规引用。新类型仅在显式 owning profile/Schema 中消费，不进入旧字段作为别名。
+
+新增 internal 版本 `project.capture_preparation_source@2.0`、`project.get_preparation_source@2.0`；它们承接模板基准 Source，原 @1.0 接受集不变。公开准备请求形状不变、仅精确 preset resolver 增加登记的 `ep.preparation_entry@1.1`；独立审查已确认其线协议兼容，source@2.0 已登记 FULL payload/result 与精确版本授权映射；这不表示 TE/Runner 已接通。source 必填字段替换使用新 Major，不套用内部 profile 的精确选择规则。TE D14 与 EP 报告公开操作继续按既有批准设计登记其实际支持集；不得由本表直接制造 FULL capability。
+
+新增公开 AUTHORITATIVE Query `project.get_preparation_analysis_report@1.0`，与旧 startup review 分离。`project.accept_preparation_report@1.0` 尚未注册，首次实现仅接新 Source/accepted-report profile；具体闭合结果见 EP owning 节。
+
+本次已登记的两个独立来源版本如下；当前 executable Registry 为 260 项（EP 46），其余模块计数及历史 200-operation baseline 不变。报告操作仍未登记。
+
+```text
+project.capture_preparation_source@2.0
+project.get_preparation_source@2.0
+```

@@ -432,6 +432,12 @@ custody result 沿既有 `RECEIVING/STAGED/EXTRACTING/READY/PARTIAL/FAILED/UNKNO
 
 错误新增 `INTEGRATION_ZIP_UPLOAD_RESTART_NOT_ALLOWED`、`INTEGRATION_ZIP_UPLOAD_RESTART_EXHAUSTED`、`INTEGRATION_ZIP_UPLOAD_GENERATION_CONFLICT`，原键异内容沿共享冲突；unsafe/limit/corrupt/zero analyzable 沿原 D14。ZIP/policy 组件回归已有本地执行；transport、真实 source 接纳、PostgreSQL/跨 owner 恢复与生产验收分别由完整验证证据确认，未执行层仍为 NOT RUN。
 
+### 环境 B 本机持久化托管与 OMP 适配
+
+用户于 2026-10-18 批准 [macOS 本机适配](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#环境-b-首轮分析执行适配已批准)，仅用于 `MACOS_MANUAL_TEST`。生产 S3/Ubuntu 接受集不变。本机对象实现既有 `CustomerZipObjectStore.put/read/inspect`：客户对象键仍由服务器生成；对象以实际 key、SHA-256、长度和原始 bytes 整体不可覆盖发布，临时文件 fsync 后以排他链接发布、同步父目录并回读。首次初始化排他创建私有根与存储标识，部署配置在根外保存 storeId/device/inode 绑定；运行期不自动创建或重新初始化库。根丢失、被替换或身份漂移一律 UNKNOWN，不能经另一写入洗成 ABSENT。私有根和普通文件分别要求 0700/0600，拒绝路径穿越、符号链接、设备及非私有目录；物理名从完整 key Hash 导出，客户路径不能成为宿主路径。相同 key/bytes 幂等，不同 bytes 冲突；损坏、权限或未知 I/O 错误为 UNKNOWN，只有确认不存在才为 ABSENT。
+
+公司材料独立使用 `company-source/<实际 bytes SHA-256>` 键，内部初始化写入后，业务服务只能读取部署明确列出的公司对象。文件存在不等于规则已发布，仍须 owning 发布/当前可用性证明。该适配不宣称 S3 versioning/Object Lock/备份 conformance。本机 OMP 调用与观察仍按批准提案及下方 D14 所有权实现，组件可用不代表真实 Runner 链已通过。
+
 ## D14 / RD-01 ZIP intake 与真实报告观察提案
 
 状态：`T2 / PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。本模块只拥有受控外部传输/物化/调用与原始观察；source custody 与报告业务快照属 EP，Run/Result 属 TE。限制与路径规则见 [ZIP handoff](../decisions/d14-rd01-first-customer-flow.md#2-zipstaging-与-host-的交接)。
@@ -515,3 +521,9 @@ Markdown render由已提交RenderAttempt读取exact ART FROZEN Canonical，固�
 每个 Attempt 只能插入一次 immutable `markdown_render_work`。实际输出和原 receipt bytes 均 staging/readback；完整 round-trip 成功且在原 deadline 内的 observation 保存到 `markdown_render_output`，随后 finalize，最后提交 RawReceipt、SUCCEEDED 与 Outbox。异步操作有时间界限；超时、finalize/外部结果不确定保持 UNKNOWN。恢复显式查询原 Attempt，复用已持久化的对象版本与原 receipt，重新读回校验并完成 finalize；无合法原 observation 不重启渲染，不新建 Attempt 替代。FAILED/late 不能恢复成功。数据库只允许原命令、scope/hash 与输出观察一致的成功状态，app 不能 UPDATE/DELETE 原材料。
 
 确定性 profile/renderer digest/identity map、实际 output sha256/byteLength、完整 Canonical round-trip hash 进入 `markdownValidation`。成功字段只允许 SUCCEEDED；其余状态没有可登记的表示。真实生产 Ceph/OpenBao、外部 Renderer/Host 仍为 NOT RUN；受控 PostgreSQL/对象存储与公共 HTTP/Browser 技术验收见 Module-Test-007 与 UI01。
+
+## 模板驱动分析输入绑定（2026-10-18）
+
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。IG 只接受来自 EP/TE 当前授权及冻结 Context 的真实客户源、精确 TemplateVersion 和 analysisBasis 中锁定的指令/映射；公司源内容寻址 key、实际字节长度/Hash 由受控 reader 证明。客户 ZIP、文本、文件名、客户 AGENTS 或 Runner 输出不能改变指令、词表、Schema、模型或路径。原件和模板只读，每 Run 物化独立来源；固定提取和 v0.2 重验均在 Agent 外执行。
+
+无需为了调度模板比对而制造三项 RegulatoryReferenceVersion；任务明确使用的法规来源按其实际角色保留，不把模板代码或模板要求映射标为法规核验。AGENTS 来源、实际 Schema/工具版本与 Runtime pins 继续锁定；语义分析仍归 Runner，IG 不新增正文分析 Agent。已批准 macOS 本地托管、invoke-once、进程观察与 Provider 未知状态边界保持。

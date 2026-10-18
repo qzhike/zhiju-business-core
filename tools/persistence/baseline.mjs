@@ -14,6 +14,11 @@ export const FLYWAY_IMAGE_DIGEST =
   'sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1';
 export const FLYWAY_REPOSITORY = 'docker.io/flyway/flyway';
 
+// Shared by the temporary identity tests and the persistent local environment.
+export const CONTROLLED_KEYCLOAK_IMAGE =
+  'keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13';
+export const CONTROLLED_KEYCLOAK_VERSION_TAG = '26.7.0';
+
 export const POSTGRESQL_MAJOR = 18;
 export const POSTGRESQL_MINOR = 6;
 

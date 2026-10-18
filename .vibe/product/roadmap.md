@@ -103,3 +103,7 @@ final 交付基线（2026-09-27，历史）：[Issue #224](https://github.com/qz
 Planner 在阶段启动/关闭或优先级变化时协调本文件；普通实现不重复抄写进度。GitHub Issue/PR 与 Git 是执行状态来源。旧 Task-Plan、Issue 草稿和报告是历史材料，不能覆盖本文件的推进方向或最新 GitHub 事实。
 
 #239 交付后的边界与顺序（2026-10-03）：[Issue #239](https://github.com/qzhike/zhiju-business-core/issues/239) 已关闭，[PR #240](https://github.com/qzhike/zhiju-business-core/pull/240) 已于 2026-10-01 合入 `main@aa6f6ec88fa7aeae4a9a10f4936462e8e1a838eb`。受控正常/恢复链已到 EP exact readback：Task-only Item 为 SATISFIED，独立的 Task+Release Item 在缺 Release 时仍 UNSATISFIED；Registry / TaskExecution / 历史兼容 Baseline 为 238 / 62 / 200。最终 head `d4f865b7bc211a5a1b1cabc6a804c013a2c88cdf` 的独立 APPROVE、人类技术批准与完整 CI 见 [PR #240 正式记录](../reviews/pr-240/Review.md)及 Issue/PR。已有 PARTIAL / NOT RUN、历史 Task 完成事实不证明当前 USABLE、真实 owning revocation 与 Grant PolicySnapshot lifecycle、外部/人工边界均保留。下一目标见本节开头；TD-05–07 未批准的 Query/Board/Usage/退出方案不会因本次派发交付而被追认。取消切片只请求取消与隔离迟到结果，不引入 Runtime ACK 或绕过 IM-DG-006。
+
+## 2026-10-18 首次模板分析接入校正
+
+用户重申原 MVP 目标并批准先做模板分析。当前推进目标是客户 ZIP → 指定模板/固定工作规则 → 本机 OMP → v0.2 报告接纳及展示；真实初始化与执行适配先在独立环境 B 验证。后续公司规则把完整规范发布提前到所有准备入口的偏差，按 [校正决定](../decisions/template-driven-preparation.md)及 owning Spec/Test 先修正，再接通实际能力。模板比对是正常业务流程，不作为 B 专用例外；后续修订、批准和交付仍属于主链路，不能把缺规范原文设为永久通用阻断。当前声明不等于新接口已注册/实现，不创建额外 Issue 或改变 Git 交付授权。

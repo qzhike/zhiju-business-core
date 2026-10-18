@@ -2,7 +2,13 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { sql, type Kysely } from 'kysely';
 import { canonicalize, newUuidV7, isUuidV7, type CanonicalJsonValue } from '@zhiju/shared-kernel';
-import { assertPreparationCommand, assertPreparationHash, type Common } from '@zhiju/contracts';
+import {
+  assertPreparationCommand,
+  assertPreparationHash,
+  assertTemplatePreparationPreset,
+  assertPreparationClosed,
+  type Common,
+} from '@zhiju/contracts';
 import type { PreparationSession, WorkspaceCommandInput } from '@zhiju/contracts';
 import type {
   PreparationIdentityPort,
@@ -11,6 +17,7 @@ import type {
   PreparationMemberPolicyResult,
 } from '@zhiju/contracts';
 import type {
+  AnyPreparationPresetPayload,
   PreparationPresetPayload,
   PreparationEntrySelection,
   PreparationRequestPayload,
@@ -165,7 +172,7 @@ export interface PreparationProjectConfig {
   cursorKey: Buffer;
   validateDependencies(
     session: PreparationSession,
-    payload: PreparationPresetPayload,
+    payload: AnyPreparationPresetPayload,
   ): Promise<{
     templateRefs: Common.ContentAddressedRef[];
     requirementRefs: Common.ContentAddressedRef[];
@@ -280,6 +287,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     input: {
       commandId: string;
       operation: string;
+      version?: '1.0' | '2.0';
       key: string;
       target: Common.ObjectRef;
       payload: unknown;
@@ -292,7 +300,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       .values({
         command_id: input.commandId,
         command_type: input.operation,
-        command_version: '1.0',
+        command_version: input.version ?? '1.0',
         idempotency_scope: scope.projectId ?? scope.enterpriseId ?? PLATFORM,
         idempotency_key: input.key,
         request_payload_hash: Buffer.from(hash(input.payload).digest, 'hex'),
@@ -313,11 +321,12 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       .execute();
     const row = await trx
       .selectFrom('enterprise_project.command_receipt')
-      .select(['command_type', 'request_payload_hash', 'result_payload_hash'])
+      .select(['command_type', 'command_version', 'request_payload_hash', 'result_payload_hash'])
       .where('command_id', '=', input.commandId)
       .executeTakeFirst();
     if (
       row?.command_type !== input.operation ||
+      row.command_version !== (input.version ?? '1.0') ||
       row.request_payload_hash.toString('hex') !== hash(input.payload).digest ||
       row.result_payload_hash?.toString('hex') !== hash(input.result).digest
     )
@@ -413,7 +422,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     await verified(s);
     return config.authorize(s, op, target, payload, human);
   }
-  function assertPreset(p: PreparationPresetPayload) {
+  function assertLegacyPreset(p: PreparationPresetPayload) {
     closed(p, [
       'profile',
       'presetCode',
@@ -479,12 +488,18 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     )
       fail('PREPARATION_PRESET_INVALID');
   }
+  function assertPreset(p: AnyPreparationPresetPayload) {
+    if (p.profile === 'ep.preparation_entry@1.0') assertLegacyPreset(p);
+    else if (runtimeToken(p.profile) === 'ep.preparation_entry@1.1')
+      assertTemplatePreparationPreset(p);
+    else fail('PREPARATION_PRESET_INVALID');
+  }
   async function publishPreset(
     s: PreparationSession,
     input: {
       presetId: string;
       versionId: string;
-      payload: PreparationPresetPayload;
+      payload: AnyPreparationPresetPayload;
       effectiveFrom: string;
       supersedesPublicationRef?: Common.ContentAddressedRef;
     },
@@ -544,7 +559,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       );
       if (
         !prev ||
-        (prev.payload as PreparationPresetPayload).presetCode !== input.payload.presetCode
+        (prev.payload as AnyPreparationPresetPayload).presetCode !== input.payload.presetCode
       )
         fail('PREPARATION_PRESET_INVALID');
       const successors = await transaction(
@@ -630,6 +645,83 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       receiptRef: object('CommandReceipt', publicationId, {}),
     };
   }
+  /** Exact owning readback for installation recovery; it never republishes or grants use. */
+  async function readTemplatePresetPublication(
+    s: PreparationSession,
+    input: Parameters<typeof publishPreset>[1],
+  ): Promise<Awaited<ReturnType<typeof publishPreset>> | null> {
+    assertPreset(input.payload);
+    if (input.payload.profile !== 'ep.preparation_entry@1.1') fail('PREPARATION_PRESET_INVALID');
+    const target = object('zhiju.project.preparation_preset', input.presetId, {});
+    const p = await authorized(s, 'project.preparation.preset.publish', target, input);
+    return transaction(p, {}, async (trx) => {
+      const receipt = await trx
+        .selectFrom('enterprise_project.command_receipt')
+        .selectAll()
+        .where('idempotency_scope', '=', PLATFORM)
+        .where('idempotency_key', '=', 'project.preparation.preset.publish:1.0:' + input.versionId)
+        .executeTakeFirst();
+      if (!receipt) return null;
+      if (
+        receipt.command_type !== 'project.preparation.preset.publish' ||
+        receipt.command_version !== '1.0' ||
+        receipt.outcome !== 'COMMITTED' ||
+        receipt.target_type !== target.objectType ||
+        receipt.target_id !== target.objectId ||
+        receipt.request_payload_hash.toString('hex') !== hash(input).digest
+      )
+        fail('IDEMPOTENCY_PAYLOAD_CONFLICT');
+      closed(receipt.result_payload, [
+        'preparationPresetRef',
+        'preparationPresetHash',
+        'publicationRef',
+      ]);
+      const result = receipt.result_payload as Omit<
+        Awaited<ReturnType<typeof publishPreset>>,
+        'receiptRef'
+      >;
+      if (receipt.result_payload_hash?.toString('hex') !== hash(result).digest)
+        fail('PREPARATION_PERSISTED_HASH_MISMATCH');
+      closed(result, ['preparationPresetRef', 'preparationPresetHash', 'publicationRef']);
+      const publication = (
+        await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='PUBLICATION' AND id=${receipt.command_id}`.execute(
+          trx,
+        )
+      ).rows[0];
+      const preset = (
+        await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='PRESET' AND id=${input.versionId}`.execute(
+          trx,
+        )
+      ).rows[0];
+      if (
+        !publication ||
+        !preset ||
+        !equal(preset.payload, input.payload) ||
+        hash(publication.payload).digest !== publication.payload_hash.toString('hex') ||
+        hash(preset.payload).digest !== preset.payload_hash.toString('hex') ||
+        !equal(result.preparationPresetRef, {
+          kind: 'VERSIONED',
+          objectType: target.objectType,
+          objectId: input.presetId,
+          versionId: input.versionId,
+          scope: {},
+        }) ||
+        !equal(result.preparationPresetHash, hash(input.payload)) ||
+        !equal(
+          result.publicationRef,
+          content(
+            'zhiju.project.preparation_preset_publication',
+            publication.id,
+            {},
+            publication.payload,
+          ),
+        )
+      )
+        fail('PREPARATION_PERSISTED_HASH_MISMATCH');
+      await config.check(p, 'project.preparation.preset.publish', target, input);
+      return { ...result, receiptRef: object('CommandReceipt', receipt.command_id, {}) };
+    });
+  }
   async function resolvePreset(
     s: PreparationSession,
     selection: PreparationEntrySelection,
@@ -653,7 +745,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
         )
       ).rows[0];
       if (!preset || !publication) fail('PREPARATION_PRESET_NOT_FOUND');
-      const payload = preset.payload as PreparationPresetPayload;
+      const payload = preset.payload as AnyPreparationPresetPayload;
       assertPreset(payload);
       const pub = publication.payload as {
         preparationPresetRef: Common.VersionedRef;
@@ -744,7 +836,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     await config.check(p, 'project.preparation.preset.withdraw', target, input);
     return content('zhiju.project.preparation_preset_withdrawal', row.id, {}, payload);
   }
-  const binding = (selection: PreparationEntrySelection, preset: PreparationPresetPayload) => ({
+  const binding = (selection: PreparationEntrySelection, preset: AnyPreparationPresetPayload) => ({
     ...selection,
     intakePolicyRef: preset.intakePolicy.ref,
     intakePolicyHash: preset.intakePolicy.payloadHash,
@@ -1025,7 +1117,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     s: PreparationSession,
     r: RequestFact,
     member: PreparationMemberPolicyResult,
-    preset: PreparationPresetPayload,
+    preset: AnyPreparationPresetPayload,
   ) {
     const c = r.originalCommand;
     const scope = c.scopeRef;
@@ -1498,7 +1590,9 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       creatorRef: r.admission.payload.creatorRef,
       scopeRef: r.originalCommand.scopeRef,
       ...binding(r.selection, preset.payload),
-      companyRules: preset.payload.companyRules,
+      ...(preset.payload.profile === 'ep.preparation_entry@1.0'
+        ? { companyRules: preset.payload.companyRules }
+        : { analysisBasis: preset.payload.analysisBasis }),
       creationMode: 'PREPARATION' as const,
       status: 'PREPARING' as const,
       sourceWatermarks: resultView.sourceWatermarks,
@@ -1860,6 +1954,8 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     const handoff = handoffRows[0]?.payload as Handoff | undefined;
     if (!handoff) fail('PREPARATION_SOURCE_BINDING_INVALID');
     const locked = await resolvePreset(s, handoff.selection);
+    if (locked.payload.profile !== 'ep.preparation_entry@1.0')
+      fail('PREPARATION_SOURCE_PROFILE_UNSUPPORTED');
     if (
       locked.useStatus !== 'USABLE' ||
       !equal(input.projectRef, handoff.submission.projectRef) ||
@@ -1962,6 +2058,181 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       return result;
     });
   }
+  async function captureSourceV2(
+    s: PreparationSession,
+    input: {
+      sourceId: string;
+      projectRef: Common.ObjectRef;
+      intakeManifestRef: Ref;
+      templateRefs: Common.ContentAddressedRef[];
+      analysisBasisRef: Common.VersionedRef;
+      analysisBasisHash: Common.ContentHash;
+      analysisBasisPublicationRef: Common.ContentAddressedRef;
+      trustedDecisionRefs: Ref[];
+      purpose: 'preparation.analysis';
+      audience: Common.ObjectRef;
+      sourceRefs: Ref[];
+      noteSourceRef?: Ref;
+    },
+  ) {
+    assertPreparationClosed(
+      input,
+      [
+        'sourceId',
+        'projectRef',
+        'intakeManifestRef',
+        'templateRefs',
+        'analysisBasisRef',
+        'analysisBasisHash',
+        'analysisBasisPublicationRef',
+        'trustedDecisionRefs',
+        'purpose',
+        'audience',
+        'sourceRefs',
+      ],
+      ['noteSourceRef'],
+    );
+    const p = await authorized(s, 'project.preparation.source_v2.capture', input.projectRef, input);
+    if (
+      runtimeToken(input.purpose) !== 'preparation.analysis' ||
+      input.trustedDecisionRefs.length ||
+      !input.templateRefs.length ||
+      !config.analysisAudience ||
+      !equal(input.audience, config.analysisAudience)
+    )
+      fail('PREPARATION_SOURCE_INVALID');
+    const scope = input.projectRef.scope;
+    const handoffRows = await transaction(
+      p,
+      scope,
+      async (trx) =>
+        (
+          await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='HANDOFF' AND payload->>'sourceId'=${input.sourceId}`.execute(
+            trx,
+          )
+        ).rows,
+    );
+    const handoff = handoffRows[0]?.payload as Handoff | undefined;
+    if (!handoff) fail('PREPARATION_SOURCE_BINDING_INVALID');
+    const locked = await resolvePreset(s, handoff.selection);
+    if (locked.payload.profile !== 'ep.preparation_entry@1.1')
+      fail('PREPARATION_SOURCE_PROFILE_UNSUPPORTED');
+    if (
+      locked.useStatus !== 'USABLE' ||
+      !equal(input.projectRef, handoff.submission.projectRef) ||
+      !equal(input.intakeManifestRef, handoff.submission.manifestRef) ||
+      !equal(input.sourceRefs, handoff.submission.sourceRefs) ||
+      !equal(input.templateRefs, locked.dependencies.templateRefs) ||
+      !equal(input.analysisBasisRef, locked.payload.analysisBasis.basisRef) ||
+      !equal(input.analysisBasisHash, locked.payload.analysisBasis.basisHash) ||
+      !equal(input.analysisBasisPublicationRef, locked.payload.analysisBasis.publicationRef) ||
+      !equal(input.noteSourceRef ?? null, handoff.submission.noteSourceRef ?? null)
+    )
+      fail('PREPARATION_SOURCE_BINDING_INVALID');
+    return transaction(p, scope, async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.sourceId},0))`.execute(trx);
+      const existing = (
+        await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='SOURCE' AND identity_key=${input.sourceId}`.execute(
+          trx,
+        )
+      ).rows[0];
+      if (existing) {
+        const saved = existing.payload as {
+          input: typeof input;
+          result: {
+            preparationSourceRef: Common.SnapshotRef;
+            inputRefs: Ref[];
+            receiptRef: Ref;
+            validUntil: string;
+          };
+        };
+        if (!equal(saved.input, input)) fail('IDEMPOTENCY_PAYLOAD_CONFLICT');
+        return saved.result;
+      }
+      // Serialize the new capture against transitions out of PREPARING.
+      // An original receipt replay above remains historical custody.
+      const project = await trx
+        .selectFrom('enterprise_project.project')
+        .select(['status'])
+        .where('enterprise_id', '=', scope.enterpriseId ?? fail('PREPARATION_SCOPE_INVALID'))
+        .where('project_id', '=', requiredProjectId(scope))
+        .forShare()
+        .executeTakeFirst();
+      if ((project?.status as string) !== 'PREPARING') fail('PREPARATION_SOURCE_PROJECT_INVALID');
+      const sources = [];
+      for (const ref of input.sourceRefs) {
+        if (
+          !('kind' in ref) ||
+          ref.kind !== 'CONTENT_ADDRESSED' ||
+          !equal(ref.scope, scope) ||
+          ref.objectType !== 'SourceMaterial'
+        )
+          fail('PREPARATION_SOURCE_INVALID');
+        const row = await repo.getSourceMaterialById(trx, ref.objectId);
+        if (
+          row?.custody_status !== 'ACCEPTED' ||
+          ref.contentHash.digest !== row.content_hash.toString('hex')
+        )
+          fail('PREPARATION_SOURCE_NOT_ACCEPTED');
+        sources.push({
+          sourceRef: ref,
+          bytesSha256: row.content_hash.toString('hex'),
+          byteLength: Number(row.byte_length),
+          objectRef: row.accepted_object_ref,
+          classification: 'CUSTOMER_MATERIAL',
+          ...(input.noteSourceRef && equal(ref, input.noteSourceRef)
+            ? { role: 'CUSTOMER_NOTE' }
+            : {}),
+        });
+      }
+      const payload = {
+        profile: 'ep.preparation_source@2.0',
+        projectRef: input.projectRef,
+        intakeManifestRef: input.intakeManifestRef,
+        templateRefs: input.templateRefs,
+        analysisBasisRef: input.analysisBasisRef,
+        analysisBasisHash: input.analysisBasisHash,
+        analysisBasisPublicationRef: input.analysisBasisPublicationRef,
+        purpose: input.purpose,
+        audience: input.audience,
+        sources,
+        trustedDecisionRefs: [],
+        coverage: { acceptedSources: sources.length },
+        omissions: [],
+        redactions: [],
+        validUntil: s.expiresAt,
+      };
+      const ref: Common.SnapshotRef = {
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+        objectId: input.sourceId,
+        snapshotId: input.sourceId,
+        scope,
+        contentHash: hash(payload),
+      };
+      const result = {
+        preparationSourceRef: ref,
+        inputRefs: input.sourceRefs,
+        receiptRef: object('CommandReceipt', handoff.sourceCommandId, scope),
+        validUntil: s.expiresAt,
+      };
+      await technicalReceipt(trx, p, scope, {
+        commandId: handoff.sourceCommandId,
+        operation: 'project.capture_preparation_source',
+        version: '2.0',
+        key: handoff.submission.intakeRef.objectId + ':SOURCE:' + input.sourceId,
+        target: object('zhiju.project.preparation_source', input.sourceId, scope),
+        payload: input,
+        result,
+      });
+      const fact = { input, payload, result };
+      await sql`INSERT INTO enterprise_project.preparation_fact(id,kind,enterprise_id,project_id,creator_id,identity_key,payload,payload_hash,actor_ref,decision_ref) VALUES(${input.sourceId},'SOURCE',${scope.enterpriseId},${scope.projectId},${s.principalId},${input.sourceId},${JSON.stringify(fact)}::jsonb,${Buffer.from(hash(fact).digest, 'hex')},${JSON.stringify(p.actorSnapshotRef)}::jsonb,${JSON.stringify(p.authorizationDecisionRef)}::jsonb)`.execute(
+        trx,
+      );
+      await config.check(p, 'project.preparation.source_v2.capture', input.projectRef, input);
+      return result;
+    });
+  }
   async function getSource(
     s: PreparationSession,
     input: {
@@ -1980,9 +2251,10 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     if (!row) fail('PREPARATION_SOURCE_NOT_VISIBLE');
     const fact = row.payload as {
       input: { audience: Common.ObjectRef };
-      payload: { validUntil: string };
+      payload: { validUntil: string; profile?: string };
       result: { preparationSourceRef: Common.SnapshotRef };
     };
+    if (fact.payload.profile !== undefined) fail('PREPARATION_SOURCE_PROFILE_UNSUPPORTED');
     if (
       !equal(fact.result.preparationSourceRef, input.preparationSourceRef) ||
       runtimeToken(input.purpose) !== 'preparation.analysis' ||
@@ -2003,6 +2275,70 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     if (!handoff) fail('PREPARATION_SOURCE_BINDING_INVALID');
     const current = await resolvePreset(s, handoff.selection, { historical: true });
     await config.check(p, 'project.preparation.source.read', target, input);
+    return {
+      payload: fact.payload,
+      currentUsability:
+        current.useStatus !== 'USABLE' || current.dependencyState === 'UNUSABLE'
+          ? 'STALE'
+          : current.dependencyState === 'UNAVAILABLE'
+            ? 'UNKNOWN'
+            : new Date(fact.payload.validUntil) > now()
+              ? 'USABLE'
+              : 'EXPIRED',
+      reasons:
+        current.useStatus !== 'USABLE' || current.dependencyState === 'UNUSABLE'
+          ? ['PREPARATION_PRESET_UNUSABLE']
+          : current.dependencyState === 'UNAVAILABLE'
+            ? ['PREPARATION_DEPENDENCY_UNAVAILABLE']
+            : new Date(fact.payload.validUntil) > now()
+              ? []
+              : ['SOURCE_EXPIRED'],
+      validUntil: fact.payload.validUntil,
+    };
+  }
+  async function getSourceV2(
+    s: PreparationSession,
+    input: {
+      preparationSourceRef: Common.SnapshotRef;
+      purpose: 'preparation.analysis';
+      audience: Common.ObjectRef;
+    },
+  ) {
+    const target = object(
+      'zhiju.project.preparation_source',
+      input.preparationSourceRef.objectId,
+      input.preparationSourceRef.scope,
+    );
+    const p = await authorized(s, 'project.preparation.source_v2.read', target, input);
+    const row = await read(p, target.scope, 'SOURCE', target.objectId);
+    if (!row) fail('PREPARATION_SOURCE_NOT_VISIBLE');
+    const fact = row.payload as {
+      input: { audience: Common.ObjectRef };
+      payload: { validUntil: string; profile?: string };
+      result: { preparationSourceRef: Common.SnapshotRef };
+    };
+    if (fact.payload.profile !== 'ep.preparation_source@2.0')
+      fail('PREPARATION_SOURCE_PROFILE_UNSUPPORTED');
+    if (
+      !equal(fact.result.preparationSourceRef, input.preparationSourceRef) ||
+      runtimeToken(input.purpose) !== 'preparation.analysis' ||
+      !equal(input.audience, fact.input.audience)
+    )
+      fail('PREPARATION_SOURCE_INVALID');
+    const handoffRows = await transaction(
+      p,
+      target.scope,
+      async (trx) =>
+        (
+          await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='HANDOFF' AND payload->>'sourceId'=${target.objectId}`.execute(
+            trx,
+          )
+        ).rows,
+    );
+    const handoff = handoffRows[0]?.payload as Handoff | undefined;
+    if (!handoff) fail('PREPARATION_SOURCE_BINDING_INVALID');
+    const current = await resolvePreset(s, handoff.selection, { historical: true });
+    await config.check(p, 'project.preparation.source_v2.read', target, input);
     return {
       payload: fact.payload,
       currentUsability:
@@ -2293,19 +2629,30 @@ export function createPreparationProjectService(config: PreparationProjectConfig
         intakeRef: h.submission.intakeRef,
         submissionPayloadHash: h.submission.submissionPayloadHash,
       });
-      const captured = await captureSource(service, {
+      const common = {
         sourceId: h.sourceId,
         projectRef,
         intakeManifestRef: h.submission.manifestRef,
         templateRefs: selected.dependencies.templateRefs,
-        ruleBundleRef: selected.payload.companyRules.ruleBundleRef,
-        companyRulePublicationRef: selected.payload.companyRules.publicationRef,
         trustedDecisionRefs: [],
-        purpose: 'preparation.analysis',
+        purpose: 'preparation.analysis' as const,
         audience: config.analysisAudience,
         sourceRefs: h.submission.sourceRefs,
         ...(h.submission.noteSourceRef ? { noteSourceRef: h.submission.noteSourceRef } : {}),
-      });
+      };
+      const captured =
+        selected.payload.profile === 'ep.preparation_entry@1.0'
+          ? await captureSource(service, {
+              ...common,
+              ruleBundleRef: selected.payload.companyRules.ruleBundleRef,
+              companyRulePublicationRef: selected.payload.companyRules.publicationRef,
+            })
+          : await captureSourceV2(service, {
+              ...common,
+              analysisBasisRef: selected.payload.analysisBasis.basisRef,
+              analysisBasisHash: selected.payload.analysisBasis.basisHash,
+              analysisBasisPublicationRef: selected.payload.analysisBasis.publicationRef,
+            });
       await append(
         p,
         input.intakeRef.scope,
@@ -2588,6 +2935,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
       previousReportRef?: Ref;
     };
     if (
+      runtimeToken(command.version) !== '1.0' ||
       input.previousReportRef ||
       command.type !== 'project.capture_preparation_source' ||
       !equal(command.scopeRef, command.targetRef.scope) ||
@@ -2614,6 +2962,67 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     const h = rows[0]?.payload as Handoff | undefined;
     if (command.commandId !== h?.sourceCommandId) fail('PREPARATION_SOURCE_BINDING_INVALID');
     return captureSource(session, {
+      ...input,
+      sourceId: h.sourceId,
+      sourceRefs: h.submission.sourceRefs,
+      ...(h.submission.noteSourceRef ? { noteSourceRef: h.submission.noteSourceRef } : {}),
+    });
+  }
+  async function capturePreparationSourceV2(
+    session: PreparationSession,
+    command: Omit<WorkspaceCommandInput<unknown>, 'version'> & { version: '2.0' },
+  ) {
+    const input = command.payload as {
+      projectRef: Common.ObjectRef;
+      intakeManifestRef: Ref;
+      templateRefs: Common.ContentAddressedRef[];
+      analysisBasisRef: Common.VersionedRef;
+      analysisBasisHash: Common.ContentHash;
+      analysisBasisPublicationRef: Common.ContentAddressedRef;
+      trustedDecisionRefs: Ref[];
+      purpose: 'preparation.analysis';
+      audience: Common.ObjectRef;
+      previousReportRef?: Ref;
+    };
+    if (
+      runtimeToken(command.version) !== '2.0' ||
+      input.previousReportRef ||
+      command.type !== 'project.capture_preparation_source' ||
+      !equal(command.scopeRef, command.targetRef.scope) ||
+      command.targetRef.objectType !== 'zhiju.project.preparation_source' ||
+      !equal(command.integrity.payloadHash, hash(input))
+    )
+      fail('PREPARATION_COMMAND_INVALID');
+    closed(input, [
+      'projectRef',
+      'intakeManifestRef',
+      'templateRefs',
+      'analysisBasisRef',
+      'analysisBasisHash',
+      'analysisBasisPublicationRef',
+      'trustedDecisionRefs',
+      'purpose',
+      'audience',
+    ]);
+    const p = await authorized(
+      session,
+      'project.preparation.source_v2.capture',
+      input.projectRef,
+      input,
+    );
+    const rows = await transaction(
+      p,
+      command.scopeRef,
+      async (trx) =>
+        (
+          await sql<Fact>`SELECT * FROM enterprise_project.preparation_fact WHERE kind='HANDOFF' AND payload->>'sourceId'=${command.targetRef.objectId}`.execute(
+            trx,
+          )
+        ).rows,
+    );
+    const h = rows[0]?.payload as Handoff | undefined;
+    if (command.commandId !== h?.sourceCommandId) fail('PREPARATION_SOURCE_BINDING_INVALID');
+    return captureSourceV2(session, {
       ...input,
       sourceId: h.sourceId,
       sourceRefs: h.submission.sourceRefs,
@@ -2674,6 +3083,7 @@ export function createPreparationProjectService(config: PreparationProjectConfig
   }
   return {
     publishPreset,
+    readTemplatePresetPublication,
     resolvePreset,
     withdrawPreset,
     findEnterprises,
@@ -2684,12 +3094,14 @@ export function createPreparationProjectService(config: PreparationProjectConfig
     sourceLinks,
     captureSource,
     getSource,
+    getSourceV2,
     acceptHandoff,
     continueHandoff,
     queryHandoff,
     verifyProjectCreation,
     createPreparingProject,
     capturePreparationSource,
+    capturePreparationSourceV2,
     boardEntry,
   };
 }

@@ -310,3 +310,53 @@ Object.assign(preparationProjectSchemaDefinitions, {
     validUntil: ref('utcInstant'),
   }),
 });
+
+// Incompatible template-source fields are registered as a new major; legacy definitions remain exact.
+const templateBasisFields = {
+  analysisBasisRef: exact('zhiju.project.preparation_analysis_basis', 'versionedRef'),
+  analysisBasisHash: ref('contentHash'),
+  analysisBasisPublicationRef: exact(
+    'zhiju.project.preparation_analysis_basis_publication',
+    'contentAddressedRef',
+  ),
+};
+const templateSource = structuredClone(
+  preparationProjectSchemaDefinitions.preparationSourcePayload,
+) as {
+  type: string;
+  additionalProperties: boolean;
+  properties: Record<string, JsonSchema>;
+  required: string[];
+};
+delete templateSource.properties.ruleBundleRef;
+delete templateSource.properties.companyRulePublicationRef;
+templateSource.required = templateSource.required.filter(
+  (key) => !['ruleBundleRef', 'companyRulePublicationRef'].includes(key),
+);
+Object.assign(templateSource.properties, {
+  profile: { const: 'ep.preparation_source@2.0' },
+  ...templateBasisFields,
+});
+templateSource.required.push('profile', ...Object.keys(templateBasisFields));
+Object.assign(preparationProjectSchemaDefinitions, {
+  project_capture_preparation_source_v2_0_payload: obj({
+    projectRef: exact('zhiju.project.project'),
+    intakeManifestRef: exact('zhiju.integration.customer_input_manifest', 'snapshotRef'),
+    templateRefs: { ...list(ref('contentAddressedRef')), minItems: 1, uniqueItems: true },
+    ...templateBasisFields,
+    trustedDecisionRefs: { type: 'array', maxItems: 0, items: false },
+    purpose: { const: 'preparation.analysis' },
+    audience: exact('identity.principal'),
+  }),
+  project_capture_preparation_source_v2_0_result:
+    preparationProjectSchemaDefinitions.capturePreparationSourceResult,
+  project_get_preparation_source_v2_0_payload:
+    preparationProjectSchemaDefinitions.getPreparationSourcePayload,
+  templatePreparationSourcePayload: templateSource,
+  project_get_preparation_source_v2_0_result: obj({
+    payload: { $ref: local + 'templatePreparationSourcePayload' },
+    currentUsability: { enum: ['USABLE', 'EXPIRED', 'STALE', 'UNKNOWN'] },
+    reasons: list(ref('reasonCode')),
+    validUntil: ref('utcInstant'),
+  }),
+});

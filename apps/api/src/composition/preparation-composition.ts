@@ -7,7 +7,7 @@ import {
   type Common,
   type PreparationSession,
   type PreparationEntrySelection,
-  type PreparationPresetPayload,
+  type AnyPreparationPresetPayload,
   type PreparationProjectScope,
 } from '@zhiju/contracts';
 import { newUuidV7 } from '@zhiju/shared-kernel';
@@ -22,6 +22,7 @@ import {
   IdentityPolicyRepository,
   PREPARATION_CREATOR_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
+  PREPARATION_SERVICE_V2_BINDINGS,
   type IdentityCryptoPorts,
   type IdentityCommandDeps,
   type IdentityTransactionContext,
@@ -31,6 +32,8 @@ import {
 import {
   createEnterpriseProjectDatabase,
   createPreparationProjectService,
+  createPreparationAnalysisBasisService,
+  type PreparationAnalysisBasisConfig,
 } from '@zhiju/enterprise-project';
 import {
   createCustomerZipIntakeService,
@@ -60,6 +63,7 @@ export interface PreparationCompositionConfig {
   readonly ticket: { readonly activeKeyId: string; readonly keys: ReadonlyMap<string, Uint8Array> };
   readonly policies: readonly CustomerZipPolicyArtifact[];
   readonly companyRules: ReturnType<typeof createCompanyRuleComposition>;
+  readonly analysisBasis?: Pick<PreparationAnalysisBasisConfig, 'sources' | 'validateDefinition'>;
   /** The existing trusted OIDC bootstrap dependencies; never a browser field. */
   readonly identityResolutionDeps: (access: WorkspaceVerifiedAccess) => IdentityCommandDeps;
   readonly objectStore?: CustomerZipObjectStore;
@@ -166,9 +170,11 @@ export function createPreparationComposition(config: PreparationCompositionConfi
     projectAuthorizationConfig,
   );
   function purpose(operation: string, service: boolean): string {
-    const row = (service ? PREPARATION_SERVICE_BINDINGS : PREPARATION_CREATOR_BINDINGS).find(
-      (row) => row[0] === operation || row[1] === operation,
-    );
+    const row = (
+      service
+        ? [...PREPARATION_SERVICE_BINDINGS, ...PREPARATION_SERVICE_V2_BINDINGS]
+        : PREPARATION_CREATOR_BINDINGS
+    ).find((row) => row[0] === operation || row[1] === operation);
     return row?.[1] ?? fail('AUTHORIZATION_DECISION_INVALID');
   }
   function projectScope(target: Common.ObjectRef): PreparationProjectScope {
@@ -200,8 +206,18 @@ export function createPreparationComposition(config: PreparationCompositionConfi
       }),
     clock: now,
   });
+  const analysisBasis = config.analysisBasis
+    ? createPreparationAnalysisBasisService({
+        ...config.analysisBasis,
+        db: enterpriseDb,
+        authorize: (session, op, target, payload) =>
+          identity.authorizeOperation(session, op, target, payload),
+        check: (proof, op, target, payload) => identity.checkOperation(proof, op, target, payload),
+        clock: now,
+      })
+    : undefined;
   const policyResolver = createCustomerZipPolicyRegistry(config.policies);
-  async function dependencies(_session: PreparationSession, preset: PreparationPresetPayload) {
+  async function dependencies(_session: PreparationSession, preset: AnyPreparationPresetPayload) {
     const service = await serviceSession();
     const template = await identity.readMembershipTemplate(service, {
       templateRef: preset.memberPolicyTemplate.ref,
@@ -212,6 +228,16 @@ export function createPreparationComposition(config: PreparationCompositionConfi
       preset.intakePolicy.ref as unknown as Record<string, unknown>,
       preset.intakePolicy.payloadHash,
     );
+    if (preset.profile === 'ep.preparation_entry@1.1') {
+      if (!analysisBasis) fail('PREPARATION_ANALYSIS_CAPABILITY_UNAVAILABLE');
+      const resolved = await analysisBasis.resolve(service, preset.analysisBasis);
+      if (resolved.useStatus !== 'USABLE') fail('PREPARATION_PRESET_UNUSABLE');
+      return {
+        templateRefs: resolved.payload.templateBindings.map((binding) => binding.templateRef),
+        requirementRefs: [],
+        sourceWatermarks: resolved.sourceWatermarks,
+      };
+    }
     const request = preset.companyRules,
       target = companyObjectTarget(
         'zhiju.identity.company_rule_publication',
@@ -340,6 +366,7 @@ export function createPreparationComposition(config: PreparationCompositionConfi
       return action(session);
     });
   return {
+    analysisBasis,
     project,
     integration,
     run,

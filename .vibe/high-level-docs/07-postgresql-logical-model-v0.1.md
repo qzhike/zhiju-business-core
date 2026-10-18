@@ -2569,3 +2569,9 @@ OIDC token、Cookie、CSRF、refresh锁仅在批准的BFF有界技术内存中�
 - `V7022`：IG intake root 固定原 command/key/hash/作者/Scope/原 ZIP、aggregateVersion 与 uploadGeneration；restart CAS 只到 generation 2，旧流 fencing。manifest、真实 Receipt 和 Outbox 同事务；manifest 对 intake/receipt/event 仅同 Schema FK。受权 minimal scope lookup 仅原作者/ID 元数据，随后仍须当前 IP 决策。
 
 Owner 之间只经 exact TypedReference 与当前授权 Port；数据库连接池、Role SET 权和已发布 preset/company rules/template/policy、真实 SERVICE grants 必须部署显式配置。对象存储托管是独立事实：写入成功须按精确 bytes/hash/length 读回确认；未知状态不删除资料、不签发替代 intake。
+
+## 模板驱动分析基准持久化增量（2026-10-18）
+
+[校正决定](../decisions/template-driven-preparation.md)新增 EP-owned immutable basis version、publication 和 withdrawal 事实；版本按 basisId+versionId 及 basisCode+basisVersion 唯一，publication 对应完整 payloadHash、实际 Actor/Decision/Receipt 和生效时间。撤回/明确取代追加事实，原 bytes/Hash 不改；单后继、无环、时间边界在 owning transaction 校验。Platform 当前许可与部署授权独立验证，FORCE RLS 保持，不授予普通 Project 会话全平台读权。
+
+新 Source/Context/Report 在各自 owning 存储绑定完整 basis identity/Hash；原 preparation request、source 与旧 company_rule_publication 行不回填、不换类型。旧 source@1.0 与新 source@2.0 由保存的 profile/原操作版本精确区分，不能由当前部署选择反推历史。append-only、原键/hash/Receipt、跨 Root 分步恢复与原调用 UNKNOWN 继续适用。`V7023__preparation_analysis_basis.sql` 已增加三类不可变基准事实及 publication/version、单后继唯一约束；基准发布/读取/撤回与预设原回执恢复由实际 PostgreSQL 回归覆盖。Context/Report 存储与整链仍待实现。

@@ -1,0 +1,53 @@
+{
+  "profile": "ep.preparation_analysis_basis@1.0",
+  "basisCode": "zhiju.analysis.synthetic",
+  "basisVersion": "1.0.0",
+  "purpose": "preparation.analysis",
+  "supportedRange": "Synthetic contract fixture only",
+  "templateBindings": [
+    {
+      "templateCode": "T1",
+      "templateRef": {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "TemplateVersion",
+        "objectId": "019e0000-0000-7000-8000-000000000001",
+        "scope": {},
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "canonicalizationVersion": "1"
+        },
+        "immutableVersionId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "sourceBytesSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "instructionBindings": [
+    {
+      "sourceId": "company-instructions",
+      "bytesSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "byteLength": 20
+    }
+  ],
+  "vocabulary": {
+    "factType": ["zhiju.fact.quality_policy"],
+    "riskLevel": ["zhiju.risk.high"],
+    "productType": ["zhiju.product.active_device"],
+    "markets": ["zhiju.market.cn_mainland"],
+    "choiceOptions": {
+      "zhiju.choice.document_base": ["zhiju.option.customer_base"]
+    },
+    "decisionOutcomes": {
+      "zhiju.decision.scope": ["zhiju.outcome.undetermined"]
+    }
+  },
+  "requirementBindings": [
+    {
+      "requirementCode": "zhiju.requirement.scope",
+      "templateCode": "T1",
+      "locator": "L1-L3"
+    }
+  ],
+  "reportProfile": "d14.analysis@1",
+  "reportSchemaSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+}

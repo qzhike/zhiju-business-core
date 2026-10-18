@@ -1242,3 +1242,11 @@ create/save草稿和提交request各自独立authorize；同键replay/readback/r
 沿用 owning ActorSnapshot、Entry Decision 与当前 Grant 重验；不新增身份来源或 Browser SERVICE 身份。四个 Human 操作分别绑定注册 purpose：`artifact.file_review.read`、`artifact.file_diff.read`、`artifact.file_locations.read`、`artifact.markdown_download.read`；target 为 exact `artifact.artifact_revision`。capabilityCodes 用实际 operation 名映射部署 capability；Grant action 为对应 `${purpose}.v1`，不接受 wildcard。
 
 三个服务端操作分别为 `artifact.markdown_representation.register`、`integration.render.request`、`integration.markdown_render_binding.read`。部署必须显式 allowlist SERVICE Principal，拒绝 Human/actingFor；Binding 读取对原 Attempt 与其真实 Revision 分别授权。Decision 绑定原 operation/version、payload hash、认证上下文、target Ref/Scope；缓存 Decision 仍每次重验当前 Grant。游标/下载 ticket 使用稳定的当前 Grant、Scope、Principal、认证与 Session 指纹；fresh Decision id 不成为 watermark，撤权或主体/Session 改变不能复用旧许可。
+
+## 模板驱动准备分析授权（2026-10-18）
+
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `BASIS AND SOURCE V2 AUTHORIZATION IMPLEMENTED / REPORT QUERY NOT IMPLEMENTED`。分析基准字段及发布事实由 EP 拥有，IP 不把它登记成旧 company_rule_publication。新增明确授权 purposes `project.preparation.analysis_basis.publish/read/withdraw`，target 为精确 Platform 分析基准或其 publication；只有当前获权 HUMAN 能发布/撤回，SERVICE 只在原授权下精确读取，不得借部署配置自称 HUMAN。B 初始化使用已绑定的真实本机操作者身份及显式部署授权，不能复用测试 Actor/Decision/Policy。
+
+已有 NEW/EXISTING 准入、membership 模板、原 request 恢复、每项目 creator grants 与当前 Session 校验保持。公开准备请求 Envelope 不变时其授权绑定必须仍包括实际 preset ref/hash；不能因为内部新增 profile 就跨版本重放或给全部项目授权。新的 source@2.0 使用独立 Service purposes `project.preparation.source_v2.capture/read`，绑定 capture/get_preparation_source 的 operation version `2.0` 和对应 `.v2` action；旧 @1.0 权限事实不被改写或自动授予新 Major。读取/执行/报告接纳仍检查当前权限，历史可读不表示可继续执行。
+
+新增只读 purpose `project.preparation.report.read`，绑定 `project.get_preparation_analysis_report@1.0`、精确项目与可选历史 reportRef。查前/返回前重验当前 Human 项目权限；不能由 reportRef 本身扩大 Scope，也不蕴含 startup confirm/start 的权限。

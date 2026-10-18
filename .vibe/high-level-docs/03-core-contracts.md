@@ -1270,3 +1270,7 @@ PreparationContext 新 profile 的 phase 闭集 PREPARING / INITIAL_SCOPE_RECOVE
 整份source/template/protection/constraints及原intent先冻结，IG raw proposal为WorkspaceOutput，TE Result/Validation/Acceptance不建立业务候选；ART再核完整内容/范围/保护/round-trip并seal新Revision，Head CAS/Representation另步骤。旧基准B/M/S分别固定，新Parent=S，旧版/原请求不rebase。[ART §13](../module-specs/Module-Spec-004-Artifact.md#13-markdown-候选定位与表示提案259)拥有Unit/row/cell/location、canonical映射/候选及Representation；[QG #259](../module-specs/Module-Spec-005-QualityGovernance.md#markdown-逐文件意见与质量事实边界提案259)保持Evidence/ReviewIssue/精确RAS/Approval层次。
 
 Hash分域：原source/suggestion/JSON/Markdown/sidecar/report/render输出=实际bytes SHA-256；Canonical contentHash仍仅规范化CanonicalContentPayload；requestPayloadHash/public payload、submittedIntent/fileSourceBinding/constraints/acceptance snapshots各自cv1；Diff Hash含exactinputs+算法+全条目；Representation checksum只渲染bytes。自身Ref/hash不入自身域，receipt不引用未来acceptanceRef避免循环。typed refs不得用filename/path/line或raw bytes hash替换Canonical Revision身份。完整字段/验证与失败场景在owning Spec/Test，本增量不声称生成profile/Host/内容审批已获验收。
+
+## 模板驱动 PreparationContext 增量（2026-10-18）
+
+[校正决定](../decisions/template-driven-preparation.md)的模板 Source 使用显式 `PreparationContext@1.1` 分支，绑定 EP source@2.0、analysisBasisRef/Hash/publication、实际来源与公司指令、精确模板、当前授权/有效期及执行锁。旧 ProjectContext/PreparationContext 字段不填空、不借别的 Ref 类型替代。Context Hash 和 WorkOrderContract@1.1 的 preparation 分支包含完整新绑定；旧 ACTIVE/synthetic 消费者拒绝该分支，不能通用忽略未知字段。TE 的实际 registration/readiness/freeze 和各层验收尚未实现。

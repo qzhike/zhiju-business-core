@@ -26,7 +26,11 @@
     "verify": "pnpm verify:code && pnpm persistence:gate",
     "persistence:gate": "node tools/persistence/gate.mjs",
     "persistence:gate:diagnostics": "node tools/persistence/gate.mjs --diagnostics",
-    "workspace:check": "node tools/workspace/check.mjs"
+    "workspace:check": "node tools/workspace/check.mjs",
+    "env:b:init": "node tools/workspace-environment/main.mjs init",
+    "env:b:start": "node tools/workspace-environment/main.mjs start",
+    "env:b:status": "node tools/workspace-environment/main.mjs status",
+    "env:b:stop": "node tools/workspace-environment/main.mjs stop"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

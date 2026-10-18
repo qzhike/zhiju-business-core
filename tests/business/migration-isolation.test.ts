@@ -102,6 +102,9 @@ const PREPARATION_ALLOCATIONS = new Map([
   [7022, 'integration_gateway'],
 ]);
 
+// The approved 2026-10-18 template-analysis delta reserves this exact EP forward version.
+const TEMPLATE_ANALYSIS_ALLOCATIONS = new Map([[7023, 'enterprise_project']]);
+
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
 
@@ -128,6 +131,13 @@ export function validateMigrationEntry(directory: string, fileName: string): str
   const range = MIGRATION_VERSION_RANGES[directory] ?? [0, 0];
   const [min, max] = range;
   const recoveryAllocation = TASK_EXECUTION_RECOVERY_VERSIONS.has(version);
+  const templateAnalysisOwner = TEMPLATE_ANALYSIS_ALLOCATIONS.get(version);
+  if (templateAnalysisOwner)
+    return directory === templateAnalysisOwner
+      ? []
+      : [
+          `'${directory}/${fileName}': version ${version} reserved for ${templateAnalysisOwner} template analysis`,
+        ];
   const preparationOwner = PREPARATION_ALLOCATIONS.get(version);
   if (preparationOwner)
     return directory === preparationOwner
@@ -295,6 +305,15 @@ describe('migration layout follows the frozen directory/version contract', () =>
   });
 
   it('rejects each class of layout violation (negative regressions)', () => {
+    expect(
+      validateMigrationEntry('enterprise_project', 'V7023__preparation_analysis_basis.sql'),
+    ).toEqual([]);
+    for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+      (value) => value !== 'enterprise_project',
+    ))
+      expect(validateMigrationEntry(directory, 'V7023__preparation_analysis_basis.sql')).toEqual([
+        `'${directory}/V7023__preparation_analysis_basis.sql': version 7023 reserved for enterprise_project template analysis`,
+      ]);
     expect(validateMigrationEntry('bootstrap', 'V0001__platform_bootstrap.sql')).toEqual([]);
     expect(validateMigrationEntry('bootstrap', '.gitkeep')).toEqual([]);
     for (const version of [7005, 7006, 7007]) {

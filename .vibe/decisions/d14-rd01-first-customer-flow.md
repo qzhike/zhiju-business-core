@@ -12,6 +12,9 @@
 
 ## 1. 所有权与完整支持集
 
+2026-10-18 模板依据校正：首轮读取和比对使用真实项目模板与固定工作规则，完整公司 startup bundle 不再是新入口的无条件依赖。source/context/report 的显式新增版本和本轮首次分析范围见 [校正决定](template-driven-preparation.md)及其 owning Spec/Test。已有 @1.0 与冻结历史不被重写；未实现的后续动作不因新报告返回而可用。
+
+
 | 用户步骤 | 唯一 owning 能力 / 拟议操作 | 精确输出与边界 |
 |---|---|---|
 | 明确新建 / 选择已有客户 | EP 既有 `project.create_enterprise@1.0` / 拟 `project.find_preparation_enterprises@1.0` | EnterpriseRef；名称不去重、合并或授予权限；新客户成功而项目失败保留客户 |

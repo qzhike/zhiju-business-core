@@ -2,6 +2,8 @@
 
 本指南用于日常完整验证。历史 WI-01 原文与当时结果见 [原始 Runbook](../archive/im-02-workitem-issues/runbook-wi-01.md)，其中旧 digest 和未实现状态不适用于当前环境。
 
+工作台页面与本机人工联调目标，见 [macOS E2E 环境配置](workspace-mvp-e2e-macos.md)。环境 A 检查页面样例；环境 B 面向人类用户，连接 Docker 持久化数据库并调用可配置的本机 Runner，尚缺接入如实列出。本文的自动化临时库不作为环境 B 使用。
+
 ## 前置条件
 
 - 使用 [package.json](../../package.json)、[.nvmrc](../../.nvmrc) 和 lockfile 锁定的 Node.js/pnpm/依赖。

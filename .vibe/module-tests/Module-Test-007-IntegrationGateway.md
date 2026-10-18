@@ -292,3 +292,27 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 ## Markdown Attempt / Binding 技术验收（#279）
 
 `tests/persistence/markdown-review.test.ts` 承担 IG-MF-004 的本切片：实际 FROZEN Canonical→确定性 renderer→原 output/receipt staging/readback→ART round-trip→finalize→RawReceipt/Binding→登记。验证同 key 原 Receipt 重放、错误 renderer digest/original operation、failed/late 无成功 Binding、finalize UNKNOWN、显式恢复原 Attempt/对象版本/Receipt 以及当前 Service 撤权。旧 renderer/Representation 回归仍由原 persistence suite 验证。生产外部 Host/Renderer/Ceph/OpenBao 为 NOT RUN。
+
+## 环境 B 本机持久化对象适配
+
+对应已批准本机适配；自动化与实际 OMP/人工验收分别取证。
+
+| 场景 | 期望 |
+| --- | --- |
+| 新写/重建适配器/重复同 bytes/并发同 key | 原 bytes 和 receipt 不变，重启可读取，相同输入幂等 |
+| 同 key 异 bytes | 明确 identity conflict，原对象不覆盖 |
+| 穿越/未许可公司 key/符号链接/设备/宽权限 | 拒绝读写；inspect 不把拒绝当不存在 |
+| 发布前残留临时对象/缺对象/坏 header 或 bytes | 未发布对象不可用，确认缺失为 ABSENT，损坏为 UNKNOWN |
+| 公司内容寻址来源 | Hash 不符拒绝，业务 reader 只读部署允许 key |
+| 托管目录丢失/替换空目录并复制标识 | 读写拒绝，inspect 为 UNKNOWN；运行期不新建目录，旧目录恢复后原对象可读 |
+
+## 模板驱动首次分析验收（2026-10-18）
+
+对应 [校正决定](../decisions/template-driven-preparation.md)。设计场景均为 `NOT RUN`；实际本地、持久化、Provider、浏览器和人工证据分别记录。
+
+| ID | 输入/故障 | 必须成立的结果 |
+| --- | --- | --- |
+| IG-TB-001 | 客户 AGENTS/配置路径、模板 Hash 漂移、假规范绑定 | 客户内容不改变执行规则；错误来源零 invoke，不补造规范 |
+| IG-TB-002 | 真实 OMP 输出、v0.2 pair/提取件/上下文绑定错误 | 封存原调用观察，独立校验失败不变报告成功；未知状态只读原调用 |
+
+补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
