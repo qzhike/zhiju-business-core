@@ -2676,4 +2676,54 @@ export const publicApiOperations = [
       { path: '/payload/enterpriseRef', kind: 'OBJECT', objectType: 'zhiju.project.enterprise' },
     ],
   },
+  {
+    type: 'project.capture_preparation_source',
+    version: '2.0',
+    kind: 'COMMAND',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.project.preparation_source',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'project.preparation.source_v2.capture',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_capture_preparation_source_v2_0_result',
+    references: [
+      { path: '/payload/projectRef', kind: 'OBJECT', objectType: 'zhiju.project.project' },
+      {
+        path: '/payload/intakeManifestRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.integration.customer_input_manifest',
+      },
+      {
+        path: '/payload/analysisBasisRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.project.preparation_analysis_basis',
+      },
+      {
+        path: '/payload/analysisBasisPublicationRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.project.preparation_analysis_basis_publication',
+      },
+    ],
+  },
+  {
+    type: 'project.get_preparation_source',
+    version: '2.0',
+    kind: 'QUERY',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'project.preparation.source_v2.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_preparation_source_v2_0_result',
+    references: [
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+    ],
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

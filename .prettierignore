@@ -10,6 +10,11 @@ tests/types/.tsbuildinfo
 dist-types/
 test-results/
 playwright-report/
+.local/workspace-env-b/
+config/workspace-e2e.local.json
 
 # Raw byte-exact Markdown canonicalization inputs/expectations (#270).
 tests/fixtures/markdown/
+
+# Exact upstream v0.2 Runner schema bytes; the analysis basis pins their SHA-256.
+contracts/src/runner-analysis/*.json

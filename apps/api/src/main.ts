@@ -5,6 +5,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import fastify from 'fastify';
 
 import { AppModule } from './app.module.js';
+import { coreListenPort } from './listen-port.js';
 import { WORKSPACE_BODY_LIMIT_BYTES, registerWorkspaceTransport } from './workspace/controller.js';
 import {
   createWorkspaceCoreFromEnv,
@@ -21,6 +22,7 @@ import {
  */
 const runtime = (() => {
   try {
+    coreListenPort(process.env);
     return createWorkspaceCoreFromEnv(process.env);
   } catch (error) {
     const code = error instanceof WorkspaceStartupError ? error.code : WORKSPACE_STARTUP_REJECTED;
@@ -43,5 +45,5 @@ if (runtime !== undefined) {
     { bufferLogs: true },
   );
   registerWorkspaceTransport(server, runtime);
-  await app.listen({ host: '127.0.0.1', port: 3000 });
+  await app.listen({ host: '127.0.0.1', port: coreListenPort(process.env) });
 }

@@ -261,5 +261,126 @@ describe.skipIf(!databaseUrl)(
         await isolated.close();
       }
     }, 120000);
+    it('keeps v2 source history authorized after membership withdrawal while rejecting capture, wrong scope, expiry and revoked authority', async () => {
+      const isolated = await createPreparationJourneyFixture(databaseUrl ?? '');
+      try {
+        const command = await isolated.preparationCommand({
+          mode: 'NEW',
+          displayName: 'V2 history authorization customer',
+        });
+        const created = await isolated.run((session) =>
+          isolated.composition.project.request(session, command),
+        );
+        expect(created.disposition).toBe('ACCEPTED');
+        const preset = await isolated.composition.project.resolvePreset(
+          isolated.serviceSession,
+          isolated.presetSelection,
+        );
+        const membership = await isolated.composition.identity.readMembershipTemplate(
+          isolated.serviceSession,
+          {
+            templateRef: preset.payload.memberPolicyTemplate.ref,
+            templateHash: preset.payload.memberPolicyTemplate.payloadHash,
+          },
+        );
+        const grants = new Map<string, Common.ContentAddressedRef>();
+        for (const operation of [
+          'project.preparation.source_v2.read',
+          'project.preparation.source_v2.capture',
+        ] as const) {
+          const grant = await isolated.run((session) =>
+            isolated.composition.identity.grantAuthority(session, {
+              grantId: newUuidV7(),
+              principalRef: {
+                kind: 'OBJECT',
+                objectType: 'identity.principal',
+                objectId: isolated.serviceSession.principalId,
+                scope: {},
+              },
+              operation,
+              target: {
+                kind: 'OBJECT',
+                objectType: 'zhiju.project.preparation_preset',
+                objectId: isolated.presetSelection.preparationPresetRef.objectId,
+                scope: {},
+              },
+              policySnapshotRef: membership.payload.grantPolicySnapshotRef,
+              effectivePeriod: {
+                from: new Date(Date.now() - 1000).toISOString(),
+                to: isolated.serviceSession.expiresAt,
+              },
+            }),
+          );
+          grants.set(operation, grant);
+        }
+        const target: Common.ObjectRef = {
+          kind: 'OBJECT',
+          objectType: 'zhiju.project.preparation_source',
+          objectId: newUuidV7(),
+          scope: command.scopeRef,
+        };
+        const input = {
+          operation: 'project.preparation.source_v2.read',
+          target,
+          payloadHash: preparationHash({ source: target }),
+        };
+        const before = await isolated.composition.identity.authorizeServiceBootstrap(
+          isolated.serviceSession,
+          input,
+        );
+        expect(before.context.principalKind).toBe('SERVICE');
+        await isolated.run((session) =>
+          isolated.composition.identity.withdrawMembershipTemplate(session, {
+            templateRef: preset.payload.memberPolicyTemplate.ref,
+            templateHash: preset.payload.memberPolicyTemplate.payloadHash,
+            reasonCode: 'CONTROLLED_TEMPLATE_WITHDRAWAL',
+            effectiveFrom: new Date().toISOString(),
+          }),
+        );
+        const after = await isolated.composition.identity.authorizeServiceBootstrap(
+          isolated.serviceSession,
+          input,
+        );
+        expect(after.session.principalId).toBe(isolated.serviceSession.principalId);
+        expect(after.authorizationDecisionRef.objectType).toBe('identity.authorization_decision');
+        await expect(
+          isolated.composition.identity.authorizeServiceBootstrap(isolated.serviceSession, {
+            ...input,
+            operation: 'project.preparation.source_v2.capture',
+            target: {
+              kind: 'OBJECT',
+              objectType: 'zhiju.project.project',
+              objectId: command.scopeRef.projectId,
+              scope: command.scopeRef,
+            },
+          }),
+        ).rejects.toMatchObject({ code: 'PREPARATION_DEPENDENCY_STALE' });
+        await expect(
+          isolated.composition.identity.authorizeServiceBootstrap(isolated.serviceSession, {
+            ...input,
+            target: { ...target, scope: { ...command.scopeRef, projectId: newUuidV7() } },
+          }),
+        ).rejects.toBeDefined();
+        await expect(
+          isolated.composition.identity.authorizeServiceBootstrap(
+            { ...isolated.serviceSession, expiresAt: new Date(Date.now() - 1000).toISOString() },
+            input,
+          ),
+        ).rejects.toBeDefined();
+        const grantRef = grants.get(input.operation);
+        if (!grantRef) throw new Error('Missing actual v2 read grant');
+        await isolated.run((session) =>
+          isolated.composition.identity.revokeAuthority(session, {
+            grantRef,
+            reasonCode: 'CONTROLLED_SERVICE_REVOCATION',
+          }),
+        );
+        await expect(
+          isolated.composition.identity.authorizeServiceBootstrap(isolated.serviceSession, input),
+        ).rejects.toBeDefined();
+      } finally {
+        await isolated.close();
+      }
+    }, 120000);
   },
 );

@@ -1175,3 +1175,46 @@ pageAssociationHash仅覆盖本页；associationSetHash仅由VERIFY证明所请�
 依赖取真实dependencyItemIds和targetArtifact requirements；交付配套/optional/execution-only分类由版本化Plan/Quality release规则给出，不能把所有共用事项机械阻断或将全部依赖视为可省略。共享文件须逐个满足所关联项Artifact类型/质量pin；无合法关联、错计划版本/Item Hash、unknown分类、章节缺失/Plan被替代时阻断。计划改变产生新Version与影响事实，不重写已确认Batch；本首版要求当前ACTIVE版本，新候选本身不改计划。初轮workScope Receipt或Runner拟交付清单不等于ACTIVE DeliveryPlan，无合法计划保持不可用，不要求先实现另一新设计Issue。
 
 批次确认/生成/下载不调用evaluate_delivery_item_completion，不新增“已交付”或“已发送”字段，也不消耗下载观察作为现有ReleaseCompleted事实。首版允许独立未就绪项继续执行，配套闭包之外的项目项不进入本批分母。
+
+## 模板驱动准备分析（2026-10-18）
+
+状态：`T2 / DIRECTION CONFIRMED / BASIS, PRESET AND SOURCE V2 IMPLEMENTED / REPORT CHAIN NOT IMPLEMENTED`。承接 [前置条件校正](../decisions/template-driven-preparation.md)，本节定义正常 MVP 模板分析的新增接受集，不把法规原文发布改成可为空的旧字段，不重写 #277/@1.0 历史。
+
+### 独立项目分析基准
+
+EP 内部 `PreparationAnalysisBasisPublisher/Resolver/Withdrawal@1.0` 拥有 VERSIONED `zhiju.project.preparation_analysis_basis`（Platform scope `{}`）和独立 `basisHash=SHA-256(cv1(payload))`。UUIDv7 的 objectId/versionId 与实际保存字节共同形成精确身份；同 basisCode+basisVersion 只允许一个 payload。使用记录为 CONTENT_ADDRESSED `zhiju.project.preparation_analysis_basis_publication`；这是公司允许使用该模板基准的事实，不是法规发布，也不是旧 IP company_rule_publication。
+
+封闭 payload 为 `{profile:'ep.preparation_analysis_basis@1.0',basisCode,basisVersion,purpose:'preparation.analysis',supportedRange,templateBindings,instructionBindings,vocabulary,requirementBindings,reportProfile:'d14.analysis@1',reportSchemaSha256}`。
+
+- `supportedRange` 是公司声明的非空适用范围文字，不把其中描述自动写成客户事实或实际适用性。
+- 非空 `templateBindings` 的元素为 `{templateCode,templateRef:CONTENT_ADDRESSED<TemplateVersion>,sourceBytesSha256}`；TemplateVersion 必须是真实 EP 已发布且当前可用的精确版本，含原生 immutableVersionId，源字节独立验 hash。首版上限 4096 项，code/ref 不重复，按 templateCode 稳定排序。
+- 非空 `instructionBindings` 为 `{sourceId,bytesSha256,byteLength}`；sourceId 为公司指定的稳定非空代码，同一基准内唯一，Hash 指向公司受控托管的实际指令字节，byteLength > 0。不从工作目录任意读取，不把客户 AGENTS/路径当指令。IG 内部 reader 只允许已发布基准中的内容寻址 key，实际 key 不返回 Browser。该 Hash 是原字节 Hash，不是 canonical payload hash。
+- `vocabulary` 与已选 v0.2 validator context 的封闭形状一致：factType、riskLevel、productType、markets、choiceOptions、decisionOutcomes。允许集合及对应关系由公司确定，不从客户正文或模型输出推导。当前初始化从已有经确认定义导出实际值；它们在本基准内具有分析代码意义，不借用旧 startup bundle 的发布身份。
+- 非空 `requirementBindings` 为 `{requirementCode,templateCode,locator}`；每一 templateCode+locator 唯一、实际 UTF-8 内容定位明确，requirementCode 只能来自本基准采用的公司定义。此映射说明模板分析要求，不是法规核验或正式 startup requirement publication。外层按实际 manifest 唯一生成 templateCode→sourceId 映射供固定 v0.2 校验器使用。
+- `reportSchemaSha256` 必须等于部署允许的实际 v0.2 Schema 字节；不通过上传任意 Schema 放宽校验。执行工具与 Runtime pins 仍由独立 execution profile 验证。
+
+publish 输入为 `{basisId,versionId,payload,effectiveFrom,supersedesPublicationRef?}`。当前获权 HUMAN 对精确 payload 作发布操作；EP 保存版本、publication、实际 Actor/Decision、Receipt。publication 含 `{basisRef,basisHash,effectiveFrom,actorSnapshotRef,authorizationDecisionRef,supersedesPublicationRef?}`；撤回追加 `{publicationRef,effectiveFrom,reasonCode,actorSnapshotRef,authorizationDecisionRef}`，原版本不可改。新并行版本不自动停用旧版，明确取代须同 basisCode、单后继无环并按生效时间判断。解析输出 `{payload,publicationRef,useStatus:USABLE|NOT_YET_EFFECTIVE|SUPERSEDED|WITHDRAWN,checkedAt,sourceWatermarks}`。源损坏/不可读是明确依赖错误，不冒充未发布或空成功。校验源字节后重读撤回/取代事实，`useStatus` 与 `checkedAt` 使用同一最终观察时刻；返回前仍须重验当前权限，失败不返回结果。观察不保证未来持续有效，source capture、dispatch、接纳时再次读取有效性。
+
+### 技术预设与公开入口兼容
+
+新增封闭 `ep.preparation_entry@1.1`：保留旧 preset 的 profile/code/version/creation/memberPolicyTemplate/intakePolicy/analysisHandoff，使用必填 `analysisBasis:{basisRef,basisHash,publicationRef}` 替代 companyRules；不能同时出现两者。每个 profile 保留独立 validator，旧 @1.0 的公司规则校验不放宽。
+
+公开 `find_preparation_enterprises/request_project_preparation/get_project_preparation_request@1.0` 的 Envelope、payload/result、原键及回读形状不变。它们只传精确 preset Ref/Hash，本来不传 preset 内部 payload；本次显式登记新的内部 preset profile，再增加精确 resolver 的分派，不在旧 payload 接受新字段。创建请求只能绑定服务器已选择且当前可用的实际发布基准；旧 request 始终读原 preset。部署未安装新 profile 时明确拒绝，不降级/猜 latest。独立审查已核对上述三个公开 @1.0 的实际闭合 Schema，支持保持线协议。新 preset profile 仅精确匹配，不按 Minor 自动扩大旧 profile 的接受集。
+
+### 准备来源与报告
+
+新的 `project.capture_preparation_source/get_preparation_source@2.0` 拥有模板基准 Source 接受集；原 @1.0 仍仅处理旧 rule bundle 字段。capture@2.0 payload 沿用 projectRef、intakeManifestRef、templateRefs、trustedDecisionRefs、purpose、audience，新增 `analysisBasisRef,analysisBasisHash,analysisBasisPublicationRef`，不接受 ruleBundleRef/companyRulePublicationRef。首次 capture 只允许本轮真实 PREPARING 原请求、原 intake 和该 exact preset 的全部绑定，并在同一事务中以共享行锁核验 Project 当前仍为 PREPARING，避免与状态切换交错提交。原成功 capture 重放保留其原 Receipt，仍受当前读权限约束，不因项目后来启动而重建 Source。至少一个可分析客户源，首轮 trustedDecisionRefs 固定为空且禁止 previousReportRef。Source payload 增加 `profile:'ep.preparation_source@2.0'` 及三项 basis 字段，其余实际 sources/coverage/omissions/redactions/validUntil 不变。完整 refs/hash 参与 snapshot Hash；read@2.0 只回读该 profile，并独立验证当前使用资格。
+
+EP 对 TE 的 preparation eligibility/read Port 必须返回基准类型与精确引用；任务或报告不能自报模板、基准或真实来源。报告接纳保留原 TE Acceptance/IG 原输出、Source、基准、JSON/MD 字节 Hash，模板分析报告不填旧 startupRulePublication 占位值。本轮首次注册 `project.accept_preparation_report@1.0` 时仅支持新 `ep.preparation_source@2.0` 与 `ep.preparation_analysis_report@1.0` accepted-report profile；其既定 payload/result 形状不变，报告实际字节只能从精确 TE Result/Acceptance 与 IG output 读回，不接 caller JSON。保存的 report/candidateSet/plan 派生自同一已校验 v0.2 快照，并绑定 analysisBasisRef/Hash/publication；原 startup rule 分支仍未实现，不用模板基准伪装该分支。接纳时检查当前 PREPARING、expectedPreparationVersion、原 Source、全套 JSON/MD hashes、当前基准/授权和唯一原结果，重放只读原 Receipt，不产生第二份报告。
+
+新增 `project.get_preparation_analysis_report@1.0`：AUTHORITATIVE Query，payload 封闭为 `{projectRef,reportRef?}`，purpose 为 `project.preparation.report.read`，需要当前项目读权限。省略 reportRef 只读本项目当前已接纳的报告；显式 reportRef 仅读同项目真实历史，不把历史自动提升为当前。结果封闭为 `{binding,content,currentUsability,allowedActions,sourceWatermarks}`：
+
+- `binding` 封闭包含 projectRef、reportRef、candidateSetRef、planRef、preparationSourceRef、analysisBasisRef、analysisBasisHash、analysisBasisPublicationRef、analysisResultRef、analysisResultAcceptanceRef、inputManifestBytesSha256、reportJsonBytesSha256、reportMarkdownBytesSha256；均来自已保存的真实接纳链。
+- `content` 为 `{report,narrativeMarkdown}`。report 必须严格符合部署固定的 v0.2 JSON Schema，narrativeMarkdown 为同次固定 renderer 的实际 UTF-8 字节内容；Hash 对实际原输出校验，不把重新序列化后的 JSON 当原字节。页面只读视图从该同版 report 映射，不能另造业务结论。
+- `currentUsability` 为 `{usable,reasonCodes,checkedAt}`；当前性与依赖读取按本节基准及来源规则核对，历史可读但不可继续执行的状态明确显示。sourceWatermarks 为实际 owning 来源水位；本轮 `allowedActions` 固定空数组，表示未开放确认/修改/启动，不妨碍在 Web 阅读现有报告。
+
+无已接纳报告时返回明确 `PREPARATION_ANALYSIS_REPORT_UNAVAILABLE`，依赖不可读/损坏沿用安全依赖错误，不能补空成功。旧 get_startup_review、StartupBinding、确认和启动接受集保持原义；不填占位 rule refs，也不扩大它们来消费新报告。
+
+本轮没有注册或实现基于该新 Source 的正式信息确认/启动/修改。对这些未支持入口必须在第一项正式 Fact/Product/QMS/Profile/ProductScope 写入前拒绝，不能先写正式版本再在 start 时失败。这项边界不预设以后仍需要三项规范发布；后续模板驱动升级应按用户已确认的主流程另行闭合其实际接受集。
+
+模板预设安装恢复通过 owning `readTemplatePresetPublication` 精确回读原发布请求：当次发布权限、原 key/version/完整 request Hash、实际 Receipt、PRESET 与 PUBLICATION Hash 均须相符；没有回执才执行发布，未知不作为不存在。回读不产生新发布，也不证明当前可用性；发布者仍通过依赖/资格校验使用预设。旧 @1.0 重复发布拒绝语义不变。

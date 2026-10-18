@@ -627,3 +627,20 @@ pnpm persistence:gate
 | EP-D12-003 | inspect后Plan替代、共享文件不满足某Item类型/Profile、输入相同ID但内容Hash不同 | STALE/拒绝且不能修补为新Plan；原批次/计划历史保留；下载/Batch不写Completion或已发送状态 | 无新批次/项目组合 / NOT RUN |
 | EP-D12-004 | Contract/Pagination；TR-260-10，ENUMERATE必填PageRequest、Plan多页、权限裁剪空中间页、最后页；页Hash代替完整闭包 | tagged分支只接受自身字段；Page返回nextCursor/snapshotAt/真实水位，稳定切面逐页读完；空中间页有cursor须继续；pageAssociationHash仅本页，完整集合须VERIFY，不泄漏隐藏总数 | 无新枚举/分页实现 / NOT RUN |
 | EP-D12-005 | Contract/Security；VERIFY空集合、完整exact集合、错版本/无权项、超Guard；续页错Scope/Plan/筛选/主体/purpose、expiry/水位/ACTIVE pointer变化 | 空VERIFY items=[]不枚举；成功结果与请求一一对应，失败不返回部分Proof；VERIFY拒绝page，ENUMERATE拒绝deliveryItemRefs；旧cursor拒绝且不拼接新切面；required集合不得截断 | 无新验证/游标实现 / NOT RUN |
+
+## 模板驱动首次分析验收（2026-10-18）
+
+对应 [校正决定](../decisions/template-driven-preparation.md)。下列完整旅程场景仍为 `NOT RUN`；基准发布/精确读取/取代/撤回、源损坏及失权、预设原回执恢复已有 `preparation-analysis-basis.test.ts` 的 owning PostgreSQL 回归。实际本地、持久化、Provider、浏览器和人工证据分别记录。
+
+| ID | 输入/故障 | 必须成立的结果 |
+| --- | --- | --- |
+| EP-TB-001 | 无三项规范发布、真实模板/指令/映射和当前权限齐备 | 新基准可发布/精确解析，新准备请求可进入 ZIP；不写旧规范发布 |
+| EP-TB-002 | 错模板/指令 Hash、缺 locator、未知代码、重复/歧义映射 | 拒绝可用基准，不默认填值或接受模型生成配置 |
+| EP-TB-003 | 旧请求重放/新部署选择、基准取代/撤回、源损坏 | 原意图及历史引用不变；新步骤按当前资格拒绝，历史按当前权限读回 |
+| EP-TB-004 | 模板报告调用旧正式信息确认或 start | 在首项正式 Fact/Product/QMS/Profile/ProductScope 写入前拒绝，不伪造启动条件 |
+
+补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
+
+EP-TB 恢复反例：重复安装通过原发布请求回读同 Receipt/publication；同键改变 payload、effectiveFrom 或 target 拒绝，权限撤销后不得读回；不能将缺回执、失权和 I/O UNKNOWN 混同为可重新发布。
+
+EP-TB 当前性与恢复反例已加入 owning PostgreSQL 用例：源读取期间到达预定撤回/取代时刻，以及源读取期间另一事务实际提交撤回，最终资格与 checkedAt 必须反映读取后的同一观察；最终观察后失权仍拒绝返回。`preparation-source-v2.test.ts` 另以实际 service 和离线 SQL transport 验证 ACTIVE/COMPLETED/不存在的 Project 首次 capture 零写入、PREPARING 共享行锁及项目启动后的原 Receipt 重放；后者是确定性业务边界测试，不替代 PostgreSQL/RLS 或完整报告链验收。

@@ -4,6 +4,8 @@ export declare const POSTGRES_REPOSITORY: string;
 export declare const FLYWAY_IMAGE_TAG: string;
 export declare const FLYWAY_IMAGE_DIGEST: string;
 export declare const FLYWAY_REPOSITORY: string;
+export declare const CONTROLLED_KEYCLOAK_IMAGE: string;
+export declare const CONTROLLED_KEYCLOAK_VERSION_TAG: string;
 export declare const POSTGRESQL_MAJOR: number;
 export declare const POSTGRESQL_MINOR: number;
 export declare const DATABASE_NAME: string;

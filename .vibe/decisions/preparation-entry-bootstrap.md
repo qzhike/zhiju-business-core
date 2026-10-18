@@ -8,6 +8,9 @@
 
 ## 1. 已批准的最小选择
 
+2026-10-18 校正：下文 #277 的原批准及 @1.0 公司规则绑定保留为历史兼容依据；它把 startup publication 作为全局准备前置的做法不再代表新模板驱动 MVP 的目标。新增显式版本按 [模板驱动准备分析](template-driven-preparation.md) 校正，不伪造法规发布、不静默更改旧 request。状态仍须区分新设计、注册和实现。
+
+
 | Delta | 选择与理由 | 兼容 / 审查边界 |
 |---|---|---|
 | SD277-PRESET | EP 拥有独立公司技术预设及发布/精确解析；VERSIONED Ref 与单独 canonical payload hash 成对绑定。预设声明技术默认值、membership 模板、ZIP policy 和精确公司规则发布选择 | startup rule bundle 拥有业务清单，不能替代预设；实际两类 publication 都是部署输入，无生产 UUID/hash 默认值 |

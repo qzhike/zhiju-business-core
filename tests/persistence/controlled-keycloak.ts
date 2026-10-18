@@ -30,15 +30,15 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
+import {
+  CONTROLLED_KEYCLOAK_IMAGE,
+  CONTROLLED_KEYCLOAK_VERSION_TAG,
+} from '../../tools/persistence/baseline.mjs';
 import { SUBJECT_EXTERNAL_ID, reserveLoopbackPort } from './trusted-http-fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
-/** Pinned controlled Keycloak image; `quay.io` is unreachable, so Docker Hub is used. */
-export const CONTROLLED_KEYCLOAK_IMAGE =
-  'keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13';
-/** The tag half of the pinned reference, reported as provenance. */
-export const CONTROLLED_KEYCLOAK_VERSION_TAG = '26.7.0';
+export { CONTROLLED_KEYCLOAK_IMAGE, CONTROLLED_KEYCLOAK_VERSION_TAG };
 export const CONTROLLED_REALM = 'zhiju-controlled';
 export const CONTROLLED_USERNAME = 'trusted-human';
 /** The second confidential client: no audience mapper, so its tokens carry no API audience. */

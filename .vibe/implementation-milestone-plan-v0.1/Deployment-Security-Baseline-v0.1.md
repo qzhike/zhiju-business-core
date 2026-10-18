@@ -166,6 +166,38 @@ IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完�
 
 下一里程碑是 IM-01 Repository + Executable Contracts。依赖联网安装与精确 lockfile 仍需在开始 IM-01 时单独授权。
 
+## macOS 人工联调环境 B
+
+2026-10-17 用户批准先实现独立常驻启动和初始化，再接通 ZIP 到本机 Runner。环境 B 是本机手工测试设施，使用独立端口、带实例归属标识的 Docker PostgreSQL/Keycloak 与私有数据目录；不沿用自动化测试的临时数据库、短期账号或退出清理。默认仅监听 loopback，不修改环境 A（3100/3101）、Tailscale 或宿主 Docker context。
+
+初始化只通过现有迁移和 owning IdentityPolicy 命令建立专用测试账号与外部身份映射；应用数据库身份不具有 superuser/BYPASSRLS。重复初始化不得轮换密钥或复制身份，停止不得删除数据卷；资源归属不符、端口占用或配置与已初始化实例不符时拒绝操作。常驻指终端退出后继续运行，不承诺开机自启、生产 HA 或灾难恢复。
+
+Runner 项目目录由私有配置指定，按用户现有 OMP 和目录内 AGENTS.md 使用方式准备。CLI 可启动、配置可读、Provider 调用、报告校验与 Core 报告接纳分别取证；本地联调不等于下节 Ubuntu 隔离证明，不得借未注册的 BFF 接口绕过 D14。未实现的业务能力保持明确不可用，不注入合成分析或执行结果。
+
+### 环境 B 首轮分析执行适配（已批准）
+
+状态：`T2 / PROPOSED / USER SELECTED V0.2 2026-10-18 / LOCAL RUNNER TOOL IMPLEMENTED / MACOS EXECUTION DESIGN APPROVED 2026-10-18 / IMPLEMENTATION IN PROGRESS / DISPATCH NOT IMPLEMENTED / PROVIDER NOT RUN`。
+
+用户已选正式 v0.2 方向并批准本机 OMP、可配置 Runner 项目目录及 Docker 数据库的人工测试目标。这里补齐原方案仅覆盖 Ubuntu 的技术差异；它不是再次选择协议。用户于 2026-10-18 明确选择“批准本机适配，继续实现”；批准对象为以下本机测试适配，不改 #256 的生产接受集或冻结模块所有权。
+
+| 项目 | 拟采用的本机测试行为 | 必须保留的边界 |
+|---|---|---|
+| 适用范围 | 仅环境 B 的显式 `MACOS_MANUAL_TEST` 组合；首轮限 ANALYSIS，使用新内部执行 profile `workspace.macos_manual_omp@1`，输出仍为 `d14.analysis@1` / v0.2 | production 配置拒绝本 profile；不能构造假的 Ubuntu installation/lock、Provider 固定版本或隔离证明。首轮只处理调用方明确允许交给当前模型通道的测试资料 |
+| 文件托管 | B 私有数据目录内的持久化文件适配器，实现现有 `CustomerZipObjectStore.put/read/inspect`；保存实际 ZIP、受控解包来源和报告字节，重启保留 | 服务端生成 key，临时写入、fsync、不可覆盖发布；同 key 同字节幂等，不同字节冲突，崩溃不确定返回 UNKNOWN。目录 0700、文件 0600，拒绝穿越/符号链接/设备文件；不伪称 S3 versioning、Object Lock、SSE/KMS 或备份 conformance |
+| 业务事实 | 仍通过 IP/EP/TE/IG owning 操作、真实 PostgreSQL 和公开 Workspace 查询 | 文件存储不代替 RLS/授权/Receipt；不直接写他方表、不注入合成报告、不开放绕过 Registry 的 BFF 私有快捷接口；公司模板/规则仍按真实来源校验并发布 |
+| Runtime | 使用 `runner.projectRoot` 指向的专用项目，`runner.profileFile` 指向外层只读部署配置；外层固定 OMP 可执行路径、实际版本/Hash、明确模型 selector 与非交互参数 | 不更改用户全局 OMP 配置；配置不是任意 shell/argv。每轮保存非秘密配置摘要及 Hash，模型/工具/AGENTS 改变须重新生成配置绑定，旧 Run 不无声切换；缺模型/凭据明确失败，不 fallback |
+| 资料与规则 | 每 Run 独立物化目录；将项目 AGENTS.md 及确需的固定协议/证据工具按 Hash 带入本轮；客户文件只以来源 ID 读取 | 不把整个 Runner 历史 output/work 或其他客户材料带入；关闭其他规则/Skill/扩展/MCP/sub-agent 自动发现；只启用 read/grep/glob/write 等分析必需工具，无 shell、web 或额外模型调用。固定提取/校验由外层执行 |
+| 凭据与本机信任 | 由已有 OMP 认证机制或专用 profile 提供当前模型通道，平台仅保存配置位置和身份元数据 | 密钥不进 argv/prompt/数据库/日志，不复制整个个人 home/认证目录。macOS 同一登录用户与本机可信 OMP 是测试信任边界；CLI 工具名单、独立目录、前后 Hash 不冒充 Linux 内核隔离或网络封锁，不能证明恶意 Runtime 无越界能力 |
+| 调度与恢复 | IG 保留 invoke-once journal 和实际进程/输出观察；TE 保留 Run/Attempt/lease/fencing、幂等与最终结果接纳 | 进程启动或结果是否产生不明时维持 UNKNOWN，先查原调用，不盲目重启；超时后停止本轮进程树，未证实停止不得重试；本机进程停止不等于 Provider cancel ACK。初版每实例最多一个 OMP 分析进程 |
+| 报告 | 固定 v0.2 Schema、校验上下文、词表映射、同源 MD/提取件、JSON/MD 原始字节 Hash | Runner 自报成功不等于 TE/EP 接纳；UNKNOWN/CONFLICT 可展示，不能变成启动批准。外层独立重验，再由 TE 接纳和 EP 保存不可变 report/candidateSet/plan |
+| 人工入口 | 登录 → 建准备项目 → 上传一个 ZIP → 查看真实运行状态 → 查看已接纳分析报告 | 沿用已批准 UI；页面显示本机测试身份和执行状态，不假造百分比。生成、文件审批、发布和完整 MVP E2E 不计入首轮分析通过范围 |
+
+运行参数首版复用 #256 的有界执行意图：一次分析最多 60 分钟，事件流/报告输出上限 32 MiB，上传与解包继续使用现有 CustomerZipPolicy。OMP 的 token/cost、模型底层版本和 Provider 取消能力按实际可观测字段记录；没有可靠硬限额机制时不得宣称已强制费用上限。资源阈值的到达/拒绝必须成为真实运行诊断，不能把失败转换成成功报告。
+
+批准后按依赖顺序实现：先接实际文件托管、公司模板/规则与准备项目授权；再落实 TE preparation context/run 与 IG OMP 调用及恢复；最后接同源报告校验、TE/EP 接纳与公开页面查询。公开合同、持久化与失败场景按各 owning 规格同步注册，不把本表当作省略合同实现的许可。实现改动使用 `full`，独立审查通过后用小型脱敏 ZIP 验证真实 OMP 链；用户人工浏览器验收另记。
+
+外部 Runner 的 v0.2 固定工具位于其 `contracts/runner-analysis-report-v0.2.md` 和 `runner_evidence/analysis_v02.py`；只提供原始报告形状、候选语义/证据约束与同源输出。调用方校验上下文是内部参数文件，不是 Core 授权，词表/规则发布和必需项 readiness 仍归 owning 服务。其本地自动化 PASS 不证明本节待实现能力。
+
 ## D14 Runner 首发进程隔离提案（#256）
 
 状态：`T2 / PROPOSED / HUMAN SELECTED 2026-10-09 / TECHNICAL APPROVAL PENDING / NOT IMPLEMENTED / NOT RUN`。承接Ubuntu私有化基准；首个Runtime/provider/model/数据选择、完整lock及资源上限见 [首发提案](../decisions/d14-rd01-runner-profile-lock.md)。本节只拥有Host进程执行边界，不用CLI权限flag代替隔离，不改Browser/BFF或Core所有权。
@@ -182,3 +214,7 @@ IM-DG-001 至 IM-DG-004 已完成用户确认，IM-00 的最小决策基线完�
 客户AGENTS.md/CLAUDE.md、Skill/MCP/Agent配置按entryId只作为资料读取，不能触发配置加载。company配置也必须来自锁定发布源，模板/规则/旧报告的发送许可逐件核验；真实客户原文未获明确数据批准时零Provider调用。脱敏的质量/产品/职责秘密同样要批准，不能只删人名。
 
 Ubuntu release/kernel/architecture、镜像/二进制digest、MAC策略、Provider组织与驻留/保留、credential provisioning及retention policy本次没有部署证明，不填默认或虚构值。未来在真实Host按 [Runtime验收](../runtime-adapter-contract-v0.1/Runtime-Adapter-Test-v0.1.md#d14-runner-首发锁与控制验收256)执行越界、跨Scope、输入不可变、secret/网络和全树停止反例；容器声明、CLI help和当前Darwin观察不充当生产PASS。
+
+### 模板分析依据的产品校正（2026-10-18）
+
+用户重申以客户资料、项目模板和 AGENTS.md 进行阅读比对，并批准先接通分析。按 [校正决定](../decisions/template-driven-preparation.md)，正常业务分析依据与 macOS Runtime 技术适配分开；不新增仅 B 可用的模板业务模式，也不要求为本轮准备项目虚构完整规范发布。此前“公司模板/规则按真实来源发布”落实为精确模板及分析基准的真实授权使用，旧 startup bundle 保持其旧接受集。当前新增分支仍在设计审查，未安装生产 Runtime、未执行 Provider 或未接纳报告的状态不得提升。

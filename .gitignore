@@ -9,3 +9,5 @@ coverage/
 .env
 .env.*
 !.env.example
+.local/workspace-env-b/
+config/workspace-e2e.local.json

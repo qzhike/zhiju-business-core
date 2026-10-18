@@ -1608,6 +1608,8 @@ describe.skipIf(!databaseUrl)(
         ),
       ).rejects.toMatchObject({ code: 'COMPANY_RULE_NOT_FOUND' });
     });
+    // This compound PostgreSQL journey needs the same bounded budget as the
+    // adjacent publication cases to finish its authorization/withdrawal assertions.
     it('IP-257-005: publisher revocation prevents new/replayed writes without erasing a lawful publication; withdrawal is explicit', async () => {
       const request = publicationRequest(base),
         target = companyObjectTarget(
@@ -1671,7 +1673,7 @@ describe.skipIf(!databaseUrl)(
       const resolved = await resolve(base, basePublication);
       expect(resolved.currentUseStatus).toBe('WITHDRAWN');
       expect(resolved.snapshots).toEqual(base);
-    });
+    }, 120_000);
     it('current authorization is rechecked after protected reads; revocation aborts the entire publication', async () => {
       const next = await bundle('1.0.4'),
         request = publicationRequest(next),

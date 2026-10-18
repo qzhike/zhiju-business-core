@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Pool } from 'pg';
 import {
   PreparationError,
+  RUNNER_ANALYSIS_REPORT_SCHEMA_SHA256,
   assertPreparationClosed,
   assertPreparationHash,
   preparationHash,
@@ -15,13 +16,17 @@ import {
   createCompanyRuleDatabase,
   PREPARATION_CREATOR_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
+  PREPARATION_SERVICE_V2_BINDINGS,
   type IdentityCryptoPorts,
 } from '@zhiju/identity-policy';
 import { createCompanyStartupDatabase } from '@zhiju/enterprise-project';
 import {
   createCustomerZipS3ObjectStore,
+  createCustomerZipFileObjectStore,
+  createPreparationCompanyFileReader,
   createPreparationCompanyS3Reader,
   type CustomerZipPolicyArtifact,
+  type CustomerZipFileConfiguration,
 } from '@zhiju/integration-gateway';
 import { createCompanyRuleComposition } from '../composition/company-rule-entry.js';
 import {
@@ -47,7 +52,8 @@ interface Deployment {
   capabilityCodes: Record<string, string>;
   selection: PreparationEntrySelection;
   policies: CustomerZipPolicyArtifact[];
-  s3: { endpoint: string; bucket: string; region: string };
+  s3?: { endpoint: string; bucket: string; region: string };
+  localFiles?: CustomerZipFileConfiguration;
   ticket: { activeKeyId: string };
   companySources: {
     sha256: string;
@@ -116,19 +122,22 @@ function decodeSecret(value: unknown, exactBytes?: number): Buffer {
 function parseDeployment(raw: string): Deployment {
   const value: unknown = JSON.parse(raw);
   record(value);
-  assertPreparationClosed(value, [
-    'grantAdministrators',
-    'companyRuleGrantAdministrators',
-    'administratorPolicySnapshotRef',
-    'servicePrincipalId',
-    'enterpriseCapabilities',
-    'capabilityCodes',
-    'selection',
-    'policies',
-    's3',
-    'ticket',
-    'companySources',
-  ]);
+  assertPreparationClosed(
+    value,
+    [
+      'grantAdministrators',
+      'companyRuleGrantAdministrators',
+      'administratorPolicySnapshotRef',
+      'servicePrincipalId',
+      'enterpriseCapabilities',
+      'capabilityCodes',
+      'selection',
+      'policies',
+      'ticket',
+      'companySources',
+    ],
+    ['s3', 'localFiles'],
+  );
   ids(value.grantAdministrators);
   ids(value.companyRuleGrantAdministrators);
   if (typeof value.servicePrincipalId !== 'string' || !isUuidV7(value.servicePrincipalId))
@@ -142,12 +151,20 @@ function parseDeployment(raw: string): Deployment {
   const operations = new Set<string>(
     [...PREPARATION_CREATOR_BINDINGS, ...PREPARATION_SERVICE_BINDINGS].map((row) => row[0]),
   );
+  const v2Operations = PREPARATION_SERVICE_V2_BINDINGS.map((row) => row[0] + '@2.0');
+  const allowedOperations = new Set([...operations, ...v2Operations]);
   for (const [operation, capability] of Object.entries(value.capabilityCodes)) {
-    if (!operations.has(operation)) rejected();
+    if (!allowedOperations.has(operation)) rejected();
     nonempty(capability);
   }
   for (const operation of operations) {
     if (!Object.hasOwn(value.capabilityCodes, operation)) rejected();
+  }
+  const capabilityCodes = value.capabilityCodes;
+  if (v2Operations.some((operation) => Object.hasOwn(capabilityCodes, operation))) {
+    for (const operation of v2Operations) {
+      if (!Object.hasOwn(value.capabilityCodes, operation)) rejected();
+    }
   }
   record(value.selection);
   assertPreparationClosed(value.selection, [
@@ -167,11 +184,21 @@ function parseDeployment(raw: string): Deployment {
     'zhiju.project.preparation_preset_publication',
   );
   if (!Array.isArray(value.policies) || !value.policies.length) rejected();
-  record(value.s3);
-  assertPreparationClosed(value.s3, ['endpoint', 'bucket', 'region']);
-  nonempty(value.s3.endpoint);
-  nonempty(value.s3.bucket);
-  nonempty(value.s3.region);
+  if ((value.s3 === undefined) === (value.localFiles === undefined)) rejected();
+  if (value.s3 !== undefined) {
+    record(value.s3);
+    assertPreparationClosed(value.s3, ['endpoint', 'bucket', 'region']);
+    nonempty(value.s3.endpoint);
+    nonempty(value.s3.bucket);
+    nonempty(value.s3.region);
+  } else {
+    record(value.localFiles);
+    assertPreparationClosed(value.localFiles, ['mode', 'root', 'identity']);
+    record(value.localFiles.identity);
+    assertPreparationClosed(value.localFiles.identity, ['storeId', 'device', 'inode']);
+    if (value.localFiles.mode !== 'MACOS_MANUAL_TEST') rejected();
+    nonempty(value.localFiles.root);
+  }
   record(value.ticket);
   assertPreparationClosed(value.ticket, ['activeKeyId']);
   nonempty(value.ticket.activeKeyId);
@@ -225,12 +252,6 @@ export function createPreparationEnvironment(
       ticketKeys.set(id, decodeSecret(key, 32));
     }
     if (!ticketKeys.has(config.ticket.activeKeyId)) rejected();
-    const accessKeyId = deps.env.ZHIJU_PREPARATION_S3_ACCESS_KEY_ID;
-    const secretAccessKey = deps.env.ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY;
-    nonempty(accessKeyId);
-    nonempty(secretAccessKey);
-    const token = deps.env.ZHIJU_PREPARATION_S3_SESSION_TOKEN;
-    if (token !== undefined) nonempty(token);
     let cached: PreparationSession | undefined;
     function currentServiceSession(): Promise<PreparationSession> {
       const current = new Date();
@@ -257,17 +278,63 @@ export function createPreparationEnvironment(
       )
         throw new PreparationError('AUTHORIZATION_DENIED');
     }
-    const objectStore = createCustomerZipS3ObjectStore({
-      ...config.s3,
-      accessKeyId,
-      secretAccessKey,
-      ...(token ? { sessionToken: token } : {}),
-    });
-    const companyReader = createPreparationCompanyS3Reader(
-      { ...config.s3, accessKeyId, secretAccessKey, ...(token ? { sessionToken: token } : {}) },
-      config.companySources.map((source) => source.objectKey),
-    );
+    const stores = (() => {
+      if (config.localFiles) {
+        if (
+          deps.env.ZHIJU_WORKSPACE_DEPLOYMENT_MODE !== 'MACOS_MANUAL_TEST' ||
+          process.platform !== 'darwin'
+        )
+          rejected();
+        return {
+          objectStore: createCustomerZipFileObjectStore(config.localFiles),
+          companyReader: createPreparationCompanyFileReader(
+            config.localFiles,
+            config.companySources.map((source) => source.objectKey),
+          ),
+        };
+      }
+      if (!config.s3) rejected();
+      const accessKeyId = deps.env.ZHIJU_PREPARATION_S3_ACCESS_KEY_ID;
+      const secretAccessKey = deps.env.ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY;
+      nonempty(accessKeyId);
+      nonempty(secretAccessKey);
+      const token = deps.env.ZHIJU_PREPARATION_S3_SESSION_TOKEN;
+      if (token !== undefined) nonempty(token);
+      const s3 = {
+        ...config.s3,
+        accessKeyId,
+        secretAccessKey,
+        ...(token ? { sessionToken: token } : {}),
+      };
+      return {
+        objectStore: createCustomerZipS3ObjectStore(s3),
+        companyReader: createPreparationCompanyS3Reader(
+          s3,
+          config.companySources.map((source) => source.objectKey),
+        ),
+      };
+    })();
+    const { objectStore, companyReader } = stores;
     const sourceBindings = new Map(config.companySources.map((source) => [source.sha256, source]));
+    const sources = {
+      read: async (ref: Common.ContentAddressedRef) => {
+        const binding = sourceBindings.get(ref.contentHash.digest);
+        if (!binding) throw new PreparationError('DEPENDENCY_UNAVAILABLE');
+        const bytes = Buffer.from(await companyReader.read(binding.objectKey));
+        if (createHash('sha256').update(bytes).digest('hex') !== binding.sha256)
+          throw new PreparationError('DEPENDENCY_UNAVAILABLE');
+        return bytes;
+      },
+      locate: (bytes: Buffer, locator: string) => {
+        const hash = createHash('sha256').update(bytes).digest('hex');
+        const binding = sourceBindings.get(hash)?.locators.find((item) => item.locator === locator);
+        if (!binding || binding.offset + binding.byteLength > bytes.length)
+          return Promise.reject(new PreparationError('DEPENDENCY_UNAVAILABLE'));
+        return Promise.resolve([
+          bytes.subarray(binding.offset, binding.offset + binding.byteLength),
+        ]);
+      },
+    };
     const companyRules = createCompanyRuleComposition({
       identity: {
         db: createCompanyRuleDatabase(deps.identityPool),
@@ -276,27 +343,7 @@ export function createPreparationEnvironment(
       },
       enterprise: {
         db: createCompanyStartupDatabase(deps.enterprisePool),
-        sources: {
-          read: async (ref) => {
-            const binding = sourceBindings.get(ref.contentHash.digest);
-            if (!binding) throw new PreparationError('DEPENDENCY_UNAVAILABLE');
-            const bytes = Buffer.from(await companyReader.read(binding.objectKey));
-            if (createHash('sha256').update(bytes).digest('hex') !== binding.sha256)
-              throw new PreparationError('DEPENDENCY_UNAVAILABLE');
-            return bytes;
-          },
-          locate: (bytes, locator) => {
-            const hash = createHash('sha256').update(bytes).digest('hex');
-            const binding = sourceBindings
-              .get(hash)
-              ?.locators.find((item) => item.locator === locator);
-            if (!binding || binding.offset + binding.byteLength > bytes.length)
-              return Promise.reject(new PreparationError('DEPENDENCY_UNAVAILABLE'));
-            return Promise.resolve([
-              bytes.subarray(binding.offset, binding.offset + binding.byteLength),
-            ]);
-          },
-        },
+        sources,
         sourcePolicy: { provenance: 'PRODUCTION' },
       },
       dependencySession: currentServiceSession,
@@ -318,6 +365,24 @@ export function createPreparationEnvironment(
       ticket: { activeKeyId: config.ticket.activeKeyId, keys: ticketKeys },
       policies: config.policies,
       companyRules,
+      analysisBasis: {
+        sources: {
+          readTemplate: sources.read,
+          locate: sources.locate,
+          readInstruction: async (sha256) => {
+            const binding = sourceBindings.get(sha256);
+            if (!binding) throw new PreparationError('DEPENDENCY_UNAVAILABLE');
+            const bytes = Buffer.from(await companyReader.read(binding.objectKey));
+            if (createHash('sha256').update(bytes).digest('hex') !== sha256)
+              throw new PreparationError('DEPENDENCY_UNAVAILABLE');
+            return bytes;
+          },
+        },
+        validateDefinition: (basis) => {
+          if (basis.reportSchemaSha256 !== RUNNER_ANALYSIS_REPORT_SCHEMA_SHA256)
+            throw new PreparationError('PREPARATION_ANALYSIS_PROFILE_UNSUPPORTED');
+        },
+      },
       objectStore,
     });
   } catch {

@@ -103,7 +103,12 @@ const bindings = [
 export const PREPARATION_CREATOR_BINDINGS = bindings;
 export { PREPARATION_SERVICE_AUTHORITY_OPERATIONS } from '@zhiju/contracts';
 
-function operationBinding(value: string): { operation: string; purpose: string; action: string } {
+function operationBinding(value: string): {
+  operation: string;
+  purpose: string;
+  action: string;
+  version: '1.0' | '2.0';
+} {
   const mapping: Record<string, readonly [string, string, string]> = {
     'project.enterprise.select': [
       'project.find_preparation_enterprises',
@@ -135,6 +140,16 @@ function operationBinding(value: string): { operation: string; purpose: string; 
       'project.preparation.source.read',
       'project.get_preparation_source.v1',
     ],
+    'project.preparation.source_v2.capture': [
+      'project.capture_preparation_source',
+      'project.preparation.source_v2.capture',
+      'project.capture_preparation_source.v2',
+    ],
+    'project.preparation.source_v2.read': [
+      'project.get_preparation_source',
+      'project.preparation.source_v2.read',
+      'project.get_preparation_source.v2',
+    ],
     'project.request_project_preparation': [
       'project.request_project_preparation',
       'project.preparation.request',
@@ -158,8 +173,13 @@ function operationBinding(value: string): { operation: string; purpose: string; 
   };
   const row = mapping[value];
   return row
-    ? { operation: row[0], purpose: row[1], action: row[2] }
-    : { operation: value, purpose: value, action: value };
+    ? {
+        operation: row[0],
+        purpose: row[1],
+        action: row[2],
+        version: value.startsWith('project.preparation.source_v2.') ? '2.0' : '1.0',
+      }
+    : { operation: value, purpose: value, action: value, version: '1.0' };
 }
 function deny(code = 'AUTHORIZATION_DECISION_INVALID'): never {
   throw new PreparationError(code);
@@ -363,7 +383,10 @@ export function createPreparationIdentityPort(
     const kind = await principal(t, s.principalId);
     const actualContext =
       authorityContext ??
-      (kind === 'SERVICE' && operation === 'project.preparation.preset.read'
+      (kind === 'SERVICE' &&
+      ['project.preparation.preset.read', 'project.preparation.analysis_basis.read'].includes(
+        operation,
+      )
         ? await platformService(t, s, operation, target)
         : undefined);
     const scopedGrant =
@@ -438,7 +461,6 @@ export function createPreparationIdentityPort(
     const d = await insert(t, did, 'DECISION', s.principalId, {
       actorSnapshotRef: ar,
       ...operationBinding(operation),
-      version: '1.0',
       target,
       requestHash: hash(request),
       outcome: 'ALLOW',
@@ -751,6 +773,7 @@ export function createPreparationIdentityPort(
     // service authority, original Human eligibility and enrollment remain required.
     const historicalRead = new Set([
       'project.preparation.source.read',
+      'project.preparation.source_v2.read',
       'project.preparation.handoff.read',
       'integration.customer_zip.submission.read',
     ]).has(input.operation);
@@ -765,7 +788,9 @@ export function createPreparationIdentityPort(
       'project.preparation.handoff.read': ['zhiju.integration.customer_zip_intake'],
       'project.preparation.handoff.continue': ['zhiju.integration.customer_zip_intake'],
       'project.preparation.source.capture': ['zhiju.project.project'],
+      'project.preparation.source_v2.capture': ['zhiju.project.project'],
       'project.preparation.source.read': ['zhiju.project.preparation_source'],
+      'project.preparation.source_v2.read': ['zhiju.project.preparation_source'],
       'project.source_material.register': ['SourceMaterial'],
       'project.source_material.accept': ['SourceMaterial'],
       'enterprise.project.get_project_board_slice': ['Project'],
@@ -879,6 +904,9 @@ export function createPreparationIdentityPort(
     human?: PreparationSession,
   ): Promise<PreparationAuthorizationProof | undefined> {
     const platformOps = [
+      'project.preparation.analysis_basis.publish',
+      'project.preparation.analysis_basis.withdraw',
+      'project.preparation.analysis_basis.read',
       'project.preparation.preset.publish',
       'project.preparation.preset.withdraw',
       'project.preparation.preset.read',
@@ -897,6 +925,8 @@ export function createPreparationIdentityPort(
       'project.preparation.creation.read',
       'project.preparation.source.capture',
       'project.preparation.source.read',
+      'project.preparation.source_v2.capture',
+      'project.preparation.source_v2.read',
       'project.preparation.handoff.read',
       'project.preparation.handoff.continue',
       'project.preparation.handoff.consume',
@@ -940,15 +970,24 @@ export function createPreparationIdentityPort(
     if (platformOps.includes(operation)) {
       if (
         !same(target.scope, {}) ||
-        ![
-          'zhiju.project.preparation_preset',
-          'zhiju.project.preparation_preset_publication',
-        ].includes(target.objectType)
+        !(
+          operation.startsWith('project.preparation.analysis_basis.')
+            ? [
+                operation.endsWith('.withdraw')
+                  ? 'zhiju.project.preparation_analysis_basis_publication'
+                  : 'zhiju.project.preparation_analysis_basis',
+              ]
+            : ['zhiju.project.preparation_preset', 'zhiju.project.preparation_preset_publication']
+        ).includes(target.objectType)
       )
         deny();
       await transaction(config.db, s, undefined, async (t) => {
         const k = await principal(t, s.principalId);
-        if (operation !== 'project.preparation.preset.read') {
+        if (
+          !['project.preparation.preset.read', 'project.preparation.analysis_basis.read'].includes(
+            operation,
+          )
+        ) {
           await admin(t, s);
           return;
         }
@@ -961,6 +1000,8 @@ export function createPreparationIdentityPort(
           await admin(t, s);
           return;
         }
+        // Basis content is resolved by the exactly granted service; preset enrollment is not a platform basis grant.
+        if (operation === 'project.preparation.analysis_basis.read') deny();
         const rows = await t
           .selectFrom('identity_policy.preparation_fact')
           .selectAll()
@@ -1019,16 +1060,23 @@ export function createPreparationIdentityPort(
         'OBJECT',
         input.operation === 'identity.preparation.membership_template.read'
           ? 'identity.policy'
-          : 'zhiju.project.preparation_preset',
+          : input.operation === 'project.preparation.analysis_basis.read'
+            ? 'zhiju.project.preparation_analysis_basis'
+            : 'zhiju.project.preparation_preset',
       );
       closed(input.effectivePeriod, ['from', 'to']);
       instant(input.effectivePeriod.from);
       instant(input.effectivePeriod.to);
       if (
         !isUuidV7(input.grantId) ||
-        !(PREPARATION_SERVICE_AUTHORITY_OPERATIONS as readonly string[]).includes(
-          input.operation,
-        ) ||
+        (![
+          'project.preparation.analysis_basis.read',
+          'project.preparation.source_v2.capture',
+          'project.preparation.source_v2.read',
+        ].includes(input.operation) &&
+          !(PREPARATION_SERVICE_AUTHORITY_OPERATIONS as readonly string[]).includes(
+            input.operation,
+          )) ||
         !same(input.target.scope, {}) ||
         !same(input.principalRef.scope, {}) ||
         Date.parse(input.effectivePeriod.to) <=
@@ -1119,6 +1167,7 @@ export function createPreparationIdentityPort(
         const a = actor.payload as { authenticationContextHash: Common.ContentHash },
           d = decision.payload as {
             operation: string;
+            version: string;
             target: Common.ObjectRef;
             requestHash: Common.ContentHash;
             expiresAt: string;
@@ -1138,6 +1187,7 @@ export function createPreparationIdentityPort(
             proof.context,
           ) ||
           d.operation !== operationBinding(operation).operation ||
+          d.version !== operationBinding(operation).version ||
           !same(d.target, target) ||
           !same(d.requestHash, hash(payload)) ||
           !same(d.actorSnapshotRef, proof.actorSnapshotRef) ||

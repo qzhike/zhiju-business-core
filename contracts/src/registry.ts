@@ -31,6 +31,10 @@ import {
   resolvePayloadGuardPolicy,
 } from './payload-guard.js';
 
+import {
+  runnerAnalysisReportSchema,
+  runnerAnalysisValidationSchema,
+} from './runner-analysis-schema.js';
 import { commonSchema } from './common.schema.js';
 import { coreContractSchemas } from './core.schema.js';
 import { operationEnvelopeSchema } from './envelopes.schema.js';
@@ -121,6 +125,8 @@ export class ContractRegistry {
     this.#ajv = new Ajv2020({ allErrors: true, strict: true });
     this.#ajv.addKeyword(payloadGuardKeyword(this.#guardPolicies));
     this.#ajv.addSchema(commonSchema);
+    this.#ajv.addSchema(runnerAnalysisReportSchema);
+    this.#ajv.addSchema(runnerAnalysisValidationSchema);
     for (const schema of coreContractSchemas) this.#ajv.addSchema(schema);
     for (const schema of executableOperationSchemas) this.#ajv.addSchema(schema);
 

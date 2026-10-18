@@ -136,6 +136,21 @@ export const PREPARATION_SERVICE_BINDINGS = [
     'zhiju.integration.customer_zip_intake',
   ],
 ] as const;
+/** Explicit v2 source authorization; v1 action grants do not grant the new major. */
+export const PREPARATION_SERVICE_V2_BINDINGS = [
+  [
+    'project.capture_preparation_source',
+    'project.preparation.source_v2.capture',
+    'project.capture_preparation_source.v2',
+    'zhiju.project.project',
+  ],
+  [
+    'project.get_preparation_source',
+    'project.preparation.source_v2.read',
+    'project.get_preparation_source.v2',
+    'zhiju.project.preparation_source',
+  ],
+] as const;
 export function createPreparationProjectAuthorizationPort(
   config: PreparationProjectAuthorizationConfig,
 ) {
@@ -147,9 +162,14 @@ export function createPreparationProjectAuthorizationPort(
     assertPreparationClosed(input, ['purpose', 'scopeRef', 'targetRef', 'payloadHash']);
     assertPreparationHash(input.payloadHash);
     assertPreparationProjectScope(input.scopeRef);
-    const row = (service ? PREPARATION_SERVICE_BINDINGS : PREPARATION_CREATOR_BINDINGS).find(
-      (x) => x[1] === input.purpose,
-    );
+    const sourceV2 = service && PREPARATION_SERVICE_V2_BINDINGS.some((x) => x[1] === input.purpose);
+    const row = (
+      service
+        ? sourceV2
+          ? PREPARATION_SERVICE_V2_BINDINGS
+          : PREPARATION_SERVICE_BINDINGS
+        : PREPARATION_CREATOR_BINDINGS
+    ).find((x) => x[1] === input.purpose);
     const requestLookup =
       !service &&
       input.purpose === 'integration.customer_zip.read' &&
@@ -159,12 +179,12 @@ export function createPreparationProjectAuthorizationPort(
       !samePreparationValue(input.targetRef.scope, input.scopeRef) ||
       (!requestLookup && input.targetRef.objectType !== row[3]) ||
       (input.targetRef as { kind: unknown }).kind !== 'OBJECT' ||
-      !config.capabilityCodes[row[0]]
+      !config.capabilityCodes[sourceV2 ? row[0] + '@2.0' : row[0]]
     )
       throw new PreparationError('AUTHORIZATION_DECISION_INVALID');
     return {
       commandType: row[0],
-      commandVersion: '1.0',
+      commandVersion: sourceV2 ? '2.0' : '1.0',
       authorizationPurpose: row[1],
       requiredGrantAction: row[2],
       targetKind: 'OBJECT',
@@ -175,7 +195,7 @@ export function createPreparationProjectAuthorizationPort(
       ].includes(row[0])
         ? 'CREATE_TARGET_TYPE'
         : 'TARGET_TYPE',
-      capabilityConfigKey: row[0],
+      capabilityConfigKey: sourceV2 ? row[0] + '@2.0' : row[0],
       expectedPrincipalKind: service ? 'SERVICE' : 'HUMAN',
       ...(service && ['SourceMaterial', 'Project'].includes(row[3])
         ? { allowNativeTargetSelector: true }
@@ -222,7 +242,7 @@ export function createPreparationProjectAuthorizationPort(
         {
           actorSnapshotRef: actor,
           commandType: b.commandType,
-          commandVersion: '1.0',
+          commandVersion: b.commandVersion,
           commandPayloadHash: Buffer.from(input.payloadHash.digest, 'hex'),
           authenticationContextHash: auth,
         },
@@ -332,7 +352,7 @@ export function createPreparationProjectAuthorizationPort(
             },
           },
           expectedCommandType: b.commandType,
-          expectedCommandVersion: '1.0',
+          expectedCommandVersion: b.commandVersion,
           expectedCommandPayloadHash: Buffer.from(input.payloadHash.digest, 'hex'),
           expectedAuthenticationContextHash: Buffer.from(
             session.authenticationContextHash.digest,

@@ -2625,3 +2625,11 @@ content闭集为 comment?、locations、sourceAttachmentRefs、draftAttachmentRe
 作者仅由trusted Context取得，不能caller选择author；create/save/read/分页/恢复均当前授权且本人。自身草稿permission不自动赋予源附件/Revision读取权，依赖分别核验，撤权只返回统一安全错误不泄露附件/旧正文。两设备同CAS一winner、另一保存buffer或新独立recovery fork；原snapshot保留，不last-write-wins、不自动merge/换base。保存UNKNOWN用原target/key/editId核权回读，匹配exact snapshot才“已保存”；未到server的数据明确未保存。草稿默认不进Run/事件正文/项目共享视图，提交时只复制被选exact snapshot字段为原意图；新typing/附件另snapshot不并入原请求。
 
 私稿保留受项目数据retention/legal hold控制；用户清空是新空snapshot，不级联删历史或附件原件。后续实现需TE owner函数/RLS+作者谓词、immutable snapshots、CAS/唯一文件占用/幂等/rollback及跨设备真实验收，不由BFF Session存储替代。新增步骤/Query错误拟为EXECUTION_FILE_BINDING_INVALID、EXECUTION_FILE_REQUEST_ACTIVE、EXECUTION_FILE_REQUEST_STALE、EXECUTION_FILE_INTENT_MISMATCH、EXECUTION_FILE_DRAFT_CONFLICT、EXECUTION_FILE_DRAFT_NOT_SAVED；公开Scope/作者/Ref不匹配masked，依赖失败保持UNKNOWN，不捏造零提交。
+
+## 模板驱动准备分析执行（2026-10-18）
+
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。复用 D14 已批准的 PREPARATION_ANALYSIS Task、专用 WorkOrder/Context、readiness/freeze/Run/Attempt/Acceptance 所有权；不得调用旧 ACTIVE-only producer 或 synthetic Adapter 伪造运行。新增模板基准 Source 分支准确消费 EP source@2.0 及其当前 eligibility；缺正式规范来源不再是这条分支的全局拒绝条件。
+
+PreparationContext 的新显式 profile 绑定 `{preparationSourceRef,analysisBasisRef,analysisBasisHash,analysisBasisPublicationRef}`、实际 input/template/instruction refs/Hashes、purpose/audience、当前身份/权限/有效期及执行 profile。不得把这些值塞进旧 ruleBundleRef 或启动快照。Context/Contract/Run/结果的固定 Hash、lease/fencing、单 final 与独立验收仍适用。Runtime 本轮只装配获批 macOS OMP profile；产品语义不以 macOS 标志裁定，生产缺相应执行锁仍零调用。
+
+v0.2 结果校验沿用真实五类候选和证据规则；公司模板及指令只证明分析依据，不自动确立客户事实或专业决定。TE 接纳后由 EP 单独保存报告；进程结束、自检 PASS 或 TE Result ACCEPTED 都不生成正式文件或完成业务任务。UNKNOWN 仅原 Attempt/Receipt 回读，禁止隐式重启；基准撤回/失效、源损坏、失权或 lease 过期后的输出按原调用保留历史，不成为当前可用报告。

@@ -740,3 +740,14 @@ BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64
 | TE-MF-008 / Private Draft + PostgreSQL | MF-09 refresh/关页/换设备、同draft两设备CAS、save UNKNOWN/限额 | 本人server exact snapshots恢复；一winner/loser保留buffer或fork，零覆盖/merge；匹配editId/hash才已保存，故障明确未保存 | 未执行 / NOT RUN |
 | TE-MF-009 / Processing + Draft | 原请求冻结后新typing/attachment、新candidate返回/原location删除 | 仅next-round private snapshots，原intent/Context不变；新版本不改base/位置，Human复核后新key明确submit | 未执行 / NOT RUN |
 | TE-MF-010 / Partial Feedback | MF-10两意见一handled一待判断、漏item/错proposedLocation、linkedIssue仍open | 处理报告闭集全覆盖；部分处理不伪全成功/批准；不可信location拒，Quality remediation独立 | 未执行 / NOT RUN |
+
+## 模板驱动首次分析验收（2026-10-18）
+
+对应 [校正决定](../decisions/template-driven-preparation.md)。设计场景均为 `NOT RUN`；实际本地、持久化、Provider、浏览器和人工证据分别记录。
+
+| ID | 输入/故障 | 必须成立的结果 |
+| --- | --- | --- |
+| TE-TB-001 | 实际 source@2.0 与固定基准、无规范发布 | 专用准备 Task/Context/Contract/Run 按已注册能力执行；旧 ACTIVE-only 路径拒绝 |
+| TE-TB-002 | 来源漂移、基准撤回、lease/fencing 错误、未知原 invocation | 不接受当前结果/不再次 invoke；保留真实历史，不产生业务完成 |
+
+补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。

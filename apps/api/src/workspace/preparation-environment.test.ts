@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import { preparationHash } from '@zhiju/contracts';
-import { PREPARATION_CREATOR_BINDINGS, PREPARATION_SERVICE_BINDINGS } from '@zhiju/identity-policy';
+import {
+  PREPARATION_CREATOR_BINDINGS,
+  PREPARATION_SERVICE_BINDINGS,
+  PREPARATION_SERVICE_V2_BINDINGS,
+} from '@zhiju/identity-policy';
 import { ZIP_LIMITS } from '@zhiju/integration-gateway';
 import {
   createPreparationEnvironment,
@@ -169,10 +173,89 @@ describe('Preparation deployment assembly', () => {
       'PREPARATION_CONFIGURATION_INVALID',
     );
   });
+  it('accepts only a complete, exact v2 source capability pair while retaining the legacy mappings', () => {
+    const config = deployment();
+    for (const [operation] of PREPARATION_SERVICE_V2_BINDINGS)
+      config.capabilityCodes[operation + '@2.0'] = 'zhiju.capability.template_source';
+    expect(
+      createPreparationEnvironment(dependencies(environment(config)))?.project.getSourceV2,
+    ).toBeTypeOf('function');
+    const one = PREPARATION_SERVICE_V2_BINDINGS[0][0] + '@2.0';
+    Reflect.deleteProperty(config.capabilityCodes, one);
+    expect(() => createPreparationEnvironment(dependencies(environment(config)))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+    config.capabilityCodes[one] = 'zhiju.capability.template_source';
+    config.capabilityCodes['project.get_preparation_source@3.0'] = 'zhiju.capability.unknown';
+    expect(() => createPreparationEnvironment(dependencies(environment(config)))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+  });
+
   it('requires all operation capability mappings to be explicit', () => {
     const config = deployment();
     delete config.capabilityCodes['project.preparation.handoff.read'];
     expect(() => createPreparationEnvironment(dependencies(environment(config)))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+  });
+});
+
+describe('explicit macOS manual-test storage assembly', () => {
+  const localEnvironment = () => {
+    const config = deployment();
+    const local = {
+      ...config,
+      s3: undefined,
+      localFiles: {
+        mode: 'MACOS_MANUAL_TEST',
+        root: '/private/tmp/environment-b-objects',
+        identity: { storeId: '0199e61a-7000-7000-8000-000000000001', device: '1', inode: '1' },
+      },
+      companySources: config.companySources.map((source) => ({
+        ...source,
+        objectKey: 'company-source/' + source.sha256,
+      })),
+    };
+    const env = environment();
+    env.ZHIJU_PREPARATION_CONFIG = JSON.stringify(local);
+    env.ZHIJU_WORKSPACE_DEPLOYMENT_MODE = 'MACOS_MANUAL_TEST';
+    delete env.ZHIJU_PREPARATION_S3_ACCESS_KEY_ID;
+    delete env.ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY;
+    return env;
+  };
+  it('requires both the deployment opt-in and the supported host', () => {
+    const env = localEnvironment();
+    if (process.platform === 'darwin') {
+      expect(createPreparationEnvironment(dependencies(env))?.integration.upload).toBeTypeOf(
+        'function',
+      );
+    } else {
+      expect(() => createPreparationEnvironment(dependencies(env))).toThrow(
+        'PREPARATION_CONFIGURATION_INVALID',
+      );
+    }
+    delete env.ZHIJU_WORKSPACE_DEPLOYMENT_MODE;
+    expect(() => createPreparationEnvironment(dependencies(env))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+    env.ZHIJU_WORKSPACE_DEPLOYMENT_MODE = 'PRODUCTION';
+    expect(() => createPreparationEnvironment(dependencies(env))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+  });
+  it('rejects ambiguous storage configuration', () => {
+    const env = localEnvironment();
+    const config = JSON.parse(env.ZHIJU_PREPARATION_CONFIG ?? '{}') as Record<string, unknown>;
+    config.s3 = deployment().s3;
+    env.ZHIJU_PREPARATION_CONFIG = JSON.stringify(config);
+    expect(() => createPreparationEnvironment(dependencies(env))).toThrow(
+      'PREPARATION_CONFIGURATION_INVALID',
+    );
+    delete config.s3;
+    delete config.localFiles;
+    env.ZHIJU_PREPARATION_CONFIG = JSON.stringify(config);
+    expect(() => createPreparationEnvironment(dependencies(env))).toThrow(
       'PREPARATION_CONFIGURATION_INVALID',
     );
   });

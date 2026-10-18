@@ -1809,6 +1809,20 @@
       "authorizationPurpose": "enterprise.project.PreparingProjectCreated",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "preparation-entry-291-v1"
+    },
+    {
+      "type": "project.capture_preparation_source",
+      "version": "2.0",
+      "authorizationPurpose": "project.preparation.source_v2.capture",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-source-v2"
+    },
+    {
+      "type": "project.get_preparation_source",
+      "version": "2.0",
+      "authorizationPurpose": "project.preparation.source_v2.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-source-v2"
     }
   ]
 }

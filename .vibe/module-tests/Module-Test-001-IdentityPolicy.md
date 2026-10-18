@@ -436,3 +436,16 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 ## Markdown 当前授权技术验收（#279）
 
 `tests/persistence/markdown-review.test.ts` 通过真实 IP Repository/ActorSnapshot/Decision/Grant 执行四个 Human 与三个 SERVICE purpose，验证同 Session 稳定 watermark、跨 Project/Session 不复用 cursor/ticket、下载撤权和 Service Binding 撤权。`workspace-built-browser.test.ts` 的 #279 用例经真实 OIDC/BFF/Core 当前身份读取；Browser 无 SERVICE producer 路由。
+
+## 模板驱动首次分析验收（2026-10-18）
+
+对应 [校正决定](../decisions/template-driven-preparation.md)。设计场景均为 `NOT RUN`；实际本地、持久化、Provider、浏览器和人工证据分别记录。
+
+| ID | 输入/故障 | 必须成立的结果 |
+| --- | --- | --- |
+| IP-TB-001 | 无发布权 Human、Service/Agent 自称发布者 | 拒绝发布/撤回，实际 Actor/Decision 必需；不从模板资格授予项目权限 |
+| IP-TB-002 | 读取/执行前撤权、跨 Project 重放/跨 preset 改 payload | 拒绝，旧成功事实保留且受当前读权限制 |
+
+补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
+
+IP-TB 历史读取边界已加入 `preparation-history-recovery.test.ts`：使用真实 IP/EP 准备流程建立授权后撤回依赖，source_v2.read 仍要求当前 Human/Service 会话、精确 Grant 与 Scope；新 capture_v2 拒绝，错 Scope、过期会话及撤销读 Grant 拒绝。该用例复用旧 preset 建立 IP 授权上下文，仅证明独立历史读权，不作为模板 source@2.0/报告完整链路证据。

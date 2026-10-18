@@ -811,6 +811,8 @@ export async function createPreparationCompanyFixture(
   await resolve(base, publication);
   return {
     companyRules: composition,
+    analysisTemplates: templates,
+    analysisTemplateSources: compositionConfig.enterprise.sources,
     companyRuleRefs: {
       ruleBundleRef: base.bundle.policySnapshotRef,
       startupRulesRef: base.rules.policySnapshotRef,

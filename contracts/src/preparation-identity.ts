@@ -21,7 +21,10 @@ export const PREPARATION_SERVICE_AUTHORITY_OPERATIONS = [
   'identity.preparation.original_analysis.read',
 ] as const;
 export type PreparationServiceAuthorityOperation =
-  (typeof PREPARATION_SERVICE_AUTHORITY_OPERATIONS)[number];
+  | (typeof PREPARATION_SERVICE_AUTHORITY_OPERATIONS)[number]
+  | 'project.preparation.analysis_basis.read'
+  | 'project.preparation.source_v2.capture'
+  | 'project.preparation.source_v2.read';
 
 export interface PreparationCreatorBinding {
   operation: string;
