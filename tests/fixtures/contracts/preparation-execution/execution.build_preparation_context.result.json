@@ -1,0 +1,27 @@
+{
+  "contextRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.execution.preparation_context",
+    "objectId": "019e0000-0000-7000-8000-000000000006",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000006",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "receiptRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.command_receipt",
+    "objectId": "019e0000-0000-7000-8000-000000000008",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "validUntil": "2026-10-18T11:00:00.000Z"
+}

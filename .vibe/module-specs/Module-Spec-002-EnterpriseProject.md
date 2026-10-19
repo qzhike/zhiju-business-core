@@ -1178,7 +1178,7 @@ pageAssociationHash仅覆盖本页；associationSetHash仅由VERIFY证明所请�
 
 ## 模板驱动准备分析（2026-10-18）
 
-状态：`T2 / DIRECTION CONFIRMED / BASIS, PRESET AND SOURCE V2 IMPLEMENTED / REPORT CHAIN NOT IMPLEMENTED`。承接 [前置条件校正](../decisions/template-driven-preparation.md)，本节定义正常 MVP 模板分析的新增接受集，不把法规原文发布改成可为空的旧字段，不重写 #277/@1.0 历史。
+状态：`T2 / DIRECTION CONFIRMED / FIRST ANALYSIS IMPLEMENTED / VERIFICATION PENDING`。承接 [前置条件校正](../decisions/template-driven-preparation.md)，本节定义正常 MVP 模板分析的新增接受集，不把法规原文发布改成可为空的旧字段，不重写 #277/@1.0 历史。
 
 ### 独立项目分析基准
 
@@ -1218,3 +1218,9 @@ EP 对 TE 的 preparation eligibility/read Port 必须返回基准类型与精�
 本轮没有注册或实现基于该新 Source 的正式信息确认/启动/修改。对这些未支持入口必须在第一项正式 Fact/Product/QMS/Profile/ProductScope 写入前拒绝，不能先写正式版本再在 start 时失败。这项边界不预设以后仍需要三项规范发布；后续模板驱动升级应按用户已确认的主流程另行闭合其实际接受集。
 
 模板预设安装恢复通过 owning `readTemplatePresetPublication` 精确回读原发布请求：当次发布权限、原 key/version/完整 request Hash、实际 Receipt、PRESET 与 PUBLICATION Hash 均须相符；没有回执才执行发布，未知不作为不存在。回读不产生新发布，也不证明当前可用性；发布者仍通过依赖/资格校验使用预设。旧 @1.0 重复发布拒绝语义不变。
+
+
+首次模板分析 source@2.0 的有效期独立于短期 SERVICE 登录态：最长 capture 后 60 分钟，并受基准与相关来源的更早使用期限约束；旧 Source 保留原期限。首次来源捕获建立 preparation_report_head(version=1)，报告接纳必须精确匹配 source 和 expectedPreparationVersion=1；锁定 Project/Head 后 CAS 到 version=2。新报告只接受实际 TE Result/Acceptance 回读，记录原输出字节、Actor/Decision 与正式 Receipt，不能接受调用者上传的报告 JSON。重放原命令返回原回执；同项目不同源或第二份首次报告拒绝，后续补料未在本次开放。
+
+
+首次 handoff 查询可附 execution 摘要，只通过 TE owning progress Port 读取与原 analysisRequestId 相同的实际请求。此为上传回执的可选 additive 结果字段，旧结果可省略；handoff ACCEPTED 仍仅表示请求交接，不将执行或报告接纳状态混为同一个事实。

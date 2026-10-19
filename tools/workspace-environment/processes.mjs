@@ -44,12 +44,8 @@ export async function runSupervisor(root, config, secrets, identities) {
   const children = new Map(),
     logs = [];
   const { readPreparationDeployment } = await import('./preparation.mjs');
-  const environment = applicationEnvironments(
-    config,
-    secrets,
-    identities,
-    await readPreparationDeployment(config),
-  );
+  const deployment = await readPreparationDeployment(config);
+  const environment = applicationEnvironments(config, secrets, identities, deployment);
   let state = 'STARTING',
     closing;
   const status = () => ({
@@ -63,6 +59,11 @@ export async function runSupervisor(root, config, secrets, identities) {
       ),
     ),
     state,
+    runner: {
+      projectRoot: config.runner.projectRoot,
+      profileFile: config.runner.profileFile ?? join(config.dataDir, 'omp-profile.json'),
+      state: deployment.localOmp ? 'CONFIGURED' : 'NOT_CONNECTED',
+    },
   });
   const server = createServer((request, response) => {
     const actual = Buffer.from(request.headers.authorization ?? ''),

@@ -355,3 +355,12 @@ ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理�
 | UI-TB-002 | 公司配置缺失、客户资料缺失、未实现后续能力 | 明确区分原因；不让客户补公司规范，不用 fixture 冒充 Runner 或生成成功 |
 
 补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
+
+
+### 首次分析执行链与分层验证
+
+真实报告投影使用实际 v0.2 内容和报告身份；等待页来源为真实 execution 摘要；刷新/重登只读原请求；身份切换与跨项目响应不泄漏；保持已有页面布局，未开放的业务动作不可提交。
+
+验证层分别记录：合同/受控进程/真实 PostgreSQL 自动化、真实 OMP 小型合成资料调用、平台报告接纳与实际浏览器查看、用户独立人工验收。未执行项仍为 NOT RUN；测试结果以本次工作及后续 Issue/PR 证据为准，不由本文自行宣告通过。
+
+新增回归：CUSTOMER 事项 `customerRequest=null` 时仍出现在总览及明细并保留原问题；混合有 key/无 key 项时，原有 key 去重不吞掉无 key 项或顾问事项；工作台在重新登录后可按现有精确权限枚举准备项目，并回到原请求和同版报告。

@@ -1823,6 +1823,48 @@
       "authorizationPurpose": "project.preparation.source_v2.read",
       "dataClassification": "CUSTOMER_CONFIDENTIAL",
       "semanticDeclaration": "template-preparation-source-v2"
+    },
+    {
+      "type": "execution.create_preparation_analysis_task",
+      "version": "1.0",
+      "authorizationPurpose": "execution.preparation.task.create",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
+    },
+    {
+      "type": "execution.build_preparation_context",
+      "version": "1.0",
+      "authorizationPurpose": "execution.preparation.context.build",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
+    },
+    {
+      "type": "execution.request_preparation_analysis",
+      "version": "1.0",
+      "authorizationPurpose": "execution.preparation.analysis.request",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
+    },
+    {
+      "type": "execution.get_preparation_analysis_result",
+      "version": "1.0",
+      "authorizationPurpose": "execution.preparation.result.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
+    },
+    {
+      "type": "project.accept_preparation_report",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.report.accept",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
+    },
+    {
+      "type": "project.get_preparation_analysis_report",
+      "version": "1.0",
+      "authorizationPurpose": "project.preparation.report.read",
+      "dataClassification": "CUSTOMER_CONFIDENTIAL",
+      "semanticDeclaration": "template-preparation-analysis-20261018"
     }
   ]
 }

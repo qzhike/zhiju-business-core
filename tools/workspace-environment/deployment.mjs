@@ -75,9 +75,25 @@ export function buildRealm(config, secrets) {
   };
 }
 
-export function trustDocument(config, identities) {
+export function trustDocument(config, identities, preparation) {
   const publicOrigin = `http://127.0.0.1:${config.ports.web}`;
   const issuer = issuerFor(config);
+  const preparationCapabilities = {};
+  if (preparation !== undefined && preparation !== null) {
+    for (const [key, operation] of [
+      ['workspaceProjectDiscoveryHumanV1', 'project.workspace.discover'],
+      ['projectBoardSliceReadHumanV1', 'project.get_project_board_slice'],
+    ]) {
+      const code = preparation.capabilityCodes?.[operation];
+      if (
+        typeof code !== 'string' ||
+        !/^[a-z][a-z0-9]*(?:[._][a-z0-9]+)*$/u.test(code) ||
+        Object.values(preparationCapabilities).includes(code)
+      )
+        throw new Error('ENV_B_PREPARATION_CAPABILITY_INVALID');
+      preparationCapabilities[key] = code;
+    }
+  }
   return {
     trustConfigVersion: 'trusted-human-v1',
     publicOrigin,
@@ -123,6 +139,7 @@ export function trustDocument(config, identities) {
       taskBoardSourceReadV1: 'execution.task_board.source.read.v1',
       taskBoardHealthReadV1: 'execution.task_board.health.read.v1',
       taskBoardPolicyReadV1: 'execution.task_board.policy.read.v1',
+      ...preparationCapabilities,
     },
     boardService: { principalId: identities.boardServiceId },
   };
@@ -148,7 +165,7 @@ export function applicationEnvironments(config, secrets, identities, preparation
   const shared = {
     ...baseEnvironment(),
     NODE_ENV: 'production',
-    ZHIJU_WORKSPACE_TRUST_CONFIG: JSON.stringify(trustDocument(config, identities)),
+    ZHIJU_WORKSPACE_TRUST_CONFIG: JSON.stringify(trustDocument(config, identities, preparation)),
   };
   return {
     core: {

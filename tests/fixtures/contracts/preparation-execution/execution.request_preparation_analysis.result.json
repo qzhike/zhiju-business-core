@@ -1,0 +1,20 @@
+{
+  "analysisRequestRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.preparation_analysis_request",
+    "objectId": "019e0000-0000-7000-8000-000000000007",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "receiptRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.command_receipt",
+    "objectId": "019e0000-0000-7000-8000-000000000008",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  }
+}

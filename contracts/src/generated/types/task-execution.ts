@@ -1281,4 +1281,159 @@ export namespace TaskExecution {
   readonly checkedAt: Common.UtcInstant;
   readonly sourceWatermarks: readonly Common.SourceWatermark[];
 };
+  /** Payload of `execution.create_preparation_analysis_task` (COMMAND). */
+  export type ExecutionCreatePreparationAnalysisTaskPayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly analysisProfileRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.task.analysis_profile";
+};
+  readonly definition: {
+  readonly kind: "PREPARATION_ANALYSIS";
+  readonly objective: Common.NonEmptyString;
+  readonly inputRefs: readonly ((Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+}))[];
+  readonly expectedReportProfileRef: Common.VersionedRef;
+};
+};
+  /** Result of `execution.create_preparation_analysis_task` (COMMAND). */
+  export type ExecutionCreatePreparationAnalysisTaskResult = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly definitionSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.task_definition_snapshot";
+};
+  readonly aggregateVersion: 1;
+  readonly receiptRef: Common.ObjectRef & {
+  readonly objectType?: "execution.command_receipt";
+};
+};
+  /** Payload of `execution.build_preparation_context` (COMMAND). */
+  export type ExecutionBuildPreparationContextPayload = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly workOrderRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.work_order";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly builderPolicyRef: Common.VersionedRef;
+  readonly purpose: "preparation.analysis";
+  readonly audience: Common.ObjectRef & {
+  readonly objectType?: "identity.principal";
+};
+};
+  /** Result of `execution.build_preparation_context` (COMMAND). */
+  export type ExecutionBuildPreparationContextResult = {
+  readonly contextRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.preparation_context";
+};
+  readonly receiptRef: Common.ObjectRef & {
+  readonly objectType?: "execution.command_receipt";
+};
+  readonly validUntil: Common.UtcInstant;
+};
+  /** Payload of `execution.request_preparation_analysis` (COMMAND). */
+  export type ExecutionRequestPreparationAnalysisPayload = {
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly taskDefinitionSnapshotRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.execution.task_definition_snapshot";
+};
+  readonly expectedTaskAggregateVersion: 1;
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly analysisProfileRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.task.analysis_profile";
+};
+};
+  /** Result of `execution.request_preparation_analysis` (COMMAND). */
+  export type ExecutionRequestPreparationAnalysisResult = {
+  readonly analysisRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.preparation_analysis_request";
+};
+  readonly receiptRef: Common.ObjectRef & {
+  readonly objectType?: "execution.command_receipt";
+};
+};
+  /** Payload of `execution.get_preparation_analysis_result` (QUERY). */
+  export type ExecutionGetPreparationAnalysisResultPayload = {
+  readonly agentResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly acceptanceRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+};
+  /** Result of `execution.get_preparation_analysis_result` (QUERY). */
+  export type ExecutionGetPreparationAnalysisResultResult = {
+  readonly agentResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly acceptanceRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly runRef: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly contractRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.contract.work_order";
+};
+  readonly contextRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.execution.preparation_context";
+};
+  readonly profileRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.task.analysis_profile";
+};
+  readonly output: {
+  readonly jsonBytes: Common.NonEmptyString;
+  readonly markdownBytes: Common.NonEmptyString;
+  readonly jsonSha256: Common.ContentHash;
+  readonly markdownSha256: Common.ContentHash;
+  readonly manifestSha256: Common.ContentHash;
+  readonly extractionSha256: Common.ContentHash;
+  readonly validationContextSha256: Common.ContentHash;
+  readonly observationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.integration.preparation_analysis_observation";
+};
+};
+  readonly currentUsability: "USABLE" | "EXPIRED" | "STALE" | "UNKNOWN";
+  readonly reasons: readonly Common.ReasonCode[];
+};
 }

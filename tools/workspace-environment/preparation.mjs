@@ -19,8 +19,9 @@ import {
   authorizeCommand,
   createPreparationIdentityDatabase,
   createPreparationIdentityPort,
-  PREPARATION_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_CREATOR_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
+  PREPARATION_ANALYSIS_SERVICE_BINDINGS,
   PREPARATION_SERVICE_V2_BINDINGS,
   PREPARATION_SERVICE_AUTHORITY_OPERATIONS,
 } from '@zhiju/identity-policy';
@@ -41,6 +42,7 @@ import { identityCrypto } from './bootstrap.mjs';
 import { readCompanyMaterials, bytesHash } from './company-materials.mjs';
 import { writePrivateJson } from './config.mjs';
 import { databaseUrl } from './deployment.mjs';
+import { initializeRunnerProfile } from './runner-profile.mjs';
 import { initializePreparationObjectStore } from './object-store.mjs';
 
 const PLATFORM = '00000000-0000-7000-8000-000000000000';
@@ -64,6 +66,7 @@ async function json(filename) {
 
 /** Operator installation uses owner APIs; no project/customer facts are seeded. */
 export async function initializePreparation(config, secrets, identities) {
+  const localOmp = await initializeRunnerProfile(config);
   const materials = await readCompanyMaterials(config.runner.projectRoot);
   const filename = join(config.dataDir, 'preparation-installation.json');
   const materialFingerprint = preparationHash({
@@ -118,6 +121,14 @@ export async function initializePreparation(config, secrets, identities) {
     throw new Error('ENV_B_PREPARATION_MATERIAL_CHANGED');
   if (Date.parse(installation.expiresAt) <= Date.now())
     throw new Error('ENV_B_PREPARATION_GRANTS_EXPIRED');
+  if (!installation.analysisExtension) {
+    installation.analysisExtension = {
+      membershipVersionId: newUuidV7(),
+      presetVersionId: newUuidV7(),
+      enrollmentId: newUuidV7(),
+    };
+    await writePrivateJson(filename, installation);
+  }
   const localFiles = await initializePreparationObjectStore(config);
   const store = createPreparationCompanyFileStore(localFiles);
   const companySources = materials.templates.map((t) => ({
@@ -172,10 +183,11 @@ export async function initializePreparation(config, secrets, identities) {
     deps = { db: ipDb, repo, crypto, context };
   const effectivePeriod = { from: installation.installedAt, to: installation.expiresAt };
   const capabilityCodes = Object.fromEntries(
-    [...PREPARATION_CREATOR_BINDINGS, ...PREPARATION_SERVICE_BINDINGS].map(([op]) => [
-      op,
-      'workspace.preparation.' + op.replaceAll('.', '_'),
-    ]),
+    [
+      ...PREPARATION_ANALYSIS_CREATOR_BINDINGS,
+      ...PREPARATION_SERVICE_BINDINGS,
+      ...PREPARATION_ANALYSIS_SERVICE_BINDINGS,
+    ].map(([op]) => [op, 'workspace.preparation.' + op.replaceAll('.', '_')]),
   );
   for (const [op] of PREPARATION_SERVICE_V2_BINDINGS)
     capabilityCodes[op + '@2.0'] = 'workspace.preparation.' + op.replaceAll('.', '_') + '_v2';
@@ -455,13 +467,13 @@ export async function initializePreparation(config, secrets, identities) {
     );
     const membership = await identity.publishMembershipTemplate(session, {
       templateId: installation.membership.objectId,
-      versionId: installation.membership.versionId,
+      versionId: installation.analysisExtension.membershipVersionId,
       effectiveFrom: installation.installedAt,
       payload: {
-        profile: 'ip.preparation_membership_template@1.0',
+        profile: 'ip.preparation_membership_template@1.1',
         templateCode: 'WORKSPACE_TEMPLATE_ANALYSIS',
-        templateVersion: '1.0.0',
-        creatorBindings: PREPARATION_CREATOR_BINDINGS.map(
+        templateVersion: '1.1.0',
+        creatorBindings: PREPARATION_ANALYSIS_CREATOR_BINDINGS.map(
           ([operation, purpose, action, targetObjectType]) => ({
             operation,
             version: '1.0',
@@ -536,7 +548,7 @@ export async function initializePreparation(config, secrets, identities) {
     const presetPayload = {
       profile: 'ep.preparation_entry@1.1',
       presetCode: 'zhiju.preparation.template_analysis',
-      presetVersion: '1.0.0',
+      presetVersion: '1.1.0',
       creation: {
         mode: 'PREPARATION',
         status: 'PREPARING',
@@ -556,7 +568,7 @@ export async function initializePreparation(config, secrets, identities) {
     };
     const publicationInput = {
       presetId: installation.preset.objectId,
-      versionId: installation.preset.versionId,
+      versionId: installation.analysisExtension.presetVersionId,
       payload: presetPayload,
       effectiveFrom: installation.installedAt,
     };
@@ -583,7 +595,7 @@ export async function initializePreparation(config, secrets, identities) {
     if (usablePreset.useStatus !== 'USABLE' || usablePreset.dependencyState !== 'USABLE')
       throw new Error('ENV_B_PREPARATION_PRESET_UNUSABLE');
     await identity.grantEnrollment(session, {
-      grantId: installation.enrollmentId,
+      grantId: installation.analysisExtension.enrollmentId,
       principalRef: object('identity.principal', session.principalId),
       allowedModes: ['NEW', 'EXISTING'],
       preparationPresetRef: selection.preparationPresetRef,
@@ -608,6 +620,7 @@ export async function initializePreparation(config, secrets, identities) {
       policies,
       ticket: { activeKeyId: 'environment-b' },
       localFiles,
+      localOmp,
       companySources,
     };
     await writePrivateJson(join(config.dataDir, 'preparation-deployment.json'), deployment);

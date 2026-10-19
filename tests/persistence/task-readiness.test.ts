@@ -1975,7 +1975,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(260);
+    expect(catalog.operations).toHaveLength(266);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );
@@ -1985,7 +1985,7 @@ describe.skipIf(!gateEnabled)('Task Readiness production and READY transition', 
     ).toBe(false);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(63);
+    ).toHaveLength(67);
     expect(
       registry.validateOperation('execution.mark_task_ready', '1.0', {
         commandId: newUuidV7(),

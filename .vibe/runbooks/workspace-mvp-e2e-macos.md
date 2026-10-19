@@ -2,14 +2,14 @@
 
 适用范围：仅本机 macOS。环境 A 用于人工检查页面；环境 B 的目标是让人类用户在浏览器中操作真实 Web/BFF/Core，连接 Docker 中保留数据的 PostgreSQL，并由平台调用本机专用 Agent Runner。本文记录已存在的启动方法、已确认的环境目标与尚待实现的接入条件，不把配置设计当作已经可执行的部署入口。
 
-核对日期：2026-10-18。实现基线：`922165690dd01fb6e8b0ca7896b3c349cfe42d53`。本次在该基线的独立工作树新增环境 B 的常驻基础；环境 A 未重启或重建，仅核对既有入口可用性。升级到其他修订时，重新核对脚本、配置加载器与接入条件；版本与参数以该修订的代码为准。
+核对日期：2026-10-18。本轮修改基于 `e890b8c8d4a43792372ee4f154daf9f636cd9922`，位于独立工作树的 `codex/env-b-runner-analysis`；包含常驻基础之上的首次分析链路，尚未提交。环境 A 未重启或重建。升级到其他修订时，重新核对脚本、配置加载器与接入条件；版本与参数以该修订的代码为准。
 
 ## 1. 两种人工测试环境与自动化检查
 
 | 环境 | 用户怎样操作 | 数据与 Runner | 当前边界 |
 | --- | --- | --- | --- |
 | A：页面交互环境 | 人工打开正式 React 组件，检查工作台、资料提交、分析、进度、审阅和交付的样例交互 | 隔离开发样例；不依赖 Docker，不调用真实 Runner | 用户已确认可以启动；样例操作不产生业务事实 |
-| B：本机真实手动联调环境 | 人工登录、提交 ZIP、等待本机 Runner 返回报告，再检查已接入的后续流程 | Docker PostgreSQL 保留测试数据；真实文件托管；调用本机专用 Runner | 常驻 Web/BFF/Core、数据库与真实登录已提供；业务授权、文件托管和 Runner 链仍待接入 |
+| B：本机真实手动联调环境 | 人工登录、提交 ZIP、等待本机 Runner 返回报告，再检查已接入的后续流程 | Docker PostgreSQL 保留测试数据；真实文件托管；调用本机专用 Runner | 常驻服务、真实登录、准备项目、ZIP 托管、本机 OMP 与报告读取已实现；真实调用验证与用户人工验收分开记录 |
 
 原先称为“环境 B”的受控自动化集成测试移到第 9 节，作为工程回归工具。它会创建并清理临时服务，不能作为 B 的启动命令，也不能代替用户的人工验收。
 
@@ -145,8 +145,8 @@ pnpm --filter @zhiju/workspace-web build
 | BFF / Core | 在 macOS 持续运行；真实登录、授权和业务请求 | 复用可信配置和 HTTP 接入；由独立启动器组合，业务能力按实际配置提供 |
 | PostgreSQL | Docker 专用实例/数据库与持久化卷；停止服务后保留项目、任务和结果引用 | 复用固定版本、迁移和角色规则；不使用自动化 gate 的临时库 |
 | 登录服务 | 专用测试 realm/client/用户，支持本人反复登录 | 固定 Keycloak 镜像，专用 realm/client/用户；通过 owning 命令建立身份映射 |
-| 原始 ZIP、模板与输出 | 由现有文件托管接口保存并保留；数据库保存精确引用 | ZIP 接收已有 S3 兼容存储适配器；只有数据库容器不足以托管真实文件 |
-| Agent Runner | 在 macOS 调用用户专门设置的 Runner；输入/输出绑定本次任务 | 项目路径可配置，已核对 OMP 非交互 CLI；执行桥接和 macOS profile 仍待接入 |
+| 原始 ZIP、模板与输出 | 由现有文件托管接口保存并保留；数据库保存精确引用 | B 使用已批准的本机持久化文件适配；不要求额外部署 S3，文件目录与数据库都须保留 |
+| Agent Runner | 在 macOS 调用用户专门设置的 Runner；输入/输出绑定本次任务 | 项目路径可配置；安装固定 OMP profile，经受控 RPC、原 Attempt 记录及独立接纳返回报告 |
 
 在 A 继续运行时，B 使用独立工作区、构建制品、端口和数据目录；不能在 A 的工作区运行 clean/full 或覆盖其 fixture 制品。第 3 节端口是 A 的默认值，不能直接复用来启动第二套服务。
 
@@ -159,12 +159,14 @@ pnpm --filter @zhiju/workspace-web build
 配置闭集包含 `version`、`instanceId`、`dataDir`、`ports`、`runner`。默认端口分别为 Web 3200、BFF 3201、Core 3202、Keycloak 3280、PostgreSQL 55432、私有进程控制 3290。拒绝 3100/3101、重复端口、未知字段、非绝对路径及 Runner/数据目录重叠。私有数据写入前按真实路径检查：自定义 `dataDir` 若位于 Git 工作区中，须先将整个目录加入该工作区的忽略规则，且目录内不能有已跟踪文件；否则拒绝写入。仓库外私有目录不受 Git 忽略规则限制，仍执行权限和路径检查。
 
 - `runner.projectRoot` 是操作者指定的 OMP 项目目录，启动前检查真实路径及可读的 `AGENTS.md`；业务请求和 ZIP 不可覆盖。当前选择 `/Users/galendai/repo/qzhike/zhiju-doc-artifacts`，产品代码不硬编码该目录。
-- 用户已确认平时直接运行 OMP 并读取目录内 `AGENTS.md`。当前 `runner.profileFile` 为预留的可选绝对路径，`null` 不意味着生产执行锁通过；本轮启动器不会调用模型或自动导入历史报告。
-- 本机只读检查得到 OMP 18.10.4，支持 `-p`、`--cwd`、`--config` 与 `--session-dir`；当前默认模型为 `opencode-zen/deepseek-v4.1-flash-free:max`，不同于 Ubuntu 首发提案的 DeepSeek 官方通道。不得将本机默认值当成固定生产配置或扩大材料发送范围。
-- 以后修改 Runner 项目路径只影响新的启动配置，不迁移历史数据、不重绑已提交任务；每轮输入/输出物化和精确执行配置绑定由后续 Runner 接线实现。
+- 用户已确认平时直接运行 OMP 并读取目录内 `AGENTS.md`。`runner.profileFile` 可指定专用绝对路径；其中 `executionRoot` 必须等于本实例的 `dataDir/runner-attempts`，不得跨实例共享；为 null 时，初始化会在 dataDir 生成 `omp-profile.json`，用实际空会话确定明确模型并固定二进制、工具及依赖 Hash。初始化不发送模型 prompt，不导入历史报告。
+- 已安装 profile 中的 OMP 版本、provider/model/thinking 是本轮唯一运行选择；每次调用核验真实空会话，配置漂移拒绝执行。原本机默认值不作为当前版本承诺；macOS profile 不代表 Ubuntu 生产执行锁。首次安装在私有 venv 中准备固定 `jsonschema==4.26.0`。
+- 以后修改 Runner 项目路径只影响新的启动配置，不迁移历史数据、不重绑已提交任务；每轮输入/输出与实际执行配置均绑定原 Attempt，不通过改目录替换原调用依据。
 - 初始实例的端口和数据目录是资源归属的一部分，不能修改后复用原容器；检测到漂移会拒绝启动/停止。调整这些字段须先停止原实例，再建立独立实例或显式迁移，不能通过改标签或清卷绕过。
 
 ### 4.3 第一个可用的手动测试闭环
+
+用户于 2026-10-19 选择暂不补齐 B 的 `projection_app` 角色。当前先从资料提交回执中的“查看分析报告”链接进入，保存原准备请求／报告 URL，刷新或重新登录后继续访问该链接。目录可列出项目，但通过项目看板找回报告的入口尚不可用；不因此重传 ZIP 或补写数据库权限。详见 [角色补齐的暂缓决定](../decisions/template-driven-preparation.md#7-环境-b-项目看板角色补齐2026-10-19用户选择暂缓)。
 
 1. 启动环境 B，以专用测试用户登录；可以看到本人有权限的企业与项目。
 2. 在网页创建准备项目并上传一个脱敏 ZIP；平台保存真实字节、来源清单和原请求记录。
@@ -197,7 +199,9 @@ pnpm env:b:start
 
 `stop` 通过带私有令牌的本机控制入口停止其实际持有的子进程，并核对标签后停止本实例的 Keycloak/PostgreSQL 容器；不删除容器、卷或任务产物。没有全局停止/清理或 Tailscale 修改。端口占用、资源归属不符或配置漂移时安全拒绝。运行日志位于 `dataDir`，错误对外仅输出固定代码。Runner 目录移走后仍可运行 `status`/`stop`；再次 `start` 前须更新为有效目录。依赖容器停止时状态显示 `DEGRADED`，重复 start 给出明确拒绝；先 stop，再 start 恢复原实例，保留数据。两个容器运行且初始化成功记录匹配实例、配置和身份文件时才显示 `INITIALIZED`；仅容器运行、记录缺失或身份文件不匹配均显示 `PARTIAL`。新一轮初始化开始前撤销旧完成记录，全部步骤成功后才写入新记录；中断后保留账号和数据，重试 init/start 恢复。`status` 同时输出 `initialization: COMPLETE/INCOMPLETE`。
 
-当前初始化已通过 owning 接口建立真实模板版本、模板分析基准、准备预设及专用准入授权，并使用 B 的本机持久化文件目录；这条分支不以 S3 或三份规范原文发布为前置。Core 准备流程所需的受限数据库角色仍待单独授权；TE/IG 调度、报告接纳及公开读取尚未接通，真实 ZIP 人工闭环仍未完成。初始化结果不等于 Runner 或页面全流程已通过。
+环境 B 的项目目录与项目看板读取，从已安装 preparation 配置取精确 capability code，并向 Core/BFF 下发相同可信配置；不另用与已有成员授权不同的默认 code。已安装配置缺少所需 capability code 时拒绝启动，不重写历史授权。
+
+当前初始化已通过 owning 接口建立真实模板版本、模板分析基准、准备预设及专用准入授权，并使用 B 的本机持久化文件目录；这条分支不以 S3 或三份规范原文发布为前置。已批准的两个 Core 准备角色以 SET TRUE/INHERIT FALSE/ADMIN FALSE 安装；首次 PREPARING 分析的 TE/IG 调度、独立报告接纳及公开读取已实现。初始化结果不等于真实 Provider、完整 MVP 或用户独立人工验收通过。
 
 文件存储首次建立前先保存带本实例和预分配 storeId 的私有初始化意图。若已建好完整存储标记、尚未保存外部绑定时中断，重试仅校验并恢复该精确身份；不会创建第二个存储。无原意图的旧目录、缺标记、身份或目录元数据不符均拒绝自动恢复。若返回 `ENV_B_FILE_STORE_INITIALIZATION_INCOMPLETE`，先保留目录及意图供核对；仅在确认从未写入业务对象后，由操作员将该未完成目录和意图一起隔离，再显式重跑初始化，不手填现有存储身份或删除已有对象。
 
@@ -272,32 +276,26 @@ Core 的 [main.ts](../../apps/api/src/main.ts) 读取并验证 `PORT`，缺省�
 | `ZHIJU_PREPARATION_S3_ACCESS_KEY_ID` / `ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY` | 本环境文件存储凭据；由进程安全配置提供 |
 | `ZHIJU_PREPARATION_S3_SESSION_TOKEN` | 仅在所用存储认证需要时提供 |
 
-这些变量已由代码读取；第 4.2 节的 `runner.projectRoot` 已由启动器读取和校验，`runner.profileFile` 仅为预留字段，真实 Runner dispatch 尚未实现。真实初始主体、公司发布及模板必须存在并匹配引用，不能凭构造 UUID、空对象或随意指向目录替代初始化。
+这些变量已由代码读取；第 4.2 节的 `runner.projectRoot` 已由启动器读取和校验，`runner.profileFile` 或 dataDir 下自动生成的 profile 用于本机首次分析 dispatch。真实初始主体、公司发布及模板必须存在并匹配引用，不能凭构造 UUID、空对象或随意指向目录替代初始化。
 
 ## 6. 环境 B 的接入差异与行动顺序
 
-### 6.1 当前需要补齐的具体差异
+### 6.1 首次分析的实现与后续边界
 
-本表依据本文实现基线及 2026-10-17 对外部 Runner 目录的只读核对，不推断其他未合并分支或独立测试已经完成平台接入。
-
-| 项目 | 已有事实 | 环境 B 还需要完成 |
+| 项目 | 本轮实现 | 验证与使用边界 |
 | --- | --- | --- |
-| 登录与数据库 | 可信 Web/BFF/Core、PostgreSQL 角色/迁移及受控身份测试已存在 | 常驻数据库、测试账号和身份映射已由启动器提供；模板基准、固定指令、顾问准入与预设初始化已实现；在线准备流程权限装配和人工入口仍待完成 |
-| 准备项目与 ZIP | #291 已接入准备项目、ZIP 字节托管与原请求恢复；源码见第 5.4 节 | 本机持久化对象与公司来源装配已实现；仍需验证人工上传，缺分析能力时应保留 `WAITING_CAPABILITY` |
-| Runner 所在目录 | 用户确认暂沿用 `zhiju-doc-artifacts` | 第 4.2 节路径读取已实现；真实 dispatch 与固定执行配置仍待接入，目录本身不是完整平台接口 |
-| 报告协议 | 用户已选 v0.2；外部目录新增独立 v0.2 固定工具，保留 v0.1 历史入口 | 接入 v0.2 的真实调用方上下文与 owning 接纳；独立工具通过不能直接成为平台报告 |
-| 本机执行 | [首发执行锁设计](../decisions/d14-rd01-runner-profile-lock.md)针对 Ubuntu LOCAL_PROCESS，#264 有内部描述符与预检 | macOS 适配已获批准，隔离的 OMP 启动配置已做无模型调用检查；执行配置落地及 dispatch 仍待接入，不把 Darwin 运行冒充 Ubuntu profile |
-| 分析调用与报告回传 | [D14](../decisions/d14-rd01-first-customer-flow.md)已规定来源、Run、报告及接纳职责 | TE 准备分析接线、真实 Runner dispatch、输入物化、结果回传与接纳以及可信页面读取 |
-| Markdown 阅读/下载 | #279 已有精确版本的受控链；普通 main 仍未注入 `markdown` 服务 | 常驻组合中提供真实 owning 服务和存储；读取成功不代表已完成生成或批准 |
-| 生成、反馈、批准与交付 | 页面及相关设计/部分底层能力已存在 | 按 [Markdown 反馈决策](../decisions/markdown-file-feedback.md)与[交付设计](../decisions/project-delivery-controlled-export.md)逐段接入并人工验收 |
+| 登录与数据库 | 隔离的 Docker 数据库、身份服务、账号、顾问准入和准备流程角色 | 初始化与原数据保留必须通过；环境 A 独立 |
+| 准备项目与 ZIP | 正式准备请求和 DOCX/Markdown ZIP 托管；source@2.0 锁定公司模板、指令和定位 | 首次 PREPARING 分析；旧 source/preset 维持原流程 |
+| OMP | 私有 profile、实际 get_state 握手、只读来源包、一次调用与原 Attempt 恢复 | 同一用户的 macOS 可信进程边界；不宣称内核隔离或 Provider 取消已确认 |
+| 报告返回 | 固定 collect/finalize/check，独立 TE Acceptance 与 EP 报告 CAS 接纳 | 原 JSON/Markdown、来源及模板 Hash 相符才可读；失败不使用合成报告 |
+| 页面 | 原准备请求进入真实分析总览；等待页显示真实执行阶段 | 复制客户索取清单可用；未开放的补料/确认/修改不可提交 |
+| 生成、反馈、批准与交付 | 继续保留原已确认设计与相应页面 | 后续 owning 能力需逐段接入，首次分析成功不等于完整 MVP E2E |
 
-外部 Runner 的核对来源为已选目录下 `AGENTS.md`、`contracts/runner-mvp-v0.1.md`、`contracts/runner-analysis-report-v0.1.schema.json` 和 `runner_evidence/README.md`。这些说明允许独立人工调用，但明确它不等于平台接纳；已新增 v0.2 固定校验/渲染工具与脱敏回归；保留原有用户更改、v0.1 文件及历史输出。已用隔离的临时 XDG 目录做 OMP 新会话启动检查：实际公司 AGENTS.md 的完整内容在空白规范化后进入系统提示，所选模型与工具列表符合检查输入，未加载个人全局规则正文。该检查没有发送模型 prompt，不证明 Provider 执行、路径隔离或报告接纳；正式固定执行配置和真实调用仍待接入。
+首次安装或版本更新时，在 B 工作树中完成构建，然后 stop、init、start。初始化不创建客户项目或自动发送模型请求；用户点击“提交并分析”后才形成该客户资料的执行意图。配置文件不含密钥，认证沿用本机 OMP；不要将私有身份文件和输入输出目录提交 Git。
 
-本机执行差异、持久化文件适配和审批边界见 [Deployment/Security Baseline](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#环境-b-首轮分析执行适配已批准)。该技术适配已于 2026-10-18 获用户批准，正在实现；当前 B 的 `runner` 状态继续为 `NOT_CONNECTED`。
+运行资料位于 `dataDir/runner-attempts/<attempt-id>`，包括只读输入、提取件、原调用标记、生命周期元数据与成功后的 `result/analysis-report.json` 和 `analysis-report.md`。日志不保存隐藏推理、系统提示或完整 transcript。FAILED/UNKNOWN/EXPIRED 保留原请求，不以重新上传或删除调用标记进行盲重试；排查原 Attempt 的实际记录及安全错误码。
 
-用户已确认 macOS + 本机专用 Runner 的测试目标。该订正不改写既有 Ubuntu 首发设计的已验收范围；后续实现须在相关 owning 设计中补齐本机执行适配，保留真实身份、授权、来源、协议与结果接纳要求，不以关闭这些检查换取页面可操作。
-
-初始化从固定公司模板、AGENTS.md 与模板要求映射形成真实分析基准，不要求先发布三份规范原文。初始化重试核对原请求、模板字节与发布回执；来源变化或原回执异常时停止，不自动改写已经发布的依据。此安装不创建客户项目或报告。运行中的 Core 另需两个现有 preparation 角色的显式切换能力；该环境 B 权限调整尚待确认，启动器当前没有追加这两项 Core membership。
+原始 Runner 项目的 `AGENTS.md`、固定 v0.2 校验器/Schema 和模板只读使用。升级这些文件或 OMP 二进制后，已有 profile 的 Hash 不再匹配时明确拒绝；保留历史 profile 和数据，为新的显式配置重新安装绑定，不能改旧 Run 的依据。Tailscale 与 Ubuntu 生产接入保持原边界。
 
 ### 6.2 按可人工使用的结果推进
 

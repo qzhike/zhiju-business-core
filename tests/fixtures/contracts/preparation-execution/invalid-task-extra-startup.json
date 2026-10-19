@@ -1,0 +1,69 @@
+{
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "019e0000-0000-7000-8000-000000000002",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "019e0000-0000-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000003",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "analysisProfileRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.task.analysis_profile",
+    "objectId": "019e0000-0000-7000-8000-00000000000b",
+    "scope": {},
+    "versionId": "019e0000-0000-7000-8000-00000000006f"
+  },
+  "definition": {
+    "kind": "PREPARATION_ANALYSIS",
+    "objective": "Compare customer materials with templates",
+    "inputRefs": [
+      {
+        "kind": "CONTENT_ADDRESSED",
+        "objectType": "SourceMaterial",
+        "objectId": "019e0000-0000-7000-8000-000000000019",
+        "scope": {
+          "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+          "projectId": "019e0000-0000-7000-8000-000000000002"
+        },
+        "contentHash": {
+          "algorithm": "SHA-256",
+          "canonicalizationVersion": "1",
+          "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ],
+    "expectedReportProfileRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.report_profile",
+      "objectId": "019e0000-0000-7000-8000-00000000000c",
+      "scope": {},
+      "versionId": "019e0000-0000-7000-8000-000000000070"
+    }
+  },
+  "projectStartRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "019e0000-0000-7000-8000-000000000002",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  }
+}

@@ -644,3 +644,10 @@ pnpm persistence:gate
 EP-TB 恢复反例：重复安装通过原发布请求回读同 Receipt/publication；同键改变 payload、effectiveFrom 或 target 拒绝，权限撤销后不得读回；不能将缺回执、失权和 I/O UNKNOWN 混同为可重新发布。
 
 EP-TB 当前性与恢复反例已加入 owning PostgreSQL 用例：源读取期间到达预定撤回/取代时刻，以及源读取期间另一事务实际提交撤回，最终资格与 checkedAt 必须反映读取后的同一观察；最终观察后失权仍拒绝返回。`preparation-source-v2.test.ts` 另以实际 service 和离线 SQL transport 验证 ACTIVE/COMPLETED/不存在的 Project 首次 capture 零写入、PREPARING 共享行锁及项目启动后的原 Receipt 重放；后者是确定性业务边界测试，不替代 PostgreSQL/RLS 或完整报告链验收。
+
+
+### 首次分析执行链与分层验证
+
+source@2.0 有限期限与 PREPARING 当前性；报告精确源/结果/Acceptance 与原 JSON/MD hashes，版本 CAS、同命令重放、错项目/错源/过期和二次报告拒绝；成功不生成正式 Fact 或 PROJECT_START。
+
+验证层分别记录：合同/受控进程/真实 PostgreSQL 自动化、真实 OMP 小型合成资料调用、平台报告接纳与实际浏览器查看、用户独立人工验收。未执行项仍为 NOT RUN；测试结果以本次工作及后续 Issue/PR 证据为准，不由本文自行宣告通过。

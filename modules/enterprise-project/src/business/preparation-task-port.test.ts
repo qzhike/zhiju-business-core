@@ -51,13 +51,15 @@ describe('Preparation TE mapping, without native TE execution', () => {
       else expect(check).toThrow('PREPARATION_HANDOFF_RECEIPT_INVALID');
     });
   }
-  it('does not infer installed capability from structurally valid synthetic results', () => {
+  it('registers the exact preparation profile but rejects historical mapping-only fake receipts', () => {
     const registry = new ContractRegistry();
     expect(
       registry.getOperation('execution.create_preparation_analysis_task', '1.0'),
-    ).toBeUndefined();
-    expect(registry.getOperation('execution.request_preparation_analysis', '1.0')).toBeUndefined();
-    expect(preparationTaskOperationsRegistered()).toBe(false);
+    ).toMatchObject({ schemaStatus: 'FULL' });
+    expect(registry.getOperation('execution.request_preparation_analysis', '1.0')).toMatchObject({
+      schemaStatus: 'FULL',
+    });
+    expect(preparationTaskOperationsRegistered()).toBe(true);
     const fixture = JSON.parse(
       readFileSync(new URL('task-result-valid.json', directory), 'utf8'),
     ) as Fixture;
@@ -67,6 +69,6 @@ describe('Preparation TE mapping, without native TE execution', () => {
         fixture.originalCommand,
         fixture.result,
       );
-    }).toThrow('PREPARATION_ANALYSIS_CAPABILITY_UNAVAILABLE');
+    }).toThrow('PREPARATION_HANDOFF_RECEIPT_INVALID');
   });
 });

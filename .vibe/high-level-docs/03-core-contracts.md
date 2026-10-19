@@ -1273,4 +1273,15 @@ Hash分域：原source/suggestion/JSON/Markdown/sidecar/report/render输出=实�
 
 ## 模板驱动 PreparationContext 增量（2026-10-18）
 
-[校正决定](../decisions/template-driven-preparation.md)的模板 Source 使用显式 `PreparationContext@1.1` 分支，绑定 EP source@2.0、analysisBasisRef/Hash/publication、实际来源与公司指令、精确模板、当前授权/有效期及执行锁。旧 ProjectContext/PreparationContext 字段不填空、不借别的 Ref 类型替代。Context Hash 和 WorkOrderContract@1.1 的 preparation 分支包含完整新绑定；旧 ACTIVE/synthetic 消费者拒绝该分支，不能通用忽略未知字段。TE 的实际 registration/readiness/freeze 和各层验收尚未实现。
+[校正决定](../decisions/template-driven-preparation.md)的模板 Source 使用显式 `PreparationContext@1.1` 分支，绑定 EP source@2.0、analysisBasisRef/Hash/publication、实际来源与公司指令、精确模板、当前授权/有效期及执行锁。旧 ProjectContext/PreparationContext 字段不填空、不借别的 Ref 类型替代。Context Hash 和 WorkOrderContract@1.1 的 preparation 分支包含完整新绑定；旧 ACTIVE/synthetic 消费者拒绝该分支，不能通用忽略未知字段。首次分析的 registration/readiness/freeze 已按下节有界接受集实现；其它 D14 selectors 与未执行层验收不由本轮实现替代。
+
+
+## 模板驱动首次分析执行合同
+
+状态 `HUMAN APPROVED / REGISTERED / VERIFICATION PENDING`，权威决定见 [模板分析 §6](../decisions/template-driven-preparation.md#6-首次分析执行链的合同收口已批准技术增量)。本节覆盖首次 PREPARING/source@2.0 的实际支持集，历史 D14 中其它 execution selectors 仍为提案。
+
+- `PreparationContext@1.1`：封闭为 profile、projectRef、taskRef、workOrderRef、preparationSourceRef、purpose、audience、analysisBasisRef/Hash/publication、inputRefs、templateRefs、instructions(sourceId/bytesSha256/byteLength)、runtimeProfileHash、vocabularyHash、requirementBindingsHash、initialActorSnapshotRef、initialAuthorizationDecisionRef、policySnapshotId、createdAt、validUntil。source/basis 与内容 Hash 覆盖实际输入，初始权限仅记录出处。
+- `WorkOrderContract@1.1`：本轮仅 `te.preparation_analysis@1`，绑定 project/task/workOrder/context/source 与 runtimeProfileHash；objective 固定 COMPARE_CUSTOMER_WITH_TEMPLATES、allowedCapabilities 仅 preparation.analysis，明确禁止 document.write/project.start/artifact.approve/release.publish。expectedOutputs 为 analysis-report.json、analysis-report.md、extraction-index.json；completionCriteria 固定 REPORT_ACCEPTANCE_ONLY；包含五项 validationRefs、readinessRef、budget、issuedAt/expiresAt、specificationHash。
+- budget 固定一次 attempt，最长 3600 秒，单输出上限 32 MiB；所有租约不得晚于冻结期限。specificationHash 为删除自身字段后的 canonical v1 Hash，contractRef 的 Hash 覆盖完整合同。
+- Run/Result/Acceptance 保留真实 execution.* 身份。新 profile 在既有 owning Roots 用显式 execution_profile 区分；旧 Schema/producer/状态保护对 ACTIVE 保持有效，未实现的 legacy selector 不扩大支持集。
+- IG 本机包仅从上述 owning 事实和实际字节构造，包含 Run/Attempt/adapter、fencing、contract/context refs、requestKey、公司指令、实际客户/模板来源及词表/定位。它不是公开可上传的执行配置，不接受客户替换 prompt、工具、模型或路径。

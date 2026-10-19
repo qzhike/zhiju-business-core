@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Pool } from 'pg';
 import {
@@ -9,6 +10,8 @@ import {
   type PreparationEntrySelection,
   type AnyPreparationPresetPayload,
   type PreparationProjectScope,
+  type PreparationAnalysisRuntimePort,
+  type LocalAnalysisSource,
 } from '@zhiju/contracts';
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import {
@@ -20,8 +23,9 @@ import {
   resolveVerifiedHuman,
   withIdentityTransaction,
   IdentityPolicyRepository,
-  PREPARATION_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_CREATOR_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
+  PREPARATION_ANALYSIS_SERVICE_BINDINGS,
   PREPARATION_SERVICE_V2_BINDINGS,
   type IdentityCryptoPorts,
   type IdentityCommandDeps,
@@ -44,6 +48,11 @@ import {
   type CustomerZipObjectStore,
   type CustomerZipS3Configuration,
 } from '@zhiju/integration-gateway';
+import {
+  createTaskExecutionDatabase,
+  createPreparationAnalysisService,
+  type PreparationSourceObservation,
+} from '@zhiju/task-execution';
 import type { WorkspaceVerifiedAccess } from '../workspace/controller.js';
 import type { createCompanyRuleComposition } from './company-rule-entry.js';
 import type { PreparationWorkspaceServices } from './preparation-workspace-entry.js';
@@ -55,6 +64,7 @@ export interface PreparationCompositionConfig {
   readonly grantAdministrators: readonly string[];
   readonly administratorPolicySnapshotRef: Common.SnapshotRef;
   readonly serviceSession: () => Promise<PreparationSession>;
+  readonly verifyServiceSession?: (session: PreparationSession) => Promise<void>;
   readonly servicePrincipalIds: readonly string[];
   readonly enterpriseCapabilities: { readonly select: string; readonly create: string };
   readonly capabilityCodes: Readonly<Record<string, string>>;
@@ -69,6 +79,8 @@ export interface PreparationCompositionConfig {
   readonly objectStore?: CustomerZipObjectStore;
   readonly s3?: CustomerZipS3Configuration;
   readonly analysisAudience?: Common.ObjectRef;
+  readonly executionError?: (error: unknown) => void;
+  readonly analysisRuntime?: PreparationAnalysisRuntimePort;
   readonly taskPort?: Parameters<typeof createPreparationProjectService>[0]['taskPort'];
   readonly clock?: () => Date;
 }
@@ -118,12 +130,15 @@ export function createPreparationComposition(config: PreparationCompositionConfi
   async function verifySession(session: PreparationSession): Promise<void> {
     if (Date.parse(session.expiresAt) <= now().getTime()) fail('SESSION_EXPIRED');
     if (config.servicePrincipalIds.includes(session.principalId)) {
-      const supplied = await config.serviceSession();
-      if (
-        !samePreparationValue(supplied, session) ||
-        !config.servicePrincipalIds.includes(supplied.principalId)
-      )
-        fail('AUTHORIZATION_DENIED');
+      if (config.verifyServiceSession) await config.verifyServiceSession(session);
+      else {
+        const supplied = await config.serviceSession();
+        if (
+          !samePreparationValue(supplied, session) ||
+          !config.servicePrincipalIds.includes(supplied.principalId)
+        )
+          fail('AUTHORIZATION_DENIED');
+      }
       const d = deps(session, { enterpriseId: PLATFORM });
       const principal = await withIdentityTransaction(d.db, d.context, (trx) =>
         repo.getPrincipalById(trx, session.principalId),
@@ -172,8 +187,12 @@ export function createPreparationComposition(config: PreparationCompositionConfi
   function purpose(operation: string, service: boolean): string {
     const row = (
       service
-        ? [...PREPARATION_SERVICE_BINDINGS, ...PREPARATION_SERVICE_V2_BINDINGS]
-        : PREPARATION_CREATOR_BINDINGS
+        ? [
+            ...PREPARATION_SERVICE_BINDINGS,
+            ...PREPARATION_SERVICE_V2_BINDINGS,
+            ...PREPARATION_ANALYSIS_SERVICE_BINDINGS,
+          ]
+        : PREPARATION_ANALYSIS_CREATOR_BINDINGS
     ).find((row) => row[0] === operation || row[1] === operation);
     return row?.[1] ?? fail('AUTHORIZATION_DECISION_INVALID');
   }
@@ -261,6 +280,106 @@ export function createPreparationComposition(config: PreparationCompositionConfi
       sourceWatermarks: resolved.sourceWatermarks,
     };
   }
+  const objectStore =
+    config.objectStore ??
+    createCustomerZipS3ObjectStore(config.s3 ?? fail('PREPARATION_CONFIGURATION_INVALID'));
+  const execution = config.analysisRuntime
+    ? createPreparationAnalysisService({
+        db: createTaskExecutionDatabase(config.enterprisePool),
+        runtime: config.analysisRuntime,
+        ...(config.executionError ? { onError: config.executionError } : {}),
+        authorize: (s, op, target, payload) => identity.authorizeOperation(s, op, target, payload),
+        check: (p, op, target, payload) => identity.checkOperation(p, op, target, payload),
+        serviceSession,
+        source: async (s, sourceRef) => {
+          const source = await project.analysisSourceBinding(s, sourceRef);
+          if (!analysisBasis) fail('PREPARATION_ANALYSIS_CAPABILITY_UNAVAILABLE');
+          const resolved = await analysisBasis.resolve(s, source.preset.analysisBasis);
+          if (resolved.useStatus !== 'USABLE') fail('PREPARATION_PRESET_UNUSABLE');
+          return {
+            preparationSourceRef: sourceRef,
+            payload: source.payload as unknown as PreparationSourceObservation['payload'],
+            basis: resolved.payload,
+            analysisProfileRef: source.preset.analysisHandoff.analysisProfileRef,
+            expectedReportProfileRef: source.preset.analysisHandoff.expectedReportProfileRef,
+          };
+        },
+        materialize: async (s, source) => {
+          const current = await project.analysisSourceBinding(s, source.preparationSourceRef);
+          if (!samePreparationValue(current.payload, source.payload) || !config.analysisBasis)
+            fail('PREPARATION_SOURCE_BINDING_INVALID');
+          const manifest = current.submission.manifest as unknown as {
+            entries: {
+              sourceRef?: Common.ContentAddressedRef;
+              originalName: string;
+              mediaType: string;
+              status: string;
+            }[];
+          };
+          const hashBytes = (v: Uint8Array) => createHash('sha256').update(v).digest('hex');
+          const inputs: LocalAnalysisSource[] = [];
+          for (const item of source.payload.sources) {
+            const entry = manifest.entries.find((e) =>
+              samePreparationValue(e.sourceRef, item.sourceRef),
+            );
+            if (item.role !== 'CUSTOMER_NOTE' && entry?.status !== 'ANALYZABLE') continue;
+            const bytes = await objectStore.read(item.objectRef);
+            if (bytes.length !== item.byteLength || hashBytes(bytes) !== item.bytesSha256)
+              fail('PREPARATION_SOURCE_BINDING_INVALID');
+            inputs.push({
+              sourceId: item.sourceRef.objectId,
+              sourceRef: item.sourceRef,
+              role: 'CUSTOMER_MATERIAL',
+              displayName: entry?.originalName ?? '顾问提交说明',
+              format:
+                entry?.mediaType ===
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                  ? 'docx'
+                  : 'md',
+              sha256: item.bytesSha256,
+              bytes,
+            });
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Recheck the owning profile at the execution boundary.
+          if (!analysisBasis || current.preset.profile !== 'ep.preparation_entry@1.1')
+            fail('PREPARATION_ANALYSIS_PROFILE_UNSUPPORTED');
+          const templateBytes = await analysisBasis.materializeTemplates(
+            s,
+            current.preset.analysisBasis,
+          );
+          for (const template of source.basis.templateBindings) {
+            const bytes = templateBytes.get(template.templateCode);
+            if (!bytes) fail('PREPARATION_SOURCE_BINDING_INVALID');
+            if (hashBytes(bytes) !== template.sourceBytesSha256)
+              fail('PREPARATION_SOURCE_BINDING_INVALID');
+            inputs.push({
+              sourceId: template.templateRef.objectId,
+              sourceRef: template.templateRef,
+              role: 'TEMPLATE',
+              displayName: template.templateCode + '.md',
+              format: 'md',
+              sha256: hashBytes(bytes),
+              bytes,
+            });
+          }
+          if (source.basis.instructionBindings.length !== 1)
+            fail('PREPARATION_ANALYSIS_PROFILE_UNSUPPORTED');
+          const instruction = source.basis.instructionBindings[0];
+          if (!instruction) fail('PREPARATION_ANALYSIS_PROFILE_UNSUPPORTED');
+          const bytes = await config.analysisBasis.sources.readInstruction(instruction.bytesSha256);
+          if (
+            hashBytes(bytes) !== instruction.bytesSha256 ||
+            bytes.length !== instruction.byteLength
+          )
+            fail('PREPARATION_SOURCE_BINDING_INVALID');
+          return { instructions: { sha256: instruction.bytesSha256, bytes }, sources: inputs };
+        },
+        onAccepted: async (s, command) => {
+          await project.acceptPreparationReport(s, command);
+        },
+        clock: now,
+      })
+    : undefined;
   const project = createPreparationProjectService({
     db: enterpriseDb,
     identity,
@@ -291,7 +410,15 @@ export function createPreparationComposition(config: PreparationCompositionConfi
     checkOriginalAnalysis: (service, input) =>
       revalidateOriginalPreparationAnalysis(projectAuthorizationConfig, service, input),
     ...(config.analysisAudience ? { analysisAudience: config.analysisAudience } : {}),
-    ...(config.taskPort ? { taskPort: config.taskPort } : {}),
+    ...(execution
+      ? {
+          taskPort: execution,
+          analysisResult: execution.getResult,
+          executionProgress: execution.progress,
+        }
+      : config.taskPort
+        ? { taskPort: config.taskPort }
+        : {}),
     clock: now,
   });
   const integration = createCustomerZipIntakeService({
@@ -327,9 +454,7 @@ export function createPreparationComposition(config: PreparationCompositionConfi
     },
     policyResolver,
     ticketCodec: createCustomerZipTicketCodec(config.ticket),
-    objectStore:
-      config.objectStore ??
-      createCustomerZipS3ObjectStore(config.s3 ?? fail('PREPARATION_CONFIGURATION_INVALID')),
+    objectStore,
     owners: {
       resolvePreparation: async (human, input) =>
         project.intakeBinding(await serviceSession(), human, input),
@@ -367,6 +492,10 @@ export function createPreparationComposition(config: PreparationCompositionConfi
     });
   return {
     analysisBasis,
+    execution,
+    close: async () => {
+      await execution?.close();
+    },
     project,
     integration,
     run,

@@ -1,0 +1,174 @@
+{
+  "profile": "te.preparation_analysis@1",
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order",
+    "objectId": "019e0000-0000-7000-8000-000000000005",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "019e0000-0000-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "019e0000-0000-7000-8000-000000000002",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "contextSnapshotRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.execution.preparation_context",
+    "objectId": "019e0000-0000-7000-8000-000000000006",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000006",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "019e0000-0000-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000003",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "objective": "COMPARE_CUSTOMER_WITH_TEMPLATES",
+  "allowedCapabilities": ["document.write"],
+  "deniedCapabilities": ["document.write", "project.start", "artifact.approve", "release.publish"],
+  "expectedOutputs": ["analysis-report.json", "analysis-report.md", "extraction-index.json"],
+  "completionCriteria": "REPORT_ACCEPTANCE_ONLY",
+  "runtimeProfileHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "validationRefs": [
+    {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.preparation_validation",
+      "objectId": "019e0000-0000-7000-8000-000000000028",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000028",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.preparation_validation",
+      "objectId": "019e0000-0000-7000-8000-000000000029",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000029",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.preparation_validation",
+      "objectId": "019e0000-0000-7000-8000-00000000002a",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-00000000002a",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.preparation_validation",
+      "objectId": "019e0000-0000-7000-8000-00000000002b",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-00000000002b",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.execution.preparation_validation",
+      "objectId": "019e0000-0000-7000-8000-00000000002c",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-00000000002c",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "readinessRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.execution.preparation_readiness",
+    "objectId": "019e0000-0000-7000-8000-00000000002d",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-00000000002d",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "budget": {
+    "maxAttempts": 1,
+    "wallClockLimitSeconds": 3600,
+    "maxOutputBytes": 33554432
+  },
+  "issuedAt": "2026-10-18T10:00:00.000Z",
+  "expiresAt": "2026-10-18T11:00:00.000Z",
+  "specificationHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

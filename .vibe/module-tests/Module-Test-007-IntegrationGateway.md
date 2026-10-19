@@ -316,3 +316,16 @@ authority 为 [Spec 007 的 IM06-CANCEL 段](../module-specs/Module-Spec-007-Int
 | IG-TB-002 | 真实 OMP 输出、v0.2 pair/提取件/上下文绑定错误 | 封存原调用观察，独立校验失败不变报告成功；未知状态只读原调用 |
 
 补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
+
+### 环境 B OMP RPC 的反例
+
+- 未发 prompt 前，实际模型、工具、thinking、公司指令或会话状态不匹配：零 Provider prompt，返回 STARTUP_MISMATCH。
+- 启动参数正确但实际 get_state 返回额外工具：仍拒绝。来源文字不能覆盖 Runtime profile。
+- 同 Attempt 已有物化/调用日志：仅原调用恢复，不再次调用。并发第二个 Attempt 不能越过实例互斥。
+- prompt response 成功但最终 prompt_result 为 error，或进程退出但缺 settled：不是分析成功。
+- 原件、工具、Schema、指令或提取件变化：独立重验失败，不形成 TE Acceptance/EP report。
+- UTF-8 字符跨 stdout chunk：事件按完整字节解码；事件输出超过 32 MiB 或超过 deadline：终止本次进程，Provider 取消仍未知。
+
+实际 Provider、数据库接纳及浏览器手工验收须分别记录，不能由本节单测替代。
+
+实例锁恢复反例：关闭证明落盘后、清锁前 Core 退出；重启可按 exact Attempt/package/profile 和事件 Hash 释放遗留锁并让独立新项目获取锁。缺关闭证明、错 Attempt/Package/profile、事件被修改仍保持 BUSY。并发回读与新获取不能误删新锁；当前仍存活的调用即使已写关闭记录也只由自身 finally 释放。上述文件锁用例独立于受控 Runtime 队列用例。

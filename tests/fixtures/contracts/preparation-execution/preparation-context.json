@@ -1,0 +1,159 @@
+{
+  "profile": "te.preparation_analysis@1",
+  "projectRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.project.project",
+    "objectId": "019e0000-0000-7000-8000-000000000002",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "019e0000-0000-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order",
+    "objectId": "019e0000-0000-7000-8000-000000000005",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "019e0000-0000-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000003",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "purpose": "preparation.analysis",
+  "audience": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "019e0000-0000-7000-8000-000000000015",
+    "scope": {}
+  },
+  "analysisBasisRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.project.preparation_analysis_basis",
+    "objectId": "019e0000-0000-7000-8000-000000000013",
+    "scope": {},
+    "versionId": "019e0000-0000-7000-8000-000000000077"
+  },
+  "analysisBasisHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "analysisBasisPublicationRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.project.preparation_analysis_basis_publication",
+    "objectId": "019e0000-0000-7000-8000-000000000014",
+    "scope": {},
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "inputRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "SourceMaterial",
+      "objectId": "019e0000-0000-7000-8000-000000000019",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "templateRefs": [
+    {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "TemplateVersion",
+      "objectId": "019e0000-0000-7000-8000-00000000001b",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "immutableVersionId": "019e0000-0000-7000-8000-00000000007f"
+    }
+  ],
+  "instructions": [
+    {
+      "sourceId": "company-rules",
+      "bytesSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLength": 20
+    }
+  ],
+  "runtimeProfileHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "vocabularyHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "requirementBindingsHash": {
+    "algorithm": "SHA-256",
+    "canonicalizationVersion": "1",
+    "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "initialActorSnapshotRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "identity.actor_snapshot",
+    "objectId": "019e0000-0000-7000-8000-00000000001c",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-00000000001c",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "initialAuthorizationDecisionRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "identity.authorization_decision",
+    "objectId": "019e0000-0000-7000-8000-00000000001d",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "policySnapshotId": "019e0000-0000-7000-8000-00000000001e",
+  "createdAt": "2026-10-18T10:00:00.000Z",
+  "validUntil": "2026-10-18T11:00:00.000Z"
+}

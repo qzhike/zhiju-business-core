@@ -1,3 +1,4 @@
+import { createPreparationServiceSessions } from './preparation-service-session.js';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Pool } from 'pg';
 import {
@@ -15,12 +16,16 @@ import { isUuidV7 } from '@zhiju/shared-kernel';
 import {
   createCompanyRuleDatabase,
   PREPARATION_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_SERVICE_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
   PREPARATION_SERVICE_V2_BINDINGS,
   type IdentityCryptoPorts,
 } from '@zhiju/identity-policy';
 import { createCompanyStartupDatabase } from '@zhiju/enterprise-project';
 import {
+  createLocalOmpAnalysisDriver,
+  type LocalOmpProfile,
   createCustomerZipS3ObjectStore,
   createCustomerZipFileObjectStore,
   createPreparationCompanyFileReader,
@@ -44,6 +49,7 @@ export interface PreparationEnvironmentDependencies {
   readonly identityResolutionDeps: PreparationCompositionConfig['identityResolutionDeps'];
 }
 interface Deployment {
+  localOmp?: LocalOmpProfile;
   grantAdministrators: string[];
   companyRuleGrantAdministrators: string[];
   administratorPolicySnapshotRef: Common.SnapshotRef;
@@ -136,7 +142,7 @@ function parseDeployment(raw: string): Deployment {
       'ticket',
       'companySources',
     ],
-    ['s3', 'localFiles'],
+    ['s3', 'localFiles', 'localOmp'],
   );
   ids(value.grantAdministrators);
   ids(value.companyRuleGrantAdministrators);
@@ -149,7 +155,11 @@ function parseDeployment(raw: string): Deployment {
   nonempty(value.enterpriseCapabilities.create);
   record(value.capabilityCodes);
   const operations = new Set<string>(
-    [...PREPARATION_CREATOR_BINDINGS, ...PREPARATION_SERVICE_BINDINGS].map((row) => row[0]),
+    [
+      ...(value.localOmp ? PREPARATION_ANALYSIS_CREATOR_BINDINGS : PREPARATION_CREATOR_BINDINGS),
+      ...PREPARATION_SERVICE_BINDINGS,
+      ...(value.localOmp ? PREPARATION_ANALYSIS_SERVICE_BINDINGS : []),
+    ].map((row) => row[0]),
   );
   const v2Operations = PREPARATION_SERVICE_V2_BINDINGS.map((row) => row[0] + '@2.0');
   const allowedOperations = new Set([...operations, ...v2Operations]);
@@ -243,6 +253,13 @@ export function createPreparationEnvironment(
   if (raw === undefined) return undefined;
   try {
     const config = parseDeployment(raw);
+    if (
+      config.localOmp &&
+      (!config.localFiles ||
+        deps.env.ZHIJU_WORKSPACE_DEPLOYMENT_MODE !== 'MACOS_MANUAL_TEST' ||
+        process.platform !== 'darwin')
+    )
+      rejected();
     const cursorKey = decodeSecret(deps.env.ZHIJU_PREPARATION_CURSOR_KEY);
     const ticketDocument: unknown = JSON.parse(deps.env.ZHIJU_PREPARATION_TICKET_KEYS ?? '');
     record(ticketDocument);
@@ -252,8 +269,12 @@ export function createPreparationEnvironment(
       ticketKeys.set(id, decodeSecret(key, 32));
     }
     if (!ticketKeys.has(config.ticket.activeKeyId)) rejected();
+    const localSessions = config.localOmp
+      ? createPreparationServiceSessions(config.servicePrincipalId)
+      : undefined;
     let cached: PreparationSession | undefined;
     function currentServiceSession(): Promise<PreparationSession> {
+      if (localSessions) return Promise.resolve(localSessions.current());
       const current = new Date();
       if (!cached || Date.parse(cached.expiresAt) <= current.getTime()) {
         cached = {
@@ -270,6 +291,10 @@ export function createPreparationEnvironment(
       return Promise.resolve(cached);
     }
     async function verifyCompanyService(session: PreparationSession) {
+      if (localSessions) {
+        localSessions.verify(session);
+        return;
+      }
       const actual = await currentServiceSession();
       if (
         session.principalId !== config.servicePrincipalId ||
@@ -357,6 +382,7 @@ export function createPreparationEnvironment(
       grantAdministrators: config.grantAdministrators,
       administratorPolicySnapshotRef: config.administratorPolicySnapshotRef,
       serviceSession: currentServiceSession,
+      ...(localSessions ? { verifyServiceSession: verifyCompanyService } : {}),
       servicePrincipalIds: [config.servicePrincipalId],
       enterpriseCapabilities: config.enterpriseCapabilities,
       capabilityCodes: config.capabilityCodes,
@@ -384,6 +410,28 @@ export function createPreparationEnvironment(
         },
       },
       objectStore,
+      ...(config.localOmp
+        ? {
+            analysisRuntime: createLocalOmpAnalysisDriver(config.localOmp, 'MACOS_MANUAL_TEST'),
+            executionError: (error: unknown) => {
+              process.stderr.write(
+                JSON.stringify({
+                  event: 'preparation_analysis_failed',
+                  code:
+                    error instanceof PreparationError
+                      ? error.code
+                      : 'EXECUTION_PREPARATION_DEPENDENCY_UNAVAILABLE',
+                }) + '\n',
+              );
+            },
+            analysisAudience: {
+              kind: 'OBJECT' as const,
+              objectType: 'identity.principal',
+              objectId: config.servicePrincipalId,
+              scope: {},
+            },
+          }
+        : {}),
     });
   } catch {
     rejected();

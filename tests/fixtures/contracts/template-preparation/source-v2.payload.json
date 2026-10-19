@@ -26,14 +26,15 @@
   "templateRefs": [
     {
       "kind": "CONTENT_ADDRESSED",
-      "objectType": "zhiju.project.template_version",
-      "objectId": "0199aabb-ccdd-7000-8000-000000000017",
+      "objectType": "TemplateVersion",
+      "objectId": "019e0000-0000-7000-8000-000000000001",
       "scope": {},
       "contentHash": {
         "algorithm": "SHA-256",
-        "digest": "7617270fd4331c369b1c677e586ab17c547c09eda75662afe2606508a6fde8ea",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "canonicalizationVersion": "1"
-      }
+      },
+      "immutableVersionId": "019e0000-0000-7000-8000-000000000002"
     }
   ],
   "trustedDecisionRefs": [],

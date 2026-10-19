@@ -16,6 +16,7 @@ import type {
 
 export const PREPARATION_PUBLIC_OPERATIONS = new Map([
   ['project.find_preparation_enterprises', 'QUERY'],
+  ['project.get_preparation_analysis_report', 'QUERY'],
   ['project.get_project_preparation_request', 'QUERY'],
   ['integration.get_customer_zip_intake', 'QUERY'],
   ['project.request_project_preparation', 'COMMAND'],
@@ -24,6 +25,7 @@ export const PREPARATION_PUBLIC_OPERATIONS = new Map([
 ]);
 
 export interface PreparationWorkspaceServices {
+  close?(): Promise<void>;
   project: ReturnType<typeof createPreparationProjectService>;
   integration: ReturnType<typeof createCustomerZipIntakeService>;
   /** Binds the actual verifier context to the owning session verifier. */
@@ -106,6 +108,11 @@ export function createPreparationWorkspaceEntry(services: PreparationWorkspaceSe
           data = await services.project.getRequest(
             session,
             payload as Parameters<typeof services.project.getRequest>[1],
+          );
+        else if (request.operation === 'project.get_preparation_analysis_report')
+          data = await services.project.getPreparationAnalysisReport(
+            session,
+            payload as Parameters<typeof services.project.getPreparationAnalysisReport>[1],
           );
         else if (request.operation === 'integration.get_customer_zip_intake')
           data = await services.integration.get(session, {

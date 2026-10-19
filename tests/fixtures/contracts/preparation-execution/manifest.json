@@ -1,0 +1,138 @@
+{
+  "provenance": "SYNTHETIC_CONTRACT_FIXTURES_ONLY",
+  "fixtures": [
+    {
+      "file": "execution.create_preparation_analysis_task.payload.json",
+      "operation": "execution.create_preparation_analysis_task",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "execution.create_preparation_analysis_task.result.json",
+      "operation": "execution.create_preparation_analysis_task",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "execution.build_preparation_context.payload.json",
+      "operation": "execution.build_preparation_context",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "execution.build_preparation_context.result.json",
+      "operation": "execution.build_preparation_context",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "execution.request_preparation_analysis.payload.json",
+      "operation": "execution.request_preparation_analysis",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "execution.request_preparation_analysis.result.json",
+      "operation": "execution.request_preparation_analysis",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "execution.get_preparation_analysis_result.payload.json",
+      "operation": "execution.get_preparation_analysis_result",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "execution.get_preparation_analysis_result.result.json",
+      "operation": "execution.get_preparation_analysis_result",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project.accept_preparation_report.payload.json",
+      "operation": "project.accept_preparation_report",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project.accept_preparation_report.result.json",
+      "operation": "project.accept_preparation_report",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "project.get_preparation_analysis_report.payload.json",
+      "operation": "project.get_preparation_analysis_report",
+      "mode": "payload",
+      "valid": true
+    },
+    {
+      "file": "project.get_preparation_analysis_report.result.json",
+      "operation": "project.get_preparation_analysis_report",
+      "mode": "result",
+      "valid": true
+    },
+    {
+      "file": "preparation-context.json",
+      "schema": "https://schemas.zhiju.local/core/preparation-context/1.1",
+      "valid": true
+    },
+    {
+      "file": "work-order.json",
+      "schema": "https://schemas.zhiju.local/core/work-order/1.1",
+      "valid": true
+    },
+    {
+      "file": "invalid-task-extra-startup.json",
+      "operation": "execution.create_preparation_analysis_task",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "invalid-weak-result.json",
+      "operation": "execution.get_preparation_analysis_result",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "invalid-wrong-acceptance-type.json",
+      "operation": "project.accept_preparation_report",
+      "mode": "payload",
+      "valid": false
+    },
+    {
+      "file": "invalid-report-fake-start-action.json",
+      "operation": "project.get_preparation_analysis_report",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "invalid-report-unknown-field.json",
+      "operation": "project.get_preparation_analysis_report",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "invalid-result-without-observation.json",
+      "operation": "execution.get_preparation_analysis_result",
+      "mode": "result",
+      "valid": false
+    },
+    {
+      "file": "invalid-write-capability.json",
+      "schema": "https://schemas.zhiju.local/core/work-order/1.1",
+      "valid": false
+    },
+    {
+      "file": "invalid-retry-budget.json",
+      "schema": "https://schemas.zhiju.local/core/work-order/1.1",
+      "valid": false
+    },
+    {
+      "file": "invalid-missing-template.json",
+      "schema": "https://schemas.zhiju.local/core/preparation-context/1.1",
+      "valid": false
+    }
+  ]
+}

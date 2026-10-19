@@ -524,6 +524,14 @@ Markdown render由已提交RenderAttempt读取exact ART FROZEN Canonical，固�
 
 ## 模板驱动分析输入绑定（2026-10-18）
 
-对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。IG 只接受来自 EP/TE 当前授权及冻结 Context 的真实客户源、精确 TemplateVersion 和 analysisBasis 中锁定的指令/映射；公司源内容寻址 key、实际字节长度/Hash 由受控 reader 证明。客户 ZIP、文本、文件名、客户 AGENTS 或 Runner 输出不能改变指令、词表、Schema、模型或路径。原件和模板只读，每 Run 物化独立来源；固定提取和 v0.2 重验均在 Agent 外执行。
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `HUMAN APPROVED / FIRST ANALYSIS IMPLEMENTED / VERIFICATION PENDING`。IG 只接受来自 EP/TE 当前授权及冻结 Context 的真实客户源、精确 TemplateVersion 和 analysisBasis 中锁定的指令/映射；公司源内容寻址 key、实际字节长度/Hash 由受控 reader 证明。客户 ZIP、文本、文件名、客户 AGENTS 或 Runner 输出不能改变指令、词表、Schema、模型或路径。原件和模板只读，每 Run 物化独立来源；固定提取和 v0.2 重验均在 Agent 外执行。
 
 无需为了调度模板比对而制造三项 RegulatoryReferenceVersion；任务明确使用的法规来源按其实际角色保留，不把模板代码或模板要求映射标为法规核验。AGENTS 来源、实际 Schema/工具版本与 Runtime pins 继续锁定；语义分析仍归 Runner，IG 不新增正文分析 Agent。已批准 macOS 本地托管、invoke-once、进程观察与 Provider 未知状态边界保持。
+
+### 本机 OMP 驱动的实现约束
+
+`workspace.macos_manual_omp@1` 使用独立 RPC 会话。发送分析 prompt 前必须从实际 `get_state` 核验 provider/model、thinking、空会话、禁用自动压缩及仅 read/grep/glob/write；同时核验公司指令已进入实际系统提示。安装 profile 绑定二进制 Hash、Python Hash、固定工具/Schema Hash 和明确模型。所有来源使用服务端来源 ID 物化，固定 collect/finalize/check 在 Agent 外执行，客户文件名不进入命令参数。
+
+IG 的调用日志在发 prompt 前落盘；重复 Attempt 必须回读原观察，不能重建目录或重发 prompt。`prompt_result` 与会话 settled 分开观测，退出码不作为成功证据；超时/输出限额/协议错误保留 UNKNOWN，不能声称 Provider 已取消。每实例最多一个进程；只向本次实际创建并持有句柄的进程组发送终止信号。私有事件日志只保存有界生命周期元数据，不保存系统提示、隐藏推理、原始 transcript 或含客户正文的工具参数/返回；实际报告与提取证据单独封存。应用日志只记录稳定安全错误码。
+
+环境 B 的同一执行目录由单个 supervisor/Core 持有。实例锁的获取、精确释放与恢复在该进程内串行；在当前进程仍持有原调用时不得由回读抢先释放。重启后的遗留锁只有在原 Attempt、Package、profile 与宿主关闭记录一致、且关闭记录的事件字节数/Hash 与原事件文件一致时才可释放；仅有报告或超时不能证明原进程已停止。关闭证明与 Provider 成功/取消仍分开。缺失、损坏或错绑定的关闭证据保留隔离；恢复不重发原调用，也不改变 TE 结果或报告可用性。新项目可在已证实关闭的旧调用之后取得实例锁，即使旧任务已到期。

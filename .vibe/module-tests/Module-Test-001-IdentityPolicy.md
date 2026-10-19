@@ -449,3 +449,14 @@ implementation configured full；实际Grant PolicySnapshot取代原延后保持
 补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
 
 IP-TB 历史读取边界已加入 `preparation-history-recovery.test.ts`：使用真实 IP/EP 准备流程建立授权后撤回依赖，source_v2.read 仍要求当前 Human/Service 会话、精确 Grant 与 Scope；新 capture_v2 拒绝，错 Scope、过期会话及撤销读 Grant 拒绝。该用例复用旧 preset 建立 IP 授权上下文，仅证明独立历史读权，不作为模板 source@2.0/报告完整链路证据。
+
+
+### 首次分析执行链与分层验证
+
+新旧会员模板集合分别验证；真实准备项目授予当前报告读权限；跨项目、撤权、失效 SERVICE/顾问和旧版本权限均不得授权首次分析。
+
+验证层分别记录：合同/受控进程/真实 PostgreSQL 自动化、真实 OMP 小型合成资料调用、平台报告接纳与实际浏览器查看、用户独立人工验收。未执行项仍为 NOT RUN；测试结果以本次工作及后续 Issue/PR 证据为准，不由本文自行宣告通过。
+
+首次分析续期回归：同一原来源跨越五分钟后，以当前独立权限追加新短期授权，旧授权记录保持不变；资料期限仍为原 deadline。过期 Session、撤权与错 Scope 不因新会员模板而被接受。
+
+短会话边界回归：连续跨过两个五分钟边界，使用真实短服务会话签发/校验逻辑，Run 每次续约都重新授权；新会话出现后旧会话仅在原有效期内可核验，伪造或到期会话拒绝，已失效 BOOTSTRAP 不延长。

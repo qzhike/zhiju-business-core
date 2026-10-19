@@ -1,3 +1,5 @@
+import { createPreparationServiceSessions } from '../../apps/api/src/workspace/preparation-service-session.js';
+import { readFileSync } from 'node:fs';
 /* eslint-disable @typescript-eslint/require-await -- Controlled S3 transport returns asynchronous protocol responses without network IO. */
 import { createHash, randomBytes } from 'node:crypto';
 import pg from 'pg';
@@ -5,15 +7,22 @@ import { expect } from 'vitest';
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import {
   preparationHash,
+  RUNNER_ANALYSIS_REPORT_SCHEMA_SHA256,
   type Common,
   type PreparationSession,
   type PreparationEntrySelection,
   type PreparationPresetPayload,
+  type TemplatePreparationPresetPayload,
+  type PreparationAnalysisBasisPayload,
+  type PreparationAnalysisRuntimePort,
   type WorkspaceCommandInput,
   type PreparationRequestPayload,
 } from '@zhiju/contracts';
 import {
   PREPARATION_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_CREATOR_BINDINGS,
+  PREPARATION_ANALYSIS_SERVICE_BINDINGS,
+  PREPARATION_SERVICE_V2_BINDINGS,
   PREPARATION_SERVICE_BINDINGS,
   PREPARATION_SERVICE_AUTHORITY_OPERATIONS,
   linkExternalIdentity,
@@ -74,6 +83,10 @@ export async function createPreparationJourneyFixture(
     fieldKey?: Buffer;
     objectStore?: CustomerZipObjectStore;
     taskPort?: PreparationProjectConfig['taskPort'];
+    analysisRuntime?: PreparationAnalysisRuntimePort;
+    executionError?: (error: unknown) => void;
+    clock?: () => Date;
+    shortServiceSessions?: boolean;
   } = {},
 ): Promise<PreparationJourneyFixture> {
   // Full persistence runs share a database: each default fixture needs its own
@@ -160,12 +173,24 @@ export async function createPreparationJourneyFixture(
     },
     policyHash = preparationHash(policyPayload);
   const selection = {} as PreparationEntrySelection;
+  const creatorBindings = options.analysisRuntime
+    ? PREPARATION_ANALYSIS_CREATOR_BINDINGS
+    : PREPARATION_CREATOR_BINDINGS;
   const capabilityCodes = Object.fromEntries(
-    [...PREPARATION_CREATOR_BINDINGS, ...PREPARATION_SERVICE_BINDINGS].map(([operation]) => [
-      operation,
-      'preparation291.' + operation.replaceAll('.', '_'),
-    ]),
+    [
+      ...creatorBindings,
+      ...PREPARATION_SERVICE_BINDINGS,
+      ...(options.analysisRuntime ? PREPARATION_ANALYSIS_SERVICE_BINDINGS : []),
+    ].map(([operation]) => [operation, 'preparation291.' + operation.replaceAll('.', '_')]),
   );
+  if (options.analysisRuntime)
+    for (const [operation] of PREPARATION_SERVICE_V2_BINDINGS)
+      capabilityCodes[operation + '@2.0'] =
+        'preparation291.' + operation.replaceAll('.', '_') + '_v2';
+  const instructions = Buffer.from(
+    'Controlled company instructions for preparation pipeline tests.',
+  );
+  const instructionHash = createHash('sha256').update(instructions).digest('hex');
   const objects = new Map<string, { bytes: Buffer; hash: string }>();
   const objectStore =
     options.objectStore ??
@@ -197,6 +222,9 @@ export async function createPreparationJourneyFixture(
         });
       },
     });
+  const shortSessions = options.shortServiceSessions
+    ? createPreparationServiceSessions(serviceSession.principalId, options.clock)
+    : undefined;
   const composition = createPreparationComposition({
     identityPool: ipPool,
     enterprisePool: epPool,
@@ -204,13 +232,21 @@ export async function createPreparationJourneyFixture(
     crypto,
     grantAdministrators: [humanId],
     administratorPolicySnapshotRef: company.policyRef,
-    serviceSession: () => Promise.resolve(serviceSession),
+    serviceSession: () => Promise.resolve(shortSessions?.current() ?? serviceSession),
+    ...(shortSessions
+      ? {
+          verifyServiceSession: async (session: PreparationSession) => {
+            shortSessions.verify(session);
+          },
+        }
+      : {}),
     servicePrincipalIds: [serviceSession.principalId],
     enterpriseCapabilities: {
       select: 'preparation291.enterprise.select',
       create: 'preparation291.enterprise.create',
     },
     capabilityCodes,
+    ...(options.clock ? { clock: options.clock } : {}),
     selection,
     cursorKey: Buffer.alloc(32, 0x31),
     ticket: {
@@ -223,6 +259,23 @@ export async function createPreparationJourneyFixture(
     objectStore,
     analysisAudience: object('identity.principal', serviceSession.principalId),
     ...(options.taskPort ? { taskPort: options.taskPort } : {}),
+    ...(options.analysisRuntime
+      ? {
+          analysisRuntime: options.analysisRuntime,
+          executionError: options.executionError,
+          analysisBasis: {
+            sources: {
+              readTemplate: (ref) => company.analysisTemplateSources.read(ref),
+              locate: (bytes, locator) => company.analysisTemplateSources.locate(bytes, locator),
+              readInstruction: async (hash: string) => {
+                if (hash !== instructionHash) throw new Error('SOURCE_MISSING');
+                return instructions;
+              },
+            },
+            validateDefinition: () => undefined,
+          },
+        }
+      : {}),
   });
   const run = <T>(fn: (session: PreparationSession) => Promise<T>) =>
     composition.run(access, human, fn);
@@ -234,19 +287,21 @@ export async function createPreparationJourneyFixture(
       versionId: newUuidV7(),
       effectiveFrom: new Date(Date.now() - 1000).toISOString(),
       payload: {
-        profile: 'ip.preparation_membership_template@1.0',
+        profile: options.analysisRuntime
+          ? 'ip.preparation_membership_template@1.1'
+          : 'ip.preparation_membership_template@1.0',
         templateCode: 'CONTROLLED_PREPARATION_' + newUuidV7().replaceAll('-', ''),
         templateVersion: '1.0.0',
-        creatorBindings: PREPARATION_CREATOR_BINDINGS.map(
-          ([operation, purpose, action, targetObjectType]) => ({
+        creatorBindings: creatorBindings
+          .map(([operation, purpose, action, targetObjectType]) => ({
             operation,
             version: '1.0' as const,
             purpose,
             action,
             targetObjectType,
             capabilityCode: capabilityCodes[operation] ?? 'missing',
-          }),
-        ).sort((a, b) => a.operation.localeCompare(b.operation)),
+          }))
+          .sort((a, b) => a.operation.localeCompare(b.operation)),
         grantPolicySnapshotRef: company.policyRef,
         maxGrantLifetimeSeconds: 3600,
       },
@@ -265,7 +320,7 @@ export async function createPreparationJourneyFixture(
       },
     }),
   );
-  const presetPayload: PreparationPresetPayload = {
+  let presetPayload: PreparationPresetPayload | TemplatePreparationPresetPayload = {
     profile: 'ep.preparation_entry@1.0',
     presetCode: 'zhiju.preparation.controlled.' + presetId.replaceAll('-', ''),
     presetVersion: '1.0.0',
@@ -294,6 +349,66 @@ export async function createPreparationJourneyFixture(
       },
     },
   };
+  if (options.analysisRuntime) {
+    const payload = JSON.parse(
+      readFileSync(
+        new URL('../fixtures/contracts/template-preparation/basis.payload.json', import.meta.url),
+        'utf8',
+      ),
+    ) as PreparationAnalysisBasisPayload;
+    const template = company.analysisTemplates.find((t) => t.templateCode === 'S1');
+    if (!template) throw new Error('Template fixture missing');
+    payload.reportSchemaSha256 = RUNNER_ANALYSIS_REPORT_SCHEMA_SHA256;
+    payload.basisCode = 'analysis.test.' + newUuidV7().replaceAll('-', '');
+    payload.templateBindings = [template];
+    payload.instructionBindings = [
+      { sourceId: 'instructions', bytesSha256: instructionHash, byteLength: instructions.length },
+    ];
+    payload.requirementBindings = [
+      { requirementCode: 'zhiju.requirement.scope', templateCode: 'S1', locator: '1.2/4.3.3' },
+    ];
+    const basisId = newUuidV7();
+    const analysisBasis = composition.analysisBasis;
+    if (!analysisBasis) throw new Error('Analysis basis missing');
+    const basis = await run((session) =>
+      analysisBasis.publish(session, {
+        basisId,
+        versionId: newUuidV7(),
+        payload,
+        effectiveFrom: new Date(Date.now() - 1000).toISOString(),
+      }),
+    );
+    await run((session) =>
+      composition.identity.grantAuthority(session, {
+        grantId: newUuidV7(),
+        principalRef: object('identity.principal', serviceSession.principalId),
+        operation: 'project.preparation.analysis_basis.read',
+        target: object('zhiju.project.preparation_analysis_basis', basisId),
+        policySnapshotRef: company.policyRef,
+        effectivePeriod: {
+          from: new Date(Date.now() - 1000).toISOString(),
+          to: expiresAt.toISOString(),
+        },
+      }),
+    );
+    const base = {
+      presetCode: presetPayload.presetCode,
+      presetVersion: presetPayload.presetVersion,
+      creation: presetPayload.creation,
+      memberPolicyTemplate: presetPayload.memberPolicyTemplate,
+      intakePolicy: presetPayload.intakePolicy,
+      analysisHandoff: presetPayload.analysisHandoff,
+    };
+    presetPayload = {
+      ...base,
+      profile: 'ep.preparation_entry@1.1',
+      analysisBasis: {
+        basisRef: basis.basisRef,
+        basisHash: basis.basisHash,
+        publicationRef: basis.publicationRef,
+      },
+    };
+  }
   const published = await run((session) =>
     composition.project.publishPreset(session, {
       presetId,
@@ -321,7 +436,12 @@ export async function createPreparationJourneyFixture(
         },
       }),
     );
-  for (const operation of PREPARATION_SERVICE_AUTHORITY_OPERATIONS) {
+  for (const operation of [
+    ...PREPARATION_SERVICE_AUTHORITY_OPERATIONS,
+    ...(options.analysisRuntime
+      ? (['project.preparation.source_v2.capture', 'project.preparation.source_v2.read'] as const)
+      : []),
+  ]) {
     if (
       operation === 'identity.preparation.membership_template.read' ||
       operation === 'project.preparation.preset.read'
@@ -359,7 +479,12 @@ export async function createPreparationJourneyFixture(
     }),
   );
   async function grantServiceProject(scope: { enterpriseId: string; projectId: string }) {
-    for (const [operation, , action, type] of PREPARATION_SERVICE_BINDINGS) {
+    for (const [operation, , action, type] of [
+      ...PREPARATION_SERVICE_BINDINGS,
+      ...(options.analysisRuntime
+        ? [...PREPARATION_ANALYSIS_SERVICE_BINDINGS, ...PREPARATION_SERVICE_V2_BINDINGS]
+        : []),
+    ]) {
       const d: IdentityCommandDeps = {
         ...company.deps,
         context: {
@@ -371,7 +496,8 @@ export async function createPreparationJourneyFixture(
       const granted = await grantCapability(d, {
         grantId: newUuidV7(),
         principalId: serviceSession.principalId,
-        capabilityCode: capabilityCodes[operation] ?? 'missing',
+        capabilityCode:
+          capabilityCodes[action.endsWith('.v2') ? operation + '@2.0' : operation] ?? 'missing',
         scope: {
           scopeKind: 'PROJECT',
           enterpriseId: scope.enterpriseId,
@@ -500,6 +626,7 @@ export async function createPreparationJourneyFixture(
         )
       ).rows.map((row) => row.payload),
     close: async () => {
+      await composition.close();
       await integrationPool.end();
       await company.close();
     },

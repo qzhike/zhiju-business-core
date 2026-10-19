@@ -240,6 +240,7 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
         fail('PREPARATION_ANALYSIS_LOCATOR_INVALID');
     }
     await guard();
+    return templates;
   }
   async function publish(session: PreparationSession, input: PreparationAnalysisBasisPublishInput) {
     assertPreparationClosed(
@@ -358,7 +359,7 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
       return result;
     });
   }
-  async function resolve(
+  async function resolveWithMaterials(
     session: PreparationSession,
     selection: PreparationAnalysisBasisSelection,
   ) {
@@ -379,7 +380,7 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
         !equal(content(TYPE + '_publication', pub.id, pub.payload), selection.publicationRef)
       )
         fail('PREPARATION_ANALYSIS_BASIS_HASH_MISMATCH');
-      await validateSources(trx, basis.payload, guard);
+      const materializedTemplates = await validateSources(trx, basis.payload, guard);
       // Re-read mutable eligibility after source I/O. READ COMMITTED observes
       // withdrawals/successors committed while bytes were being checked.
       const changes = (
@@ -405,6 +406,7 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
               : 'USABLE';
       await guard();
       return {
+        materializedTemplates,
         payload: basis.payload,
         publicationRef: selection.publicationRef,
         useStatus,
@@ -415,6 +417,27 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
         }),
       };
     });
+  }
+  async function resolve(
+    session: PreparationSession,
+    selection: PreparationAnalysisBasisSelection,
+  ) {
+    const resolved = await resolveWithMaterials(session, selection);
+    return {
+      payload: resolved.payload,
+      publicationRef: resolved.publicationRef,
+      useStatus: resolved.useStatus,
+      checkedAt: resolved.checkedAt,
+      sourceWatermarks: resolved.sourceWatermarks,
+    };
+  }
+  async function materializeTemplates(
+    session: PreparationSession,
+    selection: PreparationAnalysisBasisSelection,
+  ) {
+    const resolved = await resolveWithMaterials(session, selection);
+    if (resolved.useStatus !== 'USABLE') fail('PREPARATION_ANALYSIS_TEMPLATE_UNUSABLE');
+    return resolved.materializedTemplates;
   }
   async function withdraw(
     session: PreparationSession,
@@ -475,7 +498,7 @@ export function createPreparationAnalysisBasisService(config: PreparationAnalysi
       return result;
     });
   }
-  return { publish, resolve, withdraw };
+  return { publish, resolve, withdraw, materializeTemplates };
 }
 export type PreparationAnalysisBasisService = ReturnType<
   typeof createPreparationAnalysisBasisService

@@ -2574,4 +2574,12 @@ Owner 之间只经 exact TypedReference 与当前授权 Port；数据库连接�
 
 [校正决定](../decisions/template-driven-preparation.md)新增 EP-owned immutable basis version、publication 和 withdrawal 事实；版本按 basisId+versionId 及 basisCode+basisVersion 唯一，publication 对应完整 payloadHash、实际 Actor/Decision/Receipt 和生效时间。撤回/明确取代追加事实，原 bytes/Hash 不改；单后继、无环、时间边界在 owning transaction 校验。Platform 当前许可与部署授权独立验证，FORCE RLS 保持，不授予普通 Project 会话全平台读权。
 
-新 Source/Context/Report 在各自 owning 存储绑定完整 basis identity/Hash；原 preparation request、source 与旧 company_rule_publication 行不回填、不换类型。旧 source@1.0 与新 source@2.0 由保存的 profile/原操作版本精确区分，不能由当前部署选择反推历史。append-only、原键/hash/Receipt、跨 Root 分步恢复与原调用 UNKNOWN 继续适用。`V7023__preparation_analysis_basis.sql` 已增加三类不可变基准事实及 publication/version、单后继唯一约束；基准发布/读取/撤回与预设原回执恢复由实际 PostgreSQL 回归覆盖。Context/Report 存储与整链仍待实现。
+新 Source/Context/Report 在各自 owning 存储绑定完整 basis identity/Hash；原 preparation request、source 与旧 company_rule_publication 行不回填、不换类型。旧 source@1.0 与新 source@2.0 由保存的 profile/原操作版本精确区分，不能由当前部署选择反推历史。append-only、原键/hash/Receipt、跨 Root 分步恢复与原调用 UNKNOWN 继续适用。`V7023__preparation_analysis_basis.sql` 已增加三类不可变基准事实及 publication/version、单后继唯一约束；基准发布/读取/撤回与预设原回执恢复由实际 PostgreSQL 回归覆盖。Context/Report 存储由下述首次分析执行增量实现；整链运行证据与数据库结构声明分开。
+
+## 首次模板分析执行与报告持久化（2026-10-18）
+
+已批准的 [技术增量 §6](../decisions/template-driven-preparation.md#6-首次分析执行链的合同收口已批准技术增量) 使用 `V7024`（仅 TaskExecution）和 `V7025`（仅 EnterpriseProject），两个精确 forward 编号紧随 V7023；同步编号接受集与负例，禁止其它 owner 复用，不启用 out-of-order、不改既有 migration checksum。
+
+V7024 在既有 Task、Draft、WorkOrder、Context、Contract、Judgment、Run、claim、Result、validation 与 Acceptance 上增加固定 `PREPARATION_ANALYSIS` profile。旧 ACTIVE 约束仍适用；新分支由当前 PENDING owning CommandReceipt、Actor/Decision、Scope、规范 Hash、固定 runtime/profileHash、Run lease/fencing 与 deferred request/source/result/acceptance closure 约束。原 request/步骤回执与原调用身份永久绑定；UNKNOWN 只核验原调用。接受分析报告不允许完成 Task、WorkOrder 或 Project。新支持表为原请求恢复与不可变步骤证明，不创建同义业务 Root。FORCE RLS、原 owner 权限和禁止删除保留。
+
+V7025 记录不可变分析报告、候选集合和文件计划；head 从首次 source@2.0 的 version 1 CAS 到首份已接纳报告的 version 2，同一源、同一项目、真实拥有者 Receipt。首次来源的执行有效期最多 60 分钟，与短期会话分开；每次执行仍重新授权。Report、候选与计划保留精确内容 Hash，历史可读不等于当前可用。环境 B 显式配置现有角色的 SET 权；迁移不创建通用登录或跨 owner SQL 访问。

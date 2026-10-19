@@ -1206,6 +1206,8 @@ export function registerContextSecurity(suite: InitialContextSuite): void {
       'context_snapshot_legacy_immutable_guard',
       'context_snapshot_legacy_mirror_guard',
       'context_snapshot_mirror_guard',
+      'preparation_closure',
+      'preparation_owning_guard',
     ]);
     const policies = await suite.admin.query<{ polname: string }>(
       `SELECT polname FROM pg_policy
@@ -1221,6 +1223,7 @@ export function registerContextSecurity(suite: InitialContextSuite): void {
       'context_snapshot_legacy_insert',
       'context_snapshot_legacy_select',
       'context_snapshot_select',
+      'preparation_guard_owner_read',
     ]);
     const rls = await suite.admin.query<{ relname: string; enabled: boolean; forced: boolean }>(
       `SELECT relname, relrowsecurity AS enabled, relforcerowsecurity AS forced

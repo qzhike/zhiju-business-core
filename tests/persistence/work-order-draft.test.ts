@@ -4117,6 +4117,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
       'completion_root_guard',
       'completion_work_order_membership',
       'first_run_work_order_transition_guard',
+      'preparation_closure',
+      'preparation_closure',
+      'preparation_owning_guard',
+      'preparation_owning_guard',
       // IM-06 TD-05 (#248): the Board dirty-capture triggers land on the
       // WorkOrder Root and its immutable Draft snapshot (V7014).
       'task_board_dirty_work_order',
@@ -4125,6 +4129,7 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
       'work_order_draft_snapshot_immutable_guard',
       'work_order_draft_snapshot_mirror_guard',
       'work_order_root_update_guard',
+      'work_order_root_update_guard_legacy_delete',
     ]);
     const policies = await admin.query<{ polname: string }>(
       `SELECT polname FROM pg_policy
@@ -4135,6 +4140,8 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     expect(policies.rows.map((row) => row.polname)).toEqual([
       'completion_work_order_owner_select',
       'completion_work_order_owner_update',
+      'preparation_guard_owner_read',
+      'preparation_guard_owner_read',
       'work_order_draft_snapshot_insert',
       'work_order_draft_snapshot_select',
       'work_order_insert',
@@ -4912,10 +4919,10 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
       operations: { type: string; version: string; kind: string; owner: string }[];
     };
-    expect(catalog.operations).toHaveLength(260);
+    expect(catalog.operations).toHaveLength(266);
     expect(
       catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-    ).toHaveLength(63);
+    ).toHaveLength(67);
     const executionEvents = catalog.operations.filter(
       (operation) => operation.kind === 'EVENT' && operation.type.startsWith('execution.'),
     );

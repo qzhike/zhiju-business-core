@@ -25,7 +25,7 @@ import {
   authorizationDecisionIntegrityHolds,
   policySnapshotIntegrityHolds,
 } from '../persistence/identity-policy-repository.js';
-import { PREPARATION_CREATOR_BINDINGS } from './preparation-identity.js';
+import { PREPARATION_ANALYSIS_CREATOR_BINDINGS } from './preparation-identity.js';
 export interface PreparationProjectAuthorizationInput {
   purpose: string;
   scopeRef: PreparationProjectScope;
@@ -43,6 +43,45 @@ export interface PreparationProjectAuthorizationConfig {
   ): Promise<PreparationAuthorizationProof>;
   clock?: () => Date;
 }
+/** Additive first-analysis profile; legacy deployments do not need these bindings. */
+export const PREPARATION_ANALYSIS_SERVICE_BINDINGS = [
+  [
+    'execution.create_preparation_analysis_task',
+    'execution.preparation.task.create',
+    'execution.create_preparation_analysis_task.v1',
+    'zhiju.execution.task',
+  ],
+  [
+    'execution.build_preparation_context',
+    'execution.preparation.context.build',
+    'execution.build_preparation_context.v1',
+    'zhiju.execution.preparation_context',
+  ],
+  [
+    'execution.request_preparation_analysis',
+    'execution.preparation.analysis.request',
+    'execution.request_preparation_analysis.v1',
+    'zhiju.execution.preparation_analysis_request',
+  ],
+  [
+    'execution.get_preparation_analysis_result',
+    'execution.preparation.result.read',
+    'execution.get_preparation_analysis_result.v1',
+    'execution.agent_result',
+  ],
+  [
+    'project.accept_preparation_report',
+    'project.preparation.report.accept',
+    'project.accept_preparation_report.v1',
+    'zhiju.project.preparation_report',
+  ],
+  [
+    'execution.preparation.process.step',
+    'execution.preparation.process.step',
+    'execution.preparation.process.step.v1',
+    'zhiju.execution.preparation_analysis_request',
+  ],
+] as const;
 /** Closed preparation SERVICE steps; these do not grant creator or Runner authority. */
 export const PREPARATION_SERVICE_BINDINGS = [
   [
@@ -167,8 +206,8 @@ export function createPreparationProjectAuthorizationPort(
       service
         ? sourceV2
           ? PREPARATION_SERVICE_V2_BINDINGS
-          : PREPARATION_SERVICE_BINDINGS
-        : PREPARATION_CREATOR_BINDINGS
+          : [...PREPARATION_SERVICE_BINDINGS, ...PREPARATION_ANALYSIS_SERVICE_BINDINGS]
+        : PREPARATION_ANALYSIS_CREATOR_BINDINGS
     ).find((x) => x[1] === input.purpose);
     const requestLookup =
       !service &&

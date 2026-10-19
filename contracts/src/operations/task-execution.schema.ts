@@ -1,3 +1,7 @@
+import {
+  preparationExecutionDefinitions,
+  preparationOperationContracts,
+} from '../preparation-execution.ts';
 import type { JsonSchema, OperationVersion } from '../schema-types.js';
 
 const schemaId = 'https://schemas.zhiju.local/modules/task-execution/1.0';
@@ -2883,7 +2887,7 @@ const operationDefinitions = Object.fromEntries(
   ]),
 ) as Readonly<Record<string, JsonSchema>>;
 
-export const taskExecutionOperationContracts = Object.freeze(
+const baseTaskExecutionOperationContracts = Object.freeze(
   Object.fromEntries(
     versionedOperationSchemas.map(({ type, version, ...contract }) => [
       version === '1.0' ? type : `${type}@${version}`,
@@ -2899,10 +2903,16 @@ export const taskExecutionOperationContracts = Object.freeze(
   ) as Readonly<Record<string, ExecutableExecutionOperationContract>>,
 );
 
+export const taskExecutionOperationContracts = Object.freeze({
+  ...baseTaskExecutionOperationContracts,
+  ...preparationOperationContracts('task-execution'),
+});
+
 export const taskExecutionSchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $defs: {
+    ...preparationExecutionDefinitions,
     ...namedDefinitions,
     ...operationDefinitions,
   },

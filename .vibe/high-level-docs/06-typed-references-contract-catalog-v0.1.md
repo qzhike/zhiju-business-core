@@ -1625,15 +1625,30 @@ project.PreparingProjectCreated@1.0
 
 ## 模板驱动准备分析引用增量（2026-10-18）
 
-状态 `BASIS AND SOURCE V2 REGISTERED / REPORT OPERATIONS NOT REGISTERED`，见 [校正决定](../decisions/template-driven-preparation.md)。EP 新增 VERSIONED `zhiju.project.preparation_analysis_basis`，其完整 payload Hash 独立传递；新增 CONTENT_ADDRESSED `zhiju.project.preparation_analysis_basis_publication`。Platform scope 为 `{}`；内层实际 TemplateVersion 保持其原生精确版本身份，不变成法规引用。新类型仅在显式 owning profile/Schema 中消费，不进入旧字段作为别名。
+状态 `FIRST ANALYSIS REGISTERED / LOCAL VERIFICATION PENDING`，见 [校正决定](../decisions/template-driven-preparation.md)。EP 新增 VERSIONED `zhiju.project.preparation_analysis_basis`，其完整 payload Hash 独立传递；新增 CONTENT_ADDRESSED `zhiju.project.preparation_analysis_basis_publication`。Platform scope 为 `{}`；内层实际 TemplateVersion 保持其原生精确版本身份，不变成法规引用。新类型仅在显式 owning profile/Schema 中消费，不进入旧字段作为别名。
 
 新增 internal 版本 `project.capture_preparation_source@2.0`、`project.get_preparation_source@2.0`；它们承接模板基准 Source，原 @1.0 接受集不变。公开准备请求形状不变、仅精确 preset resolver 增加登记的 `ep.preparation_entry@1.1`；独立审查已确认其线协议兼容，source@2.0 已登记 FULL payload/result 与精确版本授权映射；这不表示 TE/Runner 已接通。source 必填字段替换使用新 Major，不套用内部 profile 的精确选择规则。TE D14 与 EP 报告公开操作继续按既有批准设计登记其实际支持集；不得由本表直接制造 FULL capability。
 
-新增公开 AUTHORITATIVE Query `project.get_preparation_analysis_report@1.0`，与旧 startup review 分离。`project.accept_preparation_report@1.0` 尚未注册，首次实现仅接新 Source/accepted-report profile；具体闭合结果见 EP owning 节。
+新增公开 AUTHORITATIVE Query `project.get_preparation_analysis_report@1.0`，与旧 startup review 分离。`project.accept_preparation_report@1.0` 首次登记仅接新 Source/accepted-report profile；具体闭合结果见 EP owning 节。
 
-本次已登记的两个独立来源版本如下；当前 executable Registry 为 260 项（EP 46），其余模块计数及历史 200-operation baseline 不变。报告操作仍未登记。
+两个独立来源版本如下；首次来源版本登记后为 260 项（EP 46）。本轮再登记文末首次分析执行/报告六项操作后，当前 executable Registry 为 266 项（EP 48、TE 67）；历史 200-operation baseline 不变。首次报告接纳和公开读取仅支持文末声明的模板分析 profile。
 
 ```text
 project.capture_preparation_source@2.0
 project.get_preparation_source@2.0
 ```
+
+### 首次分析已登记接受集（本轮增量）
+
+只支持 `ep.preparation_source@2.0`、PREPARING 和 `te.preparation_analysis@1`。现有 ACTIVE 接口、历史 Ref 与 v1.0 基线不改变。六项 FULL Schema 的字段与校验分别由 Core、TE、EP owning 文档定义；真实环境能力仍需安装受控 Runtime 并完成调用验证。
+
+```text
+execution.create_preparation_analysis_task@1.0
+execution.build_preparation_context@1.0
+execution.request_preparation_analysis@1.0
+execution.get_preparation_analysis_result@1.0
+project.accept_preparation_report@1.0
+project.get_preparation_analysis_report@1.0
+```
+
+Task/WorkOrder 用 `zhiju.execution.*`，Run/Result/Acceptance 精确保留 `execution.run`、`execution.agent_result`、`execution.agent_result_acceptance`，不执行别名归一化。新增 SNAPSHOT `zhiju.execution.preparation_context`；EP 派生快照使用 `zhiju.project.preparation_report`、`zhiju.project.preparation_candidate_set`、`zhiju.project.preparation_plan`。后三者均由同次实际结果派生，采用 snapshotId 与内容 Hash，不证明正式启动或交付。IG 本机 Attempt/adapter/observation 是独立执行观察，不能替代 TE owning Run 或 Acceptance。

@@ -45,5 +45,15 @@ if (runtime !== undefined) {
     { bufferLogs: true },
   );
   registerWorkspaceTransport(server, runtime);
+  server.addHook('onClose', async () => {
+    await runtime.close?.();
+  });
+  const shutdown = () => {
+    void app.close().then(() => {
+      process.exitCode = 0;
+    });
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
   await app.listen({ host: '127.0.0.1', port: coreListenPort(process.env) });
 }

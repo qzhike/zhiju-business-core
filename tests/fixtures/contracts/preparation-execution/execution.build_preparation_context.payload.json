@@ -1,0 +1,49 @@
+{
+  "taskRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.task",
+    "objectId": "019e0000-0000-7000-8000-000000000004",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "workOrderRef": {
+    "kind": "OBJECT",
+    "objectType": "zhiju.execution.work_order",
+    "objectId": "019e0000-0000-7000-8000-000000000005",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "019e0000-0000-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000003",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "builderPolicyRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.execution.preparation_builder_policy",
+    "objectId": "019e0000-0000-7000-8000-000000000016",
+    "scope": {},
+    "versionId": "019e0000-0000-7000-8000-00000000007a"
+  },
+  "purpose": "preparation.analysis",
+  "audience": {
+    "kind": "OBJECT",
+    "objectType": "identity.principal",
+    "objectId": "019e0000-0000-7000-8000-000000000015",
+    "scope": {}
+  }
+}

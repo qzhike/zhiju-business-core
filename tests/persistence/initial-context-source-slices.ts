@@ -946,15 +946,15 @@ export function registerSourceSlices(suite: InitialContextSuite): void {
       expect(legacyEvents.rows.at(0)?.n).toBe(0);
 
       // The Catalog counts the matrix pins (also asserted in TE-214-D-016):
-      // 221 operations total, 49 owned by TaskExecution, the historical
+      // 266 operations total, 67 owned by TaskExecution, the historical
       // 200-entry v1.0 Baseline untouched.
       const catalog = JSON.parse(readFileSync(PUBLIC_API_CATALOG, 'utf8')) as {
         operations: { type: string; version: string; kind: string; owner: string }[];
       };
-      expect(catalog.operations).toHaveLength(260);
+      expect(catalog.operations).toHaveLength(266);
       expect(
         catalog.operations.filter((operation) => operation.owner === 'task-execution'),
-      ).toHaveLength(63);
+      ).toHaveLength(67);
       const baseline = JSON.parse(readFileSync(COMPATIBILITY_BASELINE, 'utf8')) as
         { type: string }[] | { operations: { type: string }[] };
       expect(Array.isArray(baseline) ? baseline : baseline.operations).toHaveLength(200);

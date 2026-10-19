@@ -499,3 +499,5 @@ export type {
   TaskBoardProjectionState,
 } from './persistence/task-board-projection-repository.js';
 export { withTaskBoardProjectionTransaction } from './persistence/task-execution-db.js';
+
+export * from './business/preparation-analysis.js';

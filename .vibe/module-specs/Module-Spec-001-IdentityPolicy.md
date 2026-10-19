@@ -1245,8 +1245,15 @@ create/save草稿和提交request各自独立authorize；同键replay/readback/r
 
 ## 模板驱动准备分析授权（2026-10-18）
 
-对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `BASIS AND SOURCE V2 AUTHORIZATION IMPLEMENTED / REPORT QUERY NOT IMPLEMENTED`。分析基准字段及发布事实由 EP 拥有，IP 不把它登记成旧 company_rule_publication。新增明确授权 purposes `project.preparation.analysis_basis.publish/read/withdraw`，target 为精确 Platform 分析基准或其 publication；只有当前获权 HUMAN 能发布/撤回，SERVICE 只在原授权下精确读取，不得借部署配置自称 HUMAN。B 初始化使用已绑定的真实本机操作者身份及显式部署授权，不能复用测试 Actor/Decision/Policy。
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `BASIS, SOURCE V2 AND FIRST ANALYSIS AUTHORIZATION IMPLEMENTED`。分析基准字段及发布事实由 EP 拥有，IP 不把它登记成旧 company_rule_publication。新增明确授权 purposes `project.preparation.analysis_basis.publish/read/withdraw`，target 为精确 Platform 分析基准或其 publication；只有当前获权 HUMAN 能发布/撤回，SERVICE 只在原授权下精确读取，不得借部署配置自称 HUMAN。B 初始化使用已绑定的真实本机操作者身份及显式部署授权，不能复用测试 Actor/Decision/Policy。
 
 已有 NEW/EXISTING 准入、membership 模板、原 request 恢复、每项目 creator grants 与当前 Session 校验保持。公开准备请求 Envelope 不变时其授权绑定必须仍包括实际 preset ref/hash；不能因为内部新增 profile 就跨版本重放或给全部项目授权。新的 source@2.0 使用独立 Service purposes `project.preparation.source_v2.capture/read`，绑定 capture/get_preparation_source 的 operation version `2.0` 和对应 `.v2` action；旧 @1.0 权限事实不被改写或自动授予新 Major。读取/执行/报告接纳仍检查当前权限，历史可读不表示可继续执行。
 
 新增只读 purpose `project.preparation.report.read`，绑定 `project.get_preparation_analysis_report@1.0`、精确项目与可选历史 reportRef。查前/返回前重验当前 Human 项目权限；不能由 reportRef 本身扩大 Scope，也不蕴含 startup confirm/start 的权限。
+
+
+模板分析首次执行使用新 `ip.preparation_membership_template@1.1`，在原顾问权限集合上增加 project.get_preparation_analysis_report 的项目读权限；旧 @1.0 仍严格按原七项绑定验证。创建者 provisioning 完整性按该 admission 实际物化的 member policy 判断，不能固定假定新旧集合相同。SERVICE 六项 analysis 权限单独部署，分别绑定 task/context/request/result/report 的真实 target/purpose；旧环境无需这些新增权限。source@2.0 的 capability/action 和旧 @1.0 分开。分析读取、dispatch/renew/final/publish 均核验当前原顾问分析资格与 SERVICE 权限，历史 Actor/Decision 不持续授权。
+
+新会员模板 @1.1 的 SERVICE 操作在短期 bootstrap grant 过期后，须先重新核验当前 Session、原准入及当前 service authority，再追加新的短期 grant 和 Decision；旧 grant/Decision 不延长、不删除，也不作为当前权限复用。按原操作、target、payload 和 admission 串行化同一授权范围；旧 @1.0 保留原行为。60 分钟来源期限不代替该当前授权。
+
+环境 B 的内部服务会话仍最长五分钟，在不足一分钟时为后续操作签发新会话；已发出的旧会话只在自身有效期内可核验，不因新会话出现提前失效，也不会被续期。每次业务操作仍重新检查主体、授权和项目资格。新 membership profile 的 BOOTSTRAP 复用必须覆盖本次当前授权决策的有效期，避免复用即将到期的旧 grant 导致处理中途失效；旧 profile 接受集不变。

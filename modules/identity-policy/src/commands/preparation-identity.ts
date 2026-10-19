@@ -101,6 +101,15 @@ const bindings = [
   ],
 ] as const;
 export const PREPARATION_CREATOR_BINDINGS = bindings;
+export const PREPARATION_ANALYSIS_CREATOR_BINDINGS = [
+  ...bindings,
+  [
+    'project.get_preparation_analysis_report',
+    'project.preparation.report.read',
+    'project.get_preparation_analysis_report.v1',
+    'zhiju.project.project',
+  ],
+] as const;
 export { PREPARATION_SERVICE_AUTHORITY_OPERATIONS } from '@zhiju/contracts';
 
 function operationBinding(value: string): {
@@ -171,6 +180,43 @@ function operationBinding(value: string): {
       'project.create_enterprise.v1',
     ],
   };
+  Object.assign(mapping, {
+    'execution.preparation.task.create': [
+      'execution.create_preparation_analysis_task',
+      'execution.preparation.task.create',
+      'execution.create_preparation_analysis_task.v1',
+    ],
+    'execution.preparation.context.build': [
+      'execution.build_preparation_context',
+      'execution.preparation.context.build',
+      'execution.build_preparation_context.v1',
+    ],
+    'execution.preparation.analysis.request': [
+      'execution.request_preparation_analysis',
+      'execution.preparation.analysis.request',
+      'execution.request_preparation_analysis.v1',
+    ],
+    'execution.preparation.result.read': [
+      'execution.get_preparation_analysis_result',
+      'execution.preparation.result.read',
+      'execution.get_preparation_analysis_result.v1',
+    ],
+    'project.preparation.report.accept': [
+      'project.accept_preparation_report',
+      'project.preparation.report.accept',
+      'project.accept_preparation_report.v1',
+    ],
+    'execution.preparation.process.step': [
+      'execution.preparation.process.step',
+      'execution.preparation.process.step',
+      'execution.preparation.process.step.v1',
+    ],
+    'project.preparation.report.read': [
+      'project.get_preparation_analysis_report',
+      'project.preparation.report.read',
+      'project.get_preparation_analysis_report.v1',
+    ],
+  });
   const row = mapping[value];
   return row
     ? {
@@ -235,19 +281,29 @@ function templateValid(p: PreparationMembershipTemplate): void {
     'maxGrantLifetimeSeconds',
   ]);
   if (
-    (p as { profile: unknown }).profile !== 'ip.preparation_membership_template@1.0' ||
+    !['ip.preparation_membership_template@1.0', 'ip.preparation_membership_template@1.1'].includes(
+      p.profile,
+    ) ||
     !p.templateCode.trim() ||
     !/^\d+\.\d+\.\d+$/.test(p.templateVersion) ||
     !Number.isSafeInteger(p.maxGrantLifetimeSeconds) ||
     p.maxGrantLifetimeSeconds < 1 ||
-    p.creatorBindings.length !== bindings.length
+    p.creatorBindings.length !==
+      (p.profile === 'ip.preparation_membership_template@1.1'
+        ? PREPARATION_ANALYSIS_CREATOR_BINDINGS
+        : bindings
+      ).length
   )
     deny('PREPARATION_TEMPLATE_INVALID');
   const seen = new Set<string>(),
     codes = new Set<string>();
   for (const b of p.creatorBindings) {
     closed(b, ['operation', 'version', 'purpose', 'action', 'capabilityCode', 'targetObjectType']);
-    const required = bindings.find((x) => x[0] === b.operation);
+    const required = (
+      p.profile === 'ip.preparation_membership_template@1.1'
+        ? PREPARATION_ANALYSIS_CREATOR_BINDINGS
+        : bindings
+    ).find((x) => x[0] === b.operation);
     if (
       !required ||
       (b as { version: unknown }).version !== '1.0' ||
@@ -779,6 +835,13 @@ export function createPreparationIdentityPort(
     ]).has(input.operation);
     const { p } = await loadAdmission(t, s, admissionRef, historicalRead);
     const expected: Record<string, readonly string[]> = {
+      'execution.preparation.task.create': ['zhiju.execution.task'],
+      'execution.preparation.context.build': ['zhiju.execution.preparation_context'],
+      'execution.preparation.analysis.request': ['zhiju.execution.preparation_analysis_request'],
+      'execution.preparation.result.read': ['execution.agent_result'],
+      'project.preparation.report.accept': ['zhiju.project.preparation_report'],
+      'execution.preparation.process.step': ['zhiju.execution.preparation_analysis_request'],
+
       'identity.preparation.admission.read': ['zhiju.project.preparation_request'],
       'identity.preparation.membership.materialize': ['zhiju.project.project'],
       'identity.preparation.membership.read': ['zhiju.project.project'],
@@ -839,7 +902,7 @@ export function createPreparationIdentityPort(
     await sql`SELECT pg_advisory_xact_lock(hashtextextended(${admissionRef.objectId + s.principalId + input.operation + input.target.objectId + input.payloadHash.digest},0))`.execute(
       t,
     );
-    const prior = await t
+    let priorQuery = t
       .selectFrom('identity_policy.preparation_fact')
       .selectAll()
       .where('kind', '=', 'BOOTSTRAP')
@@ -847,8 +910,20 @@ export function createPreparationIdentityPort(
       .where('parent_id', '=', admissionRef.objectId)
       .where(sql<string>`payload->>'operation'`, '=', input.operation)
       .where(sql<string>`payload->'target'->>'objectId'`, '=', input.target.objectId)
-      .where(sql<string>`payload->'payloadHash'->>'digest'`, '=', input.payloadHash.digest)
-      .executeTakeFirst();
+      .where(sql<string>`payload->'payloadHash'->>'digest'`, '=', input.payloadHash.digest);
+    const membership = await template(t, p.membershipTemplateRef, p.membershipTemplateHash);
+    if (membership.payload.profile === 'ip.preparation_membership_template@1.1') {
+      // A fresh current authority proof may mint a new short-lived grant. Never
+      // extend an expired grant or treat the longer source lifetime as authority.
+      // The legacy membership profile retains its original recovery semantics.
+      const requiredUntil = new Date(
+        Math.min(Date.parse(authority.authorizationDecisionExpiresAt), Date.parse(p.validUntil)),
+      );
+      priorQuery = priorQuery.where(
+        sql<boolean>`(payload->>'validUntil')::timestamptz >= ${requiredUntil}`,
+      );
+    }
+    const prior = await priorQuery.executeTakeFirst();
     if (prior) {
       const b = prior.payload as {
         serviceAuthorityGrantRef: Common.ContentAddressedRef;
@@ -912,6 +987,7 @@ export function createPreparationIdentityPort(
       'project.preparation.preset.read',
     ];
     const scopedOps = [
+      'project.preparation.report.read',
       'identity.preparation.membership_template.read',
       'project.preparation.read',
       'integration.customer_zip.intake',
@@ -2080,6 +2156,29 @@ export function createPreparationIdentityPort(
           .where('parent_id', '=', r.objectId)
           .execute();
         const steps = fs.map((f) => f.payload as { operation: string; grantRef: Common.ObjectRef });
+        const memberPolicy = await t
+          .selectFrom('identity_policy.preparation_fact')
+          .selectAll()
+          .where('kind', '=', 'MEMBER_POLICY')
+          .where('parent_id', '=', r.objectId)
+          .executeTakeFirst();
+        const membership = memberPolicy
+          ? (memberPolicy.payload as { payload: PreparationMemberPolicy }).payload
+          : undefined;
+        if (
+          membership &&
+          (!same(membership.admissionRef, r) ||
+            !same(membership.templateRef, a.payload.membershipTemplateRef) ||
+            !same(membership.templateHash, a.payload.membershipTemplateHash))
+        )
+          deny();
+        const expected = membership?.creatorBindings.map((binding) => binding.operation) ?? [];
+        const complete =
+          expected.length > 0 &&
+          steps.length === expected.length &&
+          expected.every(
+            (operation) => steps.filter((step) => step.operation === operation).length === 1,
+          );
         let revoked = false;
         for (const step of steps) {
           const g = await t
@@ -2114,11 +2213,7 @@ export function createPreparationIdentityPort(
             : a.receiptRef,
           grantRefs: steps.map((x) => x.grantRef),
           steps: steps.map((x) => ({ operation: x.operation, grantRef: x.grantRef })),
-          access: revoked
-            ? 'REVOKED'
-            : steps.length === bindings.length
-              ? 'COMPLETE'
-              : 'INCOMPLETE',
+          access: revoked ? 'REVOKED' : complete ? 'COMPLETE' : 'INCOMPLETE',
           checkedAt: now().toISOString(),
         };
         return out;

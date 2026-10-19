@@ -751,3 +751,12 @@ BOARD-D-003/007同时验证compact cursor长度264且满足共享16–512 base64
 | TE-TB-002 | 来源漂移、基准撤回、lease/fencing 错误、未知原 invocation | 不接受当前结果/不再次 invoke；保留真实历史，不产生业务完成 |
 
 补充 NOT RUN：capture/get source @2.0 与旧 @1.0 双向拒绝错 profile；首次模板报告经独立 get_preparation_analysis_report 真实回读；旧 startup review/confirm 不接受新报告且零正式写入；无报告不返回空成功；指令 sourceId 重复、首轮 previousReportRef 或非空 trustedDecisionRefs 拒绝。
+
+
+### 首次分析执行链与分层验证
+
+真实 owning Task/WO/Context/five validations/frozen Contract/Run/Result/Acceptance 贯通；运行前及最终接纳重验授权和来源；原 Attempt 恢复无二次调用；UNKNOWN/过期/漂移/校验失败无成功报告；现有 ACTIVE 与迁移回归。
+
+验证层分别记录：合同/受控进程/真实 PostgreSQL 自动化、真实 OMP 小型合成资料调用、平台报告接纳与实际浏览器查看、用户独立人工验收。未执行项仍为 NOT RUN；测试结果以本次工作及后续 Issue/PR 证据为准，不由本文自行宣告通过。
+
+队列回归：项目一的原 Attempt 为 UNKNOWN 时，项目二仍可执行并接纳报告；项目一保持 UNKNOWN 且调用计数不增加。

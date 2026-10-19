@@ -176,11 +176,11 @@ Runner 项目目录由私有配置指定，按用户现有 OMP 和目录内 AGEN
 
 ### 环境 B 首轮分析执行适配（已批准）
 
-状态：`T2 / PROPOSED / USER SELECTED V0.2 2026-10-18 / LOCAL RUNNER TOOL IMPLEMENTED / MACOS EXECUTION DESIGN APPROVED 2026-10-18 / IMPLEMENTATION IN PROGRESS / DISPATCH NOT IMPLEMENTED / PROVIDER NOT RUN`。
+状态：`T2 / USER SELECTED V0.2 2026-10-18 / MACOS EXECUTION DESIGN APPROVED 2026-10-18 / FIRST ANALYSIS CHAIN IMPLEMENTED / PRODUCTION NOT IMPLEMENTED`。
 
 用户已选正式 v0.2 方向并批准本机 OMP、可配置 Runner 项目目录及 Docker 数据库的人工测试目标。这里补齐原方案仅覆盖 Ubuntu 的技术差异；它不是再次选择协议。用户于 2026-10-18 明确选择“批准本机适配，继续实现”；批准对象为以下本机测试适配，不改 #256 的生产接受集或冻结模块所有权。
 
-| 项目 | 拟采用的本机测试行为 | 必须保留的边界 |
+| 项目 | 本机测试行为 | 必须保留的边界 |
 |---|---|---|
 | 适用范围 | 仅环境 B 的显式 `MACOS_MANUAL_TEST` 组合；首轮限 ANALYSIS，使用新内部执行 profile `workspace.macos_manual_omp@1`，输出仍为 `d14.analysis@1` / v0.2 | production 配置拒绝本 profile；不能构造假的 Ubuntu installation/lock、Provider 固定版本或隔离证明。首轮只处理调用方明确允许交给当前模型通道的测试资料 |
 | 文件托管 | B 私有数据目录内的持久化文件适配器，实现现有 `CustomerZipObjectStore.put/read/inspect`；保存实际 ZIP、受控解包来源和报告字节，重启保留 | 服务端生成 key，临时写入、fsync、不可覆盖发布；同 key 同字节幂等，不同字节冲突，崩溃不确定返回 UNKNOWN。目录 0700、文件 0600，拒绝穿越/符号链接/设备文件；不伪称 S3 versioning、Object Lock、SSE/KMS 或备份 conformance |
@@ -192,7 +192,7 @@ Runner 项目目录由私有配置指定，按用户现有 OMP 和目录内 AGEN
 | 报告 | 固定 v0.2 Schema、校验上下文、词表映射、同源 MD/提取件、JSON/MD 原始字节 Hash | Runner 自报成功不等于 TE/EP 接纳；UNKNOWN/CONFLICT 可展示，不能变成启动批准。外层独立重验，再由 TE 接纳和 EP 保存不可变 report/candidateSet/plan |
 | 人工入口 | 登录 → 建准备项目 → 上传一个 ZIP → 查看真实运行状态 → 查看已接纳分析报告 | 沿用已批准 UI；页面显示本机测试身份和执行状态，不假造百分比。生成、文件审批、发布和完整 MVP E2E 不计入首轮分析通过范围 |
 
-运行参数首版复用 #256 的有界执行意图：一次分析最多 60 分钟，事件流/报告输出上限 32 MiB，上传与解包继续使用现有 CustomerZipPolicy。OMP 的 token/cost、模型底层版本和 Provider 取消能力按实际可观测字段记录；没有可靠硬限额机制时不得宣称已强制费用上限。资源阈值的到达/拒绝必须成为真实运行诊断，不能把失败转换成成功报告。
+运行参数首版复用 #256 的有界执行意图：一次分析最多 60 分钟，生命周期日志/单份报告输出上限 32 MiB，单个 RPC frame 同样有界；不持久化隐藏推理、系统提示、transcript 或含客户正文的工具参数/返回，上传与解包继续使用现有 CustomerZipPolicy。OMP 的 token/cost、模型底层版本和 Provider 取消能力按实际可观测字段记录；没有可靠硬限额机制时不得宣称已强制费用上限。资源阈值的到达/拒绝必须成为真实运行诊断，不能把失败转换成成功报告。
 
 批准后按依赖顺序实现：先接实际文件托管、公司模板/规则与准备项目授权；再落实 TE preparation context/run 与 IG OMP 调用及恢复；最后接同源报告校验、TE/EP 接纳与公开页面查询。公开合同、持久化与失败场景按各 owning 规格同步注册，不把本表当作省略合同实现的许可。实现改动使用 `full`，独立审查通过后用小型脱敏 ZIP 验证真实 OMP 链；用户人工浏览器验收另记。
 
@@ -217,4 +217,9 @@ Ubuntu release/kernel/architecture、镜像/二进制digest、MAC策略、Provid
 
 ### 模板分析依据的产品校正（2026-10-18）
 
-用户重申以客户资料、项目模板和 AGENTS.md 进行阅读比对，并批准先接通分析。按 [校正决定](../decisions/template-driven-preparation.md)，正常业务分析依据与 macOS Runtime 技术适配分开；不新增仅 B 可用的模板业务模式，也不要求为本轮准备项目虚构完整规范发布。此前“公司模板/规则按真实来源发布”落实为精确模板及分析基准的真实授权使用，旧 startup bundle 保持其旧接受集。当前新增分支仍在设计审查，未安装生产 Runtime、未执行 Provider 或未接纳报告的状态不得提升。
+用户重申以客户资料、项目模板和 AGENTS.md 进行阅读比对，并批准先接通分析。按 [校正决定](../decisions/template-driven-preparation.md)，正常业务分析依据与 macOS Runtime 技术适配分开；不新增仅 B 可用的模板业务模式，也不要求为本轮准备项目虚构完整规范发布。此前“公司模板/规则按真实来源发布”落实为精确模板及分析基准的真实授权使用，旧 startup bundle 保持其旧接受集。当前新增分支已实现首次分析调度、独立接纳与报告读取；真实 Provider、报告回读和用户独立人工验收以对应交付证据分别判定，不能由本机实现推导生产部署通过。
+
+
+环境 B 的首次分析实现通过专用 `runner.profileFile` 或自动安装的 `dataDir/omp-profile.json` 锁定实际 OMP/模型、工具与 Python。首次初始化只查询空会话状态，不发模型 prompt；Python 仅在私有 venv 安装固定 jsonschema==4.26.0，运行前重验版本。一次实际分析只发送一个 prompt；独立调用目录下固定 collect、finalize、check 与输入前后 Hash 校验属于宿主工具动作，不让模型声明通过。新增 Core role membership 仅 SET TRUE/INHERIT FALSE/ADMIN FALSE 的既有两个 preparation 角色；不授予发布或绕过 RLS。
+
+环境 B 的实例运行目录绑定 `dataDir/runner-attempts`，自定义 profile 也必须精确匹配；同一 dataDir 由独立 supervisor/Core 持有，不能通过两个实例共享运行目录绕开实例互斥。五分钟内部服务会话提前一分钟轮换，原会话仅在其既定有效期内核验；轮换不延长旧授权或替代每次权限检查。

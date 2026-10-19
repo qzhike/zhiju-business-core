@@ -102,8 +102,12 @@ const PREPARATION_ALLOCATIONS = new Map([
   [7022, 'integration_gateway'],
 ]);
 
-// The approved 2026-10-18 template-analysis delta reserves this exact EP forward version.
-const TEMPLATE_ANALYSIS_ALLOCATIONS = new Map([[7023, 'enterprise_project']]);
+// The approved 2026-10-18 template-analysis delta reserves exact owning forward versions.
+const TEMPLATE_ANALYSIS_ALLOCATIONS = new Map([
+  [7023, 'enterprise_project'],
+  [7024, 'task_execution'],
+  [7025, 'enterprise_project'],
+]);
 
 const MIGRATION_NAME_PATTERN = /^V(\d{4})__[a-z][a-z0-9_]*\.sql$/;
 const MIGRATION_ROOT_FILES = new Set(['README.md']);
@@ -300,6 +304,20 @@ describe('migration layout follows the frozen directory/version contract', () =>
     expect(sqlFiles.length).toBeGreaterThan(0);
   });
 
+  it('reserves the two first-analysis execution migrations for their exact owners', () => {
+    for (const [version, owner] of [
+      [7024, 'task_execution'],
+      [7025, 'enterprise_project'],
+    ] as const) {
+      expect(validateMigrationEntry(owner, `V${version}__preparation_analysis.sql`)).toEqual([]);
+      for (const directory of Object.keys(MIGRATION_VERSION_RANGES).filter(
+        (name) => name !== owner,
+      ))
+        expect(
+          validateMigrationEntry(directory, `V${version}__preparation_analysis.sql`),
+        ).not.toEqual([]);
+    }
+  });
   it('has no violations in the shipped migrations/ tree', () => {
     expect(migrationViolations()).toEqual([]);
   });

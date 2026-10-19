@@ -1,3 +1,4 @@
+import { preparationExecutionProgressSchema } from './preparation-execution.ts';
 import type { Common } from './generated/types/common.js';
 import type { PreparationProjectScope, WorkspaceCommandInput } from './preparation-transport.js';
 export interface CustomerZipIntakePayload {
@@ -230,6 +231,7 @@ const command = (payload: unknown, type: string) =>
     },
   );
 const analysis = object(['status'], {
+  execution: preparationExecutionProgressSchema,
   status: {
     enum: [
       'WAITING_INPUT',

@@ -233,7 +233,7 @@ export async function startInfrastructure(config, secrets) {
   await admin.connect();
   try {
     await admin.query(
-      'GRANT platform_context_establisher,identity_policy_app,identity_workspace_discovery_reader,enterprise_project_app,task_execution_app,integration_gateway_app TO env_b_core',
+      'GRANT platform_context_establisher,identity_policy_app,identity_workspace_discovery_reader,identity_policy_preparation_writer,identity_preparation_self_reader,enterprise_project_app,task_execution_app,integration_gateway_app TO env_b_core WITH INHERIT FALSE, SET TRUE, ADMIN FALSE',
     );
     await admin.query(
       'GRANT platform_context_establisher,identity_policy_app,identity_policy_preparation_writer,identity_preparation_self_reader,enterprise_project_app,enterprise_project_platform_reference_writer TO env_b_operator',

@@ -1,0 +1,57 @@
+{
+  "reportRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_report",
+    "objectId": "019e0000-0000-7000-8000-000000000010",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000010",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "candidateSetRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_candidate_set",
+    "objectId": "019e0000-0000-7000-8000-000000000011",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000011",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "planRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_plan",
+    "objectId": "019e0000-0000-7000-8000-000000000012",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000012",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "becameCurrent": true,
+  "receiptRef": {
+    "kind": "OBJECT",
+    "objectType": "CommandReceipt",
+    "objectId": "019e0000-0000-7000-8000-00000000001a",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  }
+}

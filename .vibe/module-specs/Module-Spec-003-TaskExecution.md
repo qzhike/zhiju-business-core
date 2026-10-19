@@ -2628,8 +2628,21 @@ content闭集为 comment?、locations、sourceAttachmentRefs、draftAttachmentRe
 
 ## 模板驱动准备分析执行（2026-10-18）
 
-对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。复用 D14 已批准的 PREPARATION_ANALYSIS Task、专用 WorkOrder/Context、readiness/freeze/Run/Attempt/Acceptance 所有权；不得调用旧 ACTIVE-only producer 或 synthetic Adapter 伪造运行。新增模板基准 Source 分支准确消费 EP source@2.0 及其当前 eligibility；缺正式规范来源不再是这条分支的全局拒绝条件。
+对应 [前置条件校正 §6](../decisions/template-driven-preparation.md#6-首次分析执行链的合同收口已批准技术增量)，状态 `HUMAN APPROVED / FIRST ANALYSIS IMPLEMENTED / VERIFICATION PENDING`。复用 D14 已批准的 PREPARATION_ANALYSIS Task、专用 WorkOrder/Context、readiness/freeze/Run/Attempt/Acceptance 所有权；不得调用旧 ACTIVE-only producer 或 synthetic Adapter 伪造运行。新增模板基准 Source 分支准确消费 EP source@2.0 及其当前 eligibility；缺正式规范来源不再是这条分支的全局拒绝条件。
 
 PreparationContext 的新显式 profile 绑定 `{preparationSourceRef,analysisBasisRef,analysisBasisHash,analysisBasisPublicationRef}`、实际 input/template/instruction refs/Hashes、purpose/audience、当前身份/权限/有效期及执行 profile。不得把这些值塞进旧 ruleBundleRef 或启动快照。Context/Contract/Run/结果的固定 Hash、lease/fencing、单 final 与独立验收仍适用。Runtime 本轮只装配获批 macOS OMP profile；产品语义不以 macOS 标志裁定，生产缺相应执行锁仍零调用。
 
 v0.2 结果校验沿用真实五类候选和证据规则；公司模板及指令只证明分析依据，不自动确立客户事实或专业决定。TE 接纳后由 EP 单独保存报告；进程结束、自检 PASS 或 TE Result ACCEPTED 都不生成正式文件或完成业务任务。UNKNOWN 仅原 Attempt/Receipt 回读，禁止隐式重启；基准撤回/失效、源损坏、失权或 lease 过期后的输出按原调用保留历史，不成为当前可用报告。
+
+
+### 首次分析实际 producer 与恢复边界
+
+本轮注册 create/build/request/get 四项 preparation 操作。只允许 PREPARING + source@2.0；D14 中 ACTIVE 初轮恢复和多轮分析仍未实现。Task DRAFT 来自原 source 的完整输入，固定 TaskDefinition 内容 Hash；request 保存原命令、预分配 WorkOrder/Context/Run/Attempt/Result 身份及最多 60 分钟 deadline。后续内部 producer 分事务创建 Draft、Context、五类验证、readiness、frozen Contract、queue、Run claim，每一步有自己的幂等 CommandReceipt。初版固定 profile evaluator 使用实际本地代码标识，不能伪造 evaluator Registry Ref。
+
+PreparationContext@1.1 与 WorkOrderContract@1.1 仅供本 profile，闭合字段见 [Core Contracts](../high-level-docs/03-core-contracts.md#模板驱动首次分析执行合同)。初始 Actor/Decision 保留出处；每次调用、租约续期、结果及报告接纳均重取当前授权、源和基准使用资格。Run 单 attempt/fencing=1，单实例单实际 OMP 进程；每分钟续租，单次 lease 最多 5 分钟且不超过固定 deadline。
+
+IG 的 refs-only 本地队列只是发现线索，TE 按当前权限读取 owning request 后才处理。恢复先读原 Attempt；仅已证明 NOT_INVOKED 且原请求仍待准备时才首次调用。UNKNOWN 不生成新调用，不延长冻结 source。结果原始 JSON/MD pair、manifest/extraction/context Hash 与原 Runtime observation 精确绑定，独立读取和固定工具复验之后才写 ResultValidationBundle、五项结果验证和 Acceptance。Run SUCCEEDED、WorkOrder COMPLETION_PENDING、Task IN_PROGRESS、Project PREPARING；成功分析不满足业务完成条件。
+
+EP 报告接纳意图以稳定 command/key/target/requestedAt 先持久化，后按原内容投递。重启/重复查询只复用原记录；报告接纳失败不伪造空报告。历史过期源可只读，但不得接纳迟到输出为当前可用报告。
+
+队列中的 UNKNOWN 仅执行有界的原 Attempt 回读，不重新 invoke；该回读结束后继续处理后续项目，不能由一个结果未知的历史请求长期占据队列。

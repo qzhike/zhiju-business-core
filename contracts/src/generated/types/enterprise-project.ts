@@ -5,6 +5,299 @@ import type { CanonicalJson, Common } from './common.js';
 import type { Core } from './core.js';
 
 export namespace EnterpriseProject {
+  export type RunnerAnalysisReport = {
+  readonly schemaVersion: "0.2.0";
+  readonly stage: "ANALYSIS";
+  readonly context: EnterpriseProject.RunnerAnalysisContext;
+  readonly title: string;
+  readonly analysisCompleteness: "COMPLETE" | "PARTIAL";
+  readonly summary: string;
+  readonly narrative: EnterpriseProject.RunnerAnalysisNarrative;
+  readonly limitations: readonly string[];
+  readonly readCoverage: readonly EnterpriseProject.RunnerAnalysisReadCoverage[];
+  readonly evidence: readonly EnterpriseProject.RunnerAnalysisEvidence[];
+  readonly protectedFacts: readonly EnterpriseProject.RunnerAnalysisProtectedFact[];
+  readonly attentionItems: readonly EnterpriseProject.RunnerAnalysisAttentionItem[];
+  readonly resolutionProposals: readonly EnterpriseProject.RunnerAnalysisResolutionProposal[];
+  readonly plannedFiles: readonly EnterpriseProject.RunnerAnalysisPlannedFile[];
+  readonly templateCoverage: readonly EnterpriseProject.RunnerAnalysisTemplateCoverage[];
+  readonly changes: readonly EnterpriseProject.RunnerAnalysisChange[];
+  readonly checks: readonly EnterpriseProject.RunnerAnalysisCheck[];
+  readonly startupCandidates: readonly EnterpriseProject.RunnerAnalysisStartupCandidate[];
+};
+  export type RunnerAnalysisId = string;
+  export type RunnerAnalysisSha256 = string;
+  export type RunnerAnalysisRelativeMarkdownPath = string;
+  export interface RunnerAnalysisNarrative {
+  readonly relativePath: EnterpriseProject.RunnerAnalysisRelativeMarkdownPath;
+  readonly sha256: EnterpriseProject.RunnerAnalysisSha256;
+}
+  export type RunnerAnalysisContext = {
+  readonly analysisRequestKey: EnterpriseProject.RunnerAnalysisId;
+  readonly inputManifestSha256: EnterpriseProject.RunnerAnalysisSha256;
+  readonly previousReportSha256: (EnterpriseProject.RunnerAnalysisSha256 | null);
+  readonly sourceReportIds: readonly EnterpriseProject.RunnerAnalysisId[];
+};
+  export type RunnerAnalysisReadCoverage = {
+  readonly sourceId: EnterpriseProject.RunnerAnalysisId;
+  readonly readState: "READ" | "PARTIAL" | "UNREAD" | "FAILED";
+  readonly scopeDescription: string;
+  readonly limitations: readonly string[];
+};
+  export type RunnerAnalysisEvidence = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly sourceId: EnterpriseProject.RunnerAnalysisId;
+  readonly representation: "ORIGINAL" | "EXTRACTED" | "PRIOR_REPORT" | "TRUSTED_DECISION_INPUT";
+  readonly extractedText: (EnterpriseProject.RunnerAnalysisNarrative | null);
+  readonly locator: {
+  readonly kind: "SECTION" | "PARAGRAPH" | "TABLE_CELL" | "MARKDOWN_LINES" | "WHOLE_DOCUMENT";
+  readonly value: string;
+};
+  readonly quote: (string | null);
+  readonly note: string;
+};
+  export type RunnerAnalysisResolutionProposal = {
+  readonly previousAttentionItemId: EnterpriseProject.RunnerAnalysisId;
+  readonly outcome: "RESOLVED_PROPOSED" | "REPLACED_PROPOSED";
+  readonly reason: string;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly replacementAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+};
+  export type RunnerAnalysisProtectedFact = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly category: "QUALITY_POLICY" | "QUALITY_OBJECTIVE" | "ORGANIZATION" | "RESPONSIBILITY" | "PROCESS" | "PRODUCT_RULE" | "DOCUMENT_IDENTITY";
+  readonly statement: string;
+  readonly sourceState: "OBSERVED" | "CONFLICTING" | "UNCONFIRMED";
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly legacyLabels: readonly string[];
+};
+  export interface RunnerAnalysisMaterialDetail {
+  readonly expectedMaterial: string;
+  readonly searchedSourceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly providedSourceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly searchScopeNote: string;
+}
+  export interface RunnerAnalysisCustomerRequest {
+  readonly key: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly text: string;
+}
+  export type RunnerAnalysisAttentionItem = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly kind: "MISSING_MATERIAL" | "UNREAD_MATERIAL" | "UNREADABLE_MATERIAL" | "PARTIAL_MATERIAL" | "FACT_QUESTION" | "PROTECTION_CONFLICT" | "SOURCE_CONFLICT" | "REPORT_INCONSISTENCY";
+  readonly audience: "CUSTOMER" | "CONSULTANT" | "OPERATOR";
+  readonly reason: string;
+  readonly question: string;
+  readonly effect: "BEFORE_ANALYSIS_FINISH" | "BEFORE_AFFECTED_GENERATION" | "BEFORE_AFFECTED_FINALIZATION" | "REVIEW_NOTE";
+  readonly affectedPlannedFileIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly relatedChangeIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly protectedFactIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly material: (EnterpriseProject.RunnerAnalysisMaterialDetail | null);
+  readonly customerRequest: (EnterpriseProject.RunnerAnalysisCustomerRequest | null);
+  readonly legacyLabels: readonly string[];
+};
+  export type RunnerAnalysisPlannedFile = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly customerCode: (string | null);
+  readonly category: "MANUAL" | "PROCEDURE" | "POLICY" | "FORM" | "OTHER";
+  readonly origin: "CUSTOMER_REVISION" | "CUSTOMER_CONVERSION" | "TEMPLATE_DERIVED";
+  readonly customerSourceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly templateSourceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly proposedOutputPath: EnterpriseProject.RunnerAnalysisRelativeMarkdownPath;
+  readonly attentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+};
+  export type RunnerAnalysisTemplateCoverage = {
+  readonly templateSourceId: EnterpriseProject.RunnerAnalysisId;
+  readonly disposition: "ADAPT_EXISTING" | "EXISTING_EQUIVALENT" | "DERIVE_NEW" | "EXTERNAL_PARTY_COVERAGE" | "PENDING" | "NOT_APPLICABLE_CANDIDATE" | "HISTORICAL_REFERENCE";
+  readonly customerSourceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly plannedFileIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly explanation: string;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly attentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+};
+  export type RunnerAnalysisChange = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly action: "REVISE" | "REORGANIZE" | "CREATE" | "KEEP";
+  readonly description: string;
+  readonly reason: string;
+  readonly targetPlannedFileIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly protectedFactIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly protectedImpact: "NONE_DECLARED" | "POTENTIAL" | "EXCEPTION_PROPOSED";
+  readonly attentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly dependsOnChangeIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly legacyLabels: readonly string[];
+};
+  export type RunnerAnalysisCheck = {
+  readonly id: EnterpriseProject.RunnerAnalysisId;
+  readonly title: string;
+  readonly result: "PASS" | "FAIL" | "LIMITED" | "NOT_RUN";
+  readonly method: string;
+  readonly scope: string;
+  readonly limitations: readonly string[];
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly authority: "RUNNER_DECLARED";
+};
+  export type RunnerAnalysisNamespaceCode = string;
+  export type RunnerAnalysisUtcInstant = string;
+  export interface RunnerAnalysisEffectivePeriod {
+  readonly validFrom?: EnterpriseProject.RunnerAnalysisUtcInstant;
+  readonly validTo?: EnterpriseProject.RunnerAnalysisUtcInstant;
+}
+  export interface RunnerAnalysisTextValue {
+  readonly format: "TEXT";
+  readonly text: string;
+}
+  export interface RunnerAnalysisFactValue {
+  readonly factType: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly value: EnterpriseProject.RunnerAnalysisTextValue;
+  readonly riskLevel: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly validPeriod?: EnterpriseProject.RunnerAnalysisEffectivePeriod;
+}
+  export interface RunnerAnalysisFactPartialValue {
+  readonly factType?: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly value?: EnterpriseProject.RunnerAnalysisTextValue;
+  readonly riskLevel?: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly validPeriod?: EnterpriseProject.RunnerAnalysisEffectivePeriod;
+}
+  export type RunnerAnalysisFactCandidate = {
+  readonly candidateId: EnterpriseProject.RunnerAnalysisId;
+  readonly kind: "ENTERPRISE_FACT";
+  readonly title: string;
+  readonly valueState: "EVIDENCED" | "UNKNOWN" | "CONFLICT";
+  readonly value: (EnterpriseProject.RunnerAnalysisFactPartialValue | null);
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly reason: string;
+  readonly relatedAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly missingFields: readonly ("factType" | "value" | "riskLevel")[];
+  readonly conflictingFields: readonly ("factType" | "value" | "riskLevel")[];
+  readonly alternatives: readonly {
+  readonly value: EnterpriseProject.RunnerAnalysisFactPartialValue;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+}[];
+};
+  export interface RunnerAnalysisProductValue {
+  readonly productType: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly displayName: string;
+  readonly intendedUse: string;
+  readonly productScope: {
+  readonly productFamily: string;
+  readonly variants: readonly string[];
+  readonly markets: readonly EnterpriseProject.RunnerAnalysisNamespaceCode[];
+};
+}
+  export interface RunnerAnalysisProductPartialValue {
+  readonly productType?: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly displayName?: string;
+  readonly intendedUse?: string;
+  readonly productScope?: {
+  readonly productFamily?: string;
+  readonly variants?: readonly string[];
+  readonly markets?: readonly EnterpriseProject.RunnerAnalysisNamespaceCode[];
+};
+}
+  export type RunnerAnalysisProductCandidate = {
+  readonly candidateId: EnterpriseProject.RunnerAnalysisId;
+  readonly kind: "PRODUCT";
+  readonly title: string;
+  readonly valueState: "EVIDENCED" | "UNKNOWN" | "CONFLICT";
+  readonly value: (EnterpriseProject.RunnerAnalysisProductPartialValue | null);
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly reason: string;
+  readonly relatedAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly missingFields: readonly ("productType" | "displayName" | "intendedUse" | "productScope.productFamily" | "productScope.variants" | "productScope.markets")[];
+  readonly conflictingFields: readonly ("productType" | "displayName" | "intendedUse" | "productScope.productFamily" | "productScope.variants" | "productScope.markets")[];
+  readonly alternatives: readonly {
+  readonly value: EnterpriseProject.RunnerAnalysisProductPartialValue;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+}[];
+};
+  export type RunnerAnalysisApplicabilityValue = {
+  readonly requirementSourceId: EnterpriseProject.RunnerAnalysisId;
+  readonly requirementLocator: string;
+  readonly outcome: "APPLICABLE" | "NOT_APPLICABLE";
+  readonly rationale: string;
+};
+  export type RunnerAnalysisApplicabilityPartialValue = {
+  readonly requirementSourceId?: EnterpriseProject.RunnerAnalysisId;
+  readonly requirementLocator?: string;
+  readonly outcome?: "APPLICABLE" | "NOT_APPLICABLE";
+  readonly rationale?: string;
+};
+  export type RunnerAnalysisApplicabilityCandidate = {
+  readonly candidateId: EnterpriseProject.RunnerAnalysisId;
+  readonly kind: "QMS_APPLICABILITY";
+  readonly title: string;
+  readonly valueState: "EVIDENCED" | "UNKNOWN" | "CONFLICT";
+  readonly value: (EnterpriseProject.RunnerAnalysisApplicabilityPartialValue | null);
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly reason: string;
+  readonly relatedAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly missingFields: readonly ("requirementSourceId" | "requirementLocator" | "outcome" | "rationale")[];
+  readonly conflictingFields: readonly ("requirementSourceId" | "requirementLocator" | "outcome" | "rationale")[];
+  readonly alternatives: readonly {
+  readonly value: EnterpriseProject.RunnerAnalysisApplicabilityPartialValue;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+}[];
+};
+  export interface RunnerAnalysisManagementChoiceValue {
+  readonly choiceKey: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly selectedOption: string;
+  readonly rationale: string;
+}
+  export interface RunnerAnalysisManagementChoicePartialValue {
+  readonly choiceKey?: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly selectedOption?: string;
+  readonly rationale?: string;
+}
+  export type RunnerAnalysisManagementChoiceCandidate = {
+  readonly candidateId: EnterpriseProject.RunnerAnalysisId;
+  readonly kind: "QMS_MANAGEMENT_CHOICE";
+  readonly title: string;
+  readonly valueState: "EVIDENCED" | "UNKNOWN" | "CONFLICT";
+  readonly value: (EnterpriseProject.RunnerAnalysisManagementChoicePartialValue | null);
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly reason: string;
+  readonly relatedAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly missingFields: readonly ("choiceKey" | "selectedOption" | "rationale")[];
+  readonly conflictingFields: readonly ("choiceKey" | "selectedOption" | "rationale")[];
+  readonly alternatives: readonly {
+  readonly value: EnterpriseProject.RunnerAnalysisManagementChoicePartialValue;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+}[];
+};
+  export interface RunnerAnalysisProfessionalDecisionValue {
+  readonly decisionType: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly outcome: string;
+  readonly rationale: string;
+}
+  export interface RunnerAnalysisProfessionalDecisionPartialValue {
+  readonly decisionType?: EnterpriseProject.RunnerAnalysisNamespaceCode;
+  readonly outcome?: string;
+  readonly rationale?: string;
+}
+  export type RunnerAnalysisProfessionalDecisionCandidate = {
+  readonly candidateId: EnterpriseProject.RunnerAnalysisId;
+  readonly kind: "QMS_PROFESSIONAL_DECISION";
+  readonly title: string;
+  readonly valueState: "EVIDENCED" | "UNKNOWN" | "CONFLICT";
+  readonly value: (EnterpriseProject.RunnerAnalysisProfessionalDecisionPartialValue | null);
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly reason: string;
+  readonly relatedAttentionItemIds: readonly EnterpriseProject.RunnerAnalysisId[];
+  readonly missingFields: readonly ("decisionType" | "outcome" | "rationale")[];
+  readonly conflictingFields: readonly ("decisionType" | "outcome" | "rationale")[];
+  readonly alternatives: readonly {
+  readonly value: EnterpriseProject.RunnerAnalysisProfessionalDecisionPartialValue;
+  readonly evidenceIds: readonly EnterpriseProject.RunnerAnalysisId[];
+}[];
+};
+  export type RunnerAnalysisStartupCandidate = (EnterpriseProject.RunnerAnalysisFactCandidate | EnterpriseProject.RunnerAnalysisProductCandidate | EnterpriseProject.RunnerAnalysisApplicabilityCandidate | EnterpriseProject.RunnerAnalysisManagementChoiceCandidate | EnterpriseProject.RunnerAnalysisProfessionalDecisionCandidate);
   export type PreparationRequestPayload = {
   readonly customer: {
   readonly mode: "NEW";
@@ -544,7 +837,14 @@ export namespace EnterpriseProject {
   readonly intakeManifestRef: Common.SnapshotRef & {
   readonly objectType?: "zhiju.integration.customer_input_manifest";
 };
-  readonly templateRefs: readonly Common.ContentAddressedRef[];
+  readonly templateRefs: readonly {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "TemplateVersion";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId: Common.UuidV7;
+  readonly scope: Record<string, never>;
+  readonly contentHash: Common.ContentHash;
+}[];
   readonly purpose: "preparation.analysis";
   readonly audience: Common.ObjectRef & {
   readonly objectType?: "identity.principal";
@@ -1232,7 +1532,14 @@ export namespace EnterpriseProject {
   readonly intakeManifestRef: Common.SnapshotRef & {
   readonly objectType?: "zhiju.integration.customer_input_manifest";
 };
-  readonly templateRefs: readonly Common.ContentAddressedRef[];
+  readonly templateRefs: readonly {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "TemplateVersion";
+  readonly objectId: Common.UuidV7;
+  readonly immutableVersionId: Common.UuidV7;
+  readonly scope: Record<string, never>;
+  readonly contentHash: Common.ContentHash;
+}[];
   readonly analysisBasisRef: Common.VersionedRef & {
   readonly objectType?: "zhiju.project.preparation_analysis_basis";
 };
@@ -1298,5 +1605,119 @@ export namespace EnterpriseProject {
   readonly currentUsability: "USABLE" | "EXPIRED" | "STALE" | "UNKNOWN";
   readonly reasons: readonly Common.ReasonCode[];
   readonly validUntil: Common.UtcInstant;
+};
+  /** Payload of `project.accept_preparation_report` (COMMAND). */
+  export type ProjectAcceptPreparationReportPayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly analysisResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly analysisResultAcceptanceRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly expectedPreparationVersion: number;
+  readonly outputProfileRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.report_profile";
+};
+  readonly expectedPreviousReportRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_report";
+};
+};
+  /** Result of `project.accept_preparation_report` (COMMAND). */
+  export type ProjectAcceptPreparationReportResult = {
+  readonly reportRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_report";
+};
+  readonly candidateSetRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_candidate_set";
+};
+  readonly planRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_plan";
+};
+  readonly becameCurrent: boolean;
+  readonly receiptRef: (Common.TypedReference | {
+  readonly kind: "OBJECT";
+  readonly objectType: "CommandReceipt";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "OBJECT";
+  readonly objectType: "ProjectScopeClaim";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "SourceMaterial";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+} | {
+  readonly kind: "CONTENT_ADDRESSED";
+  readonly objectType: "ValidationResult";
+  readonly objectId: Common.UuidV7;
+  readonly scope: Common.ScopeRef;
+  readonly contentHash: Common.ContentHash;
+});
+};
+  /** Payload of `project.get_preparation_analysis_report` (QUERY). */
+  export type ProjectGetPreparationAnalysisReportPayload = {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly reportRef?: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_report";
+};
+};
+  /** Result of `project.get_preparation_analysis_report` (QUERY). */
+  export type ProjectGetPreparationAnalysisReportResult = {
+  readonly binding: {
+  readonly projectRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.project.project";
+};
+  readonly reportRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_report";
+};
+  readonly candidateSetRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_candidate_set";
+};
+  readonly planRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_plan";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly analysisBasisRef: Common.VersionedRef & {
+  readonly objectType?: "zhiju.project.preparation_analysis_basis";
+};
+  readonly analysisBasisHash: Common.ContentHash;
+  readonly analysisBasisPublicationRef: Common.ContentAddressedRef & {
+  readonly objectType?: "zhiju.project.preparation_analysis_basis_publication";
+};
+  readonly analysisResultRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly analysisResultAcceptanceRef: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly inputManifestBytesSha256: string;
+  readonly reportJsonBytesSha256: string;
+  readonly reportMarkdownBytesSha256: string;
+};
+  readonly content: {
+  readonly report: EnterpriseProject.RunnerAnalysisReport;
+  readonly narrativeMarkdown: Common.NonEmptyString;
+};
+  readonly currentUsability: {
+  readonly usable: boolean;
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly checkedAt: Common.UtcInstant;
+};
+  readonly allowedActions: readonly never[];
+  readonly sourceWatermarks: readonly Common.SourceWatermark[];
 };
 }

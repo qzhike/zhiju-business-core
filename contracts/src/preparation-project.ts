@@ -311,6 +311,15 @@ Object.assign(preparationProjectSchemaDefinitions, {
   }),
 });
 
+export const preparationTemplateVersionRefSchema = obj({
+  kind: { const: 'CONTENT_ADDRESSED' },
+  objectType: { const: 'TemplateVersion' },
+  objectId: ref('uuidV7'),
+  immutableVersionId: ref('uuidV7'),
+  scope: obj({}),
+  contentHash: ref('contentHash'),
+});
+
 // Incompatible template-source fields are registered as a new major; legacy definitions remain exact.
 const templateBasisFields = {
   analysisBasisRef: exact('zhiju.project.preparation_analysis_basis', 'versionedRef'),
@@ -335,6 +344,7 @@ templateSource.required = templateSource.required.filter(
 );
 Object.assign(templateSource.properties, {
   profile: { const: 'ep.preparation_source@2.0' },
+  templateRefs: { ...list(preparationTemplateVersionRefSchema), minItems: 1, uniqueItems: true },
   ...templateBasisFields,
 });
 templateSource.required.push('profile', ...Object.keys(templateBasisFields));
@@ -342,7 +352,7 @@ Object.assign(preparationProjectSchemaDefinitions, {
   project_capture_preparation_source_v2_0_payload: obj({
     projectRef: exact('zhiju.project.project'),
     intakeManifestRef: exact('zhiju.integration.customer_input_manifest', 'snapshotRef'),
-    templateRefs: { ...list(ref('contentAddressedRef')), minItems: 1, uniqueItems: true },
+    templateRefs: { ...list(preparationTemplateVersionRefSchema), minItems: 1, uniqueItems: true },
     ...templateBasisFields,
     trustedDecisionRefs: { type: 'array', maxItems: 0, items: false },
     purpose: { const: 'preparation.analysis' },

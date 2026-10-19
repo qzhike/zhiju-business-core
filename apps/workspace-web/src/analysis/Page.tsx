@@ -26,6 +26,8 @@ interface Props {
   state: AnalysisState;
   update: (change: (state: AnalysisState) => AnalysisState) => void;
   historical: boolean;
+  readOnlyActions?: boolean;
+  navigationContext?: Record<string, string>;
   submit?: (input: Submission) => void;
   records: ReactNode;
   controls?: ReactNode;
@@ -38,6 +40,8 @@ export function AnalysisPage({
   state,
   update,
   historical,
+  readOnlyActions = false,
+  navigationContext = {},
   submit,
   records,
   controls,
@@ -89,7 +93,7 @@ export function AnalysisPage({
       ...current,
       scroll: { ...current.scroll, [viewKey]: reader.current?.scrollTop ?? 0 },
     }));
-    setParams(view ? { view, ...(item ? { item } : {}) } : {});
+    setParams({ ...navigationContext, ...(view ? { view, ...(item ? { item } : {}) } : {}) });
   };
   const selectContext = (context: Context) => {
     focusComposer.current = true;
@@ -224,7 +228,9 @@ export function AnalysisPage({
           </h1>
           <p className="muted">{report.title}</p>
         </div>
-        {historical ? (
+        {readOnlyActions ? (
+          <span className="waiting-tag">分析报告 · 尚未启动文件升级</span>
+        ) : historical ? (
           <strong className="waiting-tag">历史报告 · 只读</strong>
         ) : (
           <Link
@@ -443,6 +449,9 @@ export function AnalysisPage({
               {customerItem && activeArea === 'customer' ? (
                 <>
                   <h2>{customerItem.title}</h2>
+                  {customerItem.usesOriginalQuestion && (
+                    <p className="muted">报告未提供独立索取话术，以下保留原问题。</p>
+                  )}
                   <p>{customerItem.text}</p>
                   {customerItem.items.map((item) => (
                     <section key={item.id}>
@@ -593,7 +602,7 @@ export function AnalysisPage({
             说明与意见
             <textarea
               ref={composer}
-              readOnly={historical || stale}
+              readOnly={readOnlyActions || historical || stale}
               value={draft.text}
               onChange={(event) => {
                 if (!historical && !stale)
@@ -609,7 +618,7 @@ export function AnalysisPage({
                 type="file"
                 multiple
                 accept=".docx,.md,.markdown,.zip"
-                disabled={historical || stale}
+                disabled={readOnlyActions || historical || stale}
                 onChange={(event) => {
                   const names = [...(event.target.files ?? [])].map(
                     (attachment) => attachment.name,

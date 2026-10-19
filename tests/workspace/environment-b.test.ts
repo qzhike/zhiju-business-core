@@ -1,3 +1,4 @@
+import { initializeRunnerProfile } from '../../tools/workspace-environment/runner-profile.mjs';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { initializeCustomerZipFileStore } from '@zhiju/integration-gateway';
@@ -33,6 +34,11 @@ import {
   recordInitialization,
 } from '../../tools/workspace-environment/initialization.mjs';
 
+import {
+  applicationEnvironments,
+  trustDocument,
+} from '../../tools/workspace-environment/deployment.mjs';
+
 const execFileAsync = promisify(execFile);
 const temporary: string[] = [];
 async function fixture() {
@@ -49,6 +55,60 @@ afterEach(async () => {
 });
 
 describe('persistent Environment B operator configuration', () => {
+  it('uses installed preparation capabilities for both the directory and board without rewriting grants', async () => {
+    const { config } = await fixture();
+    const secrets = await readOrCreateSecrets(config);
+    const identities = { boardServiceId: 'synthetic-board-service' };
+    const preparation = {
+      capabilityCodes: {
+        'project.workspace.discover': 'workspace.preparation.project_workspace_discover',
+        'project.get_project_board_slice': 'workspace.preparation.project_get_project_board_slice',
+      },
+    };
+    const environments = applicationEnvironments(config, secrets, identities, preparation);
+    expect(environments.core.ZHIJU_WORKSPACE_TRUST_CONFIG).toBe(
+      environments.bff.ZHIJU_WORKSPACE_TRUST_CONFIG,
+    );
+    const trust = JSON.parse(environments.core.ZHIJU_WORKSPACE_TRUST_CONFIG);
+    expect(trust.capabilityCodes).toMatchObject({
+      workspaceProjectDiscoveryHumanV1: preparation.capabilityCodes['project.workspace.discover'],
+      projectBoardSliceReadHumanV1: preparation.capabilityCodes['project.get_project_board_slice'],
+      taskBoardReadHumanV1: 'execution.task_board.read.v1',
+    });
+    expect(trustDocument(config, identities).capabilityCodes.workspaceProjectDiscoveryHumanV1).toBe(
+      'workspace.project.discovery.v1',
+    );
+    for (const invalid of [
+      {},
+      { capabilityCodes: {} },
+      ...[
+        '',
+        'bad capability',
+        123,
+        preparation.capabilityCodes['project.get_project_board_slice'],
+      ].map((code) => ({
+        capabilityCodes: { ...preparation.capabilityCodes, 'project.workspace.discover': code },
+      })),
+    ])
+      expect(() => applicationEnvironments(config, secrets, identities, invalid)).toThrow(
+        'ENV_B_PREPARATION_CAPABILITY_INVALID',
+      );
+  });
+
+  it('rejects sharing another instance execution root before probing the runtime', async () => {
+    const { config } = await fixture();
+    await mkdir(config.dataDir, { recursive: true, mode: 0o700 });
+    const profileFile = join(config.dataDir, 'custom-profile.json');
+    await writePrivateJson(
+      profileFile,
+      { executionRoot: '/another-instance/runner-attempts' },
+      true,
+    );
+    await expect(
+      initializeRunnerProfile({ ...config, runner: { ...config.runner, profileFile } }),
+    ).rejects.toThrow('ENV_B_RUNNER_EXECUTION_ROOT_MISMATCH');
+  });
+
   it('reuses keys and identity instead of replacing them on repeat initialization', async () => {
     const { root, file, project, config } = await fixture();
     const first = await readOrCreateSecrets(config);

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import type { TrustedProps } from '../workbench/TrustedWorkbench.js';
 import { readExactQuery, failureFromUnknown } from '../trusted/client.js';
 import { isUuidV7, uuidV7 } from '../trusted/identity.js';
 import { asRecord, type JsonRecord } from '../trusted/values.js';
+import { LivePreparationReport } from '../analysis/LiveReport.js';
 import { IntakePage, NewProjectPage } from './Pages.js';
 import type { CreationIntent, Customer, IntakeReceipt, Submission } from './model.js';
 import {
@@ -480,6 +481,15 @@ export function LivePreparationRequest(props: Props) {
       code: enterpriseId,
     },
   };
+  if (search.get('analysis') === '1')
+    return (
+      <LivePreparationReport
+        {...props}
+        enterpriseId={enterpriseId}
+        projectId={projectId}
+        requestId={requestId}
+      />
+    );
   return (
     <IntakePage
       selectedProjectId={projectId}
@@ -520,7 +530,15 @@ export function LivePreparationRequest(props: Props) {
               <p role="status">资料接纳结果已保留，分析交接状态待核验。</p>
             )}
             {analysis?.status === 'ACCEPTED' && (
-              <p role="status">分析请求已接收，尚无真实执行回执。</p>
+              <div>
+                <p role="status">分析请求已接收，报告通过校验并接纳后可查看。</p>
+                <Link
+                  className="button primary"
+                  to={preparationHref(requestId, { enterpriseId, projectId }) + '&analysis=1'}
+                >
+                  查看分析报告
+                </Link>
+              </div>
             )}
             {request.permittedActions instanceof Array &&
               request.permittedActions.includes('CONTINUE_ORIGINAL') && (

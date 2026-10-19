@@ -19,6 +19,12 @@ export const PREPARATION_SERVICE_AUTHORITY_OPERATIONS = [
   'enterprise.project.get_project_board_slice',
   'integration.customer_zip.submission.read',
   'identity.preparation.original_analysis.read',
+  'execution.preparation.task.create',
+  'execution.preparation.context.build',
+  'execution.preparation.analysis.request',
+  'execution.preparation.result.read',
+  'project.preparation.report.accept',
+  'execution.preparation.process.step',
 ] as const;
 export type PreparationServiceAuthorityOperation =
   | (typeof PREPARATION_SERVICE_AUTHORITY_OPERATIONS)[number]
@@ -35,7 +41,7 @@ export interface PreparationCreatorBinding {
   targetObjectType: string;
 }
 export interface PreparationMembershipTemplate {
-  profile: 'ip.preparation_membership_template@1.0';
+  profile: 'ip.preparation_membership_template@1.0' | 'ip.preparation_membership_template@1.1';
   templateCode: string;
   templateVersion: string;
   creatorBindings: PreparationCreatorBinding[];

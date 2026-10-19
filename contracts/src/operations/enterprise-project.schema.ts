@@ -1,3 +1,7 @@
+import {
+  preparationReportDefinitions,
+  preparationOperationContracts,
+} from '../preparation-execution.ts';
 import guardPolicies from '../generated/payload-guard-policies.json' with { type: 'json' };
 import {
   preparationProjectSchemaDefinitions,
@@ -937,6 +941,7 @@ const baseEnterpriseProjectOperationContracts = Object.freeze(
 
 export const enterpriseProjectOperationContracts = Object.freeze({
   ...baseEnterpriseProjectOperationContracts,
+  ...preparationOperationContracts('enterprise-project'),
   ...preparationProjectExecutableContracts,
   ...preparationProjectInternalContracts,
 });
@@ -955,6 +960,7 @@ export const enterpriseProjectSchema = {
   $id: schemaId,
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   $defs: {
+    ...preparationReportDefinitions,
     ...preparationProjectSchemaDefinitions,
     ...preparationAliases,
     ...namedDefinitions,

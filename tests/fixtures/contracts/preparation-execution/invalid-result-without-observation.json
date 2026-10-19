@@ -1,0 +1,122 @@
+{
+  "agentResultRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "execution.agent_result",
+    "objectId": "019e0000-0000-7000-8000-000000000009",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "acceptanceRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "execution.agent_result_acceptance",
+    "objectId": "019e0000-0000-7000-8000-00000000000a",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "preparationSourceRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.project.preparation_source",
+    "objectId": "019e0000-0000-7000-8000-000000000003",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000003",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "runRef": {
+    "kind": "OBJECT",
+    "objectType": "execution.run",
+    "objectId": "019e0000-0000-7000-8000-00000000000e",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    }
+  },
+  "contractRef": {
+    "kind": "CONTENT_ADDRESSED",
+    "objectType": "zhiju.contract.work_order",
+    "objectId": "019e0000-0000-7000-8000-00000000000f",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "contextRef": {
+    "kind": "SNAPSHOT",
+    "objectType": "zhiju.execution.preparation_context",
+    "objectId": "019e0000-0000-7000-8000-000000000006",
+    "scope": {
+      "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+      "projectId": "019e0000-0000-7000-8000-000000000002"
+    },
+    "snapshotId": "019e0000-0000-7000-8000-000000000006",
+    "contentHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "profileRef": {
+    "kind": "VERSIONED",
+    "objectType": "zhiju.task.analysis_profile",
+    "objectId": "019e0000-0000-7000-8000-00000000000b",
+    "scope": {},
+    "versionId": "019e0000-0000-7000-8000-00000000006f"
+  },
+  "output": {
+    "jsonBytes": "{\"schemaVersion\": \"0.2.0\", \"stage\": \"ANALYSIS\", \"context\": {\"analysisRequestKey\": \"synthetic-preparation-analysis\", \"inputManifestSha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"previousReportSha256\": null, \"sourceReportIds\": []}, \"title\": \"Synthetic analysis report\", \"analysisCompleteness\": \"PARTIAL\", \"summary\": \"Synthetic contract fixture only.\", \"narrative\": {\"relativePath\": \"analysis-report.md\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}, \"limitations\": [\"SYNTHETIC_CONTRACT_FIXTURE_ONLY\"], \"readCoverage\": [], \"evidence\": [], \"protectedFacts\": [], \"attentionItems\": [], \"resolutionProposals\": [], \"plannedFiles\": [], \"templateCoverage\": [], \"changes\": [], \"checks\": [], \"startupCandidates\": []}",
+    "markdownBytes": "# Synthetic report",
+    "jsonSha256": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "markdownSha256": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "manifestSha256": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "extractionSha256": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "validationContextSha256": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "observationRef": null
+  },
+  "currentUsability": "USABLE",
+  "reasons": []
+}

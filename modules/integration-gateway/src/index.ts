@@ -19,3 +19,7 @@ export * from './customer-zip/zip-safety.js';
 export * from './customer-zip/upload-ticket.js';
 export * from './customer-zip/s3-object-store.js';
 export * from './customer-zip/file-object-store.js';
+
+export * from './runtime/local-omp-analysis.js';
+
+export { verifyOmpStartup } from './runtime/omp-rpc-process.js';

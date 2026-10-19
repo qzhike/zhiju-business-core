@@ -1,0 +1,166 @@
+{
+  "binding": {
+    "projectRef": {
+      "kind": "OBJECT",
+      "objectType": "zhiju.project.project",
+      "objectId": "019e0000-0000-7000-8000-000000000002",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      }
+    },
+    "reportRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.preparation_report",
+      "objectId": "019e0000-0000-7000-8000-000000000010",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000010",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "candidateSetRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.preparation_candidate_set",
+      "objectId": "019e0000-0000-7000-8000-000000000011",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000011",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "planRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.preparation_plan",
+      "objectId": "019e0000-0000-7000-8000-000000000012",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000012",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "preparationSourceRef": {
+      "kind": "SNAPSHOT",
+      "objectType": "zhiju.project.preparation_source",
+      "objectId": "019e0000-0000-7000-8000-000000000003",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "snapshotId": "019e0000-0000-7000-8000-000000000003",
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "analysisBasisRef": {
+      "kind": "VERSIONED",
+      "objectType": "zhiju.project.preparation_analysis_basis",
+      "objectId": "019e0000-0000-7000-8000-000000000013",
+      "scope": {},
+      "versionId": "019e0000-0000-7000-8000-000000000077"
+    },
+    "analysisBasisHash": {
+      "algorithm": "SHA-256",
+      "canonicalizationVersion": "1",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "analysisBasisPublicationRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "zhiju.project.preparation_analysis_basis_publication",
+      "objectId": "019e0000-0000-7000-8000-000000000014",
+      "scope": {},
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "analysisResultRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result",
+      "objectId": "019e0000-0000-7000-8000-000000000009",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "analysisResultAcceptanceRef": {
+      "kind": "CONTENT_ADDRESSED",
+      "objectType": "execution.agent_result_acceptance",
+      "objectId": "019e0000-0000-7000-8000-00000000000a",
+      "scope": {
+        "enterpriseId": "019e0000-0000-7000-8000-000000000001",
+        "projectId": "019e0000-0000-7000-8000-000000000002"
+      },
+      "contentHash": {
+        "algorithm": "SHA-256",
+        "canonicalizationVersion": "1",
+        "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "inputManifestBytesSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reportJsonBytesSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reportMarkdownBytesSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "content": {
+    "report": {
+      "schemaVersion": "0.2.0",
+      "stage": "ANALYSIS",
+      "context": {
+        "analysisRequestKey": "synthetic-preparation-analysis",
+        "inputManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "previousReportSha256": null,
+        "sourceReportIds": []
+      },
+      "title": "Synthetic analysis report",
+      "analysisCompleteness": "PARTIAL",
+      "summary": "Synthetic contract fixture only.",
+      "narrative": {
+        "relativePath": "analysis-report.md",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "limitations": ["SYNTHETIC_CONTRACT_FIXTURE_ONLY"],
+      "readCoverage": [],
+      "evidence": [],
+      "protectedFacts": [],
+      "attentionItems": [],
+      "resolutionProposals": [],
+      "plannedFiles": [],
+      "templateCoverage": [],
+      "changes": [],
+      "checks": [],
+      "startupCandidates": [],
+      "approved": true
+    },
+    "narrativeMarkdown": "# Synthetic report"
+  },
+  "currentUsability": {
+    "usable": true,
+    "reasonCodes": [],
+    "checkedAt": "2026-10-18T10:00:00.000Z"
+  },
+  "allowedActions": [],
+  "sourceWatermarks": []
+}

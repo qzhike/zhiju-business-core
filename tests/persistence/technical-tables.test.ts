@@ -132,6 +132,8 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'company_startup_receipt',
     // IM-UI-01 T2 (#291): owning preparation creation and handoff facts.
     'preparation_fact',
+    // Template-driven first analysis: exact accepted report pointer (V7025).
+    'preparation_report_head',
     // IM-03 WI-09 (issue #65): Project-owned GapAnalysis input, version,
     // finding and Human decision facts.
     'gap_analysis',
@@ -160,6 +162,9 @@ const FIXTURE_TABLES: Record<string, string[]> = {
     'delivery_plan_decision',
   ],
   task_execution: [
+    // Template-driven first analysis: request and immutable owning facts (V7024).
+    'preparation_analysis_request',
+    'preparation_analysis_fact',
     'completion_evaluation',
     'completion_source_observation',
     'business_probe',

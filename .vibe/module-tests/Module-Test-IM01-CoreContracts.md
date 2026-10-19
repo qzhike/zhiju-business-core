@@ -142,3 +142,10 @@
 ## 12. 测试遗留清理
 
 测试过程中创建的临时 helper 文件必须在合并前删除（`pnpm clean` 后 `pnpm verify` 全套通过验证）。无残留脚本或调试 fixture。
+
+
+## 模板驱动首次分析验收（2026-10-18）
+
+封闭 preparation 六项操作及 Context@1.1/WorkOrder@1.1；正向 payload/result standalone fixtures，缺字段、旧 ACTIVE selector、错 Ref 类型与跨 scope 负例；精确 266 项登记与生成类型一致，历史基线不改变。
+
+验证层分别记录：合同/受控进程/真实 PostgreSQL 自动化、真实 OMP 小型合成资料调用、平台报告接纳与实际浏览器查看、用户独立人工验收。未执行项仍为 NOT RUN；测试结果以本次工作及后续 Issue/PR 证据为准，不由本文自行宣告通过。

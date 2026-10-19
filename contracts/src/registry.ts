@@ -1,3 +1,4 @@
+import { preparationContextSchema, preparationWorkOrderSchema } from './preparation-execution.js';
 import type {
   AnySchemaObject,
   ErrorObject,
@@ -127,6 +128,8 @@ export class ContractRegistry {
     this.#ajv.addSchema(commonSchema);
     this.#ajv.addSchema(runnerAnalysisReportSchema);
     this.#ajv.addSchema(runnerAnalysisValidationSchema);
+    this.#ajv.addSchema(preparationContextSchema);
+    this.#ajv.addSchema(preparationWorkOrderSchema);
     for (const schema of coreContractSchemas) this.#ajv.addSchema(schema);
     for (const schema of executableOperationSchemas) this.#ajv.addSchema(schema);
 

@@ -509,3 +509,5 @@ export * from './commands/markdown-review-authorization.js';
 export * from './persistence/preparation-db.js';
 export * from './commands/preparation-identity.js';
 export * from './commands/preparation-project-authorization.js';
+
+export { PREPARATION_ANALYSIS_CREATOR_BINDINGS } from './commands/preparation-identity.js';

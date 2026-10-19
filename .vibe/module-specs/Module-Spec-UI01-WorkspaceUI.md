@@ -439,8 +439,13 @@ BFF 仅 six-operation allowlist + 固定 ZIP PUT，逐次 session/CSRF/Origin �
 
 ## 模板驱动准备入口（2026-10-18）
 
-对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `TECHNICAL DELTA UNDER REVIEW / NOT IMPLEMENTED`。普通 MVP 主流程使用客户资料、项目固定模板和工作规则；顾问不必先提交法规原文，不增加法规配置表单或“环境 B 特殊分析”入口。现有创建、单 ZIP、分析总览布局保持。
+对应 [前置条件校正](../decisions/template-driven-preparation.md)，状态 `FIRST ANALYSIS IMPLEMENTED`。普通 MVP 主流程使用客户资料、项目固定模板和工作规则；顾问不必先提交法规原文，不增加法规配置表单或“环境 B 特殊分析”入口。现有创建、单 ZIP、分析总览布局保持。
 
 公开准备 Envelope 不变的前提是新版本仅存在于服务端精确 preset/source 的已注册 profile；BFF 不解析业务配置或替换原键。后续若需要公开新版本，必须同步明确 allowlist 和 Web 的原请求版本，不能通过 fallback 猜测。真实报告显示所用模板版本、缺失资料、读取限制、冲突和修改建议；公司配置故障不能包装成客户缺文件。当前未接通的修订/确认动作明确不可用，不把前端模拟或“报告就绪”当执行成功。
 
 BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0` allowlist；Web 从同版 v0.2 内容映射总览，保留读取限制及当前不可用原因。旧 startup review/确认保持原接受集，不复用其必填法规规则 binding。
+
+
+首次真实报告从准备请求页面进入，继续使用分析总览与四类明细布局。`integration.get_customer_zip_intake@1.0` 的 analysis 增加可选 execution 摘要（真实 TE 原请求状态/原因/Refs/updatedAt），旧结果可省略；查询只读，不驱动任务。等待页区分排队、准备、实际运行、结果校验、已接纳以及 FAILED/UNKNOWN/EXPIRED，不显示估算百分比。每 5 秒只查询原请求；已接纳后停止自动查询，失败/UNKNOWN/EXPIRED 后保留原页与手动读取入口。报告来自同一 v0.2 快照，复制客户索取清单可用；尚未开放的补料意见/启动/修改动作不可提交。切换身份、权限失效或卸载页面后清除旧结果并丢弃迟到响应。
+
+报告允许客户事项的 `customerRequest` 为 null。此时仍按原事项显示标题、原问题、缺失/读取受限/事实分类和依据，不能当作没有待办；复制沿用原问题并注明未提供独立索取话术。不推断或新增业务意见。有明确索取 key 的事项继续按 key 去重，无索取 key 的事项分别保留，不与同名分组混并。

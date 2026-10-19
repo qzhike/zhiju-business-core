@@ -49,11 +49,31 @@ export interface CustomerRequest {
   title: string;
   text: string;
   items: Attention[];
+  usesOriginalQuestion?: true;
 }
 export function customerRequests(report: AnalysisReport): CustomerRequest[] {
   const requests = new Map<string, CustomerRequest>();
+  const reservedKeys = new Set(
+    report.attentionItems.flatMap((item) =>
+      item.customerRequest ? [item.customerRequest.key] : [],
+    ),
+  );
   for (const item of report.attentionItems) {
-    if (item.audience !== 'CUSTOMER' || !item.customerRequest) continue;
+    if (item.audience !== 'CUSTOMER') continue;
+    if (!item.customerRequest) {
+      // A nullable request script does not remove the owning attention item.
+      let key = `attention-${item.id}`;
+      while (reservedKeys.has(key)) key = `_${key}`;
+      reservedKeys.add(key);
+      requests.set(key, {
+        key,
+        title: item.title,
+        text: item.question,
+        items: [item],
+        usesOriginalQuestion: true,
+      });
+      continue;
+    }
     const request = item.customerRequest;
     const existing = requests.get(request.key);
     if (existing) existing.items.push(item);

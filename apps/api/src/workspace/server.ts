@@ -85,6 +85,7 @@ export class WorkspaceStartupError extends Error {
 }
 
 export interface WorkspaceCoreRuntime extends WorkspaceTransportRuntime {
+  close?(): Promise<void>;
   readonly trustConfig: WorkspaceCoreTrustConfig;
 }
 
@@ -290,7 +291,13 @@ export function createWorkspaceCoreFromEnv(
   );
   const crypto = createIdentityCryptoPorts(lookupKey, fieldKey);
 
-  const createPool = options.openPool ?? openPool;
+  const ownedPools: Pool[] = [];
+  const createPool = (url: string) => {
+    if (options.openPool) return options.openPool(url);
+    const pool = openPool(url);
+    ownedPools.push(pool);
+    return pool;
+  };
   const identityPool = createPool(identityUrl);
   const enterprisePool = createPool(enterpriseUrl);
   const identityDb = createIdentityPolicyDatabase(identityPool);
@@ -329,6 +336,10 @@ export function createWorkspaceCoreFromEnv(
   });
 
   return {
+    close: async () => {
+      await preparation?.close?.();
+      await Promise.all(ownedPools.map((pool) => pool.end()));
+    },
     trustConfig,
     trustConfigHash: trustConfig.trustConfigHash,
     isTrustedPeer: (remoteAddress) =>

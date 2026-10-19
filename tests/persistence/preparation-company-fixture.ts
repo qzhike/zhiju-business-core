@@ -474,7 +474,7 @@ export async function createPreparationCompanyFixture(
       `CREATE ROLE ${role} LOGIN PASSWORD 'company267-test-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
     );
     await admin.query(
-      `GRANT platform_context_establisher,identity_policy_app,enterprise_project_app,enterprise_project_platform_reference_writer,identity_policy_company_rule_writer,enterprise_project_company_rule_writer,identity_policy_preparation_writer,identity_preparation_self_reader,integration_gateway_app TO ${role}`,
+      `GRANT platform_context_establisher,identity_policy_app,enterprise_project_app,enterprise_project_platform_reference_writer,identity_policy_company_rule_writer,enterprise_project_company_rule_writer,identity_policy_preparation_writer,identity_preparation_self_reader,integration_gateway_app,task_execution_app TO ${role}`,
     );
     const url = new URL(databaseUrl);
     url.username = role;

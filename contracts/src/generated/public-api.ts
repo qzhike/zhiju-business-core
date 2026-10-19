@@ -2726,4 +2726,158 @@ export const publicApiOperations = [
       },
     ],
   },
+  {
+    type: 'execution.create_preparation_analysis_task',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.task',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.preparation.task.create',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_create_preparation_analysis_task_result',
+    references: [
+      { path: '/payload/projectRef', kind: 'OBJECT', objectType: 'zhiju.project.project' },
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+      {
+        path: '/payload/analysisProfileRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.task.analysis_profile',
+      },
+    ],
+  },
+  {
+    type: 'execution.build_preparation_context',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.preparation_context',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.preparation.context.build',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_build_preparation_context_result',
+    references: [
+      { path: '/payload/taskRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+      { path: '/payload/workOrderRef', kind: 'OBJECT', objectType: 'zhiju.execution.work_order' },
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+    ],
+  },
+  {
+    type: 'execution.request_preparation_analysis',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.execution.preparation_analysis_request',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'execution.preparation.analysis.request',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_request_preparation_analysis_result',
+    references: [
+      { path: '/payload/taskRef', kind: 'OBJECT', objectType: 'zhiju.execution.task' },
+      {
+        path: '/payload/taskDefinitionSnapshotRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'zhiju.execution.task_definition_snapshot',
+      },
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+      {
+        path: '/payload/analysisProfileRef',
+        kind: 'VERSIONED',
+        objectType: 'zhiju.task.analysis_profile',
+      },
+    ],
+  },
+  {
+    type: 'execution.get_preparation_analysis_result',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'task-execution',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'execution.preparation.result.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/task-execution/1.0#/$defs/execution_get_preparation_analysis_result_result',
+    references: [
+      {
+        path: '/payload/agentResultRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result',
+      },
+      {
+        path: '/payload/acceptanceRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result_acceptance',
+      },
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+    ],
+  },
+  {
+    type: 'project.accept_preparation_report',
+    version: '1.0',
+    kind: 'COMMAND',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    targetObjectType: 'zhiju.project.preparation_report',
+    concurrencyMode: 'CREATE',
+    authorizationPurpose: 'project.preparation.report.accept',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_accept_preparation_report_result',
+    references: [
+      { path: '/payload/projectRef', kind: 'OBJECT', objectType: 'zhiju.project.project' },
+      {
+        path: '/payload/preparationSourceRef',
+        kind: 'SNAPSHOT',
+        objectType: 'zhiju.project.preparation_source',
+      },
+      {
+        path: '/payload/analysisResultRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result',
+      },
+      {
+        path: '/payload/analysisResultAcceptanceRef',
+        kind: 'CONTENT_ADDRESSED',
+        objectType: 'execution.agent_result_acceptance',
+      },
+    ],
+  },
+  {
+    type: 'project.get_preparation_analysis_report',
+    version: '1.0',
+    kind: 'QUERY',
+    owner: 'enterprise-project',
+    schemaStatus: 'FULL',
+    allowedConsistency: ['AUTHORITATIVE'],
+    authorizationPurpose: 'project.preparation.report.read',
+    dataClassification: 'CUSTOMER_CONFIDENTIAL',
+    resultSchemaRef:
+      'https://schemas.zhiju.local/modules/enterprise-project/1.0#/$defs/project_get_preparation_analysis_report_result',
+    references: [
+      { path: '/payload/projectRef', kind: 'OBJECT', objectType: 'zhiju.project.project' },
+    ],
+  },
 ] as const satisfies readonly PublicOperationDefinition[];

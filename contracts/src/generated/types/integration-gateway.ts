@@ -611,6 +611,29 @@ export namespace IntegrationGateway {
 };
   readonly disposition: "ACCEPTED" | "IDEMPOTENT_REPLAY";
   readonly analysis: {
+  readonly execution?: {
+  readonly analysisRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.preparation_analysis_request";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly state: "PENDING" | "PREPARING" | "RUNNING" | "VALIDATING" | "ACCEPTED" | "FAILED" | "UNKNOWN" | "EXPIRED";
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly runRef?: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly agentResultRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly acceptanceRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly updatedAt: Common.UtcInstant;
+};
   readonly status: "WAITING_INPUT" | "PENDING" | "WAITING_CAPABILITY" | "BLOCKED_AUTHORIZATION" | "PARTIAL" | "UNKNOWN" | "STALE" | "ACCEPTED";
   readonly reasonCodes?: readonly Common.ReasonCode[];
   readonly sourceReceiptRefs?: readonly ((Common.TypedReference | {
@@ -992,6 +1015,29 @@ export namespace IntegrationGateway {
   readonly reasonCodes: readonly Common.ReasonCode[];
 };
   readonly analysis: {
+  readonly execution?: {
+  readonly analysisRequestRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.preparation_analysis_request";
+};
+  readonly preparationSourceRef: Common.SnapshotRef & {
+  readonly objectType?: "zhiju.project.preparation_source";
+};
+  readonly taskRef: Common.ObjectRef & {
+  readonly objectType?: "zhiju.execution.task";
+};
+  readonly state: "PENDING" | "PREPARING" | "RUNNING" | "VALIDATING" | "ACCEPTED" | "FAILED" | "UNKNOWN" | "EXPIRED";
+  readonly reasonCodes: readonly Common.ReasonCode[];
+  readonly runRef?: Common.ObjectRef & {
+  readonly objectType?: "execution.run";
+};
+  readonly agentResultRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result";
+};
+  readonly acceptanceRef?: Common.ContentAddressedRef & {
+  readonly objectType?: "execution.agent_result_acceptance";
+};
+  readonly updatedAt: Common.UtcInstant;
+};
   readonly status: "WAITING_INPUT" | "PENDING" | "WAITING_CAPABILITY" | "BLOCKED_AUTHORIZATION" | "PARTIAL" | "UNKNOWN" | "STALE" | "ACCEPTED";
   readonly reasonCodes?: readonly Common.ReasonCode[];
   readonly sourceReceiptRefs?: readonly ((Common.TypedReference | {

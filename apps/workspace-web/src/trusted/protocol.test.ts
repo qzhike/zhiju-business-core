@@ -352,6 +352,17 @@ describe('session probe and safe entry', () => {
 
   it('only returns approved same-origin return routes', () => {
     expect(safeReturnTo('/workbench')).toBe('/workbench');
+    const preparation =
+      '/preparations/019e0000-0000-7000-8000-000000000003?enterprise=019e0000-0000-7000-8000-000000000001&project=019e0000-0000-7000-8000-000000000002';
+    expect(safeReturnTo(preparation + '&analysis=1')).toBe(preparation + '&analysis=1');
+    expect(safeReturnTo(preparation + '&analysis=1&view=customer&item=missing-1')).toBe(
+      preparation + '&analysis=1&view=customer&item=missing-1',
+    );
+    expect(safeReturnTo(preparation + '&analysis=2')).toBe('/workbench');
+    expect(safeReturnTo(preparation + '&analysis=1&redirect=https://evil.invalid')).toBe(
+      '/workbench',
+    );
+
     expect(safeReturnTo('/projects/DEMO-1/analysis/REPORT-1')).toBe(
       '/projects/DEMO-1/analysis/REPORT-1',
     );
