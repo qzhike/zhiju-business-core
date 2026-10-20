@@ -19,7 +19,7 @@ async function confirmPlan(page: Page, scenario = 'received') {
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
   await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
-  await page.getByRole('button', { name: '带入客户答复与补充说明' }).click();
+  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
@@ -70,6 +70,9 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.getByRole('link', { name: '返回工作台' })).toBeVisible();
   await page.goto(`${base}/startup/U1-REPORT-01`);
   await expect(page.getByRole('heading', { name: '无法打开此页面' })).toBeVisible();
+  await page.goto(plan);
+  await expect(page.getByRole('heading', { name: '先核对第 2 版分析' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '返回核对第 2 版分析' })).toBeVisible();
 });
 
 test('inputs distinguish batches, formats and non-analysis receipts', async ({ page }) => {
@@ -109,11 +112,13 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('.understanding-groups')).toContainText('读取限制');
   await expect(page.locator('.template-applicability')).toContainText('T03');
   await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
-  await page.getByRole('button', { name: '带入客户答复与补充说明' }).click();
+  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await expect(page.locator('.analysis-receipt').first()).toContainText('第 2 版分析已到达');
   await expect(page).toHaveURL(reportOne);
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
+  await page.getByRole('link', { name: '项目概览' }).click();
+  await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-01');
   await page.getByRole('link', { name: '资料批次' }).click();
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await expect(page).toHaveURL(reportOne);
@@ -124,6 +129,8 @@ test('answer and supplement produce a second report without losing the first', a
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
   await expect(page.getByRole('link', { name: '核对信息与文件范围 →' })).toBeVisible();
   await expect(page.locator('main')).toContainText('本轮变化');
+  await page.getByRole('link', { name: '项目概览' }).click();
+  await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-02');
   await page.getByRole('link', { name: '资料批次' }).click();
   await page.getByRole('link', { name: '分析与澄清' }).click();
   await expect(page).toHaveURL(reportTwo);
@@ -240,9 +247,14 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.getByRole('button', { name: '进入第二阶段（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '第 1 版 · 已确认 · 演示回执' }).click();
   await expect(page.locator('.analysis-receipt')).toHaveCount(2);
-  await expect(page.locator('.analysis-receipt').first()).toContainText(
+  await expect(page.locator('.analysis-receipt').nth(0)).toContainText(
     '请保留客户 I/II/III 类术语',
   );
+  await expect(page.locator('.analysis-receipt').nth(1)).toContainText(
+    '第二条范围内意见：补充培训说明',
+  );
+  await expect(page.locator('.analysis-receipt').nth(0)).toContainText(/U1-REV-/u);
+  await expect(page.locator('.analysis-receipt').nth(1)).toContainText(/U1-REV-/u);
   await expect(page.getByText(/此计划已被第 2\s*版计划替代/u)).toBeVisible();
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
   await expect(page.locator('.plan-history')).toContainText('U1-REQUEST-');

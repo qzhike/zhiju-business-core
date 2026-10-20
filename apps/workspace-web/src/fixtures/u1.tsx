@@ -673,7 +673,7 @@ export function FixtureU1Analysis() {
                 }));
               }}
             >
-              带入客户答复与补充说明
+              带入固定客户答复（成功场景）
             </button>
           </details>
         }
@@ -685,6 +685,18 @@ export function FixtureU1Plan() {
   const state = useU1();
   const params = useParams();
   if (params.reportId !== 'U1-REPORT-02' || params.projectId !== u1Project.id) return <Missing />;
+  if (state.acknowledgedReportVersion !== 2) {
+    return (
+      <div>
+        <JourneyNav current="scope" analysisReportId={state.viewedReportId} scopeEnabled={false} />
+        <section className="panel" role="status">
+          <h1 tabIndex={-1}>先核对第 2 版分析</h1>
+          <p>修改范围以第 2 版分析及其输入依据为准；未核对前不展示可确认的计划。</p>
+          <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>返回核对第 2 版分析</Link>
+        </section>
+      </div>
+    );
+  }
   const plan = state.currentPlan;
   const latestPlan = state.plans.at(-1);
   const confirmed = plan.state === 'CONFIRMED' && !plan.supersededBy;
