@@ -9,7 +9,7 @@ import {
   type WorkCard,
 } from '../workbench/model.js';
 
-const projects: readonly [ProjectView, ProjectView] = [
+const projects: readonly [ProjectView, ProjectView, ProjectView] = [
   {
     key: 'project:WB-ENTERPRISE-01/DEMO-PROJECT-01',
     enterpriseId: 'WB-ENTERPRISE-01',
@@ -32,11 +32,37 @@ const projects: readonly [ProjectView, ProjectView] = [
     version: 1,
     progress: '交付项 6 / 18 · 固定合成进度',
   },
+  {
+    key: 'project:U1-ENTERPRISE/MVP-U1-PROJECT',
+    enterpriseId: 'U1-ENTERPRISE',
+    projectId: 'MVP-U1-PROJECT',
+    name: '匿名客户 C01–C07 · 变更控制体系文件升级',
+    title: '变更控制体系文件升级',
+    code: 'U1-REHEARSAL',
+    status: 'U1 页面演练 · 非业务事实',
+    version: 1,
+    progress: '资料 1 批 / 计划 1 版 · 固定合成状态',
+  },
 ];
 const first = projects[0];
 const second = projects[1];
+const u1 = projects[2];
 const reportId = 'DEMO-STARTUP-REPORT-01';
 const fixtureCards: readonly WorkCard[] = [
+  {
+    id: 'wb-u1',
+    projectKey: u1.key,
+    title: 'U1 演练 · 从资料到确认范围',
+    group: 'attention',
+    status: '待试走',
+    reason:
+      '在隔离开发适配器中核对资料批次、澄清答复、精确修改范围与模拟回执；不调用 Core 或 Runner。',
+    context: 'U1-REPORT-01 / U1-REPORT-02 · 计划第 1 版',
+    action: {
+      label: '查看项目概览',
+      destination: { kind: 'overview', projectId: u1.projectId },
+    },
+  },
   {
     id: 'wb-analysis',
     projectKey: first.key,

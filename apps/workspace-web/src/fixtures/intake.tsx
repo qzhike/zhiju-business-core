@@ -1,6 +1,8 @@
 // DEVELOPMENT_INTAKE_ADAPTER_ONLY: never imported by the production entry.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useParams } from 'react-router';
 import { IntakePage, NewProjectPage } from '../intake/Pages.js';
+import { FixtureU1Intake } from './u1.js';
 import type {
   CreationIntent,
   Customer,
@@ -192,6 +194,8 @@ export function FixtureNewProject() {
 }
 export function FixtureIntake() {
   const state = useFixture();
+  const params = useParams();
+  if (params.projectId === 'MVP-U1-PROJECT') return <FixtureU1Intake />;
   return (
     <IntakePage
       {...state}

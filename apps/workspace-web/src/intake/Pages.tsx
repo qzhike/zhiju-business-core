@@ -7,10 +7,14 @@ import {
   type CustomerIntent,
   type CreationIntent,
   type CreationReceipt,
+  type InputBatch,
+  type InputFormatRule,
   type IntakeProject,
   type IntakeReceipt,
   type Submission,
   type ZipSelection,
+  inputBatchLabels,
+  inputEntryLabels,
 } from './model.js';
 import './intake.css';
 
@@ -262,6 +266,8 @@ export interface IntakePageProps {
   submit?: (input: Submission) => void;
   retry?: (receipt: IntakeReceipt) => void;
   fixedZip?: ZipSelection;
+  batches?: readonly InputBatch[];
+  formatRules?: readonly InputFormatRule[];
   controls?: ReactNode;
 }
 export function IntakePage(props: IntakePageProps) {
@@ -304,6 +310,100 @@ export function IntakePage(props: IntakePageProps) {
     );
   return <ProjectIntake key={project.id} {...props} project={project} />;
 }
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${bytes} B`;
+}
+export function InputBatches({
+  batches,
+  formatRules,
+}: {
+  batches: readonly InputBatch[];
+  formatRules?: readonly InputFormatRule[] | undefined;
+}) {
+  return (
+    <section className="intake-batches" aria-label="已接收资料批次">
+      <div className="intake-batches-head">
+        <h2>资料批次与目录</h2>
+        <p className="muted">接收状态不代表读取完成、分析成功或阶段完成。</p>
+      </div>
+      {formatRules && (
+        <ul className="format-rules" aria-label="支持的输入格式">
+          {formatRules.map((rule) => (
+            <li key={rule.format} data-disposition={rule.disposition}>
+              <strong>{rule.format}</strong> {rule.note}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ol className="batch-list">
+        {batches.map((batch) => (
+          <li key={batch.id}>
+            <article className="intake-batch" aria-label={batch.label}>
+              <header>
+                <div>
+                  <small>{batch.id}</small>
+                  <h3>{batch.label}</h3>
+                  <p>
+                    {batch.zipName} · 提交于 {batch.submittedAt}
+                  </p>
+                </div>
+                <span className="status-tag">{inputBatchLabels[batch.state]}</span>
+              </header>
+              <p className="batch-count">
+                {batch.entries.length} 个文件条目
+                {batch.answers.length > 0 ? ` · ${batch.answers.length} 条答复` : ''}
+              </p>
+              {batch.entries.length > 0 && (
+                <table className="batch-entries">
+                  <caption>本批目录</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">来源</th>
+                      <th scope="col">文件</th>
+                      <th scope="col">格式</th>
+                      <th scope="col">大小</th>
+                      <th scope="col">接收/读取状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batch.entries.map((entry) => (
+                      <tr key={entry.id} data-state={entry.state}>
+                        <th scope="row">{entry.id}</th>
+                        <td>
+                          <span>{entry.path}</span>
+                          <small>{entry.note}</small>
+                        </td>
+                        <td>{entry.format}</td>
+                        <td>{formatBytes(entry.bytes)}</td>
+                        <td>{inputEntryLabels[entry.state]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {batch.answers.map((answer) => (
+                <p className="batch-answer" key={answer}>
+                  答复：{answer}
+                </p>
+              ))}
+              {batch.limitations.length > 0 && (
+                <div className="batch-limitations">
+                  <strong>本批限制</strong>
+                  <ul>
+                    {batch.limitations.map((limitation) => (
+                      <li key={limitation}>{limitation}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="batch-next">下一步：{batch.nextAction}</p>
+            </article>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 function ProjectIntake({
   project,
   receipts,
@@ -315,6 +415,8 @@ function ProjectIntake({
   directoryNotice,
   firstIntakeImmutable,
   submissionPending,
+  batches,
+  formatRules,
 }: IntakePageProps & { project: IntakeProject }) {
   const [zip, setZip] = useState<ZipSelection | null>(null);
   const [note, setNote] = useState('');
@@ -360,6 +462,7 @@ function ProjectIntake({
             {unavailable}
           </p>
         )}
+        {batches && <InputBatches batches={batches} formatRules={formatRules} />}
         <div className="upload-zone">
           <h2>把客户现有体系文件放进一个 ZIP</h2>
           <p>DOCX / Markdown 文件请放在 ZIP 内，无需先逐份匹配模板。</p>

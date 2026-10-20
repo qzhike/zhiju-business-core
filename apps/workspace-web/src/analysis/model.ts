@@ -18,6 +18,29 @@ export interface Attention {
   evidenceIds: string[];
   customerRequest: { key: string; title: string; text: string } | null;
 }
+export type UnderstandingCategory =
+  | 'SOURCE_FACT'
+  | 'EXISTING_COVERAGE'
+  | 'APPLICABLE_GAP'
+  | 'NOT_APPLICABLE'
+  | 'INSUFFICIENT'
+  | 'CONFLICT'
+  | 'READ_LIMIT';
+export interface UnderstandingItem {
+  id: string;
+  category: UnderstandingCategory;
+  statement: string;
+  sourceIds: string[];
+  templateIds: string[];
+  limitation?: string;
+}
+export interface TemplateApplicability {
+  templateId: string;
+  title: string;
+  disposition: 'APPLICABLE' | 'PARTIALLY_APPLICABLE' | 'NOT_APPLICABLE' | 'INSUFFICIENT';
+  explanation: string;
+  sourceIds: string[];
+}
 export interface AnalysisReport {
   projectId: string;
   reportId: string;
@@ -27,6 +50,8 @@ export interface AnalysisReport {
   limitations: string[];
   narrative: string;
   attentionItems: Attention[];
+  understanding?: UnderstandingItem[];
+  templates?: TemplateApplicability[];
   evidence: Evidence[];
   plannedFiles: { id: string; title: string; customerCode: string | null; origin: string }[];
   changes: {
@@ -69,7 +94,7 @@ export function requestText(requests: readonly CustomerRequest[]): string {
 export interface Context {
   key: string;
   projectId: string;
-  kind: 'CUSTOMER' | 'JUDGMENT' | 'PLAN';
+  kind: 'CUSTOMER' | 'JUDGMENT' | 'PLAN' | 'PROJECT';
   title: string;
   reportId: string;
   version: number;
@@ -85,12 +110,16 @@ export function contextFor(report: AnalysisReport, kind: Context['kind'], id?: s
       ? item.audience === 'CUSTOMER'
       : kind === 'JUDGMENT'
         ? item.id === id
-        : item.affectedPlannedFileIds.includes(id ?? ''),
+        : kind === 'PROJECT'
+          ? true
+          : item.affectedPlannedFileIds.includes(id ?? ''),
   );
   const changes =
     kind === 'PLAN'
       ? report.changes.filter((change) => change.targetPlannedFileIds.includes(id ?? ''))
-      : [];
+      : kind === 'PROJECT'
+        ? report.changes
+        : [];
   const unique = (values: string[]) => [...new Set(values)];
   return {
     key: `${report.projectId}:${report.reportId}:${kind}:${id ?? 'all'}`,
@@ -99,14 +128,20 @@ export function contextFor(report: AnalysisReport, kind: Context['kind'], id?: s
     title:
       kind === 'CUSTOMER'
         ? '客户资料补充'
-        : kind === 'JUDGMENT'
-          ? (items[0]?.title ?? '顾问判断')
-          : `文件计划意见 · ${report.plannedFiles.find((file) => file.id === id)?.title ?? id}`,
+        : kind === 'PROJECT'
+          ? '项目级意见'
+          : kind === 'JUDGMENT'
+            ? (items[0]?.title ?? '顾问判断')
+            : `文件计划意见 · ${report.plannedFiles.find((file) => file.id === id)?.title ?? id}`,
     reportId: report.reportId,
     version: report.version,
     itemIds: items.map((item) => item.id),
     fileIds:
-      kind === 'PLAN' ? [id ?? ''] : unique(items.flatMap((item) => item.affectedPlannedFileIds)),
+      kind === 'PLAN'
+        ? [id ?? '']
+        : kind === 'PROJECT'
+          ? report.plannedFiles.map((file) => file.id)
+          : unique(items.flatMap((item) => item.affectedPlannedFileIds)),
     evidenceIds: unique([
       ...items.flatMap((item) => item.evidenceIds),
       ...changes.flatMap((change) => change.evidenceIds),
