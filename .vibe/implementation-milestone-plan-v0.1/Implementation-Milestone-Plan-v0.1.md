@@ -6,6 +6,8 @@
 
 文档职责：只维护阶段范围、依赖、决策 Gate 与退出标准；当前工作选择由 roadmap 维护，执行结果由 GitHub Issue/PR 维护。历史快照暂不搬迁，不再追加逐轮进度。
 
+2026-10-20：新版 MVP 的目标与验收见 [可用闭环](../mvp/usable-loop.md)，缩编实施策略见 [Core 重构提案](../mvp/core-refactoring-plan.md)。本文旧 IM-07 Feishu → IM-08 CLI 等产品次序不再作为新 MVP 前置；已实现能力、历史证据和适用的技术审查/验证要求保留，不因新规划自动宣称完成或关闭。
+
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
 ---

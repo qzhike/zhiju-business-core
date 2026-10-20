@@ -1,15 +1,43 @@
 # Zhiju Business Core 当前路线
 
 本文件是当前推进意图的唯一入口，不保存逐轮执行日志或完整 Issue 正文。
-阶段范围、依赖与退出标准见 [Implementation Milestone Plan](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)；产品和工程冻结规则见 [HL-Spec](../high-level-docs/HL-Spec.md)。
+收敛后的文档集中见 [MVP 文档目录](../mvp/README.md)。当前产品范围及退出条件见 [MVP 可用闭环](../mvp/usable-loop.md)，阶段交付与验收安排见 [MVP 交付计划](../mvp/delivery-plan.md)，目标结构见 [Core 缩编重构方案](../mvp/core-refactoring-plan.md)；权威衔接见 [HL-Spec](../high-level-docs/HL-Spec.md)。旧 [Implementation Milestone Plan](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)保留原里程碑及其工程约束。
 
-## 已接受的前置基线
+## Current — UI 订正与完整流程确认（2026-10-20）
+
+用户已确认以客户制度为起点、正式模板查缺补漏的业务方向，并明确先订正 UI，确认操作流程后再补齐后端。当前先落实交付计划，再按授权推进页面订正；后端架构与字段级技术方案仍须完成适用的 T2 设计门禁。
+
+- 交付目标：Web ZIP 上传与补充 → 真实分析及计划范围确认 → 质量手册定稿 → 控制程序/管理制度联动并整体定稿 → 记录表单 → 精确交付 ZIP；反馈、上游返工和必要恢复属于主链。
+- Core 只管理交付过程和 Runner 接入；Runner 的规则、Skills、读取/生成工具与模板由用户独立维护，保持 CLI/TUI 单独可用。
+- 所有验证基于正式模板。用户已确认正式 Runner 为 `/Users/galendai/repo/qzhike/zhiju-runner`，正式模板在 `template/`。真实调用、协议符合性、XLSX 支持及业务验收仍待核对，不将目录确认当成运行通过。
+- 当前交付：在现有 Web 工程中订正资料→分析→范围、三阶段审阅/定稿、返工/恢复/交付三批体验，形成同一项目的连续试走。优先纠正旧的首次启动/排除已选文件逻辑及逐文件批准表达；模拟状态与真实能力分别展示。
+- 退出条件：交付计划 UI-01–08 实际试走，用户明确确认完整流程，页面/状态/确认对象及必要失败路径进入 owning UI Spec/Test。当前 UI 流程与真实业务验收均为 `NOT RUN`。
+- 首批候选为 U1“从资料到确认范围”；落实正式内容样本与 UI Spec/Test 增量后，复核 NOW + READY，按发布授权生成当前批次。UI 阶段只读核对后端可行性，不先实现新的业务模型或冻结接口。
+- 不继续按旧 IM-07 Feishu → IM-08 CLI 顺序扩展新 MVP；保留已交付工程事实、旧实现约束和未运行证据。本次不关闭旧 Issue、不发布新 Issue、不修改 Runner 或业务代码。
+
+## Next — 依据确认流程补齐后端，再完成小规模真实交付
+
+UI 确认后，闭合最小 API/状态/事务/存储/访问保护及 Runner 交接设计，经独立审查和适用人类技术批准，再按“资料托管 → 真实分析与范围 → 质量手册 → 第二阶段联动与记录表单 → 精确交付”逐批接通。
+
+完整出口为产品 MVP-01–09：四层文件、三个阶段、三种包内输入格式，以正式模板完成真实小规模端到端交付，包含多轮意见、上游返工和必要恢复。详细批次见交付计划，不把分析、单页面或单文件生成当成完整出口。
+
+随后完成 MVP-10：300 份以上资料的实际处理、审阅、恢复、交付及人工效率验证。替代能力成立后按引用和依赖逐项收缩旧运行/构建路径；删除和外部交付保持独立授权边界。
+
+## Later — 依真实反馈决定后续能力
+
+Word/Excel 输出、其他 Harness、MCP、外部渠道及多用户/多租户均不属于当前 MVP。没有完整闭环和真实反馈前，不为这些能力扩展通用框架或批量建立 backlog。
+
+## 历史基线与原路线
+
+以下保留旧路线的交付依据、未决技术约束和当时推进表述；其中 Current/Next 意图已由上文取代。远端 Issue/PR 状态仍须在实际操作前重新核对，不由本轮规划改写。
+
+## 历史：已接受的前置基线
 
 截至 2026-09-07 的远端核对，IM-05 已由 [父 Issue #120](https://github.com/qzhike/zhiju-business-core/issues/120) 接受并关闭。最终阻断修复 [PR #149](https://github.com/qzhike/zhiju-business-core/pull/149) 已合并至 `76079a770f3a64e94435256c87c66db1e2b8acf4`，其 `verify` 检查成功。此处引用交付证据，不宣称本次文档整理重跑了业务验收。
 
 接受范围为 scoped engineering；真实 Provider/Feishu、公开 HTTP、生产、统一跨模块业务 E2E、外部收件人确认和独立人工业务验收仍为 `NOT RUN`。不得用 Issue 关闭扩大验收范围。
 
-## Current — IM-UI-01 首条真实链路接入准备
+## 历史：IM-UI-01 首条真实链路接入准备
 
 IM-06 的有限工程退出已获用户确认。[UI-DG-001～003 工程基线](../decisions/workspace-ui-engineering-baseline.md)和产品/布局保持已批准范围；[Issue #252](https://github.com/qzhike/zhiju-business-core/issues/252) / [PR #254](https://github.com/qzhike/zhiju-business-core/pull/254) 已交付 Web/BFF 工程外壳，当前 Core 基线为其合并后的 `b66beb0afcf3e71143c348348fcc41cfc7819cbb`。工程外壳不代表真实 OIDC、业务 HTTP、Runner、持久化或人工业务验收完成。
 
@@ -91,7 +119,7 @@ final 交付基线（2026-09-27，历史）：[Issue #224](https://github.com/qz
 
 正式 Completion 交付后的推进意图（2026-10-01）：受控 final 的 #224 已关闭，其既有证据继续保持 20 tiered PASS / 3 PARTIAL；[Issue #231](https://github.com/qzhike/zhiju-business-core/issues/231) / [PR #232](https://github.com/qzhike/zhiju-business-core/pull/232) 的有限 BLOCKED_INPUT 恢复 owning 链保持。基于已批准的 [#233 正式输出与独立 Completion 设计](../decisions/task-execution-formal-completion.md)，[Issue #235](https://github.com/qzhike/zhiju-business-core/issues/235) 已关闭，[PR #236](https://github.com/qzhike/zhiju-business-core/pull/236) 已合入 `main@93822fae63ae69b909635c81768760d0057c241f`。正常与一次恢复路径已有正式 Artifact 输出 → 独立 WorkOrder/Task Completion → 不可变历史/current 读回、refresh 与依赖 Readiness 消费的受控 owning-entry/PostgreSQL 证据；Registry / TaskExecution / 兼容基线为 237 / 62 / 200。独立复审、人类技术批准及最终 head 完整 CI 见 PR 与[正式审查记录](../reviews/pr-236/Review.md)，分层验收和未执行子项继续由 owning Module-Test 保留。下一候选为 TaskCompleted 到 EnterpriseProject 的实际 dispatch 与 DeliveryItem completion；须先在届时 main 复核语义与 NOW + READY，不预先发布实现 Issue。Board/Usage 与 TD-05–07 未批准边界不扩张；真实 Grant PolicySnapshot lifecycle、外部及独立人工业务验收继续保留原 NOT RUN/延后边界。Cancel/late-result 退出要求仍须对账，IM-06 保持 Current。
 
-## Current / Next / Later — 后续阶段选择与顺序
+## 历史：后续阶段选择与顺序
 
 - IM-UI-01 工程方向已获用户批准；当前先准备工程外壳，再按公开契约/环境依赖接入首条真实链路。未执行的独立审查、运行/安全/浏览器/人验不升级为 PASS；Issue 发布和 Git 交付仍按各自授权。
 - [Issue #27](https://github.com/qzhike/zhiju-business-core/issues/27) 仍开放，承接 IntegrationGateway 的剩余 Handler/Adapter/Persistence 与外部验收。其旧正文包含早期 23-operation 与 Renderer 未实现描述，不能直接作为下一项完整实现任务；需先与已交付 Renderer slice 和当前 Module-Spec-007 对账，再按所属阶段收敛验收范围。
@@ -104,6 +132,6 @@ Planner 在阶段启动/关闭或优先级变化时协调本文件；普通实�
 
 #239 交付后的边界与顺序（2026-10-03）：[Issue #239](https://github.com/qzhike/zhiju-business-core/issues/239) 已关闭，[PR #240](https://github.com/qzhike/zhiju-business-core/pull/240) 已于 2026-10-01 合入 `main@aa6f6ec88fa7aeae4a9a10f4936462e8e1a838eb`。受控正常/恢复链已到 EP exact readback：Task-only Item 为 SATISFIED，独立的 Task+Release Item 在缺 Release 时仍 UNSATISFIED；Registry / TaskExecution / 历史兼容 Baseline 为 238 / 62 / 200。最终 head `d4f865b7bc211a5a1b1cabc6a804c013a2c88cdf` 的独立 APPROVE、人类技术批准与完整 CI 见 [PR #240 正式记录](../reviews/pr-240/Review.md)及 Issue/PR。已有 PARTIAL / NOT RUN、历史 Task 完成事实不证明当前 USABLE、真实 owning revocation 与 Grant PolicySnapshot lifecycle、外部/人工边界均保留。下一目标见本节开头；TD-05–07 未批准的 Query/Board/Usage/退出方案不会因本次派发交付而被追认。取消切片只请求取消与隔离迟到结果，不引入 Runtime ACK 或绕过 IM-DG-006。
 
-## 2026-10-18 首次模板分析接入校正
+## 历史：2026-10-18 首次模板分析接入校正
 
 用户重申原 MVP 目标并批准先做模板分析。当前推进目标是客户 ZIP → 指定模板/固定工作规则 → 本机 OMP → v0.2 报告接纳及展示；真实初始化与执行适配先在独立环境 B 验证。后续公司规则把完整规范发布提前到所有准备入口的偏差，按 [校正决定](../decisions/template-driven-preparation.md)及 owning Spec/Test 先修正，再接通实际能力。模板比对是正常业务流程，不作为 B 专用例外；后续修订、批准和交付仍属于主链路，不能把缺规范原文设为永久通用阻断。当前声明不等于新接口已注册/实现，不创建额外 Issue 或改变 Git 交付授权。
