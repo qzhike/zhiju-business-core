@@ -11,7 +11,7 @@ import {
   type Submission,
 } from '../analysis/model.js';
 import { IntakePage } from '../intake/Pages.js';
-import type { InputBatch, IntakeProject, IntakeReceipt } from '../intake/model.js';
+import type { InputBatch, InputBatchState, IntakeProject, IntakeReceipt } from '../intake/model.js';
 import { JourneyNav } from '../mvp/JourneyNav.js';
 import { ProjectOverviewPage } from '../overview/Page.js';
 import { PlanPage } from '../plan/Page.js';
@@ -81,13 +81,14 @@ interface IntentRecord {
 }
 interface U1State {
   batches: InputBatch[];
+  batchState: InputBatchState | null;
+  setBatchState: (state: InputBatchState | null) => void;
   supplementSubmitted: boolean;
   problemEntries: boolean;
   showProblemEntries: () => void;
   submitSupplement: () => void;
   reportTwoAvailable: boolean;
   acknowledgedReportVersion: number;
-  arriveReportTwo: () => void;
   acknowledgeReportTwo: () => void;
   states: Record<string, AnalysisState>;
   update: (reportId: string, change: (state: AnalysisState) => AnalysisState) => void;
@@ -102,11 +103,11 @@ interface U1State {
   simulatePlanReceipt: (planId: string) => void;
   expandPlan: (planId: string, switchCurrent?: boolean) => void;
   feedbackPlan: (planId: string, text: string) => void;
-  revision: RevisionRequest | null;
+  revisions: Record<string, RevisionRequest>;
   generationState: 'NONE' | 'REQUESTED';
   requestGeneration: () => void;
-  nextStageEntered: boolean;
-  enterNextStage: () => void;
+  nextStagePlanId: string | null;
+  enterNextStage: (planId: string) => void;
   planScenario: string;
   setPlanScenario: (scenario: string) => void;
   planMessage: Record<string, string>;
@@ -114,6 +115,7 @@ interface U1State {
 const Context = createContext<U1State | null>(null);
 export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [batches, setBatches] = useState([u1InitialBatch]);
+  const [batchState, setBatchState] = useState<InputBatchState | null>(null);
   const [supplementSubmitted, setSupplementSubmitted] = useState(false);
   const [problemEntries, setProblemEntries] = useState(false);
   const [reportTwoAvailable, setReportTwoAvailable] = useState(false);
@@ -125,9 +127,9 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [analysisScenario, setAnalysisScenario] = useState('received');
   const [plans, setPlans] = useState<PlanView[]>([u1PlanOne]);
   const [currentPlanId, setCurrentPlanId] = useState(u1PlanOne.planId);
-  const [revision, setRevision] = useState<RevisionRequest | null>(null);
+  const [revisions, setRevisions] = useState<Record<string, RevisionRequest>>({});
   const [generationState, setGenerationState] = useState<'NONE' | 'REQUESTED'>('NONE');
-  const [nextStageEntered, setNextStageEntered] = useState(false);
+  const [nextStagePlanId, setNextStagePlanId] = useState<string | null>(null);
   const [planScenario, setPlanScenario] = useState('received');
   const [planMessage, setPlanMessage] = useState<Record<string, string>>({});
   const [intents] = useState(() => new Map<string, IntentRecord>());
@@ -155,7 +157,17 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
       ...current,
       receipts: [...current.receipts, receipt],
     }));
-    if (fixed) setReportTwoAvailable(true);
+    if (fixed) {
+      setReportTwoAvailable(true);
+      if (!supplementSubmitted) {
+        setSupplementSubmitted(true);
+        setBatches((previous) =>
+          previous.some((batch) => batch.id === u1SupplementBatch.id)
+            ? previous
+            : [...previous, u1SupplementBatch],
+        );
+      }
+    }
   };
   const confirmPlan = (planId: string, intentId: string) => {
     const plan = plans.find((item) => item.planId === planId);
@@ -288,27 +300,30 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
     ]);
     if (switchCurrent) {
       setCurrentPlanId(expanded.planId);
-      setRevision(null);
       setGenerationState('NONE');
-      setNextStageEntered(false);
     }
   };
   const feedbackPlan = (planId: string, text: string) => {
     const plan = plans.find((item) => item.planId === planId);
     if (!plan) return;
     if (plan.state !== 'CONFIRMED' || plan.supersededBy) return;
-    setRevision({
-      id: `U1-REV-${crypto.randomUUID()}`,
-      planId: plan.planId,
-      planVersion: plan.version,
-      text,
-      state: 'RECEIVED',
-      message:
-        '范围内修订请求已登记（演示）；范围不变，不需要再次确认。未调用 Runner、未生成候选。',
-    });
+    setRevisions((previous) => ({
+      ...previous,
+      [plan.planId]: {
+        id: `U1-REV-${crypto.randomUUID()}`,
+        planId: plan.planId,
+        planVersion: plan.version,
+        text,
+        state: 'RECEIVED',
+        message:
+          '范围内修订请求已登记（演示）；范围不变，不需要再次确认。未调用 Runner、未生成候选。',
+      },
+    }));
   };
   const value: U1State = {
     batches,
+    batchState,
+    setBatchState,
     supplementSubmitted,
     problemEntries,
     showProblemEntries: () => {
@@ -321,11 +336,8 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
     },
     reportTwoAvailable,
     acknowledgedReportVersion,
-    arriveReportTwo: () => {
-      setReportTwoAvailable(true);
-    },
     acknowledgeReportTwo: () => {
-      setAcknowledgedReportVersion(2);
+      if (reportTwoAvailable) setAcknowledgedReportVersion(2);
     },
     states,
     update,
@@ -343,14 +355,14 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
     simulatePlanReceipt,
     expandPlan,
     feedbackPlan,
-    revision,
+    revisions,
     generationState,
     requestGeneration: () => {
       setGenerationState('REQUESTED');
     },
-    nextStageEntered,
-    enterNextStage: () => {
-      setNextStageEntered(true);
+    nextStagePlanId,
+    enterNextStage: (planId) => {
+      setNextStagePlanId(planId);
     },
     planScenario,
     setPlanScenario,
@@ -368,6 +380,12 @@ export function FixtureU1Overview() {
   const params = useParams();
   if (params.projectId !== u1Project.id) return <Missing />;
   const acknowledged = state.acknowledgedReportVersion === 2;
+  const planned = state.currentPlan.files.filter((file) => file.action !== 'RETAIN');
+  const plannedAt = (level: PlanView['files'][number]['level']) =>
+    planned.filter((file) => file.level === level);
+  const recordTitles = plannedAt('RECORD')
+    .map((file) => file.title)
+    .join('、');
   return (
     <ProjectOverviewPage
       project={u1Project}
@@ -397,27 +415,42 @@ export function FixtureU1Overview() {
         },
       ]}
       levels={[
-        { id: 'manual', label: '质量手册', inputCount: 1, plannedCount: 1, detail: 'C01' },
+        {
+          id: 'manual',
+          label: '质量手册',
+          inputCount: 1,
+          plannedCount: plannedAt('MANUAL').length,
+          detail:
+            plannedAt('MANUAL')
+              .map((file) => file.title)
+              .join('、') || '本轮无计划',
+        },
         {
           id: 'procedure',
           label: '程序文件',
           inputCount: 1,
-          plannedCount: 1,
-          detail: 'C02',
+          plannedCount: plannedAt('PROCEDURE').length,
+          detail:
+            plannedAt('PROCEDURE')
+              .map((file) => file.title)
+              .join('、') || '本轮无计划',
         },
         {
           id: 'rule',
           label: '管理制度',
           inputCount: 0,
-          plannedCount: 1,
-          detail: '客户未提供独立外来文件制度；计划新增 T03 适配文件。',
+          plannedCount: plannedAt('RULE').length,
+          detail:
+            plannedAt('RULE')
+              .map((file) => file.title)
+              .join('、') || '客户未提供独立外来文件制度；本轮无新增。',
         },
         {
           id: 'record',
           label: '记录表单',
           inputCount: 5,
-          plannedCount: 3,
-          detail: 'C03–C07；本轮生成 C03/C06 修订与新增实施记录，C04/C05/C07 保留。',
+          plannedCount: plannedAt('RECORD').length,
+          detail: `C03–C07；本轮生成 ${recordTitles || '无'}；C04/C05/C07 保留。`,
         },
       ]}
       next={
@@ -452,21 +485,23 @@ export function FixtureU1Intake() {
       <JourneyNav
         current="intake"
         analysisReportId={state.reportTwoAvailable ? 'U1-REPORT-02' : 'U1-REPORT-01'}
-        scopeEnabled
+        scopeEnabled={state.acknowledgedReportVersion === 2}
       />
       <IntakePage
         projects={projects}
         selectedProjectId={u1Project.id}
         receipts={receipts}
-        batches={
-          state.problemEntries
-            ? state.batches.map((batch, index) =>
-                index === 0
-                  ? { ...batch, entries: [...batch.entries, ...u1SimulatedProblemEntries] }
-                  : batch,
-              )
-            : state.batches
-        }
+        batches={state.batches.map((batch, index) =>
+          index === 0
+            ? {
+                ...batch,
+                ...(state.batchState ? { state: state.batchState } : {}),
+                ...(state.problemEntries
+                  ? { entries: [...batch.entries, ...u1SimulatedProblemEntries] }
+                  : {}),
+              }
+            : batch,
+        )}
         formatRules={u1FormatRules}
         unavailable="本页只展示已接收批次；补充资料由显式演示事件驱动，不通过真实上传。"
         controls={
@@ -479,8 +514,28 @@ export function FixtureU1Intake() {
             <button disabled={state.problemEntries} onClick={state.showProblemEntries}>
               {state.problemEntries ? '失败条目已展示' : '演示：加入失败与不支持条目'}
             </button>
+            <label>
+              批次状态
+              <select
+                value={state.batchState ?? ''}
+                onChange={(event) => {
+                  state.setBatchState((event.target.value || null) as InputBatchState | null);
+                }}
+              >
+                <option value="">固定已接收 · 有限</option>
+                <option value="RECEIVING">正在接收</option>
+                <option value="LIMITED">已接收 · 有限</option>
+                <option value="WAITING">已接收 · 等待分析</option>
+                <option value="FAILED">存在失败条目</option>
+                <option value="UNKNOWN">接收结果待核验</option>
+              </select>
+            </label>
             <p>
-              <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-01`}>
+              <Link
+                to={`/projects/${u1Project.id}/analysis/${
+                  state.reportTwoAvailable ? 'U1-REPORT-02' : 'U1-REPORT-01'
+                }`}
+              >
                 查看分析并记录客户答复
               </Link>
             </p>
@@ -497,9 +552,25 @@ export function FixtureU1Analysis() {
   const report = params.reportId ? reports[params.reportId] : undefined;
   if (!report) return <Missing />;
   if (report.projectId !== u1Project.id || params.projectId !== u1Project.id) return <Missing />;
+  const acknowledged = state.acknowledgedReportVersion === 2;
+  if (report.version === 2 && !state.reportTwoAvailable) {
+    return (
+      <div>
+        <JourneyNav
+          current="analysis"
+          analysisReportId="U1-REPORT-01"
+          scopeEnabled={acknowledged}
+        />
+        <section className="panel" role="status">
+          <h1 tabIndex={-1}>第 2 版分析尚未到达</h1>
+          <p>先在第 1 版记录客户答复或补充说明；页面不会用空状态生成第 2 版。</p>
+          <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-01`}>返回第 1 版</Link>
+        </section>
+      </div>
+    );
+  }
   const analysisState = state.states[report.reportId];
   if (!analysisState) return <Missing />;
-  const acknowledged = state.acknowledgedReportVersion === 2;
   const historical = report.version === 1 && acknowledged;
   const contextReport = reports[analysisState.context.reportId];
   const switchToTwo = () => {
@@ -507,7 +578,11 @@ export function FixtureU1Analysis() {
   };
   return (
     <div>
-      <JourneyNav current="analysis" analysisReportId={report.reportId} scopeEnabled />
+      <JourneyNav
+        current="analysis"
+        analysisReportId={report.reportId}
+        scopeEnabled={acknowledged}
+      />
       <AnalysisPage
         report={report}
         contextReport={contextReport}
@@ -523,7 +598,7 @@ export function FixtureU1Analysis() {
             : null
         }
         updateNotice={
-          report.version === 1 && state.reportTwoAvailable ? (
+          report.version === 1 && state.reportTwoAvailable && !acknowledged ? (
             <div className="notice" role="status">
               第 2 版分析已到达，当前仍是第 1 版；旧报告、意见和草稿保留。
               <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`} onClick={switchToTwo}>
@@ -543,7 +618,9 @@ export function FixtureU1Analysis() {
             <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-01`}>
               查看第 1 版{acknowledged ? '（历史只读）' : ''}
             </Link>
-            <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>查看第 2 版</Link>
+            {state.reportTwoAvailable && (
+              <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>查看第 2 版</Link>
+            )}
           </>
         }
         controls={
@@ -559,7 +636,6 @@ export function FixtureU1Analysis() {
             >
               <option value="received">收到合成意见</option>
               <option value="failed">失败</option>
-              <option value="unknown">UNKNOWN</option>
             </select>
             <button
               disabled={historical || report.version !== 1}
@@ -569,7 +645,7 @@ export function FixtureU1Analysis() {
                   drafts: {
                     ...previous.drafts,
                     [previous.context.key]: {
-                      text: '客户答复：同意四层结构与编号迁移；C04/C05/C07 继续作为内部表单保留；外来文件制度与变更实施记录请按正式模板补充。',
+                      text: '客户答复：同意四层结构与编号迁移；C04/C05/C07 继续作为内部表单保留；外来文件制度与变更实施记录请按正式模板补充；变更通知单是否新增待下一步确认。',
                       attachments: ['补充批次说明（无新增文件）'],
                       fixedExample: true,
                     },
@@ -579,7 +655,6 @@ export function FixtureU1Analysis() {
             >
               带入客户答复与补充说明
             </button>
-            <button onClick={state.arriveReportTwo}>模拟第 2 版分析到达</button>
           </details>
         }
       />
@@ -595,11 +670,16 @@ export function FixtureU1Plan() {
   const confirmed = plan.state === 'CONFIRMED' && !plan.supersededBy;
   return (
     <>
-      <JourneyNav current="scope" analysisReportId="U1-REPORT-02" scopeEnabled />
+      <JourneyNav
+        current="scope"
+        analysisReportId="U1-REPORT-02"
+        scopeEnabled={state.acknowledgedReportVersion === 2}
+      />
       <PlanPage
+        key={plan.planId}
         plan={plan}
         plans={state.plans}
-        revision={state.revision?.planId === plan.planId ? state.revision : null}
+        revision={state.revisions[plan.planId] ?? null}
         notice={
           state.acknowledgedReportVersion !== 2 ? (
             <div className="notice" role="status">
@@ -632,8 +712,10 @@ export function FixtureU1Plan() {
           onOpen: state.requestGeneration,
         }}
         nextStage={{
-          entered: state.nextStageEntered,
-          onEnter: state.enterNextStage,
+          entered: state.nextStagePlanId === plan.planId,
+          onEnter: () => {
+            state.enterNextStage(plan.planId);
+          },
           disabledReason: confirmed ? undefined : '请先确认当前范围计划。',
         }}
         onConfirm={(intentId) => {

@@ -87,7 +87,8 @@ export interface InputEntry {
   state: InputEntryState;
   note: string;
 }
-export type InputBatchState = 'RECEIVING' | 'RECEIVED' | 'LIMITED' | 'FAILED' | 'UNKNOWN';
+export type InputBatchState =
+  'RECEIVING' | 'RECEIVED' | 'LIMITED' | 'WAITING' | 'FAILED' | 'UNKNOWN';
 export interface InputBatch {
   id: string;
   label: string;
@@ -96,6 +97,8 @@ export interface InputBatch {
   state: InputBatchState;
   entries: readonly InputEntry[];
   answers: readonly string[];
+  answerIds?: readonly string[];
+  questions?: readonly { id: string; title: string; state: string }[];
   limitations: readonly string[];
   nextAction: string;
 }
@@ -105,7 +108,7 @@ export interface InputFormatRule {
   note: string;
 }
 export const inputEntryLabels: Record<InputEntryState, string> = {
-  RECEIVED: '已接收 · 正文可读',
+  RECEIVED: '已接收 · 待核验',
   LIMITED: '已接收 · 读取受限',
   FAILED: '接收或读取失败',
   UNSUPPORTED: '不支持',
@@ -114,6 +117,7 @@ export const inputBatchLabels: Record<InputBatchState, string> = {
   RECEIVING: '正在接收',
   RECEIVED: '已接收',
   LIMITED: '已接收 · 有限',
+  WAITING: '已接收 · 等待分析',
   FAILED: '存在失败条目',
   UNKNOWN: '接收结果待核验',
 };

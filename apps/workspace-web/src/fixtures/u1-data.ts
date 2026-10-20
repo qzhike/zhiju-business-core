@@ -93,6 +93,11 @@ export const u1InitialBatch: InputBatch = {
   state: 'LIMITED',
   entries: firstEntries,
   answers: [],
+  questions: [
+    { id: 'U1-Q1', title: '四层文件结构与编号迁移', state: '待客户确认' },
+    { id: 'U1-Q2', title: 'C04/C05/C07 的保留方式', state: '待客户确认' },
+    { id: 'U1-READ', title: '原件图形与版式读取限制', state: '读取受限' },
+  ],
   limitations: [
     '包结构与正文可提取，不等于语义、批注/修订或版式已完整读取。',
     '本轮 7 份均为 DOCX；Markdown/XLSX 只有展示状态覆盖，未用真实客户样本验证。',
@@ -109,8 +114,9 @@ export const u1SupplementBatch: InputBatch = {
   entries: [],
   answers: [
     '同意按四层文件结构升级，并接受质量手册中文件与记录控制编号迁移；C04/C05/C07 继续作为内部表单保留。',
-    '外来文件管理规定按正式模板新增；变更实施记录与通知单需要补充。',
+    '外来文件管理规定按正式模板新增；变更实施记录需要补充；变更通知单是否新增待下一步确认。',
   ],
+  answerIds: ['A1'],
   limitations: ['补充批次只有文字答复，没有新增客户文件；不能据此宣称资料已补全。'],
   nextAction: '查看据此形成的第 2 版分析，再核对修改范围。',
 };
@@ -220,7 +226,7 @@ export const u1ReportOne: AnalysisReport = {
       category: 'INSUFFICIENT',
       statement:
         'C04 变更影响评估表、C05 变更实施方案确认记录和 C07 变更关闭记录在正式模板中没有同名记录；现有资料不足以判定应保留、合并还是替代。',
-      sourceIds: ['C04', 'C05', 'C07'],
+      sourceIds: ['C04', 'C05', 'C06', 'C07'],
       templateIds: ['T02', 'T06'],
     },
     {
@@ -324,7 +330,7 @@ export const u1ReportOne: AnalysisReport = {
       question: '是否保留这三份表单作为客户内部记录，并按模板补充实施记录、通知单和台账？',
       affectedPlannedFileIds: ['F-PROCEDURE'],
       protectedFactIds: [],
-      evidenceIds: ['E-C04-FORM', 'E-C07-FORM', 'E-T02-RECORDS'],
+      evidenceIds: ['E-C04-FORM', 'E-C05-FORM', 'E-C07-FORM', 'E-T02-RECORDS'],
       customerRequest: {
         key: 'REQ-U1-FORMS',
         title: '保留内部表单的确认',
@@ -389,6 +395,20 @@ export const u1ReportOne: AnalysisReport = {
       representation: 'EXTRACTED',
       locator: { kind: 'WHOLE_DOCUMENT', value: '变更影响评估表' },
       note: 'C04 以勾选项形成影响评估和 I/II/III 类结论；未含模板的实质性/非实质性分流栏。',
+    },
+    {
+      id: 'E-C05-FORM',
+      sourceId: 'C05',
+      representation: 'EXTRACTED',
+      locator: { kind: 'WHOLE_DOCUMENT', value: '变更实施方案确认记录' },
+      note: 'C05 记录实施计划、文件修订、培训、验证与生效日期；模板没有同名记录。',
+    },
+    {
+      id: 'E-C06-FORM',
+      sourceId: 'C06',
+      representation: 'EXTRACTED',
+      locator: { kind: 'WHOLE_DOCUMENT', value: '变更评审记录' },
+      note: 'C06 记录评审项目、决议和会签；缺少模板的风险触发判断与分级批准意见区。',
     },
     {
       id: 'E-C07-FORM',
@@ -501,7 +521,7 @@ export const u1ReportOne: AnalysisReport = {
       title: '补充评审记录的风险触发与批准意见',
       description: '在 C06 现有评审字段上增加风险触发判断、关联风险记录编号和分级批准意见。',
       targetPlannedFileIds: ['F-FORM-REVIEW'],
-      evidenceIds: ['E-C04-FORM', 'E-T02-FLOW', 'E-T02-RECORDS'],
+      evidenceIds: ['E-C06-FORM', 'E-T02-FLOW', 'E-T02-RECORDS'],
     },
     {
       id: 'C-FORM-IMPLEMENT',
@@ -509,7 +529,7 @@ export const u1ReportOne: AnalysisReport = {
       description:
         '按 T06 新增实施内容、文件更新、培训与效果确认记录；C05 实施方案确认记录的去留另待确认。',
       targetPlannedFileIds: ['F-FORM-IMPLEMENT'],
-      evidenceIds: ['E-C07-FORM', 'E-T02-RECORDS'],
+      evidenceIds: ['E-C05-FORM', 'E-T02-RECORDS'],
     },
   ],
   checks: [
@@ -544,7 +564,7 @@ export const u1ReportTwo: AnalysisReport = {
   version: 2,
   title: '收到客户答复后的变更控制分析（U1 合成演练）',
   summary:
-    '客户确认四层结构、编号迁移和内部表单保留；据此补充外来文件制度、实施记录和通知单。读取限制仍在，候选尚未生成。',
+    '客户确认四层结构、编号迁移和内部表单保留；据此补充外来文件制度和实施记录；变更通知单仍待下一步确认。读取限制仍在，候选尚未生成。',
   limitations: [
     '第 2 版依据补充批次的文字答复，不是新增客户文件。',
     'DOCX 图形、批注、修订和版式仍未核验。',
@@ -552,7 +572,7 @@ export const u1ReportTwo: AnalysisReport = {
   ],
   narrative: `## 本轮变化
 
-补充批次确认了四层结构、质量手册编号迁移和 C04/C05/C07 的内部保留。计划据此新增外来文件管理规定、变更实施记录和变更通知单。
+补充批次确认了四层结构、质量手册编号迁移和 C04/C05/C07 的内部保留。计划据此新增外来文件管理规定和变更实施记录；变更通知单是否新增仍待确认。
 
 ## 仍未确认
 
@@ -584,7 +604,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       id: 'U-GAP-IMPLEMENT',
       category: 'APPLICABLE_GAP',
       statement:
-        'A1 同意补充变更实施记录、通知单和外来文件制度；这些是对客户现有覆盖的补充，不是客户缺失事实。',
+        'A1 同意补充变更实施记录和外来文件制度；变更通知单仍待下一步确认。这些是对客户现有覆盖的补充，不是客户缺失事实。',
       sourceIds: ['A1'],
       templateIds: ['T02', 'T03', 'T06'],
     },
@@ -621,7 +641,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       kind: 'FACT_QUESTION',
       audience: 'CONSULTANT',
       reason:
-        'A1 同意补充实施记录、通知单和外来文件制度，但没有提供变更台账与通知单编号；编号映射需要业务核对。',
+        'A1 同意补充实施记录和外来文件制度，但没有提供变更台账与通知单编号；编号映射需要业务核对。',
       question: '新增记录采用模板编号还是客户既有编号体系？',
       affectedPlannedFileIds: ['F-PROCEDURE', 'F-FORM-IMPLEMENT'],
       protectedFactIds: [],
@@ -629,6 +649,19 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       customerRequest: null,
     },
   ],
+  templates: (u1ReportOne.templates ?? []).map((template) =>
+    template.templateId === 'T01'
+      ? {
+          ...template,
+          explanation: 'A1 已确认四层结构与编号迁移；仍按客户现状适配，模板不替代客户决定。',
+        }
+      : template.templateId === 'T06'
+        ? {
+            ...template,
+            explanation: 'A1 确认新增变更实施记录；C05 实施方案确认记录继续作为内部表单保留。',
+          }
+        : template,
+  ),
   evidence: [
     ...u1ReportOne.evidence,
     {
@@ -636,7 +669,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       sourceId: 'A1',
       representation: 'EXTRACTED',
       locator: { kind: 'ANSWER', value: '补充批次客户答复' },
-      note: '客户答复确认四层结构与编号迁移、内部表单保留，并要求补充实施记录、通知单和外来文件制度。',
+      note: '客户答复确认四层结构与编号迁移、内部表单保留，并要求补充实施记录和外来文件制度；通知单仍待确认。',
     },
   ],
   resolutionProposals: [
@@ -654,7 +687,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
     },
   ],
   changes: [
-    ...u1ReportOne.changes.filter((change) => change.id !== 'M-FORM-IMPLEMENT'),
+    ...u1ReportOne.changes.filter((change) => change.id !== 'C-FORM-IMPLEMENT'),
     {
       id: 'C-FORM-IMPLEMENT',
       title: '新增变更实施记录',

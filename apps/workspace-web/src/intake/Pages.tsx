@@ -381,11 +381,24 @@ export function InputBatches({
                   </tbody>
                 </table>
               )}
-              {batch.answers.map((answer) => (
+              {batch.answers.map((answer, index) => (
                 <p className="batch-answer" key={answer}>
-                  答复：{answer}
+                  答复
+                  {batch.answerIds?.[index] ? ` ${batch.answerIds[index]}` : ''}：{answer}
                 </p>
               ))}
+              {batch.questions && batch.questions.length > 0 && (
+                <div className="batch-questions">
+                  <strong>待澄清问题</strong>
+                  <ul>
+                    {batch.questions.map((question) => (
+                      <li key={question.id}>
+                        {question.id} · {question.title} · {question.state}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {batch.limitations.length > 0 && (
                 <div className="batch-limitations">
                   <strong>本批限制</strong>
@@ -465,7 +478,10 @@ function ProjectIntake({
         {batches && <InputBatches batches={batches} formatRules={formatRules} />}
         <div className="upload-zone">
           <h2>把客户现有体系文件放进一个 ZIP</h2>
-          <p>DOCX / Markdown 文件请放在 ZIP 内，无需先逐份匹配模板。</p>
+          <p>
+            DOCX / Markdown / XLSX 文件请放在 ZIP 内；旧 XLS 请先转换为 XLSX，PDF
+            暂不支持，宏不执行。
+          </p>
           <label>
             选择 ZIP 文件
             <input

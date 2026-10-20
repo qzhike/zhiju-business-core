@@ -574,7 +574,15 @@ export function AnalysisPage({
                 <>
                   <h2>{file.title}</h2>
                   <p>
-                    {file.customerCode ?? '拟新建'} · {file.origin} · 拟交付，未批准
+                    {file.customerCode ??
+                      (file.origin === 'CUSTOMER_REVISION'
+                        ? '修订客户现有文件'
+                        : file.origin === 'CUSTOMER_CONVERSION'
+                          ? '转换客户现有文件'
+                          : file.origin === 'TEMPLATE_DERIVED'
+                            ? '按正式模板形成'
+                            : '拟新建')}{' '}
+                    · 拟交付，未批准
                   </p>
                   {report.changes
                     .filter((change) => change.targetPlannedFileIds.includes(file.id))
@@ -699,7 +707,7 @@ export function AnalysisPage({
               <input
                 type="file"
                 multiple
-                accept=".docx,.md,.markdown,.zip"
+                accept=".docx,.md,.markdown,.xlsx,.zip"
                 disabled={historical || stale}
                 onChange={(event) => {
                   const names = [...(event.target.files ?? [])].map(

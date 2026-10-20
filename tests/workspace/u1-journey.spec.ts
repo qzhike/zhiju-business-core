@@ -55,6 +55,13 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
   await expect(page.locator('main')).toContainText('U1-REPORT-01');
   await expect(page.getByText('先记录客户答复并核对新报告')).toBeVisible();
+  await expect(page.getByRole('link', { name: '修改范围' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await page.goto(reportTwo);
+  await expect(page.getByRole('heading', { name: '第 2 版分析尚未到达' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '返回第 1 版' })).toBeVisible();
   await page.getByRole('link', { name: '项目概览' }).click();
   await expect(page).toHaveURL(overview);
   await expect(page.getByText('MVP-U1-PROJECT', { exact: false }).first()).toBeVisible();
@@ -72,6 +79,17 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
   await expect(page.locator('.format-rules')).toContainText('PDF');
   await expect(page.locator('.format-rules')).toContainText('暂不支持');
   await expect(page.locator('.batch-entries tbody tr')).toHaveCount(7);
+  await expect(page.locator('.batch-questions')).toContainText('U1-Q1');
+  await expect(page.locator('.batch-questions')).toContainText('读取受限');
+  for (const [value, label] of [
+    ['WAITING', '已接收 · 等待分析'],
+    ['UNKNOWN', '接收结果待核验'],
+    ['FAILED', '存在失败条目'],
+    ['RECEIVING', '正在接收'],
+  ] as const) {
+    await page.getByLabel('批次状态').selectOption(value);
+    await expect(page.locator('.intake-batch').first()).toContainText(label);
+  }
   await expect(page.locator('.batch-limitations')).toContainText('批注/修订');
   await expect(page.getByRole('button', { name: '提交并分析' })).toBeDisabled();
   await expect(page.locator('main')).toContainText('不通过真实上传');
@@ -103,6 +121,13 @@ test('answer and supplement produce a second report without losing the first', a
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
   await expect(page.getByRole('link', { name: '核对信息与文件范围 →' })).toBeVisible();
   await expect(page.locator('main')).toContainText('本轮变化');
+  await page.getByRole('button', { name: '拟交付文件' }).click();
+  await page
+    .getByRole('button', { name: /变更实施记录/u })
+    .first()
+    .click();
+  await expect(page.getByRole('heading', { name: '新增变更实施记录' })).toHaveCount(1);
+  await expect(page.getByText('按正式模板形成')).toBeVisible();
   await page.getByText('报告记录', { exact: true }).click();
   await page.getByRole('link', { name: /查看第 1 版/u }).click();
   await expect(page).toHaveURL(reportOne);
@@ -173,11 +198,15 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
+  await expect(page.locator('.analysis-receipt')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: /范围内反馈/u })).toHaveValue('');
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
   await confirmPlan(page);
   await expect(page.locator('.plan-receipt')).toContainText('U1-PLAN-02');
   await expect(page.locator('.plan-receipt')).toContainText('F-FORM-NOTICE');
+  await expect(page.getByRole('button', { name: '进入第二阶段（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '第 1 版 · 已确认 · 演示回执' }).click();
+  await expect(page.locator('.analysis-receipt')).toContainText('范围不变，不需要再次确认');
   await expect(page.getByText(/此计划已被第 2\s*版计划替代/u)).toBeVisible();
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
   await expect(page.locator('.plan-history')).toContainText('U1-REQUEST-');
