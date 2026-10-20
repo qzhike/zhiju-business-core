@@ -496,11 +496,7 @@ export function FixtureU1Intake() {
   const receipts = new Map<string, readonly IntakeReceipt[]>();
   return (
     <div>
-      <JourneyNav
-        current="intake"
-        analysisReportId={state.viewedReportId}
-        scopeEnabled={state.acknowledgedReportVersion === 2}
-      />
+      <JourneyNav current="intake" analysisReportId={state.viewedReportId} scopeEnabled />
       <IntakePage
         projects={projects}
         selectedProjectId={u1Project.id}
@@ -702,25 +698,14 @@ export function FixtureU1Plan() {
   const confirmed = plan.state === 'CONFIRMED' && !plan.supersededBy;
   return (
     <>
-      <JourneyNav
-        current="scope"
-        analysisReportId={state.viewedReportId}
-        scopeEnabled={state.acknowledgedReportVersion === 2}
-      />
+      <JourneyNav current="scope" analysisReportId={state.viewedReportId} scopeEnabled />
       <PlanPage
         key={plan.planId}
         plan={plan}
         plans={state.plans}
         revisions={state.revisions[plan.planId] ?? []}
         notice={
-          state.acknowledgedReportVersion !== 2 ? (
-            <div className="notice" role="status">
-              计划基于第 2 版分析，但尚未标记已核对。
-              <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>
-                返回核对第 2 版分析
-              </Link>
-            </div>
-          ) : latestPlan !== undefined && plan.planId !== latestPlan.planId ? (
+          latestPlan !== undefined && plan.planId !== latestPlan.planId ? (
             <div className="notice" role="status">
               新计划已到达，当前仍是第 {plan.version} 版。
               <button
@@ -766,11 +751,6 @@ export function FixtureU1Plan() {
           state.confirmPlan(plan.planId, crypto.randomUUID());
         }}
         onSelectPlan={state.selectPlan}
-        blockedReason={
-          state.acknowledgedReportVersion === 2
-            ? undefined
-            : '请先核对第 2 版分析，再确认修改范围。'
-        }
         statusMessage={state.planMessage[plan.planId]}
         development
         controls={

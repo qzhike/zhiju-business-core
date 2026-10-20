@@ -32,7 +32,6 @@ interface Props {
   onQuery: () => void;
   onRetry: () => void;
   onSelectPlan: (planId: string) => void;
-  blockedReason?: string | undefined;
   statusMessage?: string | undefined;
   controls?: ReactNode;
   development?: boolean;
@@ -56,7 +55,6 @@ export function PlanPage({
   onQuery,
   onRetry,
   onSelectPlan,
-  blockedReason,
   statusMessage,
   controls,
   development = false,
@@ -67,8 +65,7 @@ export function PlanPage({
   const intent = useRef(crypto.randomUUID());
   const current = plan.state !== 'SUPERSEDED' && !plan.supersededBy;
   const confirmed = plan.state === 'CONFIRMED' && current;
-  const confirmable =
-    current && (plan.state === 'DRAFT' || plan.state === 'FAILED') && blockedReason === undefined;
+  const confirmable = current && (plan.state === 'DRAFT' || plan.state === 'FAILED');
   const exactFiles = plan.files.filter((file) => file.action !== 'RETAIN');
   useEffect(() => {
     if (!open) intent.current = crypto.randomUUID();
@@ -217,11 +214,6 @@ export function PlanPage({
         )}
       </section>
       <section className="panel plan-actions" aria-label="范围确认与后续操作">
-        {blockedReason && (
-          <p className="error" role="alert">
-            {blockedReason}
-          </p>
-        )}
         <div className="plan-action-row">
           <AlertDialog.Root open={open} onOpenChange={setOpen}>
             <AlertDialog.Trigger asChild>
