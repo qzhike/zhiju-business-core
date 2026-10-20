@@ -114,6 +114,9 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('.analysis-receipt').first()).toContainText('第 2 版分析已到达');
   await expect(page).toHaveURL(reportOne);
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
+  await page.getByRole('link', { name: '资料批次' }).click();
+  await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
+  await expect(page).toHaveURL(reportOne);
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await expect(page).toHaveURL(reportTwo);
   await expect(page.getByText('第 2 版尚未核对')).toBeVisible();
@@ -121,6 +124,15 @@ test('answer and supplement produce a second report without losing the first', a
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
   await expect(page.getByRole('link', { name: '核对信息与文件范围 →' })).toBeVisible();
   await expect(page.locator('main')).toContainText('本轮变化');
+  await page.getByRole('link', { name: '资料批次' }).click();
+  await page.getByRole('link', { name: '分析与澄清' }).click();
+  await expect(page).toHaveURL(reportTwo);
+  await page.getByText('报告记录', { exact: true }).click();
+  await page.getByRole('link', { name: /查看第 1 版/u }).click();
+  await expect(page).toHaveURL(reportOne);
+  await page.getByRole('link', { name: '资料批次' }).click();
+  await page.getByRole('link', { name: '分析与澄清' }).click();
+  await expect(page).toHaveURL(reportOne);
   await page.getByRole('button', { name: '拟交付文件' }).click();
   await page
     .getByRole('button', { name: /变更实施记录/u })
@@ -133,6 +145,22 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page).toHaveURL(reportOne);
   await expect(page.locator('main')).toContainText('历史报告 · 只读');
   await expect(page.locator('.analysis-receipt').first()).toContainText('已接收意见');
+});
+
+test('analysis failure is distinct and a received opinion locks the composer', async ({ page }) => {
+  await page.goto(reportOne);
+  await page.getByRole('button', { name: '针对整个项目提意见' }).click();
+  await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
+  await page.getByLabel('分析回执场景').selectOption('failed');
+  await page.getByRole('textbox', { name: '说明与意见' }).fill('失败的合成意见');
+  await page.getByRole('button', { name: '提交项目级意见' }).click();
+  await expect(page.locator('.analysis-receipt').first()).toContainText('复核失败');
+  await expect(page.getByRole('button', { name: '提交项目级意见' })).toBeEnabled();
+  await page.getByLabel('分析回执场景').selectOption('received');
+  await page.getByRole('button', { name: '提交项目级意见' }).click();
+  await expect(page.locator('.analysis-receipt').last()).toContainText('已接收意见');
+  await expect(page.getByRole('button', { name: '提交项目级意见' })).toBeDisabled();
+  await expect(page.locator('.analysis-receipt')).toHaveCount(2);
 });
 
 test('project, question and file-plan feedback keep their exact context', async ({ page }) => {
@@ -195,6 +223,11 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await page.getByRole('textbox', { name: /范围内反馈/u }).fill('请保留客户 I/II/III 类术语');
   await page.getByRole('button', { name: '提交范围内反馈（模拟修订请求）' }).click();
   await expect(page.locator('.analysis-receipt').last()).toContainText('范围不变，不需要再次确认');
+  await page.getByRole('textbox', { name: /范围内反馈/u }).fill('第二条范围内意见：补充培训说明');
+  await page.getByRole('button', { name: '提交范围内反馈（模拟修订请求）' }).click();
+  await expect(page.locator('.analysis-receipt')).toHaveCount(2);
+  await expect(page.locator('main')).toContainText('请保留客户 I/II/III 类术语');
+  await expect(page.locator('main')).toContainText('第二条范围内意见：补充培训说明');
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
@@ -206,7 +239,10 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.locator('.plan-receipt')).toContainText('F-FORM-NOTICE');
   await expect(page.getByRole('button', { name: '进入第二阶段（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '第 1 版 · 已确认 · 演示回执' }).click();
-  await expect(page.locator('.analysis-receipt')).toContainText('范围不变，不需要再次确认');
+  await expect(page.locator('.analysis-receipt')).toHaveCount(2);
+  await expect(page.locator('.analysis-receipt').first()).toContainText(
+    '请保留客户 I/II/III 类术语',
+  );
   await expect(page.getByText(/此计划已被第 2\s*版计划替代/u)).toBeVisible();
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
   await expect(page.locator('.plan-history')).toContainText('U1-REQUEST-');

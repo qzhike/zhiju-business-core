@@ -14,7 +14,7 @@ interface Props {
   plan: PlanView;
   plans: readonly PlanView[];
   notice?: ReactNode | undefined;
-  revision?: RevisionRequest | null | undefined;
+  revisions?: readonly RevisionRequest[] | undefined;
   generation: {
     enabled: boolean;
     reason: string;
@@ -47,7 +47,7 @@ export function PlanPage({
   plan,
   plans,
   notice,
-  revision,
+  revisions = [],
   generation,
   nextStage,
   onConfirm,
@@ -345,21 +345,30 @@ export function PlanPage({
           >
             提交范围内反馈（模拟修订请求）
           </button>
-          {revision && (
-            <div className="analysis-receipt" role="status">
-              <strong>
-                {revision.state === 'RECEIVED'
-                  ? '已登记模拟修订请求'
-                  : revision.state === 'PENDING'
-                    ? '修订请求待回执'
-                    : revision.state === 'FAILED'
-                      ? '修订请求失败'
-                      : '修订请求结果未知'}
-              </strong>
-              <p>{revision.message}</p>
-              <p className="muted">
-                原请求 {revision.id} · 计划 {revision.planId} 第 {revision.planVersion} 版
-              </p>
+          {revisions.length > 0 && (
+            <div className="plan-revision-history" aria-label="范围内修订请求历史">
+              <h3>已登记修订请求</h3>
+              {revisions.map((revision) => (
+                <div className="analysis-receipt" role="status" key={revision.id}>
+                  <strong>
+                    {revision.state === 'RECEIVED'
+                      ? '已登记模拟修订请求'
+                      : revision.state === 'PENDING'
+                        ? '修订请求待回执'
+                        : revision.state === 'FAILED'
+                          ? '修订请求失败'
+                          : '修订请求结果未知'}
+                  </strong>
+                  <p>{revision.message}</p>
+                  <p className="muted">
+                    原请求 {revision.id} · 计划 {revision.planId} 第 {revision.planVersion} 版
+                  </p>
+                  <details>
+                    <summary>查看原意见</summary>
+                    <p>{revision.text}</p>
+                  </details>
+                </div>
+              ))}
             </div>
           )}
         </div>

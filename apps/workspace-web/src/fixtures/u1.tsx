@@ -1,6 +1,6 @@
 // DEVELOPMENT_U1_ADAPTER_ONLY: isolated U1 rehearsal adapter; never imported by
 // the production entry. Explicit events drive state; no timers or network calls.
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { AnalysisPage } from '../analysis/Page.js';
 import {
@@ -88,6 +88,8 @@ interface U1State {
   showProblemEntries: () => void;
   submitSupplement: () => void;
   reportTwoAvailable: boolean;
+  viewedReportId: string;
+  setViewedReport: (reportId: string) => void;
   acknowledgedReportVersion: number;
   acknowledgeReportTwo: () => void;
   states: Record<string, AnalysisState>;
@@ -103,7 +105,7 @@ interface U1State {
   simulatePlanReceipt: (planId: string) => void;
   expandPlan: (planId: string, switchCurrent?: boolean) => void;
   feedbackPlan: (planId: string, text: string) => void;
-  revisions: Record<string, RevisionRequest>;
+  revisions: Record<string, RevisionRequest[]>;
   generationState: 'NONE' | 'REQUESTED';
   requestGeneration: () => void;
   nextStagePlans: Record<string, boolean>;
@@ -119,6 +121,7 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [supplementSubmitted, setSupplementSubmitted] = useState(false);
   const [problemEntries, setProblemEntries] = useState(false);
   const [reportTwoAvailable, setReportTwoAvailable] = useState(false);
+  const [viewedReportId, setViewedReportId] = useState('U1-REPORT-01');
   const [acknowledgedReportVersion, setAcknowledgedReportVersion] = useState(1);
   const [states, setStates] = useState<Record<string, AnalysisState>>(() => ({
     'U1-REPORT-01': initialState(u1ReportOne),
@@ -127,7 +130,7 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [analysisScenario, setAnalysisScenario] = useState('received');
   const [plans, setPlans] = useState<PlanView[]>([u1PlanOne]);
   const [currentPlanId, setCurrentPlanId] = useState(u1PlanOne.planId);
-  const [revisions, setRevisions] = useState<Record<string, RevisionRequest>>({});
+  const [revisions, setRevisions] = useState<Record<string, RevisionRequest[]>>({});
   const [generationState, setGenerationState] = useState<'NONE' | 'REQUESTED'>('NONE');
   const [nextStagePlans, setNextStagePlans] = useState<Record<string, boolean>>({});
   const [planScenario, setPlanScenario] = useState('received');
@@ -145,7 +148,13 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
       input.draft.fixedExample &&
       input.context.kind === 'CUSTOMER' &&
       input.context.reportId === 'U1-REPORT-01';
-    const state: Receipt['state'] = fixed ? 'RECEIVED' : (analysisScenario as Receipt['state']);
+    const scenarioStates: Record<string, Receipt['state']> = {
+      received: 'RECEIVED',
+      failed: 'FAILED',
+    };
+    const state: Receipt['state'] = fixed
+      ? 'RECEIVED'
+      : (scenarioStates[analysisScenario] ?? 'RECEIVED');
     const receipt: Receipt = {
       input,
       state,
@@ -309,15 +318,18 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
     if (plan.state !== 'CONFIRMED' || plan.supersededBy) return;
     setRevisions((previous) => ({
       ...previous,
-      [plan.planId]: {
-        id: `U1-REV-${crypto.randomUUID()}`,
-        planId: plan.planId,
-        planVersion: plan.version,
-        text,
-        state: 'RECEIVED',
-        message:
-          '范围内修订请求已登记（演示）；范围不变，不需要再次确认。未调用 Runner、未生成候选。',
-      },
+      [plan.planId]: [
+        ...(previous[plan.planId] ?? []),
+        {
+          id: `U1-REV-${crypto.randomUUID()}`,
+          planId: plan.planId,
+          planVersion: plan.version,
+          text,
+          state: 'RECEIVED',
+          message:
+            '范围内修订请求已登记（演示）；范围不变，不需要再次确认。未调用 Runner、未生成候选。',
+        },
+      ],
     }));
   };
   const value: U1State = {
@@ -335,6 +347,8 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
       setBatches((previous) => [...previous, u1SupplementBatch]);
     },
     reportTwoAvailable,
+    viewedReportId,
+    setViewedReport: setViewedReportId,
     acknowledgedReportVersion,
     acknowledgeReportTwo: () => {
       if (reportTwoAvailable) setAcknowledgedReportVersion(2);
@@ -389,7 +403,7 @@ export function FixtureU1Overview() {
   return (
     <ProjectOverviewPage
       project={u1Project}
-      reportId={acknowledged ? 'U1-REPORT-02' : 'U1-REPORT-01'}
+      reportId={state.viewedReportId}
       planVersion={
         state.plans.find((plan) => plan.planId === state.currentPlan.planId)?.version ?? 1
       }
@@ -484,7 +498,7 @@ export function FixtureU1Intake() {
     <div>
       <JourneyNav
         current="intake"
-        analysisReportId={state.reportTwoAvailable ? 'U1-REPORT-02' : 'U1-REPORT-01'}
+        analysisReportId={state.viewedReportId}
         scopeEnabled={state.acknowledgedReportVersion === 2}
       />
       <IntakePage
@@ -531,11 +545,7 @@ export function FixtureU1Intake() {
               </select>
             </label>
             <p>
-              <Link
-                to={`/projects/${u1Project.id}/analysis/${
-                  state.reportTwoAvailable ? 'U1-REPORT-02' : 'U1-REPORT-01'
-                }`}
-              >
+              <Link to={`/projects/${u1Project.id}/analysis/${state.viewedReportId}`}>
                 查看分析并记录客户答复
               </Link>
             </p>
@@ -550,6 +560,14 @@ export function FixtureU1Analysis() {
   const params = useParams();
   const navigate = useNavigate();
   const report = params.reportId ? reports[params.reportId] : undefined;
+  const lastReport = useRef<string | null>(null);
+  useEffect(() => {
+    if (!report) return;
+    if (report.version === 2 && !state.reportTwoAvailable) return;
+    if (lastReport.current === report.reportId) return;
+    lastReport.current = report.reportId;
+    state.setViewedReport(report.reportId);
+  }, [report, state.reportTwoAvailable, state.setViewedReport]);
   if (!report) return <Missing />;
   if (report.projectId !== u1Project.id || params.projectId !== u1Project.id) return <Missing />;
   const acknowledged = state.acknowledgedReportVersion === 2;
@@ -580,7 +598,7 @@ export function FixtureU1Analysis() {
     <div>
       <JourneyNav
         current="analysis"
-        analysisReportId={report.reportId}
+        analysisReportId={state.viewedReportId}
         scopeEnabled={acknowledged}
       />
       <AnalysisPage
@@ -674,14 +692,14 @@ export function FixtureU1Plan() {
     <>
       <JourneyNav
         current="scope"
-        analysisReportId="U1-REPORT-02"
+        analysisReportId={state.viewedReportId}
         scopeEnabled={state.acknowledgedReportVersion === 2}
       />
       <PlanPage
         key={plan.planId}
         plan={plan}
         plans={state.plans}
-        revision={state.revisions[plan.planId] ?? null}
+        revisions={state.revisions[plan.planId] ?? []}
         notice={
           state.acknowledgedReportVersion !== 2 ? (
             <div className="notice" role="status">
