@@ -4,6 +4,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { AnalysisPage } from '../analysis/Page.js';
 import {
+  contextFor,
   initialState,
   type AnalysisReport,
   type AnalysisState,
@@ -48,7 +49,6 @@ const projects: readonly IntakeProject[] = [
 const analysisNotices: Record<string, string> = {
   received: '仅记录合成意见；未调用 Runner，未关闭事项或批准文件。',
   failed: '演示场景复核失败，原报告与原提交保留。',
-  unknown: '回执上下文不匹配或结果未知，保留原提交快照。',
 };
 const planFailures: Record<string, string> = {
   failed: '演示场景：确认失败，原计划与依据保留。',
@@ -106,7 +106,7 @@ interface U1State {
   revisions: Record<string, RevisionRequest>;
   generationState: 'NONE' | 'REQUESTED';
   requestGeneration: () => void;
-  nextStagePlanId: string | null;
+  nextStagePlans: Record<string, boolean>;
   enterNextStage: (planId: string) => void;
   planScenario: string;
   setPlanScenario: (scenario: string) => void;
@@ -129,7 +129,7 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [currentPlanId, setCurrentPlanId] = useState(u1PlanOne.planId);
   const [revisions, setRevisions] = useState<Record<string, RevisionRequest>>({});
   const [generationState, setGenerationState] = useState<'NONE' | 'REQUESTED'>('NONE');
-  const [nextStagePlanId, setNextStagePlanId] = useState<string | null>(null);
+  const [nextStagePlans, setNextStagePlans] = useState<Record<string, boolean>>({});
   const [planScenario, setPlanScenario] = useState('received');
   const [planMessage, setPlanMessage] = useState<Record<string, string>>({});
   const [intents] = useState(() => new Map<string, IntentRecord>());
@@ -360,9 +360,9 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
     requestGeneration: () => {
       setGenerationState('REQUESTED');
     },
-    nextStagePlanId,
+    nextStagePlans,
     enterNextStage: (planId) => {
-      setNextStagePlanId(planId);
+      setNextStagePlans((previous) => ({ ...previous, [planId]: true }));
     },
     planScenario,
     setPlanScenario,
@@ -496,7 +496,7 @@ export function FixtureU1Intake() {
             ? {
                 ...batch,
                 ...(state.batchState ? { state: state.batchState } : {}),
-                ...(state.problemEntries
+                ...(state.problemEntries || state.batchState === 'FAILED'
                   ? { entries: [...batch.entries, ...u1SimulatedProblemEntries] }
                   : {}),
               }
@@ -640,11 +640,13 @@ export function FixtureU1Analysis() {
             <button
               disabled={historical || report.version !== 1}
               onClick={() => {
+                const customerContext = contextFor(report, 'CUSTOMER');
                 state.update(report.reportId, (previous) => ({
                   ...previous,
+                  context: customerContext,
                   drafts: {
                     ...previous.drafts,
-                    [previous.context.key]: {
+                    [customerContext.key]: {
                       text: '客户答复：同意四层结构与编号迁移；C04/C05/C07 继续作为内部表单保留；外来文件制度与变更实施记录请按正式模板补充；变更通知单是否新增待下一步确认。',
                       attachments: ['补充批次说明（无新增文件）'],
                       fixedExample: true,
@@ -712,7 +714,7 @@ export function FixtureU1Plan() {
           onOpen: state.requestGeneration,
         }}
         nextStage={{
-          entered: state.nextStagePlanId === plan.planId,
+          entered: state.nextStagePlans[plan.planId] === true,
           onEnter: () => {
             state.enterNextStage(plan.planId);
           },

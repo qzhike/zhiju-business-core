@@ -703,7 +703,7 @@ export function AnalysisPage({
           </label>
           <div className="analysis-actions">
             <label>
-              附上补充资料（DOCX / Markdown / ZIP）
+              附上补充资料（DOCX / Markdown / XLSX / ZIP）
               <input
                 type="file"
                 multiple

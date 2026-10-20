@@ -116,7 +116,7 @@ export const u1SupplementBatch: InputBatch = {
     '同意按四层文件结构升级，并接受质量手册中文件与记录控制编号迁移；C04/C05/C07 继续作为内部表单保留。',
     '外来文件管理规定按正式模板新增；变更实施记录需要补充；变更通知单是否新增待下一步确认。',
   ],
-  answerIds: ['A1'],
+  answerIds: ['A1', 'A1'],
   limitations: ['补充批次只有文字答复，没有新增客户文件；不能据此宣称资料已补全。'],
   nextAction: '查看据此形成的第 2 版分析，再核对修改范围。',
 };
@@ -226,7 +226,7 @@ export const u1ReportOne: AnalysisReport = {
       category: 'INSUFFICIENT',
       statement:
         'C04 变更影响评估表、C05 变更实施方案确认记录和 C07 变更关闭记录在正式模板中没有同名记录；现有资料不足以判定应保留、合并还是替代。',
-      sourceIds: ['C04', 'C05', 'C06', 'C07'],
+      sourceIds: ['C04', 'C05', 'C07'],
       templateIds: ['T02', 'T06'],
     },
     {
@@ -683,7 +683,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       id: 'R-Q2',
       attentionItemIds: ['U1-Q2'],
       explanation: 'A1 已确认 C04/C05/C07 保留为内部表单；建议作为保留项，不进入本轮生成。',
-      evidenceIds: ['E-ANSWER', 'E-C04-FORM', 'E-C07-FORM'],
+      evidenceIds: ['E-C05-FORM', 'E-ANSWER', 'E-C04-FORM', 'E-C07-FORM'],
     },
   ],
   changes: [
@@ -694,7 +694,7 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       description:
         '按 T06 新增实施内容、文件更新、培训与效果确认记录；C05 继续作为内部实施方案确认记录。',
       targetPlannedFileIds: ['F-FORM-IMPLEMENT'],
-      evidenceIds: ['E-ANSWER', 'E-T02-RECORDS'],
+      evidenceIds: ['E-C05-FORM', 'E-ANSWER', 'E-T02-RECORDS'],
     },
   ],
 };
