@@ -4,6 +4,7 @@ import {
   candidateVersion,
   draftAfterEdit,
   draftAfterSaveReceipt,
+  draftBasisChanged,
   draftWhileSaving,
   duplicateFileIds,
   evaluateFinalizationReceipt,
@@ -359,8 +360,9 @@ describe('U2 opinion binding and recovery', () => {
     const edited = draftAfterEdit('请保留客户编号');
     expect(edited.state).toBe('UNSAVED');
     expect(edited.note).toContain('本页内存');
-    const saving = draftWhileSaving(edited);
+    const saving = draftWhileSaving(edited, 'U2-SAVE-1');
     expect(saving.state).toBe('SAVING');
+    expect(saving.requestLabel).toBe('U2-SAVE-1');
     const states = (['SAVED', 'FAILED', 'UNKNOWN'] as const).map((outcome) =>
       draftAfterSaveReceipt(edited, outcome),
     );
@@ -368,6 +370,27 @@ describe('U2 opinion binding and recovery', () => {
     expect(states[0]?.note).toContain('刷新');
     expect(states[1]?.note).toContain('输入仍留');
     expect(states[2]?.note).toContain('未知');
+  });
+
+  it('keeps a saved draft on its original basis until an explicit rebind', () => {
+    const original = {
+      planId: plan.planId,
+      planVersion: plan.version,
+      files: manualFiles,
+    };
+    const newer = {
+      planId: plan.planId,
+      planVersion: plan.version,
+      files: [{ fileId: 'F-MANUAL', versionId: 'V3' }],
+    };
+    const draft = draftAfterEdit('阶段意见', original);
+    expect(draftBasisChanged(draft, original)).toBe(false);
+    expect(draftBasisChanged(draft, newer)).toBe(true);
+    const saved = draftAfterSaveReceipt(draftWhileSaving(draft, 'U2-SAVE-2'), 'UNKNOWN');
+    expect(saved.basis).toEqual(original);
+    expect(saved.requestLabel).toBe('U2-SAVE-2');
+    expect(draftBasisChanged(saved, newer)).toBe(true);
+    expect(draftBasisChanged({ ...saved, basis: newer }, newer)).toBe(false);
   });
 });
 

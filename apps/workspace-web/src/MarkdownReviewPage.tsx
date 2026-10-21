@@ -863,6 +863,7 @@ export function MarkdownReviewPage({
             <button
               disabled={
                 opinion.draft.state === 'SAVING' ||
+                opinion.draft.state === 'UNKNOWN' ||
                 (opinion.draft.text.trim().length === 0 && opinion.draft.state !== 'FAILED')
               }
               onClick={() => {

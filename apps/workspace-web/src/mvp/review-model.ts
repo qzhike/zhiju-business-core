@@ -389,6 +389,10 @@ export interface MvpDraft {
   text: string;
   state: MvpDraftState;
   note: string;
+  /** Basis captured when this draft was created or edited. */
+  basis?: OpinionBasis | undefined;
+  /** Original simulated save request, retained across UNKNOWN recovery. */
+  requestLabel?: string | undefined;
 }
 
 export const emptyDraft: MvpDraft = {
@@ -397,22 +401,31 @@ export const emptyDraft: MvpDraft = {
   note: '仅保存在本页内存；刷新会重置。',
 };
 
-export function draftAfterEdit(text: string): MvpDraft {
+export function draftAfterEdit(text: string, basis?: OpinionBasis): MvpDraft {
   return text
     ? {
         text,
         state: 'UNSAVED',
         note: '仅保存在本页内存；刷新会重置，不代表服务器已保存。',
+        ...(basis ? { basis } : {}),
       }
     : emptyDraft;
 }
 
-export function draftWhileSaving(draft: MvpDraft): MvpDraft {
+export function draftWhileSaving(draft: MvpDraft, requestLabel: string): MvpDraft {
   return {
     ...draft,
     state: 'SAVING',
     note: '正在模拟保存到本页内存；没有调用服务器。',
+    requestLabel,
   };
+}
+
+/** A draft keeps its original basis until the user explicitly rebinds it. */
+export function draftBasisChanged(draft: MvpDraft, basis: OpinionBasis): boolean {
+  return (
+    draft.text.trim().length > 0 && draft.basis !== undefined && !sameBasis(draft.basis, basis)
+  );
 }
 
 export function draftAfterSaveReceipt(

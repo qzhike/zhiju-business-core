@@ -23,6 +23,7 @@ import {
   candidateVersion,
   draftAfterEdit,
   draftAfterSaveReceipt,
+  draftBasisChanged,
   draftWhileSaving,
   emptyDraft,
   evaluateFinalizationReceipt,
@@ -775,7 +776,10 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       const latest = current.drafts[selectedScope.id] ?? emptyDraft;
       return {
         ...current,
-        drafts: { ...current.drafts, [selectedScope.id]: draftAfterEdit(text) },
+        drafts: {
+          ...current.drafts,
+          [selectedScope.id]: draftAfterEdit(text, currentBasis),
+        },
         message: latest.text === text ? current.message : undefined,
       };
     });
@@ -784,13 +788,26 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const saveDraft = () => {
     update((current) => {
       const latest = current.drafts[selectedScope.id] ?? emptyDraft;
+      if (latest.text.trim().length === 0) return current;
+      if (latest.state === 'SAVING' || latest.state === 'UNKNOWN')
+        return {
+          ...current,
+          message:
+            latest.requestLabel !== undefined
+              ? `原保存请求 ${latest.requestLabel} 仍未决；只查询原请求，不创建新的保存意图。`
+              : '原保存请求仍未决；只查询原请求，不创建新的保存意图。',
+        };
+      const requestLabel = `U2-SAVE-${crypto.randomUUID().slice(0, 8)}`;
       return {
         ...current,
         drafts: {
           ...current.drafts,
-          [selectedScope.id]: draftWhileSaving(latest),
+          [selectedScope.id]: draftWhileSaving(
+            { ...latest, ...(latest.basis ? {} : { basis: currentBasis }) },
+            requestLabel,
+          ),
         },
-        message: '已登记模拟保存动作；请用演练控制返回保存回执。',
+        message: `已登记模拟保存请求 ${requestLabel}；请用演练控制返回回执。`,
       };
     });
   };
@@ -800,17 +817,29 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       const drafts: Record<string, MvpDraft> = { ...current.drafts };
       let changed = false;
       for (const [scopeId, entry] of Object.entries(drafts)) {
-        if (entry.state !== 'SAVING') continue;
+        if (
+          (entry.state !== 'SAVING' && entry.state !== 'UNKNOWN') ||
+          entry.requestLabel === undefined
+        )
+          continue;
         drafts[scopeId] = draftAfterSaveReceipt(entry, current.saveScene);
         changed = true;
       }
-      return changed ? { ...current, drafts } : current;
+      return changed
+        ? {
+            ...current,
+            drafts,
+            message: '原保存请求已按当前场景返回回执；未创建新的保存意图。',
+          }
+        : current;
     });
   };
 
   const submitRevision = () => {
     const text = draft.text.trim();
     if (!text) return;
+    if (draftBasisChanged(draft, currentBasis)) return;
+
     const projectActive = activeSubmission(
       Object.values(sessions).flatMap((candidate) => candidate.submissions),
     );
@@ -895,6 +924,26 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         },
         message:
           scene === 'RECEIVED' ? '模拟意见已接收；本次内容已冻结，可继续写下轮意见。' : undefined,
+      };
+    });
+  };
+
+  const rebindDraft = () => {
+    update((current) => {
+      const latest = current.drafts[selectedScope.id] ?? emptyDraft;
+      if (!latest.text.trim() || !latest.basis) return current;
+      return {
+        ...current,
+        drafts: {
+          ...current.drafts,
+          [selectedScope.id]: {
+            ...latest,
+            basis: currentBasis,
+            state: 'UNSAVED',
+            note: '已显式绑定到当前依据；未保存的文本不会自动迁移。',
+          },
+        },
+        message: '当前草稿已显式绑定到当前依据；请核对后提交。',
       };
     });
   };
@@ -1197,6 +1246,14 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     update((current) => {
       const request = current.finalizationRequest;
       if (!request) return { ...current, message: '没有可查询的原定稿请求。' };
+      const activeNow = activeSubmission(
+        Object.values(sessions).flatMap((candidate) => candidate.submissions),
+      );
+      if (activeNow)
+        return {
+          ...current,
+          message: `仍有待回执或待核验的修改请求 ${activeNow.requestId}；不能完成阶段定稿。请先查询或处理原修改请求。`,
+        };
       if (!request.receipt)
         return { ...current, message: '原定稿请求仍无可匹配回执；未创建第二个意图。' };
       const filesNow = viewedVersionSet(
@@ -1264,9 +1321,11 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       : undefined;
   const submitBlocked = !currentSet
     ? '当前阶段缺少文件或版本；请先恢复完整集合后再提交修改。'
-    : active && active.scope.id !== selectedScope.id
-      ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
-      : undefined;
+    : draftBasisChanged(draft, currentBasis)
+      ? '该草稿按上一版本依据保存；请显式重新绑定到当前依据后再提交。'
+      : active && active.scope.id !== selectedScope.id
+        ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
+        : undefined;
   const history = allSubmissions.map((entry) => ({
     id: entry.submissionId,
     scopeLabel: entry.scope.label,
@@ -1524,7 +1583,10 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             <option value="UNKNOWN">保存结果待核验</option>
           </select>
         </label>
-        <button onClick={applySaveReceipt}>返回草稿保存回执</button>
+        <button onClick={applySaveReceipt}>模拟原保存回执到达/查询</button>
+        <button onClick={rebindDraft} disabled={!draftBasisChanged(draft, currentBasis)}>
+          显式将当前草稿绑定到当前依据（模拟）
+        </button>
         <label>
           修改回执场景
           <select
