@@ -407,10 +407,6 @@ export function draftAfterEdit(text: string): MvpDraft {
     : emptyDraft;
 }
 
-export function draftAfterSave(): MvpDraft {
-  return emptyDraft;
-}
-
 export function draftWhileSaving(draft: MvpDraft): MvpDraft {
   return {
     ...draft,

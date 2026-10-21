@@ -163,6 +163,8 @@ test('procedure and rule finalize as one complete set against the finalized manu
   await page.getByRole('button', { name: '模拟缺少一份文件' }).click();
   await expect(page.locator('.stage-finalize')).toContainText('缺少文件或版本');
   await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
+  await expect(page.getByText('当前阶段缺少文件或版本')).toBeVisible();
   await page.getByRole('button', { name: '恢复缺失文件（演示）' }).click();
   await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
 
@@ -173,6 +175,19 @@ test('procedure and rule finalize as one complete set against the finalized manu
   await expect(page.getByText('回执与原定稿请求或依据不匹配').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
+  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeDisabled();
+  await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
+  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
+
+  await page.getByLabel('定稿回执场景').selectOption('changed');
+  await page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
+  await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
+  await expect(page.getByText('确认期间文件版本集合已变化').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
+  await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
+  await page.getByLabel('查看当前文件版本').selectOption('V2');
+  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
 
   await page.getByLabel('定稿回执场景').selectOption('matched');
   await page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' }).click();
@@ -284,6 +299,14 @@ test('save, submission and finalization recovery keep one original request', asy
   await expect(page.locator('.markdown-history')).toContainText('失败（模拟）');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
 
+  await page.getByLabel('定稿回执场景').selectOption('mismatch');
+  await page.getByRole('button', { name: '确认质量手册定稿（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
+  await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
+  await expect(page.getByText('回执与原定稿请求或依据不匹配').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
+  await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
+
   await page.getByLabel('定稿回执场景').selectOption('pending');
   await page.getByRole('button', { name: '确认质量手册定稿（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
@@ -319,19 +342,30 @@ test('desktop and narrow layouts keep reading, opinions, basis and return action
     await page.setViewportSize({ width, height });
     await expect(page.getByRole('note').first()).toContainText('开发');
     await expect(page.locator('.stage-basis')).toContainText('输入依据');
+    await expect(
+      page.locator('.journey-nav').getByRole('link', { name: '修改范围', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('.stage-set')).toBeVisible();
+    if (width <= 900) {
+      await page.getByRole('button', { name: '意见与处理' }).click();
+      await expect(page.locator('#markdown-note')).toBeVisible();
+      await page.getByRole('button', { name: '查看文档' }).click();
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   }
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const finalize = page.getByRole('button', { name: '确认质量手册定稿（模拟）' });
-  await finalize.focus();
-  await expect(finalize).toBeFocused();
-  await finalize.press('Enter');
-  await expect(page.getByRole('alertdialog')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(finalize).toBeFocused();
+  for (const width of [1440, 360]) {
+    await page.setViewportSize({ width, height: 900 });
+    const finalize = page.getByRole('button', { name: '确认质量手册定稿（模拟）' });
+    await finalize.focus();
+    await expect(finalize).toBeFocused();
+    await finalize.press('Enter');
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(finalize).toBeFocused();
+  }
 });
 
 test('production build excludes the U2 adapter and rehearsal content', async ({ page }) => {

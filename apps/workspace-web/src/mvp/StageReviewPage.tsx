@@ -42,12 +42,14 @@ export interface StageReviewFinalizationView {
         finalizationId: string;
         planLabel: string;
         manualLabel?: string | undefined;
+        files: readonly { fileId: string; title: string; versionLabel: string }[];
       }
     | undefined;
   onConfirm: () => void;
   onReceipt?: (() => void) | undefined;
   onQuery: () => void;
   onRetry: () => void;
+  onReset?: (() => void) | undefined;
 }
 
 export interface StageReviewPageProps {
@@ -243,6 +245,11 @@ export function StageReviewPage({
             <p className="muted">
               阶段定稿确认的是下列完整集合，不按逐文件批准拼装；两类文件之间没有审批关卡。
             </p>
+            {finalization.status === 'DONE' && (
+              <p className="muted">
+                本表是当前阅读选择；本次冻结的定稿集合见上方“模拟阶段定稿已完成”。
+              </p>
+            )}
             <table>
               <thead>
                 <tr>
@@ -297,16 +304,17 @@ export function StageReviewPage({
                     </div>
                   )}
                   <div>
-                    <dt>版本集合</dt>
+                    <dt>冻结版本集合</dt>
                     <dd>
-                      {finalization.exactSet
+                      {finalization.result.files
                         .map((file) => `${file.title} · ${file.versionLabel}`)
                         .join('；')}
                     </dd>
                   </div>
                 </dl>
                 <p className="muted">
-                  仅本页模拟结果，不是服务器保存、业务批准或 Runner 完成；U2 不提供上游重新定稿。
+                  本结果绑定上述冻结版本；之后切换阅读版本不会改写本次定稿。仅本页模拟结果，不是服务器保存、业务批准或
+                  Runner 完成；U2 不提供上游重新定稿。
                 </p>
               </div>
             ) : (
@@ -387,9 +395,7 @@ export function StageReviewPage({
                     </AlertDialog.Portal>
                   </AlertDialog.Root>
                   {finalization.onReceipt &&
-                    (finalization.status === 'PENDING' ||
-                      finalization.status === 'UNKNOWN' ||
-                      finalization.status === 'MISMATCH') && (
+                    (finalization.status === 'PENDING' || finalization.status === 'UNKNOWN') && (
                       <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
                     )}
                   {(finalization.status === 'PENDING' ||
@@ -399,6 +405,9 @@ export function StageReviewPage({
                   )}
                   {finalization.status === 'FAILED' && (
                     <button onClick={finalization.onRetry}>重新发起定稿（模拟）</button>
+                  )}
+                  {finalization.status === 'MISMATCH' && finalization.onReset && (
+                    <button onClick={finalization.onReset}>重新核对后重试定稿（模拟）</button>
                   )}
                 </div>
               </>

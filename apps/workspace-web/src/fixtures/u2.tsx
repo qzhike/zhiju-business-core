@@ -639,7 +639,8 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     canFinalizeSet &&
     session.finalizationStatus !== 'PENDING' &&
     session.finalizationStatus !== 'UNKNOWN' &&
-    session.finalizationStatus !== 'FAILED';
+    session.finalizationStatus !== 'FAILED' &&
+    session.finalizationStatus !== 'MISMATCH';
   const generationEnabled =
     readiness.ready &&
     Object.keys(session.files).length === 0 &&
@@ -1123,7 +1124,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       if (scene === 'mismatch') {
         const wrong: FinalizationReceipt = {
           ...matching,
-          files: currentSet.map((ref, index) => (index === 0 ? { ...ref, versionId: 'V1' } : ref)),
+          files: currentSet.map((ref, index) =>
+            index === 0 ? { ...ref, versionId: `${ref.versionId}-MISMATCH` } : ref,
+          ),
         };
         return {
           ...current,
@@ -1135,21 +1138,28 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       if (scene === 'changed') {
         const target = files.at(-1);
         const state = target ? current.files[target.id] : undefined;
-        const otherVersion = state?.versions.find(
-          (versionId) => versionId !== state.viewedVersionId,
-        );
+        const otherVersion = target
+          ? (state?.versions.find((versionId) => versionId !== state.viewedVersionId) ??
+            u2VersionsFor(target.id).find((versionId) => versionId !== state?.viewedVersionId))
+          : undefined;
+        if (!target || !state || !otherVersion)
+          return {
+            ...current,
+            finalizationStatus: 'MISMATCH',
+            finalizationRequest: { intent, receipt: matching },
+            message: '无法模拟确认期间版本变化：当前没有可切换的替代版本；未定稿，请重新核对。',
+          };
+        const versions = state.versions.includes(otherVersion)
+          ? state.versions
+          : [...state.versions, otherVersion].sort();
         return {
           ...current,
           finalizationStatus: 'PENDING',
           finalizationRequest: { intent, receipt: matching },
-          ...(target && state && otherVersion
-            ? {
-                files: {
-                  ...current.files,
-                  [target.id]: { ...state, viewedVersionId: otherVersion },
-                },
-              }
-            : {}),
+          files: {
+            ...current.files,
+            [target.id]: { ...state, versions, viewedVersionId: otherVersion },
+          },
           message: '定稿请求待回执；确认期间模拟版本变化，原请求绑定旧集合。请重新查询核对。',
         };
       }
@@ -1218,6 +1228,15 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     requestFinalization();
   };
 
+  const resetFinalization = () => {
+    update((current) => ({
+      ...current,
+      finalizationStatus: 'NONE',
+      finalizationRequest: undefined,
+      message: '已清除不匹配回执；请重新核对完整集合与上游依据后再次确认。',
+    }));
+  };
+
   const opinionScopeOptions = scopeOptions.map((option) => ({
     id: option.id,
     label: option.label,
@@ -1243,8 +1262,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           note: '本演练不自动轮询；请显式查询或模拟原请求回执到达。',
         }
       : undefined;
-  const submitBlocked =
-    active && active.scope.id !== selectedScope.id
+  const submitBlocked = !currentSet
+    ? '当前阶段缺少文件或版本；请先恢复完整集合后再提交修改。'
+    : active && active.scope.id !== selectedScope.id
       ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
       : undefined;
   const history = allSubmissions.map((entry) => ({
@@ -1429,6 +1449,14 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             ...(session.finalization.manualFinalizationId
               ? { manualLabel: session.finalization.manualFinalizationId }
               : {}),
+            files: session.finalization.files.map((ref) => {
+              const planFile = files.find((file) => file.id === ref.fileId);
+              return {
+                fileId: ref.fileId,
+                title: planFile?.title ?? ref.fileId,
+                versionLabel: u2VersionLabel(ref.versionId),
+              };
+            }),
           },
         }
       : {}),
@@ -1436,6 +1464,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     ...(session.finalizationRequest ? { onReceipt: receiveFinalization } : {}),
     onQuery: queryFinalization,
     onRetry: retryFinalization,
+    onReset: resetFinalization,
   };
 
   const next =
