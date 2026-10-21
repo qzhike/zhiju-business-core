@@ -91,7 +91,7 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('正在模拟保存');
   await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟原保存回执到达/查询' }).click();
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟草稿已保存到本页内存');
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText(
@@ -276,21 +276,21 @@ test('save, submission and finalization recovery keep one original request', asy
   await page.locator('#markdown-note').fill('保存失败测试草稿');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByLabel('模拟保存回执').selectOption('FAILED');
-  await page.getByRole('button', { name: '模拟原保存回执到达/查询' }).click();
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存失败');
   await expect(page.locator('#markdown-note')).toHaveValue('保存失败测试草稿');
 
   await page.locator('#markdown-note').fill('保存 UNKNOWN 草稿');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByLabel('模拟保存回执').selectOption('UNKNOWN');
-  await page.getByRole('button', { name: '模拟原保存回执到达/查询' }).click();
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
   await page.locator('#markdown-note').fill('保存 UNKNOWN 草稿（已修改）');
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
   await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟原保存回执到达/查询' }).click();
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText(
     '原保存请求已返回；新输入尚未保存',
   );
@@ -364,7 +364,7 @@ test('stage draft keeps its original basis until explicit rebind', async ({ page
   await page.locator('#markdown-note').fill('阶段草稿按 V1 保存');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟原保存回执到达/查询' }).click();
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟草稿已保存');
 
   await page.getByLabel('意见作用范围').selectOption({ label: '文件 质量手册 · 第 1 版候选' });

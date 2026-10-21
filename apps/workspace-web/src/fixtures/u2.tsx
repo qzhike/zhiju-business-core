@@ -813,25 +813,21 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const applySaveReceipt = () => {
-    api.updateAny((current) => {
-      const drafts: Record<string, MvpDraft> = { ...current.drafts };
-      let changed = false;
-      for (const [scopeId, entry] of Object.entries(drafts)) {
-        if (
-          (entry.state !== 'SAVING' && entry.state !== 'UNKNOWN') ||
-          entry.requestLabel === undefined
-        )
-          continue;
-        drafts[scopeId] = draftAfterSaveReceipt(entry, current.saveScene);
-        changed = true;
-      }
-      return changed
-        ? {
-            ...current,
-            drafts,
-            message: '原保存请求已按当前场景返回回执；未创建新的保存意图。',
-          }
-        : current;
+    update((current) => {
+      const latest = current.drafts[selectedScope.id] ?? emptyDraft;
+      if (
+        (latest.state !== 'SAVING' && latest.state !== 'UNKNOWN') ||
+        latest.requestLabel === undefined
+      )
+        return { ...current, message: '当前意见范围没有可查询的原保存请求。' };
+      return {
+        ...current,
+        drafts: {
+          ...current.drafts,
+          [selectedScope.id]: draftAfterSaveReceipt(latest, current.saveScene),
+        },
+        message: `原保存请求 ${latest.requestLabel} 已按当前场景返回回执；未创建新的保存意图。`,
+      };
     });
   };
 
@@ -1584,7 +1580,20 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             <option value="UNKNOWN">保存结果待核验</option>
           </select>
         </label>
-        <button onClick={applySaveReceipt}>模拟原保存回执到达/查询</button>
+        <button
+          onClick={applySaveReceipt}
+          disabled={
+            (draft.state !== 'SAVING' && draft.state !== 'UNKNOWN') ||
+            draft.requestLabel === undefined
+          }
+        >
+          模拟当前范围原保存回执到达/查询
+        </button>
+        {draft.requestLabel && (
+          <p className="muted">
+            当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
+          </p>
+        )}
         <button
           onClick={rebindDraft}
           disabled={
