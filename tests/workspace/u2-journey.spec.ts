@@ -388,6 +388,61 @@ test('stage draft keeps its original basis until explicit rebind', async ({ page
   await expect(page.locator('.markdown-history')).toContainText('F-MANUAL@V2');
 });
 
+test('unresolved save requests block revision submission and stay recoverable', async ({
+  page,
+}) => {
+  await reachManual(page);
+  await generate(page);
+  const requestNote = page.locator('.stage-controls p.muted', {
+    hasText: '当前范围原保存请求',
+  });
+
+  await page.locator('#markdown-note').fill('保存请求 A');
+  await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
+  await expect(requestNote).toContainText('U2-SAVE-');
+  const firstRequest = await requestNote.textContent();
+  await page.locator('#markdown-note').fill('提交文本 B');
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
+  await expect(page.getByText('仍在等待原保存请求回执')).toBeVisible();
+  await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
+
+  await page.getByLabel('模拟保存回执').selectOption('SAVED');
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await expect(page.locator('.markdown-draft-state')).toContainText(
+    '原保存请求已返回；新输入尚未保存',
+  );
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
+  await page.getByLabel('修改回执场景').selectOption('FAILED');
+  await page.getByRole('button', { name: '提交并修改' }).click();
+  await expect(page.locator('.markdown-history')).toContainText('失败（模拟）');
+  await expect(page.locator('.markdown-history')).toContainText('提交文本 B');
+
+  await page.locator('#markdown-note').fill('保存请求 C');
+  await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
+  await expect(requestNote).toContainText('U2-SAVE-');
+  expect(await requestNote.textContent()).not.toBe(firstRequest);
+
+  await page.getByLabel('模拟保存回执').selectOption('UNKNOWN');
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
+  await page.locator('#markdown-note').fill('提交文本 D');
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
+  await expect(page.getByText('仍在等待原保存请求回执')).toBeVisible();
+  page.once('dialog', (dialog) => {
+    void dialog.accept();
+  });
+  await page.getByRole('link', { name: '项目概览' }).click();
+  await page.getByRole('link', { name: '质量手册审阅', exact: true }).click();
+  await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
+  await page.getByLabel('模拟保存回执').selectOption('SAVED');
+  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
+  await page.getByLabel('修改回执场景').selectOption('RECEIVED');
+  await page.getByRole('button', { name: '提交并修改' }).click();
+  await expect(page.locator('.markdown-history')).toContainText('提交文本 D');
+});
+
 test('desktop and narrow layouts keep reading, opinions, basis and return actions usable', async ({
   page,
   browser,

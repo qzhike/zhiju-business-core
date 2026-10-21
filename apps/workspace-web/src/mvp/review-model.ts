@@ -428,6 +428,11 @@ export function draftWhileSaving(draft: MvpDraft, requestLabel: string): MvpDraf
  * Editing keeps an unresolved save request and the draft's original basis.
  * A newer text is a local addition until the original request is resolved.
  */
+/** A save request is unresolved while it is still saving or awaiting reconciliation. */
+export function draftSaveUnresolved(draft: MvpDraft): boolean {
+  return draft.state === 'SAVING' || draft.state === 'UNKNOWN';
+}
+
 export function draftAfterEditInPlace(
   draft: MvpDraft,
   text: string,

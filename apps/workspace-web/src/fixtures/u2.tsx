@@ -24,6 +24,7 @@ import {
   draftAfterEditInPlace,
   draftAfterSaveReceipt,
   draftBasisChanged,
+  draftSaveUnresolved,
   draftWhileSaving,
   emptyDraft,
   evaluateFinalizationReceipt,
@@ -789,7 +790,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     update((current) => {
       const latest = current.drafts[selectedScope.id] ?? emptyDraft;
       if (latest.text.trim().length === 0) return current;
-      if (latest.state === 'SAVING' || latest.state === 'UNKNOWN')
+      if (draftSaveUnresolved(latest))
         return {
           ...current,
           message:
@@ -815,10 +816,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const applySaveReceipt = () => {
     update((current) => {
       const latest = current.drafts[selectedScope.id] ?? emptyDraft;
-      if (
-        (latest.state !== 'SAVING' && latest.state !== 'UNKNOWN') ||
-        latest.requestLabel === undefined
-      )
+      if (!draftSaveUnresolved(latest) || latest.requestLabel === undefined)
         return { ...current, message: '当前意见范围没有可查询的原保存请求。' };
       return {
         ...current,
@@ -834,7 +832,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const submitRevision = () => {
     const text = draft.text.trim();
     if (!text) return;
-    if (draftBasisChanged(draft, currentBasis)) return;
+    if (draftSaveUnresolved(draft) || draftBasisChanged(draft, currentBasis)) return;
 
     const projectActive = activeSubmission(
       Object.values(sessions).flatMap((candidate) => candidate.submissions),
@@ -909,6 +907,8 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
                   basis: currentBasis,
                   state: 'FAILED',
                   note: '模拟提交失败；原文仍在本页，可显式重新提交。',
+                  ...(draft.requestLabel !== undefined ? { requestLabel: draft.requestLabel } : {}),
+                  ...(draft.savedText !== undefined ? { savedText: draft.savedText } : {}),
                 }
               : {
                   text: '',
@@ -1318,11 +1318,13 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       : undefined;
   const submitBlocked = !currentSet
     ? '当前阶段缺少文件或版本；请先恢复完整集合后再提交修改。'
-    : draftBasisChanged(draft, currentBasis)
-      ? '该草稿按上一版本依据保存；请显式重新绑定到当前依据后再提交。'
-      : active && active.scope.id !== selectedScope.id
-        ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
-        : undefined;
+    : draftSaveUnresolved(draft)
+      ? '当前范围的意见仍在等待原保存请求回执；请先查询原保存请求，再提交修改。'
+      : draftBasisChanged(draft, currentBasis)
+        ? '该草稿按上一版本依据保存；请显式重新绑定到当前依据后再提交。'
+        : active && active.scope.id !== selectedScope.id
+          ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
+          : undefined;
   const history = allSubmissions.map((entry) => ({
     id: entry.submissionId,
     scopeLabel: entry.scope.label,
@@ -1582,10 +1584,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         </label>
         <button
           onClick={applySaveReceipt}
-          disabled={
-            (draft.state !== 'SAVING' && draft.state !== 'UNKNOWN') ||
-            draft.requestLabel === undefined
-          }
+          disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
         >
           模拟当前范围原保存回执到达/查询
         </button>
@@ -1596,11 +1595,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         )}
         <button
           onClick={rebindDraft}
-          disabled={
-            !draftBasisChanged(draft, currentBasis) ||
-            draft.state === 'SAVING' ||
-            draft.state === 'UNKNOWN'
-          }
+          disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
         >
           显式将当前草稿绑定到当前依据（模拟）
         </button>

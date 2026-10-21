@@ -5,7 +5,9 @@ import {
   draftAfterEdit,
   draftAfterEditInPlace,
   draftAfterSaveReceipt,
+  emptyDraft,
   draftBasisChanged,
+  draftSaveUnresolved,
   draftWhileSaving,
   duplicateFileIds,
   evaluateFinalizationReceipt,
@@ -364,6 +366,7 @@ describe('U2 opinion binding and recovery', () => {
     const saving = draftWhileSaving(edited, 'U2-SAVE-1');
     expect(saving.state).toBe('SAVING');
     expect(saving.requestLabel).toBe('U2-SAVE-1');
+    expect(draftSaveUnresolved(saving)).toBe(true);
     const states = (['SAVED', 'FAILED', 'UNKNOWN'] as const).map((outcome) =>
       draftAfterSaveReceipt(edited, outcome),
     );
@@ -371,6 +374,8 @@ describe('U2 opinion binding and recovery', () => {
     expect(states[0]?.note).toContain('刷新');
     expect(states[1]?.note).toContain('输入仍留');
     expect(states[2]?.note).toContain('未知');
+    expect(draftSaveUnresolved(states[2] ?? emptyDraft)).toBe(true);
+    expect(draftSaveUnresolved(states[0] ?? emptyDraft)).toBe(false);
   });
 
   it('keeps a saved draft on its original basis until an explicit rebind', () => {
