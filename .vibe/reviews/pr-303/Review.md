@@ -1,4 +1,4 @@
-REQUEST_CHANGES（初審 dc4374f），已在修订后复审转为 `PASS`。PR #303 初始修订存在三项可复现的 U1 状态、版本与意见历史缺陷；R1–R3 已修复并完成独立复审。
+APPROVE。独立工程复审绑定 `eb00cb950d26e3d4c5b814cc4706853c755cfa26`：R1–R3 已确认修复，新增范围门禁的聚焦浏览器检查通过，该 SHA 的 required `full` CI 已通过，未发现新的代码阻断问题。用户随后报告 U1 手动验证通过并授权合并，证据见文末交付前对账。以下各轮发现、待完成边界及授权范围按其记录日期保留为历史；本次文档增量形成的新 head 仍须独立复核并通过适用 CI 后合并。
 
 # PR #303 独立审查
 
@@ -111,3 +111,48 @@ REQUEST_CHANGES（初審 dc4374f），已在修订后复审转为 `PASS`。PR #3
 
 - 本轮复审未执行浏览器、axe、full 或 CI；最终 head 的适用验证由 PR 的 `vibe verify full` 与 CI 记录提供。
 - 用户 U1 实际试走仍为 `NOT RUN`；真实 ZIP/OOXML、BFF/Core、Runner、服务器持久化、UI-04–08 与 MVP-01–10 仍不在本轮验收范围。
+
+## 当前 head 独立复审（2026-10-20）
+
+- Reviewed SHA：`eb00cb950d26e3d4c5b814cc4706853c755cfa26`；base 仍为 `ae2aa7cb730da2cd27fa461b45b5cf3e32a4ca61`。
+- 本轮重新读取 PR/Issue 正文、comments、当前 checks 与实际源码差异，审查 `dc4374f` 之后的六个文件增量；此前记录的复审结论不作为本轮批准依据。
+- 最终 Reviewer 结论：`APPROVE`。原 R1–R3 关闭；新增范围门禁通过独立聚焦检查；未发现新的代码阻断问题。用户告知 CI 结束后，已确认当前 SHA 的 required `full` 完整通过。
+
+### 原发现复核
+
+1. **R1 关闭。** [状态映射](https://github.com/qzhike/zhiju-business-core/blob/eb00cb950d26e3d4c5b814cc4706853c755cfa26/apps/workspace-web/src/fixtures/u1.tsx#L151)现在显式产生 `FAILED` / `RECEIVED`。浏览器确认失败标题正确、失败后可重试、收到后提交按钮锁定；经资料页返回仍保留两条失败/收到回执并保持锁定。
+2. **R2 关闭。** [明确查看版本的记录](https://github.com/qzhike/zhiju-business-core/blob/eb00cb950d26e3d4c5b814cc4706853c755cfa26/apps/workspace-web/src/fixtures/u1.tsx#L554)与新版本可用性分开。浏览器确认第 2 版到达但未选择时，资料页往返仍为第 1 版；主动选择第 2 版后概览/资料页往返保留第 2 版；主动回看历史第 1 版后仍保留第 1 版及只读状态。
+3. **R3 关闭。** [修订请求追加保存](https://github.com/qzhike/zhiju-business-core/blob/eb00cb950d26e3d4c5b814cc4706853c755cfa26/apps/workspace-web/src/fixtures/u1.tsx#L319)和[意见快照展示](https://github.com/qzhike/zhiju-business-core/blob/eb00cb950d26e3d4c5b814cc4706853c755cfa26/apps/workspace-web/src/plan/Page.tsx#L340)保留历史。浏览器确认同一计划的两次反馈有不同请求 ID，两条原文都可展开阅读；新计划没有继承旧反馈，返回旧计划后 ID、正文和计划版本绑定仍可核对；被替代计划不能生成。
+4. **新增范围门禁通过。** [范围页入口](https://github.com/qzhike/zhiju-business-core/blob/eb00cb950d26e3d4c5b814cc4706853c755cfa26/apps/workspace-web/src/fixtures/u1.tsx#L680)在第 2 版报告未到达或未核对时不渲染计划与确认操作；用户显式核对后才开放范围页。浏览器分别检查了这三种条件。
+
+### 当前验证与未完成边界
+
+- 本轮把 reviewed SHA 导出到临时目录，使用现有本机依赖和受控 Chromium `156.0.8078.4` 运行上述四组聚焦场景，全部 `PASS`。这是本轮独立浏览器诊断，不是重复执行 required full，也不替代构建、生产隔离或完整回归证据。
+- base-to-head `git diff --check` 通过。共享页面改动和新增回归与 owning UI Spec/Test 对应，未发现新增业务 API、授权或持久化实现。
+- [CI run 39429395652，attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39429395652)绑定 reviewed SHA。复审进展发布时持久化仍在运行；用户通知结束后，本会话最终读回为 `completed / success`，`select`、`checks`、`persistence`、`verify` 全部成功。[verify 汇总日志](https://github.com/qzhike/zhiju-business-core/actions/runs/39429395652/job/118673547277)明确 `target=full`、`checks=success`、`persistence=success`、`WORKFLOW_CANCELLED=false`，最终输出 `{"status":"PASS","failures":[]}`。PR head 与本地 HEAD 仍是 reviewed SHA，未新增代码差异；复用该 exact-head CI，没有重复运行本地 full。
+- 此前 `agent-ci doctor --target codex` 在 sandbox 返回 `desktop_ipc_permission_denied`，宿主只读复测返回 `desktop_owner_unavailable` / `no-client-found`，因此未启动 waiter。用户随后在本会话通知 CI 结束，已完成同一 run/attempt/SHA 的最终核对；没有新建/恢复其他 runtime，也没有轮询 GitHub。
+- 用户 U1 实际试走反馈仍为 `NOT RUN`，关闭 #302 前须记录修订、观察结果和脱敏反馈。此项不因代码复核或自动化通过而完成。
+- 本次未重做私有来源内容核验；真实 ZIP/OOXML、BFF/Core 写入、Runner、服务器持久化/重启、UI-04–08 与 MVP-01–10 保持既定未验收边界。
+- 已纳入 PR 的历史正式审查记录予以保留；本轮追加内容只修改此文档，尚未 commit/push。产品代码与已有 `package.json`、`pnpm-lock.yaml` 改动未修改。后续需把最终审查记录按项目交付授权纳入 Git。
+- 本轮复审进展已[发布到 PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6292095463)，并通过 GitHub API 读回确认 reviewed SHA、四组核验结果和 CI 待完成边界。
+
+### 最终交接
+
+当前代码修订的独立审查完成，无待修复的代码阻断发现。#302 关闭前仍需实际用户 U1 试走及脱敏反馈；正式审查记录的本轮更新需按交付授权纳入 Git。后续 head 变化时复核新增差异和适用验证，不把本结论自动延伸到新 SHA。本次只发布 PR comment，不提交 GitHub formal approval，不 commit、push、merge 或关闭 Issue。
+
+最终 `APPROVE` 已[发布到 PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6292886453)，并通过 GitHub API 读回确认正文、reviewed SHA 和完整 CI 证据。
+
+### attempt 2 监视器事件补充（2026-10-20）
+
+- 已在原会话确认接收 job `8db239de4b58d7c8b74051a2` / event `f597f529-47ab-4dee-8168-ae64a27184b3`。结果为 `monitor_error`，错误为 `GitHub read timed out`，没有 CI conclusion。
+- 单次核对 [run 39429395652，attempt 2](https://github.com/qzhike/zhiju-business-core/actions/runs/39429395652/attempts/2)：`headSha` 仍为 reviewed SHA，状态为 `in_progress`；`select`、`checks` 成功，`persistence` 的 `Verify persistence` 仍在运行，尚无 `verify` 汇总结果。PR 仍为 OPEN，head 未变。
+- attempt 1 的成功证据和该代码修订的工程审查结论保持有效；最新 attempt 2 的 CI 门禁仍待完成。本事件不能用来认定 attempt 2 成功或失败，也不能认定最新检查已满足合并条件。
+- 没有轮询、启动新 waiter、重跑验证或启动手动测试服务。用户 U1 试走仍待反馈，其他交付边界保持不变。
+- 补充说明已[发布到 PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6294006484)，并通过 GitHub API 读回确认正文和 attempt 区分。
+
+## 交付前对账（2026-10-21）
+
+- 当前实现仍为 `eb00cb950d26e3d4c5b814cc4706853c755cfa26`。[run 39429395652，attempt 2](https://github.com/qzhike/zhiju-business-core/actions/runs/39429395652/attempts/2)已最终核对为 `completed / success`，`select`、`checks`、`persistence`、`verify` 全部成功；前述监视器超时保留为历史，不再表示 CI 待完成。
+- 用户报告 U1 手动验证通过并授权合并；修订、观察结果和脱敏反馈已记录并读回于 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302#issuecomment-6308788799) 与 [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6308789929)。这是用户报告的 U1 整体试走通过，不推断逐项失败场景或完整平台矩阵的人工覆盖；此前用户反馈 `NOT RUN` 的边界已由这次实际反馈更新。
+- 本次增量仅补齐正式审查记录及相关文档的当前事实、后续意图；实现、测试、依赖和验证配置不变。最终文档提交的独立审查与 CI 以 PR 中绑定该新 SHA 的证据为准，不能把旧 SHA 的批准直接当作新 head 批准。
+- U2/U3、第一阶段整体流程确认、真实 ZIP/OOXML、BFF/Core、Runner、服务器持久化/重启及 MVP-01–10 保持原未验收边界。没有通过本次 U1 交付扩大已验证范围。

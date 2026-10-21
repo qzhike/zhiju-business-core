@@ -447,7 +447,7 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 ## 缩编 MVP：U1 从资料到确认范围（2026-10-20）
 
-状态：`IMPLEMENTED PRESENTATION DELTA / FIXTURE BROWSER PASS / REAL SERVICES AND USER WALKTHROUGH NOT RUN`。
+状态：`IMPLEMENTED PRESENTATION DELTA / FIXTURE BROWSER PASS / REAL SERVICES NOT RUN`。用户已反馈 U1 手动验证通过；修订、反馈及证据边界见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302#issuecomment-6308788799) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6308789929)。
 
 产品依据为已确认的 [交付计划 §3](../mvp/delivery-plan.md#3-第一阶段ui-订正与流程确认)及 [可用闭环](../mvp/usable-loop.md)。本增量落实 U1 的页面、导航、分析澄清及范围确认演练，不定义新 API、Core 状态、数据库或 Runner 协议。旧章节继续说明已交付页面与生产能力；新产品范围覆盖冲突的未来 UI 表达，不追溯改写旧证据。
 
