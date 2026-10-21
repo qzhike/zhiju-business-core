@@ -6,7 +6,7 @@
     "allowImportingTsExtensions": true,
     "tsBuildInfoFile": "./.tsbuildinfo"
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "../persistence/synthetic-token-disclosure.ts"],
   "exclude": ["../../node_modules", ".tsbuildinfo"],
   "references": [
     { "path": "../../packages/shared-kernel" },

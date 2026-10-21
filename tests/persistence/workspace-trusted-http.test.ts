@@ -21,7 +21,7 @@ import { createWorkspaceCoreFromEnv } from '../../apps/api/src/workspace/server.
 import { createBff } from '../../apps/workspace-bff/src/app.js';
 import { FakeOidcProvider } from '../../apps/workspace-bff/src/testing/fake-oidc.js';
 import { newUuidV7 } from '@zhiju/shared-kernel';
-import { SYNTHETIC_COMPACT_JWT_PATTERN } from '../helpers/synthetic-token-disclosure.js';
+import { SYNTHETIC_COMPACT_JWT_PATTERN } from './synthetic-token-disclosure.js';
 
 import {
   API_AUDIENCE,

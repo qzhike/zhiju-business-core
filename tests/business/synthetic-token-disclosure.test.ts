@@ -1,7 +1,7 @@
 import { createSign, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
-import { SYNTHETIC_COMPACT_JWT_PATTERN } from '../helpers/synthetic-token-disclosure.js';
+import { SYNTHETIC_COMPACT_JWT_PATTERN } from '../persistence/synthetic-token-disclosure.js';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 
