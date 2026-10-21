@@ -27,6 +27,24 @@ export function ciVerificationFailures(needs: unknown, workflowCancelled: boolea
   return failures;
 }
 
+export function persistenceVerificationFailures(
+  needs: unknown,
+  workflowCancelled: boolean,
+): string[] {
+  const failures: string[] = workflowCancelled ? ['workflow was cancelled'] : [];
+  const dependencies = record(needs);
+  if (!dependencies) return [...failures, 'invalid persistence dependency data'];
+  const names = ['select', 'persistence-1', 'persistence-2', 'persistence-3'];
+  if (Object.keys(dependencies).some((name) => !names.includes(name)))
+    failures.push('unexpected persistence dependency');
+  if (record(record(dependencies.select)?.outputs)?.target !== 'full')
+    failures.push('persistence aggregation requires full target');
+  for (const name of names)
+    if (record(dependencies[name])?.result !== 'success')
+      failures.push(`${name}: expected success`);
+  return failures;
+}
+
 function main(): void {
   try {
     const cancellation = process.env.WORKFLOW_CANCELLED;
@@ -34,7 +52,12 @@ function main(): void {
       throw new Error('missing or invalid workflow cancellation state');
     }
     const needs: unknown = JSON.parse(process.env.NEEDS_JSON ?? '');
-    const failures = ciVerificationFailures(needs, cancellation === 'true');
+    const scope = process.env.VERIFICATION_SCOPE ?? 'workflow';
+    if (scope !== 'workflow' && scope !== 'partitions')
+      throw new Error('invalid verification scope');
+    const failures = (
+      scope === 'partitions' ? persistenceVerificationFailures : ciVerificationFailures
+    )(needs, cancellation === 'true');
     process.stdout.write(
       `${JSON.stringify({ status: failures.length ? 'FAIL' : 'PASS', failures })}\n`,
     );

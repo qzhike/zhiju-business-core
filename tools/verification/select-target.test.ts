@@ -19,6 +19,20 @@ const misleadingPaths = [
   String.raw`.vibe\module-tests\unexpected.md`,
 ];
 const lowRiskPaths = [
+  'apps/workspace-web/src/execution/execution.css',
+  'apps/workspace-web/src/delivery/delivery.css',
+  'apps/workspace-web/src/fixtures/review.tsx',
+  'apps/workspace-web/src/fixtures/review-data.ts',
+  'apps/workspace-web/src/fixtures/execution.tsx',
+  'apps/workspace-web/src/fixtures/delivery.tsx',
+  'apps/workspace-web/src/MarkdownReviewPage.test.tsx',
+  'apps/workspace-web/src/execution/Page.test.tsx',
+  'apps/workspace-web/src/execution/model.test.ts',
+  'apps/workspace-web/src/delivery/model.test.ts',
+  'tests/workspace/review.spec.ts',
+  'tests/workspace/execution.spec.ts',
+  'tests/workspace/delivery.spec.ts',
+
   'apps/workspace-web/src/style.css',
   'apps/workspace-web/src/shell.tsx',
   'apps/workspace-web/src/analysis/Page.tsx',
@@ -32,6 +46,12 @@ const lowRiskPaths = [
   'tests/workspace/startup.spec.ts',
 ];
 const fullPaths = [
+  'apps/workspace-web/src/execution/Page.tsx',
+  'apps/workspace-web/src/execution/model.ts',
+  'apps/workspace-web/src/delivery/Page.tsx',
+  'apps/workspace-web/src/delivery/model.ts',
+  'apps/workspace-web/src/workbench/navigation.ts',
+  '.github/workflows/persistence.yml',
   'modules/task-execution/src/context-builder.ts',
   'modules/identity-policy/src/authorization.ts',
   'modules/task-execution/src/persistence/task-execution-repository.ts',

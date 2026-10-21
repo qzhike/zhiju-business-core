@@ -21,6 +21,20 @@ export function isDocumentationOnlyPath(path: string): boolean {
 // Audited presentation/fixture boundaries, not a blanket frontend exemption.
 // Production integration or new responsibilities must update this allowlist.
 const lowRiskUiPaths = new Set([
+  'apps/workspace-web/src/execution/execution.css',
+  'apps/workspace-web/src/delivery/delivery.css',
+  'apps/workspace-web/src/fixtures/review.tsx',
+  'apps/workspace-web/src/fixtures/review-data.ts',
+  'apps/workspace-web/src/fixtures/execution.tsx',
+  'apps/workspace-web/src/fixtures/delivery.tsx',
+  'apps/workspace-web/src/MarkdownReviewPage.test.tsx',
+  'apps/workspace-web/src/execution/Page.test.tsx',
+  'apps/workspace-web/src/execution/model.test.ts',
+  'apps/workspace-web/src/delivery/model.test.ts',
+  'tests/workspace/review.spec.ts',
+  'tests/workspace/execution.spec.ts',
+  'tests/workspace/delivery.spec.ts',
+
   'apps/workspace-web/src/style.css',
   'apps/workspace-web/src/shell.tsx',
   'apps/workspace-web/src/analysis/analysis.css',

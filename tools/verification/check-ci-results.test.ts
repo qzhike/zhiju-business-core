@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ciVerificationFailures } from './check-ci-results.mts';
+import { ciVerificationFailures, persistenceVerificationFailures } from './check-ci-results.mts';
 import type { VerificationTarget } from './select-target.mts';
 
 function completed(target: VerificationTarget = 'full') {
@@ -100,4 +100,74 @@ describe('required CI verification aggregation', () => {
       expect(result.status, result.stderr).toBe(expected);
     },
   );
+});
+
+describe('three independent persistence results', () => {
+  const success = {
+    select: { result: 'success', outputs: { target: 'full' } },
+    'persistence-1': { result: 'success' },
+    'persistence-2': { result: 'success' },
+    'persistence-3': { result: 'success' },
+  };
+  it('requires all three named partitions and full selection', () => {
+    expect(persistenceVerificationFailures(success, false)).toEqual([]);
+    expect(persistenceVerificationFailures(success, true)).not.toEqual([]);
+    expect(
+      persistenceVerificationFailures({ ...success, extra: { result: 'success' } }, false),
+    ).not.toEqual([]);
+  });
+  for (const name of Object.keys(success)) {
+    it.each(['failure', 'cancelled', 'skipped', 'pending', '', undefined])(
+      `rejects ${name} result %j`,
+      (result) => {
+        expect(
+          persistenceVerificationFailures({ ...success, [name]: { result } }, false),
+        ).not.toEqual([]);
+      },
+    );
+    it(`rejects missing ${name}`, () => {
+      expect(
+        persistenceVerificationFailures(
+          Object.fromEntries(Object.entries(success).filter(([key]) => key !== name)),
+          false,
+        ),
+      ).not.toEqual([]);
+    });
+  }
+  it.each(['docs', 'code', '', undefined])('rejects target %j', (target) => {
+    expect(
+      persistenceVerificationFailures(
+        { ...success, select: { result: 'success', outputs: { target } } },
+        false,
+      ),
+    ).not.toEqual([]);
+  });
+  it.each([null, [], 'success', {}])('rejects malformed dependencies %j', (needs) => {
+    expect(persistenceVerificationFailures(needs, false)).not.toEqual([]);
+  });
+  it.each([
+    [success, 'partitions', 'false', 0],
+    [{ ...success, 'persistence-2': { result: 'skipped' } }, 'partitions', 'false', 1],
+    [success, 'partitions', 'true', 1],
+    [success, 'partitions', '', 1],
+    [success, 'invalid', 'false', 1],
+  ])('runs the partition aggregator CLI (case %#)', (needs, scope, cancelled, expected) => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        fileURLToPath(new URL('./check-ci-results.mts', import.meta.url)),
+      ],
+      {
+        env: {
+          ...process.env,
+          NEEDS_JSON: JSON.stringify(needs),
+          WORKFLOW_CANCELLED: cancelled,
+          VERIFICATION_SCOPE: scope,
+        },
+        encoding: 'utf8',
+      },
+    );
+    expect(result.status, result.stderr).toBe(expected);
+  });
 });

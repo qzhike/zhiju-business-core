@@ -7,7 +7,7 @@ const criticalCases = JSON.parse(
   readFileSync(new URL('./critical-cases.json', import.meta.url), 'utf8'),
 );
 
-export function assertCriticalCaseExecution(root, modules) {
+export function assertCriticalCaseExecution(root, modules, expectedFiles) {
   if (
     !criticalCases ||
     typeof criticalCases !== 'object' ||
@@ -25,6 +25,7 @@ export function assertCriticalCaseExecution(root, modules) {
 
   const failures = [];
   let count = 0;
+  let files = 0;
   for (const [file, names] of Object.entries(criticalCases)) {
     if (
       !/^tests\/persistence\/[a-z0-9-]+\.test\.ts$/.test(file) ||
@@ -35,6 +36,8 @@ export function assertCriticalCaseExecution(root, modules) {
     ) {
       throw new Error(`invalid critical case inventory: ${file}`);
     }
+    if (expectedFiles && !expectedFiles.includes(file)) continue;
+    files += 1;
     count += names.length;
     const tests = actual.get(file);
     if (!tests) {
@@ -62,6 +65,6 @@ export function assertCriticalCaseExecution(root, modules) {
   if (failures.length)
     throw new Error(`critical persistence case inventory failed:\n${failures.join('\n')}`);
   process.stdout.write(
-    `[persistence-test] critical inventory passed: files=${Object.keys(criticalCases).length}; tests=${count}\n`,
+    `[persistence-test] critical inventory passed: files=${files}; tests=${count}\n`,
   );
 }

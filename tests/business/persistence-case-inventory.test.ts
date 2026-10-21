@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { expect, it } from 'vitest';
+import { partitionFiles } from '../../tools/persistence/partitions.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const require = createRequire(import.meta.url);
@@ -22,6 +23,14 @@ it.each([
   ['skipped', 'case did not pass (skipped):'],
   ['failed', 'case did not pass (failed):'],
   ['focused', 'critical inventory not checked: focused diagnostic only'],
+  ['partition-1', 'critical inventory passed: files=1; tests=64'],
+  ['partition-2', 'critical inventory passed: files=4; tests=32'],
+  ['partition-3', 'critical inventory passed: files=0; tests=0'],
+  ['partition-2-missing-file', `missing file: ${criticalFile}`],
+  ['partition-2-missing-case', 'expected exactly one case, found 0:'],
+  ['partition-3-missing-file', 'persistence file inventory failed:'],
+  ['partition-3-extra-file', 'persistence file inventory failed:'],
+  ['partition-2-focused', 'partition cannot bypass inventory'],
 ])(
   'enforces actual Vitest critical case execution: %s',
   async (mode, expected) => {
@@ -30,13 +39,23 @@ it.each([
       const inventory = JSON.parse(
         await readFile(join(root, 'tools/persistence/critical-cases.json'), 'utf8'),
       ) as Record<string, string[]>;
+      for (const name of ['run-cancellation', 'task-board-entry', 'new-noncritical'])
+        inventory[`tests/persistence/${name}.test.ts`] = ['noncritical fixture case'];
+      const partition = mode.startsWith('partition-') ? mode.split('-')[1] : undefined;
+      const selected = partition
+        ? partitionFiles(Object.keys(inventory), partition)
+        : Object.keys(inventory);
       const include: string[] = [];
       for (const [file, names] of Object.entries(inventory)) {
         // Exclude a file from collection without deleting its source.
-        if (mode !== 'missing-file' || file !== criticalFile) include.push(file);
+        const omitted =
+          mode.endsWith('missing-file') &&
+          file === (partition === '3' ? 'tests/persistence/new-noncritical.test.ts' : criticalFile);
+        if (selected.includes(file) && !omitted) include.push(file);
+        if (mode === 'partition-3-extra-file' && file === criticalFile) include.push(file);
         let statements = names.map((name) => `it(${JSON.stringify(name)}, () => {});`);
         if (file === criticalFile) {
-          if (mode === 'missing-case') statements = statements.slice(1);
+          if (mode.endsWith('missing-case')) statements = statements.slice(1);
           if (mode === 'duplicate') statements.push(statements[0] ?? '');
           if (mode === 'renamed') statements[0] = 'it("renamed critical case", () => {});';
           if (mode === 'extra') statements.push('it("unexpected critical case", () => {});');
@@ -82,7 +101,11 @@ export default {
           {
             cwd: root,
             timeout: 15_000,
-            env: { ...process.env, ZJU_PERSISTENCE_FOCUSED: mode === 'focused' ? '1' : '0' },
+            env: {
+              ...process.env,
+              ZJU_PERSISTENCE_FOCUSED: mode.endsWith('focused') ? '1' : '0',
+              ZJU_PERSISTENCE_PARTITION: partition ?? '',
+            },
           },
           (error, stdout, stderr) => {
             const code = error?.code;
@@ -94,7 +117,9 @@ export default {
           },
         );
       });
-      expect(result.code, result.log).toBe(['complete', 'focused'].includes(mode) ? 0 : 1);
+      expect(result.code, result.log).toBe(
+        ['complete', 'focused', 'partition-1', 'partition-2', 'partition-3'].includes(mode) ? 0 : 1,
+      );
       expect(result.log).toContain(expected);
     } finally {
       await rm(temp, { recursive: true, force: true });

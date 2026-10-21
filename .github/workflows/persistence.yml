@@ -1,0 +1,36 @@
+name: persistence partition
+
+on:
+  workflow_call:
+    inputs:
+      partition:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Every independent runner has the same prerequisites, including the
+      # controlled browser used by the real Core + BFF + built SPA tests.
+      - name: Install controlled Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build persistence prerequisites
+        run: pnpm clean && pnpm build
+      - name: Verify persistence partition
+        env:
+          PERSISTENCE_PARTITION: ${{ inputs.partition }}
+        run: pnpm persistence:gate --partition="$PERSISTENCE_PARTITION"

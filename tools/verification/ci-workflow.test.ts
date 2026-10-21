@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const persistenceWorkflow = readFileSync(
+  new URL('../../.github/workflows/persistence.yml', import.meta.url),
+  'utf8',
+);
 
 interface GitHubContext {
   workflow: string;
@@ -96,4 +100,60 @@ describe('CI workflow concurrency', () => {
       expect(second.cancel).toBe(false);
     },
   );
+});
+
+describe('CI persistence partition topology', () => {
+  function job(name: string): string {
+    const block = new RegExp(`^  ${name}:\\n((?: {4}.*\\n|\\n)*)`, 'mu').exec(workflow)?.[1];
+    if (!block) throw new Error(`missing CI job: ${name}`);
+    return block;
+  }
+
+  it('calls exactly three independent gates with fixed distinct partitions', () => {
+    expect(
+      [...workflow.matchAll(/^ {2}persistence-([0-9]+):$/gmu)].map((match) => match[1]),
+    ).toEqual(['1', '2', '3']);
+    for (const id of ['1', '2', '3']) {
+      const block = job(`persistence-${id}`);
+      expect(block).toContain('needs: select');
+      expect(block).toContain("if: needs.select.outputs.target == 'full'");
+      expect(block).toContain('uses: ./.github/workflows/persistence.yml');
+      expect(block).toContain(`partition: '${id}'`);
+    }
+    expect(workflow + persistenceWorkflow).not.toMatch(/continue-on-error|strategy:|matrix:/u);
+  });
+
+  it('keeps complete prerequisites and serial gate execution on every runner', () => {
+    for (const required of [
+      'workflow_call:',
+      'runs-on: ubuntu-24.04',
+      'timeout-minutes: 60',
+      'version: 11.19.0',
+      'node-version: 24.19.0',
+      'pnpm install --frozen-lockfile',
+      'pnpm exec playwright install --with-deps chromium',
+      'pnpm clean && pnpm build',
+      'PERSISTENCE_PARTITION: ${{ inputs.partition }}',
+      'pnpm persistence:gate --partition="$PERSISTENCE_PARTITION"',
+    ])
+      expect(persistenceWorkflow).toContain(required);
+    expect(persistenceWorkflow).not.toContain('pnpm verify:code');
+  });
+
+  it('preserves required check names and checks every result even after failure', () => {
+    const aggregate = job('persistence');
+    expect(aggregate).toContain('needs: [select, persistence-1, persistence-2, persistence-3]');
+    expect(aggregate).toContain("if: ${{ always() && needs.select.outputs.target == 'full' }}");
+    expect(aggregate).toContain('VERIFICATION_SCOPE: partitions');
+    expect(job('verify')).toContain('needs: [select, checks, persistence]');
+    expect(job('verify')).toContain('VERIFICATION_SCOPE: workflow');
+    for (const block of [aggregate, job('verify')]) {
+      expect(block).toContain('NEEDS_JSON: ${{ toJSON(needs) }}');
+      expect(block).toContain('if: ${{ cancelled() }}\n        run: exit 1');
+      expect(block).toContain('if: ${{ always() && !cancelled() }}');
+      expect(block).toContain(
+        'node --experimental-strip-types tools/verification/check-ci-results.mts',
+      );
+    }
+  });
 });

@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { selectPersistenceRun, persistenceRunEnvironment } from './partitions.mjs';
+import { migrationHistorySql, verifyMigrationNoop } from './migration-noop.mjs';
 // IM-02 WI-01 persistence gate: one version-locked command that starts the
 // pinned PostgreSQL 18.6 container, verifies the image digest, runs Flyway
 // migrations, executes the persistence tests, prints diagnostics and always
@@ -55,19 +57,15 @@ async function seedHistoricalProviderResultData(containerId) {
   log('seeded synthetic V6002 historical Provider Result rows');
 }
 
-const filters = process.argv.slice(2).filter((arg) => arg !== '--diagnostics');
-const fileArgument = filters.find((arg) => arg.startsWith('--test-file='));
-const nameArgument = filters.find((arg) => arg.startsWith('--test-name-pattern='));
-if (filters.some((arg) => arg !== fileArgument && arg !== nameArgument)) {
-  throw new Error('unknown persistence diagnostic argument');
-}
-if (nameArgument && !fileArgument) throw new Error('test name filter requires an explicit file');
-const testFile = fileArgument?.slice('--test-file='.length) ?? 'tests/persistence';
-if (fileArgument && !/^tests\/persistence\/[a-z0-9-]+\.test\.ts$/.test(testFile)) {
-  throw new Error('diagnostics must select one persistence test file');
-}
-if (fileArgument)
-  log(`FOCUSED DIAGNOSTIC ONLY: ${testFile}; ${nameArgument ?? 'all tests in file'}`);
+const selection = selectPersistenceRun(process.argv.slice(2), process.cwd());
+if (selection.kind === 'focused')
+  log(
+    `FOCUSED DIAGNOSTIC ONLY: ${selection.files[0]}; ${selection.pattern ?? 'all tests in file'}`,
+  );
+if (selection.kind === 'partition')
+  log(
+    `CI PARTITION ${selection.partition}/3: files=${selection.files.length}; not a standalone full gate`,
+  );
 
 function runVitest(env) {
   return new Promise((resolve, reject) => {
@@ -81,14 +79,12 @@ function runVitest(env) {
         'vitest',
         'run',
         '--config=vitest.persistence.config.ts',
-        testFile,
+        ...(selection.kind === 'full' ? ['tests/persistence'] : selection.files),
         '--no-file-parallelism',
-        ...(nameArgument
-          ? ['--testNamePattern', nameArgument.slice('--test-name-pattern='.length)]
-          : []),
+        ...(selection.pattern ? ['--testNamePattern', selection.pattern] : []),
       ],
       {
-        env: { ...process.env, ...env, ZJU_PERSISTENCE_FOCUSED: fileArgument ? '1' : '0' },
+        env: { ...process.env, ...env, ...persistenceRunEnvironment(selection) },
         stdio: 'inherit',
       },
     );
@@ -209,19 +205,16 @@ async function main() {
 
     // Second migrate run: must be a no-op. The normalized no-pending line is
     // printed as manual-acceptance evidence (runbook), without credentials.
-    const secondMigrate = await runFlyway(pg.containerId, {
-      command: 'migrate',
-      database: pg.database,
-      username: pg.username,
-      password: pg.password,
-    });
-    const noPendingLine = secondMigrate
-      .split('\n')
-      .map((line) => line.trim())
-      .find((line) => /up to date|no pending migrations|No migration necessary/i.test(line));
-    if (!noPendingLine) {
-      throw new Error(`second flyway migrate was not a no-op:\n${secondMigrate}`);
-    }
+    const noPendingLine = await verifyMigrationNoop(
+      () => query(pg.containerId, migrationHistorySql),
+      () =>
+        runFlyway(pg.containerId, {
+          command: 'migrate',
+          database: pg.database,
+          username: pg.username,
+          password: pg.password,
+        }),
+    );
     log(`second migrate: ${noPendingLine}`);
 
     const info = await runFlyway(pg.containerId, {
@@ -238,7 +231,11 @@ async function main() {
     for (const line of applied) {
       log(`  ${line}`);
     }
-    log(fileArgument ? 'focused diagnostic passed (not the full gate)' : 'gate passed');
+    log(
+      selection.kind === 'full'
+        ? 'gate passed'
+        : `${selection.kind} ${selection.partition ?? ''} passed (not the full gate)`,
+    );
   } catch (error) {
     if (pg) {
       try {
