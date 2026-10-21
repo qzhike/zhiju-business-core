@@ -1,3 +1,60 @@
+APPROVE。最终实现修订 `1d5d145e1366d900860c7ad268617968ceff3d6d` 无剩余代码阻断，exact-head CI 全部通过；用户于 2026-10-21 明确表示“手动测试暂时批准通过，可合并PR并关闭issue及local/remote pr”，据此接受本次 U2 模拟 UI 切片并授权交付清理。
+
+## 最终交付与批准边界（2026-10-21）
+
+- 最终 head 与已复审修订一致；R5–R7 均关闭。[CI run 39599484524 / attempt 2](https://github.com/qzhike/zhiju-business-core/actions/runs/39599484524/attempts/2) 的 checks、三个 persistence gate、persistence 汇总及 verify 全部成功，未重复运行本地 full。
+- 用户的暂时批准及交付授权已记录在 [PR 评论](https://github.com/qzhike/zhiju-business-core/pull/307#issuecomment-6317000947)。这是用户对当前切片的接受决定，不补造逐项人工执行结果。用户反馈 U1 分析演示控制难以找到；已在下方客户补充面板展开并定位，未因此修改产品代码。
+- [PR #307](https://github.com/qzhike/zhiju-business-core/pull/307) 已合入 `main@845c75e67f6f43e3242c20ac5c4c46667890076b`；[#306](https://github.com/qzhike/zhiju-business-core/issues/306) 已自动关闭为 COMPLETED。本节为合并后的文档收口，不改变已验证实现。
+- 私有原文逐字内容试走未收到单独完成结果，仍为 `NOT RUN`；本次按用户明确的暂时批准关闭切片，不把该缺失证据记为 PASS。真实 Runner／服务器状态、持久化与跨设备恢复、完整平台矩阵、U3 及整体 U1–U3 验收继续保留各自未运行边界。
+- 后续先基于合并后的 main 准备 U3 的返工、恢复与交付旅程，重新核对依赖及 NOW + READY；不因 U2 合并宣称整体 UI 阶段完成，不提前冻结后端设计。
+
+---
+
+## 合并前 CI 收口记录（历史）
+
+HUMAN_REVIEW_REQUIRED。PR #307 head `1d5d145e1366d900860c7ad268617968ceff3d6d` 的代码复审无剩余阻断，R5–R7 已关闭；同一 head 的 CI run 39599484524 attempt 2 全部通过。以下保留用户批准前的门禁快照，最终决定以上文为准。
+
+# 当前复审（1d5d145，2026-10-21）
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，关联 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`1d5d145e1366d900860c7ad268617968ceff3d6d`；上一轮已发布审查：`0b2a42e233380eceb6c4ced95b593c82c3752969`。
+- Base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`。
+- 已审全部修复增量：U2 adapter、draft 模型及模型／浏览器回归、正式审查记录。验收范围及 owning Spec/Test 要求沿用前轮，Issue 无新增评论或范围变更。
+
+## R7 残留已关闭
+
+[`submitRevision`](https://github.com/qzhike/zhiju-business-core/blob/1d5d145e1366d900860c7ad268617968ceff3d6d/apps/workspace-web/src/fixtures/u2.tsx#L832) 在保存未决时直接返回；[`submitBlocked`](https://github.com/qzhike/zhiju-business-core/blob/1d5d145e1366d900860c7ad268617968ceff3d6d/apps/workspace-web/src/fixtures/u2.tsx#L1319) 同时禁用共享提交按钮并指引查询原保存请求。两个入口均用 `draftSaveUnresolved` 识别 SAVING/UNKNOWN，未决保存不会再进入覆盖 draft 的修订成功／失败分支。
+
+新增浏览器回归覆盖上轮反例：保存未决 → 编辑 → 提交禁用 → 导航往返 → 原保存回执 → 新文本 UNSAVED → 修订成功／失败历史及后续新保存。模型断言补充未决判定。本轮没有修改产品代码或永久测试。
+
+独立浏览器诊断四组均通过：
+
+| 原保存状态 | 收敛后的修订结果 | 原请求、导航及提交验证 |
+|---|---|---|
+| SAVING | RECEIVED | PASS |
+| SAVING | FAILED | PASS |
+| UNKNOWN | RECEIVED | PASS |
+| UNKNOWN | FAILED | PASS |
+
+各组均核对：未决时提交和保存禁用；编辑和概览／审阅往返保持同一 `U2-SAVE-*`；匹配原回执后新文本仍为 UNSAVED；随后提交保留文本及结果；原请求收敛后才允许新保存 ID。原 [R7 P2](https://github.com/qzhike/zhiju-business-core/pull/307#discussion_r4336686872) 已关闭。R5/R6 相关守卫未在本轮改动，既有复核结论保持，未发现新增代码阻断。
+
+## 验证与未完成项
+
+- 当前未修改源码上的独立 Playwright focused UI diagnostic 4/4 PASS；增量 `git diff --check` PASS。
+- 保留工作区原有 package.json/lockfile 改动；focused 结果不冒充 exact-head 完整构建／full Gate。未重复运行活动 CI 正在覆盖的 full 目标。
+- [CI run 39599484524 / attempt 2](https://github.com/qzhike/zhiju-business-core/actions/runs/39599484524/attempts/2) head 为本轮 SHA，最终 completed / success；select、checks、persistence-1/2/3 gate、persistence 汇总和 verify 全部 success，当前 head 的 full 所需 CI 证据齐全。此前 attempt 1 待结果快照由此取代，不声称 attempt 1 通过。PR 正文所列 `4fef41a` CI 与 `5d0081d` 本地 full 仍仅为旧证据。
+- 外部等待器只读诊断：沙箱拒绝 Desktop IPC 后按规则在主机重试，返回 `codex_runtime_unavailable`，当前原会话无受支持 live owner。没有注册 waiter，没有创建／恢复其他会话，没有模型轮询 CI。用户随后告知 CI 已完成，本轮按其状态请求核对了最终 attempt 2 结果；未通过等待器接收自动事件。
+- #306 必需的用户实际 U2 试走／反馈和私有内容试走仍 NOT RUN，不能以自动化替代；真实 Runner／服务器／持久化恢复及 U3 保持范围外未运行。
+- 本轮[COMMENT review](https://github.com/qzhike/zhiju-business-core/pull/307#pullrequestreview-5599643726) 已发布并回读，绑定本轮 SHA；只有正式审查记录本地更新及用户授权的 COMMENT 发布；未 commit/push/merge/关闭 Issue。技术审查与 CI 已通过，最终角色结论为 HUMAN_REVIEW_REQUIRED，原因是明确要求的 U2 人工验收尚缺证据；不构成合并授权。
+
+CI 收口 [COMMENT review](https://github.com/qzhike/zhiju-business-core/pull/307#pullrequestreview-5600114569) 已发布并回读，绑定当前 head。
+
+下一步：由用户完成／提供 U2 桌面实际试走反馈，并记录私有内容试走的脱敏证据及 tested SHA，再收口 #306 的人工验收。没有新的代码修复要求，R7 不再需要按旧反例继续修复。
+
+---
+
+# 先前审查历史（结论限各自 SHA）
+
 APPROVE（R7 提交交叉路径关闭）。当前 reviewed SHA `2b11408692fedc4ffe160129fc7465b793c34adc`（base 仍为 `eb5b2c516feb49ccdafa0c42389e0c4b32396d44`，审查日期 2026-10-21）：上一轮 `0b2a42e` 的 R7 P2（保存未决时提交修改会丢失原保存请求）已关闭；focused 浏览器 3/3、模型 15/15 通过；R5/R6 继续关闭，无剩余代码阻断。exact-head CI 在本轮审查时尚未出结论；U2 用户实际试走、私有内容试走、真实 Runner/服务器、重启/跨设备与 U3 仍为 `NOT RUN`。此前各轮保留为历史。
 
 # 当前独立审查（2b11408，2026-10-21）

@@ -111,7 +111,7 @@ UI 内容与业务演练也遵守正式模板约束：
 
 U1“从资料到确认范围”的页面实现及用户反馈见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303)，页面行为与验收场景以 owning UI Spec/Test 为准。U1 属于普通 UI 实现的 T1 工作，不改变整个 Core 重构的 T2 分类；后续批次若需改变真实授权、公开协议或业务状态，必须先拆清边界并重新评估，不能按普通页面订正处理。
 
-后续按 U1 的实际反馈准备 U2。Planner 应基于当前修订核对正式内容来源及可用客户样本，补齐本批 owning UI Spec/Test 的适用增量，并选择完整 diff 所需验证目标，再判断 NOW + READY；U1 完成不自动证明 U2 就绪。以上工作无需先完成后端字段设计；后端缺口不阻止隔离的 UI 订正。U3 保留为顺序意图，不预建批量 Issue。
+U2“三阶段审阅与定稿”已由 [Issue #306](https://github.com/qzhike/zhiju-business-core/issues/306) / [PR #307](https://github.com/qzhike/zhiju-business-core/pull/307) 交付，用户暂时批准人工测试并授权合并；详细证据与限制保留在 Issue/PR 及正式 Review。下一批按 U1/U2 实际反馈准备 U3。Planner 应基于当前 main 核对上游精确依据、正式内容来源及可用客户样本，补齐本批 owning UI Spec/Test 的适用增量，并选择完整 diff 所需验证目标，再判断 NOW + READY。局部暂时批准不代替私有原文内容试走或 U1–U3 总体验收。以上工作无需先完成后端字段设计；后端缺口不阻止隔离的 UI 订正，不预建批量 Issue。
 
 ## 4. 第二阶段：从确认的 UI 反推最小后端设计
 
@@ -204,4 +204,4 @@ UI 确认之后才固化新业务 API、状态与持久化模型并开始后端�
 | 独立审查与精确修订证据 | Reviewer、Implementer，必要时人类技术审查者 | 各交付合并前；T2 设计批准先于实现 | 修复实际阻断，按最新 head 复核；保留未运行边界 |
 | Issue/Git/合并与清理 | 用户授权，执行者按门禁交付 | 各操作发生前 | 规划完成不自动产生发布、合并或删除权限 |
 
-下一轮依据 U1 的实际反馈准备 U2，核对当前修订的正式内容来源、owning UI Spec/Test 增量及 NOW + READY，再按授权创建并实施当前批次。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进；完整流程确认后再转入 §4。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；UI 确认后结合真实对接结果估算当前后端批次，不一次性排死整个重构。
+下一轮依据 U1/U2 的实际反馈准备 U3，核对当前 main 的上游依据、正式内容来源、owning UI Spec/Test 增量及 NOW + READY，再按授权创建并实施当前批次。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进；完整流程确认后再转入 §4。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；UI 确认后结合真实对接结果估算当前后端批次，不一次性排死整个重构。

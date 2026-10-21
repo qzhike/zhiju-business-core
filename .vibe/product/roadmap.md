@@ -12,7 +12,7 @@
 - 所有验证基于正式模板。用户已确认正式 Runner 为 `/Users/galendai/repo/qzhike/zhiju-runner`，正式模板在 `template/`。真实调用、协议符合性、XLSX 支持及业务验收仍待核对，不将目录确认当成运行通过。
 - 当前交付：在现有 Web 工程中订正资料→分析→范围、三阶段审阅/定稿、返工/恢复/交付三批体验，形成同一项目的连续试走。优先纠正旧的首次启动/排除已选文件逻辑及逐文件批准表达；模拟状态与真实能力分别展示。
 - 退出条件：交付计划 UI-01–08 实际试走，用户明确确认完整流程，页面/状态/确认对象及必要失败路径进入 owning UI Spec/Test。U1 的局部试走与第一阶段整体退出分开；完整 UI 流程与真实业务验收仍为 `NOT RUN`。
-- U1“从资料到确认范围”已实现，用户已反馈 U1 手动验证通过；交付状态、具体修订、反馈及限制见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303)。后续按 U1 反馈准备 U2“三阶段审阅与定稿”，重新核对当前修订的内容来源、owning UI Spec/Test 增量与 NOW + READY；不因 U1 完成自动认定 U2 就绪。UI 阶段只读核对后端可行性，不先实现新的业务模型或冻结接口。
+- U1“从资料到确认范围”已实现，用户已反馈 U1 手动验证通过，见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303)。U2“三阶段审阅与定稿”已交付，用户暂时批准人工测试并授权合并，具体修订、证据与未验证边界见 [Issue #306](https://github.com/qzhike/zhiju-business-core/issues/306) / [PR #307](https://github.com/qzhike/zhiju-business-core/pull/307)。下一批准备 U3“返工、恢复与交付”，基于当前 main 和 U1/U2 实际反馈重新核对 owning UI Spec/Test 增量与 NOW + READY；不因 U2 的局部暂时批准宣称整体流程或私有原文内容验收通过。UI 阶段只读核对后端可行性，不先实现新的业务模型或冻结接口。
 - 不继续按旧 IM-07 Feishu → IM-08 CLI 顺序扩展新 MVP；保留已交付工程事实、旧实现约束和未运行证据。本次不关闭旧 Issue、不发布新 Issue、不修改 Runner 或业务代码。
 
 ## Next — 依据确认流程补齐后端，再完成小规模真实交付
