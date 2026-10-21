@@ -1,3 +1,85 @@
+APPROVE（R7 提交交叉路径关闭）。当前 reviewed SHA `2b11408692fedc4ffe160129fc7465b793c34adc`（base 仍为 `eb5b2c516feb49ccdafa0c42389e0c4b32396d44`，审查日期 2026-10-21）：上一轮 `0b2a42e` 的 R7 P2（保存未决时提交修改会丢失原保存请求）已关闭；focused 浏览器 3/3、模型 15/15 通过；R5/R6 继续关闭，无剩余代码阻断。exact-head CI 在本轮审查时尚未出结论；U2 用户实际试走、私有内容试走、真实 Runner/服务器、重启/跨设备与 U3 仍为 `NOT RUN`。此前各轮保留为历史。
+
+# 当前独立审查（2b11408，2026-10-21）
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，任务 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`2b11408692fedc4ffe160129fc7465b793c34adc`；上一轮 `0b2a42e233380eceb6c4ced95b593c82c3752969`。
+- PR 当前 base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`；本轮产品/测试增量 `0b2a42e..2b11408`，4 个文件：`u2.tsx`、`review-model.ts`、`review-model.test.ts`、`u2-journey.spec.ts`。
+- 重点：重跑 SAVING/UNKNOWN 保存未决 → 编辑 → 提交修改的交叉反例，确认原保存请求不被修订提交覆盖。
+
+## R7 关闭
+
+- [`draftSaveUnresolved`](https://github.com/qzhike/zhiju-business-core/blob/2b11408692fedc4ffe160129fc7465b793c34adc/apps/workspace-web/src/mvp/review-model.ts#L432) 统一识别 SAVING/UNKNOWN；`saveDraft`、`applySaveReceipt`、保存回执控件和显式重绑定都使用该判定。
+- [u2.tsx:832–836](https://github.com/qzhike/zhiju-business-core/blob/2b11408692fedc4ffe160129fc7465b793c34adc/apps/workspace-web/src/fixtures/u2.tsx#L832) 的 `submitRevision` 在保存未决时直接返回；[submitBlocked](https://github.com/qzhike/zhiju-business-core/blob/2b11408692fedc4ffe160129fc7465b793c34adc/apps/workspace-web/src/fixtures/u2.tsx#L1319) 显示“当前范围的意见仍在等待原保存请求回执；请先查询原保存请求，再提交修改。”，共享页提交按钮因此禁用。
+- FAILED 修订分支保留 `requestLabel`/`savedText`（[u2.tsx:905–912](https://github.com/qzhike/zhiju-business-core/blob/2b11408692fedc4ffe160129fc7465b793c34adc/apps/workspace-web/src/fixtures/u2.tsx#L905)），原保存请求不会被修订成功或失败分支静默替换；新保存请求只在原请求收敛后生成。
+- 新浏览器回归 [u2-journey.spec.ts:391](https://github.com/qzhike/zhiju-business-core/blob/2b11408692fedc4ffe160129fc7465b793c34adc/tests/workspace/u2-journey.spec.ts#L391) 覆盖：SAVING 保存 A → 编辑 B → 提交禁用；SAVED 回执 → UNSAVED → FAILED 修订保留历史；再次保存得到不同 `U2-SAVE-*`；UNKNOWN → 编辑 → 提交禁用 → 导航往返 → 原回执 SAVED → 编辑文本提交成功。focused 运行通过。
+- 独立反例（上一轮会丢失原保存请求）现在保持提交禁用；保存回执控件仍只收敛当前范围的原请求，原 `requestLabel`/`savedText` 在编辑和提交被阻止期间保留。R7 关闭。
+
+## R5/R6/P3 状态
+
+- R5 的定稿查询 active 检查、R6 的 basis 保留/显式重绑定、9f2c445 的按范围保存回执控件均未改变，上一轮结论继续适用；本轮 focused 3/3 覆盖对应路径。
+- 未发现新的 P2/P3 阻断。
+
+## 本轮验证证据与边界
+
+- Focused browser：`unresolved save requests block revision submission...`、`save, submission and finalization recovery...`、`stage draft keeps...` 3/3 passed；模型 `review-model.test.ts` 15/15 passed。作者报告 U2 非 production 8/8、typecheck/lint pass 作为补充。
+- 独立反例使用 fixture 构建与 reviewed SHA 源码；编辑/提交/导航均走实际页面，不读取或输出客户原文、私有路径或截图。
+- 作者报告的 `vibe verify full --json` PASS 仍记录在父修订 `5d0081d`，不是 `2b11408` 的 exact-head 结果；本轮未重跑 full。
+- Exact-head CI：[run 39599235928](https://github.com/qzhike/zhiju-business-core/actions/runs/39599235928)（`headSha=2b11408...`）：审查时 `select` success，`checks`/persistence 仍 IN_PROGRESS，尚无 verify 汇总；合并前须等待该 exact SHA 的 required CI。
+- **NOT RUN（不得由自动化或本文件代替）**：用户实际 U2 试走与反馈（UI-MVP-U2-008）；私有客户/模板原文逐字试走；真实 Runner 调用/输出；真实服务器草稿/保存/定稿；重启与跨设备恢复；U3 交付；完整平台矩阵。
+
+## 交接
+
+代码审查在 `2b11408` 给出 `APPROVE`：R7 提交交叉路径已关闭，R5/R6 与 P3 继续关闭，未发现剩余代码阻断项。合并前的硬门禁仍是 exact-head CI 全绿及用户实际 U2 试走/脱敏反馈；私有内容逐字试走、真实 Runner/服务器、重启/跨设备与 U3 继续分别 `NOT RUN`。本轮只更新本审查文件，不修改产品代码，不 commit/push/merge。
+
+# 上一轮独立复审（0b2a42e，历史）
+
+以下为 `0b2a42e` 的审查；其中 R7 P2 已由 `2b11408` 关闭，保留作历史。
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，关联 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`0b2a42e233380eceb6c4ced95b593c82c3752969`；上一轮已发布审查 SHA：`8bb5d066f12f5afed5d4175cdd1899309db8a98e`。
+- PR base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`。
+- 已核查上一轮至当前 head 的全部修复增量：U2 adapter、draft 模型、共享保存按钮、模型／浏览器回归、UI Test 矩阵与正式审查记录；按原 Issue 与 U2 Spec 的原依据／原请求约束独立判断，不以既有 APPROVE 为通过依据。
+
+## R5 关闭：定稿查询不再越过未决修改
+
+`queryFinalization` 接纳回执前检查项目范围内的 active submission。独立浏览器复现原顺序：定稿 PENDING → 修改 UNKNOWN → 定稿回执到达 → 查询；结果块数量为 0，出现未决修改阻断说明。`activeSubmission` 同时覆盖 PENDING/UNKNOWN；新增浏览器回归覆盖原 UNKNOWN 反例。
+
+## R6 关闭：项目／阶段草稿保留原依据
+
+`draftAfterEditInPlace` 保留既有 basis，`draftBasisChanged` 阻止旧依据提交；显式重绑提供独立动作。独立浏览器分别验证项目与阶段范围：V1 保存 → 文件意见产生 V2 → 切换 V2 → 返回原范围并编辑，提交保持禁用；显式重绑后才启用。新增正式浏览器回归覆盖阶段范围及编辑后仍阻止提交，模型检查覆盖原 basis 保留。
+
+## R7 仍有 P2：提交修改会丢失未决保存请求
+
+位置：[u2.tsx:913](https://github.com/qzhike/zhiju-business-core/blob/0b2a42e233380eceb6c4ced95b593c82c3752969/apps/workspace-web/src/fixtures/u2.tsx#L913)，关联 `submitRevision` 与按当前 draft 查找保存请求的 `applySaveReceipt`。
+
+已修复的部分：UNKNOWN 时保存禁用；编辑保留原 requestLabel/savedText/basis；原 SAVED 回执到达后，新文本标为 UNSAVED。独立浏览器确认这条直接恢复路径成立。
+
+残留反例（SAVING 和 UNKNOWN 两种状态均已独立复现）：
+
+1. 保存文本 A，保留未决 `U2-SAVE-*` 请求。
+2. 输入文本 B 并点击仍可用的“提交并修改”。
+3. draft 被整体替换为 EMPTY，原保存请求从页面和唯一保存状态载体消失；“模拟当前范围原保存回执到达/查询”禁用。修订历史只有 B 和新 `U2-REV`，没有 A 的保存请求及其依据。
+4. 输入文本 C 并保存，得到另一 `U2-SAVE-*`，原请求从未收敛。
+
+原因：未决保存意图只存在于被覆盖的 draft 字段中；`submitRevision` 不检查保存未决状态，在成功／未决修改分支清空该 draft，FAILED 分支同样不保留保存意图。这绕过新增的 UNKNOWN 禁重存保护，违反 #306 和 U2 Spec 边界 7 的原请求恢复要求。
+
+修复要求：将未决保存请求及冻结的文本／scope／basis 与可编辑／提交的草稿独立保留，或在保存收敛前明确阻止修订提交并提供原请求恢复动作。补 SAVING/UNKNOWN → 编辑 → 提交 → 导航／原请求恢复／再次保存的浏览器回归，覆盖修订提交成功与失败。未决保存不得因另一个动作静默丢失或被新请求替代。
+
+## 证据与交接
+
+- 独立 Playwright 浏览器诊断在临时本机 fixture 服务上执行，读取当前 head 未修改的产品源码；R5、项目／阶段 R6 及 R7 直接恢复获得预期结果，R7 的两种提交交叉路径均复现缺陷。
+- 本机 package.json/lockfile 仍有原有改动，未修改或纳入本轮审查；focused 反例不冒充 exact-head full/build 证书。增量 `git diff --check` 通过。
+- 当前 head 的 [CI run 39596496692](https://github.com/qzhike/zhiju-business-core/actions/runs/39596496692)：审查快照 select/checks success，persistence 三分片仍运行；不得用 PR 正文中的 `4fef41a` 旧 run 认定当前 full PASS。pending CI 不是失败；已有明确 P2，无须等待 CI 才交回实现者。
+- 用户实际 U2 试走／反馈与私有内容试走仍 NOT RUN，须与自动化分开；真实 Runner／服务器／持久化恢复与 U3 非本批范围，不要求在本轮修复中扩展。
+- 本轮仅更新本正式记录并按用户授权发布 comments；无产品代码修改，无 commit/push/merge/Issue closure。记录尚未 commit/push。[本轮 COMMENT review](https://github.com/qzhike/zhiju-business-core/pull/307#pullrequestreview-5599531290) 及 [R7 行内评论](https://github.com/qzhike/zhiju-business-core/pull/307#discussion_r4336686872) 已发布并回读，绑定本轮 SHA。
+
+下一步：实现者修复 R7 残留交互、补回归，提供新 head 的适用验证并重新复审。本结论不授权合并。
+
+---
+
+# 先前审查历史
+
 APPROVE（P3 关闭复核）。当前 reviewed SHA `9f2c4452e613526a52079c942ee98268a2e48dfd`（base 仍为 `eb5b2c516feb49ccdafa0c42389e0c4b32396d44`，审查日期 2026-10-21）：805f170 的唯一非阻断 P3（保存回执控件全局收敛）已关闭；focused 浏览器 2/2、独立 scope 反例通过；R5–R7 继续关闭。exact-head CI 在本轮审查时尚未出结论；U2 用户实际试走、私有内容试走、真实 Runner/服务器、重启/跨设备与 U3 仍为 `NOT RUN`。此前各轮保留为历史。
 
 # 当前独立审查（9f2c445，2026-10-21）
