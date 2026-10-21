@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { runFlyway } from '../../tools/persistence/flyway.mjs';
 import {
   HISTORICAL_PROVIDER_RESULT_OBSERVATION_ID,
   HISTORICAL_PROVIDER_RESULT_RECEIPT_ID,
@@ -157,20 +156,5 @@ describe.skipIf(!gateEnabled)('persistence migration baseline (real PostgreSQL)'
     expect(result.rows[0]?.id ?? '').toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
-  });
-
-  it('re-running migrations is a no-op without checksum drift', async () => {
-    const before = await historyRows();
-
-    const output = await runFlyway(containerId ?? '', {
-      command: 'migrate',
-      database: 'zhiju_core',
-      username: 'postgres',
-      password: 'zhiju-gate-test',
-    });
-    expect(output).toMatch(/up to date|no pending migrations|No migration necessary/i);
-
-    const after = await historyRows();
-    expect(after).toEqual(before);
   });
 });

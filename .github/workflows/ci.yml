@@ -63,33 +63,49 @@ jobs:
         if: needs.select.outputs.target == 'code' || needs.select.outputs.target == 'full'
         run: pnpm clean && pnpm verify:code
 
-  persistence:
+  persistence-1:
     needs: select
     if: needs.select.outputs.target == 'full'
+    uses: ./.github/workflows/persistence.yml
+    with:
+      partition: '1'
+
+  persistence-2:
+    needs: select
+    if: needs.select.outputs.target == 'full'
+    uses: ./.github/workflows/persistence.yml
+    with:
+      partition: '2'
+
+  persistence-3:
+    needs: select
+    if: needs.select.outputs.target == 'full'
+    uses: ./.github/workflows/persistence.yml
+    with:
+      partition: '3'
+
+  persistence:
+    needs: [select, persistence-1, persistence-2, persistence-3]
+    if: ${{ always() && needs.select.outputs.target == 'full' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
+        if: ${{ !cancelled() }}
       - uses: actions/setup-node@v4
+        if: ${{ !cancelled() }}
         with:
           node-version: 24.19.0
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # The persistence gate now collects the built-browser acceptance suite
-      # (#266), which launches the controlled Chromium against the real Core +
-      # BFF + built SPA stack, so this runner needs the same pinned browser and
-      # system dependencies that the checks job installs.
-      - name: Install controlled Chromium
-        run: pnpm exec playwright install --with-deps chromium
-      # Independent runners need fresh workspace libraries for owning entries.
-      # Static checks and ordinary tests execute only in the checks job.
-      - name: Build persistence prerequisites
-        run: pnpm clean && pnpm build
-      - name: Verify persistence
-        run: pnpm persistence:gate
+      - name: Reject workflow cancellation
+        if: ${{ cancelled() }}
+        run: exit 1
+      - name: Require all three persistence partitions
+        if: ${{ always() && !cancelled() }}
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          WORKFLOW_CANCELLED: 'false'
+          VERIFICATION_SCOPE: partitions
+        run: node --experimental-strip-types tools/verification/check-ci-results.mts
 
   verify:
     needs: [select, checks, persistence]
@@ -111,4 +127,5 @@ jobs:
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           WORKFLOW_CANCELLED: 'false'
+          VERIFICATION_SCOPE: workflow
         run: node --experimental-strip-types tools/verification/check-ci-results.mts

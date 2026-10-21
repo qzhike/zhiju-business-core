@@ -3,6 +3,11 @@ import { performance } from 'node:perf_hooks';
 import { setInterval, clearInterval } from 'node:timers';
 import pg from 'pg';
 import { assertCriticalCaseExecution } from './critical-case-inventory.mjs';
+import {
+  discoverPersistenceFiles,
+  partitionFiles,
+  assertPersistenceFileExecution,
+} from './partitions.mjs';
 
 export default class PersistenceProgressReporter {
   active = new Map();
@@ -84,13 +89,19 @@ export default class PersistenceProgressReporter {
   async onTestRunEnd(modules) {
     clearInterval(this.heartbeat);
     await this.pendingSample;
+    const partition = process.env.ZJU_PERSISTENCE_PARTITION;
+    if (process.env.ZJU_PERSISTENCE_FOCUSED === '1' && partition)
+      throw new Error('partition cannot bypass inventory as a focused diagnostic');
     if (process.env.ZJU_PERSISTENCE_FOCUSED === '1') {
       process.stdout.write(
         '[persistence-test] critical inventory not checked: focused diagnostic only\n',
       );
       return;
     }
-    assertCriticalCaseExecution(this.root, modules);
+    const allFiles = discoverPersistenceFiles(this.root);
+    const expected = partition ? partitionFiles(allFiles, partition) : allFiles;
+    assertCriticalCaseExecution(this.root, modules, partition ? expected : undefined);
+    assertPersistenceFileExecution(this.root, modules, expected);
     if (this.skipped > 0) {
       throw new Error(`full persistence verification unexpectedly skipped ${this.skipped} tests`);
     }
