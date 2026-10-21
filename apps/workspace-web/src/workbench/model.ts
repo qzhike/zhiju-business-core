@@ -21,7 +21,7 @@ export interface ProjectView {
 
 export type Destination =
   | { kind: 'new' }
-  | { kind: 'intake' | 'delivery'; projectId: string }
+  | { kind: 'overview' | 'intake' | 'delivery'; projectId: string }
   | { kind: 'analysis' | 'startup'; projectId: string; reportId: string }
   | { kind: 'execution'; projectId: string; requestId: string }
   | { kind: 'file'; projectId: string; fileId: string; revisionId: string }
@@ -60,6 +60,7 @@ export function destinationPath(destination: Destination): string {
   if (destination.kind === 'new') return '/projects/new';
   const base = `/projects/${encodeURIComponent(destination.projectId)}`;
   switch (destination.kind) {
+    case 'overview':
     case 'intake':
     case 'delivery':
       return `${base}/${destination.kind}`;

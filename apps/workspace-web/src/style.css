@@ -1229,3 +1229,31 @@ details small {
     width: 100%;
   }
 }
+.journey-nav {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.journey-nav p {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+.journey-nav ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.journey-nav a[aria-current='page'] {
+  font-weight: 700;
+  text-decoration: none;
+}
+.journey-nav a[aria-disabled='true'] {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}

@@ -352,3 +352,65 @@
   outline: 3px solid #7365d3;
   outline-offset: 3px;
 }
+.analysis-understanding {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.analysis-understanding-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.analysis-understanding-head p {
+  margin: 4px 0 10px;
+  font-size: 12px;
+}
+.understanding-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.understanding-groups section {
+  min-width: 0;
+}
+.understanding-groups h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--purple);
+}
+.understanding-groups ul,
+.template-applicability ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.understanding-groups li,
+.template-applicability li {
+  margin-bottom: 8px;
+}
+.understanding-groups p,
+.template-applicability p {
+  margin: 2px 0;
+  font-size: 13px;
+}
+.understanding-limit {
+  color: var(--amber);
+}
+.template-applicability {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.template-applicability h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.template-applicability .status-tag {
+  margin-left: 8px;
+}
+@media (max-width: 700px) {
+  .understanding-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

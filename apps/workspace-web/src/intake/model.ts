@@ -75,3 +75,49 @@ export interface IntakeReceipt {
   retryAllowed: boolean;
   reportId?: string;
 }
+
+// U1 presentation inputs. Receipt never proves reading or analysis.
+export type InputFormat = 'DOCX' | 'MARKDOWN' | 'XLSX' | 'XLS' | 'PDF' | 'OTHER';
+export type InputEntryState = 'RECEIVED' | 'LIMITED' | 'FAILED' | 'UNSUPPORTED';
+export interface InputEntry {
+  id: string;
+  path: string;
+  format: InputFormat;
+  bytes: number;
+  state: InputEntryState;
+  note: string;
+}
+export type InputBatchState =
+  'RECEIVING' | 'RECEIVED' | 'LIMITED' | 'WAITING' | 'FAILED' | 'UNKNOWN';
+export interface InputBatch {
+  id: string;
+  label: string;
+  zipName: string;
+  submittedAt: string;
+  state: InputBatchState;
+  entries: readonly InputEntry[];
+  answers: readonly string[];
+  answerIds?: readonly string[];
+  questions?: readonly { id: string; title: string; state: string }[];
+  limitations: readonly string[];
+  nextAction: string;
+}
+export interface InputFormatRule {
+  format: string;
+  disposition: 'SUPPORTED' | 'CONVERT' | 'UNSUPPORTED';
+  note: string;
+}
+export const inputEntryLabels: Record<InputEntryState, string> = {
+  RECEIVED: '已接收 · 待核验',
+  LIMITED: '已接收 · 读取受限',
+  FAILED: '接收或读取失败',
+  UNSUPPORTED: '不支持',
+};
+export const inputBatchLabels: Record<InputBatchState, string> = {
+  RECEIVING: '正在接收',
+  RECEIVED: '已接收',
+  LIMITED: '已接收 · 有限',
+  WAITING: '已接收 · 等待分析',
+  FAILED: '存在失败条目',
+  UNKNOWN: '接收结果待核验',
+};

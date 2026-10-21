@@ -11,6 +11,8 @@ import {
   type AnalysisState,
   type Context,
   type Submission,
+  type UnderstandingCategory,
+  type UnderstandingItem,
 } from './model.js';
 import './analysis.css';
 const areas = {
@@ -20,6 +22,81 @@ const areas = {
   evidence: '报告依据',
 } as const;
 type Area = keyof typeof areas;
+const understandingLabels: Record<UnderstandingCategory, string> = {
+  SOURCE_FACT: '来源事实',
+  EXISTING_COVERAGE: '已有覆盖',
+  APPLICABLE_GAP: '适用缺口',
+  NOT_APPLICABLE: '不适用',
+  INSUFFICIENT: '资料不足',
+  CONFLICT: '冲突',
+  READ_LIMIT: '读取限制',
+};
+const understandingOrder = Object.keys(understandingLabels) as UnderstandingCategory[];
+function UnderstandingPanel({ report }: { report: AnalysisReport }) {
+  if (!report.understanding?.length && !report.templates?.length) return null;
+  const groups = understandingOrder
+    .map((category) => ({
+      category,
+      items: report.understanding?.filter((item) => item.category === category) ?? [],
+    }))
+    .filter((group) => group.items.length > 0);
+  return (
+    <section className="analysis-understanding" aria-label="来源理解与模板适用性">
+      <div className="analysis-understanding-head">
+        <div>
+          <h2>来源理解与模板适用性</h2>
+          <p className="muted">
+            事实、已有覆盖、缺口和待确认问题分开表达；正式模板条款不作为客户事实。
+          </p>
+        </div>
+      </div>
+      <div className="understanding-groups">
+        {groups.map((group) => (
+          <section key={group.category} data-category={group.category}>
+            <h3>{understandingLabels[group.category]}</h3>
+            <ul>
+              {group.items.map((item: UnderstandingItem) => (
+                <li key={item.id}>
+                  <p>{item.statement}</p>
+                  <small>
+                    {item.id} · 来源 {item.sourceIds.join('、') || '无'}
+                    {item.templateIds.length ? ` · 模板 ${item.templateIds.join('、')}` : ''}
+                  </small>
+                  {item.limitation && <p className="understanding-limit">{item.limitation}</p>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      {report.templates && report.templates.length > 0 && (
+        <div className="template-applicability">
+          <h3>正式模板适用性</h3>
+          <ul>
+            {report.templates.map((template) => (
+              <li key={template.templateId}>
+                <strong>
+                  {template.templateId} · {template.title}
+                </strong>
+                <span className="status-tag">
+                  {template.disposition === 'APPLICABLE'
+                    ? '适用'
+                    : template.disposition === 'PARTIALLY_APPLICABLE'
+                      ? '部分适用'
+                      : template.disposition === 'NOT_APPLICABLE'
+                        ? '不适用'
+                        : '资料不足'}
+                </span>
+                <p>{template.explanation}</p>
+                <small>客户来源：{template.sourceIds.join('、') || '无'}</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
 interface Props {
   report: AnalysisReport;
   contextReport?: AnalysisReport | undefined;
@@ -31,6 +108,7 @@ interface Props {
   controls?: ReactNode;
   updateNotice?: ReactNode;
   roundSummary?: string | undefined;
+  scopeHref?: string | null;
 }
 export function AnalysisPage({
   report,
@@ -43,6 +121,7 @@ export function AnalysisPage({
   controls,
   updateNotice,
   roundSummary,
+  scopeHref,
 }: Props) {
   const [params, setParams] = useSearchParams();
   const [mobileView, setMobileView] = useState<'report' | 'composer'>('report');
@@ -226,10 +305,12 @@ export function AnalysisPage({
         </div>
         {historical ? (
           <strong className="waiting-tag">历史报告 · 只读</strong>
+        ) : scopeHref === null ? (
+          <strong className="waiting-tag">先记录客户答复并核对新报告</strong>
         ) : (
           <Link
             className="button primary"
-            to={`/projects/${report.projectId}/startup/${report.reportId}`}
+            to={scopeHref ?? `/projects/${report.projectId}/startup/${report.reportId}`}
           >
             核对信息与文件范围 →
           </Link>
@@ -293,50 +374,53 @@ export function AnalysisPage({
         }}
       >
         {!activeArea ? (
-          <div className="analysis-overview">
-            {(Object.keys(areas) as Area[]).map((key, index) => (
-              <section className="analysis-card" key={key}>
-                <div className="analysis-card-title">
-                  <small>0{index + 1}</small>
-                  <h2>
-                    <button
-                      onClick={() => {
-                        navigate(key);
-                      }}
-                    >
-                      {areas[key]}
-                    </button>
-                  </h2>
-                  <strong>{cards[key].count}</strong>
-                </div>
-                <p>{cards[key].summary}</p>
-                <ul>
-                  {cards[key].entries.slice(0, 1).map((entry) => (
-                    <li key={entry.id}>
+          <>
+            <UnderstandingPanel report={report} />
+            <div className="analysis-overview">
+              {(Object.keys(areas) as Area[]).map((key, index) => (
+                <section className="analysis-card" key={key}>
+                  <div className="analysis-card-title">
+                    <small>0{index + 1}</small>
+                    <h2>
                       <button
                         onClick={() => {
-                          navigate(key, entry.id);
+                          navigate(key);
                         }}
                       >
-                        {entry.title} <span aria-hidden="true">↗</span>
+                        {areas[key]}
                       </button>
-                    </li>
-                  ))}
-                </ul>
-                {key === 'customer' && (
-                  <button
-                    disabled={!requests.length}
-                    onClick={() => {
-                      openCopy(true);
-                    }}
-                  >
-                    复制全部索取清单
-                  </button>
-                )}
-                {key === 'evidence' && <small>来源与检查仅按报告提供内容展示</small>}
-              </section>
-            ))}
-          </div>
+                    </h2>
+                    <strong>{cards[key].count}</strong>
+                  </div>
+                  <p>{cards[key].summary}</p>
+                  <ul>
+                    {cards[key].entries.slice(0, 1).map((entry) => (
+                      <li key={entry.id}>
+                        <button
+                          onClick={() => {
+                            navigate(key, entry.id);
+                          }}
+                        >
+                          {entry.title} <span aria-hidden="true">↗</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {key === 'customer' && (
+                    <button
+                      disabled={!requests.length}
+                      onClick={() => {
+                        openCopy(true);
+                      }}
+                    >
+                      复制全部索取清单
+                    </button>
+                  )}
+                  {key === 'evidence' && <small>来源与检查仅按报告提供内容展示</small>}
+                </section>
+              ))}
+            </div>
+          </>
         ) : (
           <div className={`analysis-detail ${itemId ? 'has-item' : ''}`}>
             <div
@@ -490,7 +574,15 @@ export function AnalysisPage({
                 <>
                   <h2>{file.title}</h2>
                   <p>
-                    {file.customerCode ?? '拟新建'} · {file.origin} · 拟交付，未批准
+                    {file.customerCode ??
+                      (file.origin === 'CUSTOMER_REVISION'
+                        ? '修订客户现有文件'
+                        : file.origin === 'CUSTOMER_CONVERSION'
+                          ? '转换客户现有文件'
+                          : file.origin === 'TEMPLATE_DERIVED'
+                            ? '按正式模板形成'
+                            : '拟新建')}{' '}
+                    · 拟交付，未批准
                   </p>
                   {report.changes
                     .filter((change) => change.targetPlannedFileIds.includes(file.id))
@@ -551,6 +643,13 @@ export function AnalysisPage({
             >
               {historical ? '查看客户补充草稿' : '切换客户补充'}
             </button>
+            <button
+              onClick={() => {
+                selectContext(contextFor(report, 'PROJECT'));
+              }}
+            >
+              {historical ? '查看项目意见草稿' : '针对整个项目提意见'}
+            </button>
             <p className="muted">未提交输入仅本次页面会话保留，未保存到服务器。</p>
           </div>
           {stale && (
@@ -604,11 +703,11 @@ export function AnalysisPage({
           </label>
           <div className="analysis-actions">
             <label>
-              附上补充资料（DOCX / Markdown / ZIP）
+              附上补充资料（DOCX / Markdown / XLSX / ZIP）
               <input
                 type="file"
                 multiple
-                accept=".docx,.md,.markdown,.zip"
+                accept=".docx,.md,.markdown,.xlsx,.zip"
                 disabled={historical || stale}
                 onChange={(event) => {
                   const names = [...(event.target.files ?? [])].map(
@@ -639,7 +738,11 @@ export function AnalysisPage({
                   });
               }}
             >
-              {state.context.kind === 'CUSTOMER' ? '提交补充' : '提交意见并复核'}
+              {state.context.kind === 'CUSTOMER'
+                ? '提交补充'
+                : state.context.kind === 'PROJECT'
+                  ? '提交项目级意见'
+                  : '提交意见并复核'}
             </button>
           </div>
           <details>

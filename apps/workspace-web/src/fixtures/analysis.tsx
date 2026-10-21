@@ -18,6 +18,7 @@ import {
 } from '../analysis/model.js';
 import { Missing } from '../shell.js';
 import { StartupPage } from '../startup/Page.js';
+import { FixtureU1Analysis, FixtureU1Plan } from './u1.js';
 import type { WorkspaceData } from '../model.js';
 const firstReportId = 'DEMO-STARTUP-REPORT-01';
 const secondReportId = 'DEMO-STARTUP-REPORT-02';
@@ -207,6 +208,10 @@ function useAdapter() {
 }
 export function FixtureAnalysis() {
   const params = useParams();
+  return params.projectId === 'MVP-U1-PROJECT' ? <FixtureU1Analysis /> : <LegacyFixtureAnalysis />;
+}
+function LegacyFixtureAnalysis() {
+  const params = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const adapter = useAdapter();
@@ -331,6 +336,14 @@ export function FixtureAnalysis() {
   );
 }
 export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
+  const params = useParams();
+  return params.projectId === 'MVP-U1-PROJECT' ? (
+    <FixtureU1Plan />
+  ) : (
+    <LegacyFixtureAnalysisStartup data={data} />
+  );
+}
+function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
   const params = useParams();
   const navigate = useNavigate();
   const adapter = useAdapter();
