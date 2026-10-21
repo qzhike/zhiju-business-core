@@ -116,15 +116,18 @@ describe('review workspace presentation helpers', () => {
   });
   it('keeps draft save states distinct, including conflict and unknown outcomes', () => {
     const states: ReviewDraftState[] = [
+      'EMPTY',
       'UNAVAILABLE',
       'SAVING',
       'SAVED',
       'UNSAVED',
       'CONFLICT',
+      'FAILED',
       'UNKNOWN',
     ];
     expect(new Set(states.map((state) => reviewDraftStateLabels[state])).size).toBe(states.length);
     expect(reviewDraftStateLabels.SAVED).toContain('已保存');
+    expect(reviewDraftStateLabels.FAILED).toContain('失败');
     expect(reviewDraftStateLabels.UNKNOWN).toContain('待核验');
   });
 });

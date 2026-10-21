@@ -6,7 +6,10 @@
   /* Bounded by the space left below this page's own top edge; --review-offset and
      --review-bottom are measured on mount/resize, so a heading, notice or page
      padding cannot push any column past the viewport. */
-  --review-space: calc(100dvh - var(--review-offset, 130px) - var(--review-bottom, 16px));
+  --review-space: max(
+    320px,
+    calc(100dvh - var(--review-offset, 130px) - var(--review-bottom, 16px))
+  );
   height: var(--review-space);
   min-height: min(480px, var(--review-space));
 }

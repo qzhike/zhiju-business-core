@@ -55,7 +55,7 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
   await expect(page.locator('main')).toContainText('U1-REPORT-01');
   await expect(page.getByText('先记录客户答复并核对新报告')).toBeVisible();
-  await expect(page.getByRole('link', { name: '修改范围' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: '修改范围', exact: true })).toHaveAttribute(
     'aria-disabled',
     'true',
   );
@@ -217,7 +217,7 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.locator('.plan-basis')).toContainText('U1-BATCH-01');
   await expect(page.locator('.plan-basis')).toContainText('U1-BATCH-02');
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '进入第二阶段（演示）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '进入质量手册审阅（演示）' })).toBeDisabled();
   await confirmPlan(page);
   await expect(page.locator('.plan-receipt')).toContainText('回执与计划、报告版本和输入依据匹配');
   await expect(page.locator('.plan-receipt')).toContainText('U1-PLAN-01');
@@ -225,8 +225,12 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '进入模拟生成（演示）' }).click();
   await expect(page.getByText('已登记模拟生成意图')).toBeVisible();
-  await page.getByRole('button', { name: '进入第二阶段（演示）' }).click();
-  await expect(page.getByText('没有再次弹出范围确认')).toBeVisible();
+  await page.getByRole('button', { name: '进入质量手册审阅（演示）' }).click();
+  await expect(page).toHaveURL(`${base}/stages/manual`);
+  await expect(page.getByRole('heading', { name: '质量手册审阅' })).toBeVisible();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await page.getByRole('link', { name: '修改范围', exact: true }).click();
+  await expect(page).toHaveURL(plan);
   await page.getByRole('textbox', { name: /范围内反馈/u }).fill('请保留客户 I/II/III 类术语');
   await page.getByRole('button', { name: '提交范围内反馈（模拟修订请求）' }).click();
   await expect(page.locator('.analysis-receipt').last()).toContainText('范围不变，不需要再次确认');
@@ -244,7 +248,7 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await confirmPlan(page);
   await expect(page.locator('.plan-receipt')).toContainText('U1-PLAN-02');
   await expect(page.locator('.plan-receipt')).toContainText('F-FORM-NOTICE');
-  await expect(page.getByRole('button', { name: '进入第二阶段（演示）' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '进入质量手册审阅（演示）' })).toBeEnabled();
   await page.getByRole('button', { name: '第 1 版 · 已确认 · 演示回执' }).click();
   await expect(page.locator('.analysis-receipt')).toHaveCount(2);
   await expect(page.locator('.analysis-receipt').nth(0)).toContainText(
@@ -309,7 +313,7 @@ test('UNKNOWN keeps the original intent across navigation and recovers only that
   await confirmPlan(page);
   await expect(page.getByRole('alert')).toContainText('确认结果未知（UNKNOWN）');
   await page.getByRole('link', { name: '分析与澄清' }).click();
-  await page.getByRole('link', { name: '修改范围' }).click();
+  await page.getByRole('link', { name: '修改范围', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('确认结果未知（UNKNOWN）');
   await expect(page.getByRole('button', { name: '确认这份修改范围' })).toBeDisabled();
   await page.getByRole('button', { name: '重新查询原请求' }).click();

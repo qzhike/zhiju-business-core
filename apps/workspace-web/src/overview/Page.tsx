@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { JourneyNav } from '../mvp/JourneyNav.js';
+import { JourneyNav, type JourneyReviewStage } from '../mvp/JourneyNav.js';
 import './overview.css';
 
 export interface OverviewStage {
@@ -22,6 +22,7 @@ interface Props {
   reportId: string;
   planVersion: number | null;
   scopeEnabled: boolean;
+  reviewStages?: readonly JourneyReviewStage[] | undefined;
   next: { label: string; href: string; reason: string };
 }
 export function ProjectOverviewPage({
@@ -31,11 +32,17 @@ export function ProjectOverviewPage({
   reportId,
   planVersion,
   scopeEnabled,
+  reviewStages,
   next,
 }: Props) {
   return (
     <div className="overview-page">
-      <JourneyNav current="overview" analysisReportId={reportId} scopeEnabled={scopeEnabled} />
+      <JourneyNav
+        current="overview"
+        analysisReportId={reportId}
+        scopeEnabled={scopeEnabled}
+        reviewStages={reviewStages}
+      />
       <div className="page-head">
         <div>
           <p className="eyebrow">

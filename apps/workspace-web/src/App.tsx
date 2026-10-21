@@ -121,6 +121,16 @@ const FixtureU1Overview = lazy(() => {
     return import('./fixtures/u1.js').then((module) => ({ default: module.FixtureU1Overview }));
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
+const FixtureU2Provider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/u2.js').then((module) => ({ default: module.FixtureU2Provider }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureU2Stage = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/u2.js').then((module) => ({ default: module.FixtureU2Stage }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
 const projectId = 'DEMO-PROJECT-01';
 
 async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
@@ -251,63 +261,69 @@ function FixtureApp() {
                             <FixtureReviewProvider>
                               <FixtureDeliveryProvider>
                                 <FixtureU1Provider>
-                                  <FixturePageFocus />
-                                  <Routes>
-                                    <Route
-                                      path="/"
-                                      element={<Navigate to="/workbench" replace />}
-                                    />
-                                    <Route path="/workbench" element={<FixtureWorkbench />} />
-                                    <Route path="/projects/new" element={<FixtureNewProject />} />
-                                    <Route
-                                      path="/projects/:projectId/overview"
-                                      element={<FixtureU1Overview />}
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/intake"
-                                      element={<FixtureIntake />}
-                                    />
-                                    <Route path="/initial-analysis" element={<FixtureIntake />} />
-                                    <Route
-                                      path="/projects/:projectId/analysis/:reportId"
-                                      element={<FixtureAnalysis />}
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/startup/:reportId"
-                                      element={
-                                        <FixtureAnalysisStartup
-                                          data={query.data}
-                                          key={location.pathname}
-                                        />
-                                      }
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/executions/:requestId"
-                                      element={<FixtureExecution data={query.data} />}
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/files/:fileId/revisions/:revisionId"
-                                      element={<FixtureExecutionReview key={location.pathname} />}
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/delivery"
-                                      element={<FixtureDelivery />}
-                                    />
-                                    <Route
-                                      path="/projects/:projectId/tasks/:taskId"
-                                      element={
-                                        <UnavailablePage
-                                          title="任务详情"
-                                          reason="任务详情页面尚未交付。"
-                                        />
-                                      }
-                                    />
-                                    <Route
-                                      path="/review-workspace"
-                                      element={<FixtureReviewWorkspace />}
-                                    />
-                                    <Route path="*" element={<Missing />} />
-                                  </Routes>
+                                  <FixtureU2Provider>
+                                    <FixturePageFocus />
+                                    <Routes>
+                                      <Route
+                                        path="/"
+                                        element={<Navigate to="/workbench" replace />}
+                                      />
+                                      <Route path="/workbench" element={<FixtureWorkbench />} />
+                                      <Route path="/projects/new" element={<FixtureNewProject />} />
+                                      <Route
+                                        path="/projects/:projectId/overview"
+                                        element={<FixtureU1Overview />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/intake"
+                                        element={<FixtureIntake />}
+                                      />
+                                      <Route path="/initial-analysis" element={<FixtureIntake />} />
+                                      <Route
+                                        path="/projects/:projectId/analysis/:reportId"
+                                        element={<FixtureAnalysis />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/startup/:reportId"
+                                        element={
+                                          <FixtureAnalysisStartup
+                                            data={query.data}
+                                            key={location.pathname}
+                                          />
+                                        }
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/stages/:stageId"
+                                        element={<FixtureU2Stage />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/executions/:requestId"
+                                        element={<FixtureExecution data={query.data} />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/files/:fileId/revisions/:revisionId"
+                                        element={<FixtureExecutionReview key={location.pathname} />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/delivery"
+                                        element={<FixtureDelivery />}
+                                      />
+                                      <Route
+                                        path="/projects/:projectId/tasks/:taskId"
+                                        element={
+                                          <UnavailablePage
+                                            title="任务详情"
+                                            reason="任务详情页面尚未交付。"
+                                          />
+                                        }
+                                      />
+                                      <Route
+                                        path="/review-workspace"
+                                        element={<FixtureReviewWorkspace />}
+                                      />
+                                      <Route path="*" element={<Missing />} />
+                                    </Routes>
+                                  </FixtureU2Provider>
                                 </FixtureU1Provider>
                               </FixtureDeliveryProvider>
                             </FixtureReviewProvider>
