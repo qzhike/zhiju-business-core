@@ -156,3 +156,10 @@ APPROVE。独立工程复审绑定 `eb00cb950d26e3d4c5b814cc4706853c755cfa26`：
 - 用户报告 U1 手动验证通过并授权合并；修订、观察结果和脱敏反馈已记录并读回于 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302#issuecomment-6308788799) 与 [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6308789929)。这是用户报告的 U1 整体试走通过，不推断逐项失败场景或完整平台矩阵的人工覆盖；此前用户反馈 `NOT RUN` 的边界已由这次实际反馈更新。
 - 本次增量仅补齐正式审查记录及相关文档的当前事实、后续意图；实现、测试、依赖和验证配置不变。最终文档提交的独立审查与 CI 以 PR 中绑定该新 SHA 的证据为准，不能把旧 SHA 的批准直接当作新 head 批准。
 - U2/U3、第一阶段整体流程确认、真实 ZIP/OOXML、BFF/Core、Runner、服务器持久化/重启及 MVP-01–10 保持原未验收边界。没有通过本次 U1 交付扩大已验证范围。
+
+## CI 镜像基线漂移恢复（2026-10-21）
+
+- 文档提交 `3472539a04ca5ce761e608403c290dc74420589d` 的独立静态增量审查未发现阻断项，但 [run 39550081686 / attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39550081686/attempts/1) 的三个 persistence 分区均在 PostgreSQL 启动镜像校验阶段失败；代码检查成功不替代 required full。该轮没有最终 `APPROVE` 或合并。
+- 官方 registry 的 `docker.io/library/postgres:18.6` 已重新解析至 `sha256:5486e8fb206952552c7e2eaf2e36e4c7be3cd36b2b396eb41de618aa5664a781`；本机会话独立读取官方 OCI index，确认 amd64/arm64 的 version annotation 仍为 `18.6`。当前主分支也仍使用旧摘要；本次仅按 [既定镜像恢复规则](../../high-level-docs/08-verification-baseline.md#13-im-03-wi-09-验证边界)更新 `tools/persistence/baseline.mjs` 的同版本 pin。
+- Planner 对范围作了独立复核：本修复属于当前交付必要的 T1 验证夹具维护，不新增业务模块或修改验证契约。PostgreSQL 版本 `18.6`、服务端版本 `180006`、tag↔digest、RepoDigests 校验及所有配置验证目标保持不变；没有引入无关依赖更新。
+- 恢复后的本地验证、新 SHA 的独立复审及 exact-head CI 结果记录于 PR；缺少适用证据时仍不得合并。原用户 U1 页面反馈继续绑定未改变的实现，镜像维护不扩大人工业务验收范围。
