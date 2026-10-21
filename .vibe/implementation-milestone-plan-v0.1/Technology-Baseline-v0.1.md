@@ -123,16 +123,18 @@ Migration 文件按 owning Schema 分目录；平台 Role/Schema bootstrap 与�
 
 ---
 
-## 7. WI-01 已锁定的物理参数（2026-08-23，Issue #29）
+## 7. WI-01 已锁定的物理参数（源自 Issue #29）
 
 IM-DG-002 的物理版本与 digest 已落地，权威定义在 `tools/persistence/baseline.mjs` 与根 `package.json`：
 
 | 组件 | 锁定值 |
 |---|---|
-| PostgreSQL 镜像 | `docker.io/library/postgres:18.6@sha256:06cad38a5d9f5d24b4d83d86def30795d5e4b757fedbf5281172b576dedcd941` |
+| PostgreSQL 镜像 | `docker.io/library/postgres:18.6@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32` |
 | Flyway CLI 镜像 | `docker.io/flyway/flyway:11.20.3@sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1` |
 | `pg` | 8.23.0 |
 | Kysely | 0.29.5 |
 | testcontainers / `@testcontainers/postgresql` | 12.1.0 |
+
+PostgreSQL 摘要于 2026-10-21 同步官方同版本重建及后续多架构索引更新；amd64/arm64 的 PostgreSQL 版本仍为 18.6、Dockerfile 源码修订仍为 `e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc`。首次重建更新了基础系统镜像，后续索引更新保留这两个执行平台的镜像摘要，仅更新其他架构。仍使用 `tag@digest`、实时标签与摘要绑定、实际服务端版本及完整持久化门禁校验。
 
 Migration 目录布局、版本区间与命名规则见 `migrations/README.md`。单一 Gate 命令为 `pnpm persistence:gate`（已并入 `pnpm verify`），本地操作说明见 [`../im-02-workitem-issues/runbook-wi-01.md`](../archive/im-02-workitem-issues/runbook-wi-01.md)。Testcontainers 通过只证明测试容器行为；生产 PostgreSQL 仍为 `NOT RUN`。

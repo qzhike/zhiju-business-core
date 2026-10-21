@@ -73,6 +73,7 @@ import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import type { createDeliveryCompletionPlanFixture } from './delivery-completion-plan-fixture.js';
+import { trackPoolShutdown } from '../../tools/persistence/pool-shutdown.mjs';
 import {
   ACTIONS,
   ACTOR_SNAPSHOT_OBJECT,
@@ -228,7 +229,7 @@ export function createInitialContextSuite(
     );
   }
 
-  const cleanupResources: (pg.Pool | pg.Client)[] = [];
+  const cleanupResources: { end(): Promise<void> }[] = [];
 
   let currentPhase = 'idle';
 
@@ -1085,11 +1086,11 @@ export function createInitialContextSuite(
     const probeConnectionUrl = url.toString();
     probeUrl = probeConnectionUrl;
     tePool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
-    cleanupResources.push(tePool);
+    cleanupResources.push(trackPoolShutdown(tePool));
     ipPool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
-    cleanupResources.push(ipPool);
+    cleanupResources.push(trackPoolShutdown(ipPool));
     epPool = new pg.Pool({ connectionString: probeConnectionUrl, max: 6 });
-    cleanupResources.push(epPool);
+    cleanupResources.push(trackPoolShutdown(epPool));
     teDb = createTaskExecutionDatabase(tePool);
     identityDb = createIdentityPolicyDatabase(ipPool);
     enterpriseProjectDb = createEnterpriseProjectDatabase(epPool);
