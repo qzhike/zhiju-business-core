@@ -103,7 +103,7 @@ for (const scenario of ['failed', 'unavailable', 'unknown', 'mismatch']) {
     await page.getByText('分析演示控制', { exact: true }).click();
     await page.getByLabel('复核结果').selectOption(scenario);
     await page.getByLabel('说明与意见').fill('任意文本不能关闭缺口');
-    await page.getByLabel('附上补充资料（DOCX / Markdown / ZIP）').setInputFiles({
+    await page.getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）').setInputFiles({
       name: 'local.md',
       mimeType: 'text/markdown',
       buffer: Buffer.from('arbitrary'),
@@ -260,7 +260,7 @@ for (const width of [1440, 360]) {
     if (width < 700) await page.getByRole('button', { name: '意见与补充', exact: true }).click();
     const input = page.getByLabel('说明与意见');
     await input.fill('旧客户草稿');
-    await page.getByLabel('附上补充资料（DOCX / Markdown / ZIP）').setInputFiles({
+    await page.getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）').setInputFiles({
       name: 'customer.md',
       mimeType: 'text/markdown',
       buffer: Buffer.from('customer'),
@@ -270,7 +270,7 @@ for (const width of [1440, 360]) {
     await page.getByRole('button', { name: '新制度不得擅自改变组织职责 P03' }).click();
     await page.getByRole('button', { name: '写意见并提交复核' }).click();
     await input.fill('旧顾问草稿');
-    await page.getByLabel('附上补充资料（DOCX / Markdown / ZIP）').setInputFiles({
+    await page.getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）').setInputFiles({
       name: 'judgment.md',
       mimeType: 'text/markdown',
       buffer: Buffer.from('judgment'),
@@ -281,7 +281,7 @@ for (const width of [1440, 360]) {
     await page.getByRole('button', { name: '对这项计划提意见' }).click();
     await input.fill('旧计划草稿');
     await page
-      .getByLabel('附上补充资料（DOCX / Markdown / ZIP）')
+      .getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）')
       .setInputFiles({ name: 'plan.md', mimeType: 'text/markdown', buffer: Buffer.from('plan') });
     await page.getByRole('button', { name: '切换客户补充' }).click();
     await page.getByText('分析演示控制', { exact: true }).click();
@@ -300,7 +300,7 @@ for (const width of [1440, 360]) {
       await page.keyboard.type('不可写入历史');
       await expect(input).toHaveValue(text);
       await expect(page.locator('.analysis-composer')).toContainText(attachment);
-      await expect(page.getByLabel('附上补充资料（DOCX / Markdown / ZIP）')).toBeDisabled();
+      await expect(page.getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）')).toBeDisabled();
       await expect(page.getByRole('button', { name: /^提交(?:补充|意见并复核)$/u })).toBeDisabled();
       await expect(page.locator('.analysis-receipt')).toHaveCount(0);
     };

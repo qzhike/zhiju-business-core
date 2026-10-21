@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 export const POSTGRES_IMAGE_TAG = '18.6';
 export const POSTGRES_IMAGE_DIGEST =
-  'sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336';
+  'sha256:5486e8fb206952552c7e2eaf2e36e4c7be3cd36b2b396eb41de618aa5664a781';
 export const POSTGRES_REPOSITORY = 'docker.io/library/postgres';
 
 export const FLYWAY_IMAGE_TAG = '11.20.3';
