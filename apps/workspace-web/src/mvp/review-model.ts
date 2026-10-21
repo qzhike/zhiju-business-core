@@ -531,11 +531,14 @@ export function finalizationBlocker(input: {
   files: readonly StageFileAvailability[];
   active: boolean;
   finalized: boolean;
+  /** U3: an explicitly rechecked newer set may replace the current finalization as a new basis. */
+  refinalization?: boolean | undefined;
 }): string | undefined {
   if (!input.supported) return '记录表单不设单独定稿关卡；请进入最终交付确认（U3）。';
   if (!input.plan.ready) return input.plan.reason ?? '计划尚未就绪。';
   if (!input.upstream.ok) return input.upstream.reason ?? '上游依据尚未就绪。';
-  if (input.finalized) return '本阶段已有模拟定稿；U2 不提供上游重新定稿。';
+  if (input.finalized && !input.refinalization)
+    return '本阶段已有模拟定稿；如需重新定稿，请先模拟新候选并显式切换、核对后再确认。';
   if (input.active) return '仍有待回执或待核验的修改请求；不能跨过它完成阶段定稿。';
   if (input.files.length === 0) return '当前计划没有该阶段的文件。';
   if (input.files.every((file) => file.versions.length === 0))

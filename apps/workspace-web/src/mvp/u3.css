@@ -1,0 +1,160 @@
+.u3-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.u3-basis {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.u3-basis > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.u3-basis dt {
+  color: var(--muted);
+}
+
+.u3-basis dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.u3-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.u3-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.u3-table th,
+.u3-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.u3-table thead th {
+  background: var(--soft);
+  white-space: nowrap;
+}
+
+.u3-table td,
+.u3-table th[scope='row'] {
+  overflow-wrap: anywhere;
+}
+
+.u3-content {
+  max-width: min(70ch, 100%);
+  max-height: 220px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.u3-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.u3-actions a {
+  padding: 4px 6px;
+}
+
+.u3-blockers {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.u3-blockers li {
+  margin: 4px 0;
+}
+
+.u3-legend {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin: 8px 0;
+}
+
+.u3-legend > div {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.u3-legend dt {
+  font-weight: 600;
+}
+
+.u3-legend dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.u3-attempt {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.u3-attempt:last-child {
+  border-bottom: 0;
+}
+
+.u3-attempt h3 {
+  margin: 0 0 4px;
+}
+
+.u3-package {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.u3-page textarea {
+  width: 100%;
+  max-width: 100%;
+  min-height: 90px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+
+@media (max-width: 900px) {
+  .u3-basis > div {
+    grid-template-columns: 1fr;
+  }
+
+  .u3-actions {
+    align-items: stretch;
+  }
+
+  .u3-actions button,
+  .u3-actions a {
+    min-height: 36px;
+  }
+}

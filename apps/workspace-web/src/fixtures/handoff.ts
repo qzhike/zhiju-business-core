@@ -7,10 +7,19 @@ import type { OverviewStage } from '../overview/Page.js';
  * It lets the overview show the derived next stage without importing the U2
  * fixture module (which consumes the U1 context).
  */
+export interface MvpHandoffStage {
+  id: string;
+  label: string;
+  href: string;
+  ready: boolean;
+  reason?: string | undefined;
+}
+
 export interface MvpHandoff {
   next?: { label: string; href: string; reason: string } | undefined;
   stages?: readonly OverviewStage[] | undefined;
   reviewStages?: readonly JourneyReviewStage[] | undefined;
+  u3Stages?: readonly MvpHandoffStage[] | undefined;
 }
 
 export const MvpHandoffContext = createContext<MvpHandoff | null>(null);

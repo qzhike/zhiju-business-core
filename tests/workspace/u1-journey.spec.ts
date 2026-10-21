@@ -16,9 +16,15 @@ async function confirmPlan(page: Page, scenario = 'received') {
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
 }
 
+async function openAnalysisControls(page: Page) {
+  const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
+  await details.waitFor({ state: 'attached' });
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+}
+
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
-  await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
+  await openAnalysisControls(page);
   await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
@@ -111,7 +117,7 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('.understanding-groups')).toContainText('冲突');
   await expect(page.locator('.understanding-groups')).toContainText('读取限制');
   await expect(page.locator('.template-applicability')).toContainText('T03');
-  await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
+  await openAnalysisControls(page);
   await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await expect(page.locator('.analysis-receipt').first()).toContainText('第 2 版分析已到达');
@@ -157,7 +163,7 @@ test('answer and supplement produce a second report without losing the first', a
 test('analysis failure is distinct and a received opinion locks the composer', async ({ page }) => {
   await page.goto(reportOne);
   await page.getByRole('button', { name: '针对整个项目提意见' }).click();
-  await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
+  await openAnalysisControls(page);
   await page.getByLabel('分析回执场景').selectOption('failed');
   await page.getByRole('textbox', { name: '说明与意见' }).fill('失败的合成意见');
   await page.getByRole('button', { name: '提交项目级意见' }).click();

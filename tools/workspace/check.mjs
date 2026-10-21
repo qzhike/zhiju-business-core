@@ -77,6 +77,16 @@ async function checkProductionBundle() {
       '模拟生成本阶段候选',
       '质量手册 · 第 1 版候选',
       'MANUAL01',
+      'DEVELOPMENT_U3_ADAPTER_ONLY',
+      'U3 返工与恢复（同一旅程）',
+      'U3 执行恢复场景控制',
+      'U3 交付场景控制',
+      'U3-RETRY-',
+      'U3-FINAL-',
+      'U3-PKG-',
+      'SYNTHETIC-MANIFEST.md',
+      '返工与复核',
+      '执行与恢复',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);
     }
