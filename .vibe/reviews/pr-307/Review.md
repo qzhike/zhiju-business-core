@@ -1,3 +1,135 @@
+APPROVE（R6/R7 最终复核）。当前 reviewed SHA `805f170c8a2988fda2542c174eca68bc410c4ec1`（base 仍为 `eb5b2c516feb49ccdafa0c42389e0c4b32396d44`，审查日期 2026-10-21）：R5 保持关闭；R6/R7 的编辑绕过已由 805f170 关闭；focused 浏览器 2/2、`review-model.test.ts` 15/15 通过。exact-head CI 在本轮审查时尚未出结论；U2 用户实际试走、私有内容试走、真实 Runner/服务器、重启/跨设备与 U3 仍为 `NOT RUN`。此前 `5d0081d` 的 REQUEST_CHANGES 与 `8bb5d06`/`4548e8d` 的审查保留为历史。
+
+# 当前独立审查（805f170，2026-10-21）
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，任务 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`805f170c8a2988fda2542c174eca68bc410c4ec1`；上一轮 `5d0081d55ac19574688eea35cfeb39de6a8d9569`。
+- PR 当前 base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`；按 PR 的 merge-base 到 head 审查。本轮增量 `5d0081d..805f170`，4 个文件（+70/−5）。
+- 重点：重跑上一轮 R6 编辑换绑和 R7 UNKNOWN 编辑重存两个反例，确认显式重绑定与原保存请求在编辑后仍保留。
+
+## R6 关闭
+
+- [u2.tsx:781](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/apps/workspace-web/src/fixtures/u2.tsx#L781) 的 `changeDraft` 改用 [`draftAfterEditInPlace`](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/apps/workspace-web/src/mvp/review-model.ts#L431)：已有 `basis` 在编辑后保留，只有草稿没有 basis 时才回退当前依据。[u2.tsx:913](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/apps/workspace-web/src/fixtures/u2.tsx#L913) 的 FAILED 草稿也保存 `basis: currentBasis`。
+- 浏览器回归 [u2-journey.spec.ts:381–385](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/tests/workspace/u2-journey.spec.ts#L381)：V1 保存阶段草稿 → V2 切换 → 编辑文本 → 提交仍禁用，“该草稿按上一版本依据保存”仍在；显式重绑定后提交，历史记录 `F-MANUAL@V2`。focused 运行通过。
+- 我的独立反例（上一轮会解禁）现在保持 `提交并修改` disabled，提示未消失；显式 rebind 后才启用。R6 的编辑绕过关闭。
+
+## R7 关闭
+
+- [`draftAfterEditInPlace`](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/apps/workspace-web/src/mvp/review-model.ts#L431) 在 SAVING/UNKNOWN 时保留 `state`、`requestLabel`、`savedText` 和原 `basis`，新输入只作为本页文本；[`draftAfterSaveReceipt`](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/apps/workspace-web/src/mvp/review-model.ts#L456) 在 SAVED 回执但文本已改时返回 `UNSAVED`（“原保存请求已返回；新输入尚未保存”），不会声称新文本已保存。`rebindDraft` 在 SAVING/UNKNOWN 时禁用。
+- 浏览器回归 [u2-journey.spec.ts:289–299](https://github.com/qzhike/zhiju-business-core/blob/805f170c8a2988fda2542c174eca68bc410c4ec1/tests/workspace/u2-journey.spec.ts#L289)：UNKNOWN → 编辑 → 保存按钮仍禁用；原保存回执 SAVED → 状态变为“新输入尚未保存”，保存按钮恢复。focused 运行通过。
+- 我的独立反例（上一轮编辑后可重新保存）现在编辑后仍为 UNKNOWN、保存保持禁用，原请求可继续通过回执收敛。R7 的重复保存绕过关闭。
+
+## R5 状态
+
+- R5 的 `queryFinalization` active 检查未改；上一轮已通过，本轮 focused 浏览器用例继续通过，保持关闭。
+
+## 本轮验证证据与边界
+
+- Focused browser：fixture 构建上运行 `save, submission and finalization recovery keep one original request` 与 `stage draft keeps its original basis until explicit rebind`，2/2 passed；两条用例覆盖 R7 编辑后 UNKNOWN、R6 编辑后重绑定和 R5 定稿等待期间修改。
+- Focused model：`apps/workspace-web/src/mvp/review-model.test.ts` 15/15 passed，包含 `draftAfterEditInPlace` 保留 basis/requestLabel/UNKNOWN 及 SAVED 改文返回 UNSAVED。
+- 作者提供的 typecheck/lint 与本轮 focused 结果一致；`vibe verify full --json` PASS 记录在父修订 `5d0081d`，**不是** `805f170` 的 exact-head 结果，本轮未重跑 full。
+- Exact-head CI：审查时 `gh pr view 307` 对 `805f170` 返回 `statusCheckRollup=[]`、`mergeStateStatus=CLEAN`，尚无 `checks`/`persistence`/`verify` 结论；合并前须等待该 exact SHA 的 required CI。
+- **NOT RUN（不得由自动化或本文件代替）**：用户实际 U2 试走与反馈（UI-MVP-U2-008）；私有客户/模板原文逐字试走；真实 Runner 调用/输出；真实服务器草稿/保存/定稿；重启与跨设备恢复；U3 交付；完整平台矩阵。
+- P3 观察（不阻断）：`applySaveReceipt` 仍是全局控件，会把当前场景应用到所有 SAVING/UNKNOWN 草稿，而不是按 `requestLabel` 选择单个原请求；当前单草稿路径和无重复意图要求满足，多未决草稿演示时建议按请求选择或限制。
+
+## 交接
+
+代码审查在 `805f170` 给出 `APPROVE`：R5 保持关闭，R6/R7 的编辑绕过已关闭，未发现剩余 P2。合并前的硬门禁是 exact-head CI 全绿及用户实际 U2 试走/脱敏反馈；私有内容逐字试走、真实 Runner/服务器、重启/跨设备与 U3 继续分别 `NOT RUN`。本轮只更新本审查文件，不修改产品代码，不 commit/push/merge。
+
+# 上一轮独立审查（5d0081d，历史）
+
+以下为 `5d0081d` 的审查；R6/R7 的编辑残留已由 `805f170` 关闭，保留作历史。
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，任务 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`5d0081d55ac19574688eea35cfeb39de6a8d9569`；上一轮 `8bb5d066f12f5afed5d4175cdd1899309db8a98e`。
+- PR 当前 base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`；按 PR 的 merge-base 到 head 审查。
+- 依据：Issue Goal/Acceptance/Verify、UI01 的 U2 Spec/Test、`usable-loop.md` §3–6 和验证基准；重点复核 R5–R7 的原始反例及“显式重绑定/原保存请求”约束。
+- 本轮只更新正式审查记录；不修复产品代码，不 commit、push、merge 或关闭 Issue。
+
+## R5 关闭
+
+- [u2.tsx:1245–1256](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L1245) 的 `queryFinalization` 在评估回执前先查 `activeSubmission`；存在 PENDING/UNKNOWN 修改时返回“仍有待回执或待核验的修改请求…不能完成阶段定稿”，不应用回执。
+- 回归在 [u2-journey.spec.ts:338–351](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/tests/workspace/u2-journey.spec.ts#L338)：定稿 PENDING → 提交 UNKNOWN 修改 → 定稿回执到达 → 查询被阻止；修改回执查询为已接收后，再查询定稿才完成。该用例在本轮 focused browser run 中通过。
+- 未发现 R5 的其他绕过：`requestFinalization` 仍受 `finalizationBlocker` 的 active 约束，`receiveFinalization` 只登记回执，不应用。
+
+## R6 未完全关闭：编辑已保存草稿会静默换绑
+
+- 主场景已修复：[u2.tsx:1322–1326](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L1322) 在 `draftBasisChanged` 时设置 `submitBlocked`，[rebindDraft](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L931) 提供显式重绑定；未改文本的 V1 阶段草稿切到 V2 后确实禁止提交，浏览器回归通过。
+- **残留 P2**：[changeDraft](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L774) 每次编辑都用 `currentBasis` 重建草稿（[781](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L781)），`draftAfterEdit` 不保留旧 `basis`（[review-model.ts:404](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/mvp/review-model.ts#L404)）。因此在 V1 保存阶段草稿、切到 V2 后，只要在 textarea 改一个字符，草稿 basis 即变为 V2，提交按钮重新可用，“该草稿按上一版本依据保存”提示消失，显式重绑定按钮被绕过。
+- 独立 focused 复现：未编辑时 `提交并修改` disabled=true；编辑一字后 disabled=false，`.markdown-opinion` 不再含上一版本依据提示（Playwright inline，源码同 reviewed SHA）。这仍允许保存时 V1、提交时静默记成 V2，违反 R6 与 #306 原依据保留要求。
+- 相关残留：提交 FAILED 时 [u2.tsx:910–915](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L910) 重建草稿只保留 text/state/note，丢掉 `basis`；失败草稿在切换版本后可无提示换绑。
+- 修复方向：`changeDraft` 应保留已有 `latest.basis`（或在 basis 不同时保持“待重绑定”状态），只有显式 rebind 才更新 basis；FAILED 草稿保留原 basis。补“V1 保存 → V2 → 编辑一字 → 仍阻止提交，直到显式重绑定”的浏览器回归。
+
+## R7 未完全关闭：编辑 UNKNOWN 保存草稿会重新开放保存
+
+- 主场景已修复：`saveDraft` 在 SAVING/UNKNOWN 时拒绝新保存并保留 `requestLabel`（[u2.tsx:788–810](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L788)）；`applySaveReceipt` 可把 UNKNOWN 按原请求收敛到 SAVED/FAILED/UNKNOWN（[815–835](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L815)）；共享页保存按钮在 UNKNOWN 时禁用（[MarkdownReviewPage.tsx:864–867](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/MarkdownReviewPage.tsx#L864)）。直接 UNKNOWN → SAVED 恢复用例通过。
+- **残留 P2**：[changeDraft](https://github.com/qzhike/zhiju-business-core/blob/5d0081d55ac19574688eea35cfeb39de6a8d9569/apps/workspace-web/src/fixtures/u2.tsx#L774) 在 UNKNOWN 状态编辑时调用 `draftAfterEdit`，返回 `UNSAVED` 且不带 `requestLabel`，原保存请求从草稿中消失；共享页的保存按钮只按 draft.state 禁用，于是编辑后重新可用。
+- 独立 focused 复现：UNKNOWN 时 `保存意见草稿（模拟）` disabled=true；在 textarea 编辑后 disabled=false；再次保存直接进入 `正在模拟保存…`，原 `U2-SAVE-*` 请求不再可从草稿查询（Playwright inline，源码同 reviewed SHA）。这与页面“只能查询原保存动作”的文案和 R7 要求冲突。
+- 修复方向：SAVING/UNKNOWN 时禁止编辑或保留 `requestLabel` 与 UNKNOWN 状态，先显式收敛原请求才允许新的保存意图；补“UNKNOWN → 编辑 → 保存仍禁用/原请求可查询”的回归。
+
+## 本轮验证证据与未运行边界
+
+- Focused browser：在 fixture 构建上单独运行 `save, submission and finalization recovery keep one original request` 与 `stage draft keeps its original basis until explicit rebind`，2/2 passed；这两个用例覆盖 R5、R7 直接恢复和 R6 未编辑主场景。
+- Focused model：`apps/workspace-web/src/mvp/review-model.test.ts` 15/15 passed（含 `draftBasisChanged`/requestLabel）。
+- 独立反例：同一 fixture 构建用 Playwright inline（不写入仓库）复现 R6 编辑后提交解禁、R7 UNKNOWN 编辑后保存解禁；均为产品代码路径，不是测试断言问题。未读取/输出客户原文、私有路径或截图。
+- 作者提供 `vibe verify full --json` PASS on this revision；本轮未重跑 full，不能独立确认。exact-head CI [run 39588912360](https://github.com/qzhike/zhiju-business-core/actions/runs/39588912360) 的 head 为 `5d0081d...`；审查时 `select` success，`checks`/persistence 仍运行，尚无 verify 汇总。不得宣称 exact-head full 通过。
+- **NOT RUN**：用户实际 U2 试走与反馈、私有内容逐字试走、真实 Runner/服务器保存/定稿、重启/跨设备、U3 交付；与自动化 findings 分开。
+
+实现者应修复 R6/R7 残留（编辑后的 basis/UNKNOWN 保存意图保留），补相应浏览器回归，再提供新 head；本轮不提供合并授权，#306 人工验收证据另行补齐。
+
+上一轮 R5–R7 的原始发现保留如下，仅适用于 `8bb5d06`；本轮关闭/残留判断以 `5d0081d` 为准。
+
+# 更早一轮独立审查（8bb5d06，历史）
+
+- 对象：[#307](https://github.com/qzhike/zhiju-business-core/pull/307)，任务 [#306](https://github.com/qzhike/zhiju-business-core/issues/306)。
+- Reviewed SHA：`8bb5d066f12f5afed5d4175cdd1899309db8a98e`。
+- PR 当前 base：`eb5b2c516feb49ccdafa0c42389e0c4b32396d44`；按 PR 的 merge-base 到 head 实际 diff 审查，不把 main 上独立的 #305 变更误记成此 PR 删除。
+- 依据：Issue Goal/Acceptance/Verify、UI01 的 U2 Spec/Test、`usable-loop.md` §3–6 和验证基准。先确定精确版本、完整集合、原意见依据及原请求恢复要求，再检查实现。
+- 本轮仅更新正式审查记录，并按用户授权发布 PR comments；不修复产品代码，不 commit、push、merge 或关闭 Issue。已有 `package.json` / `pnpm-lock.yaml` 工作区改动保留。
+
+## R5 · P2：查询定稿回执可以绕过未决修改请求
+
+位置：[u2.tsx:1217](https://github.com/qzhike/zhiju-business-core/blob/8bb5d066f12f5afed5d4175cdd1899309db8a98e/apps/workspace-web/src/fixtures/u2.tsx#L1217)，关联 `submitRevision` 和 `finalizationBlocker`。
+
+浏览器复现：生成手册 V1 → 选择 pending 定稿并确认 → 选择 UNKNOWN 修改回执并提交意见 → 模拟原定稿回执到达 → 查询原定稿请求。页面同时出现“提交结果待核验”和“模拟阶段定稿已完成”，并开放第二阶段。已观察到结果块数量为 1，原 `U2-REV` 请求仍 UNKNOWN。
+
+原因：发起定稿时检查 active modification，但定稿等待期间仍可提交修改；`queryFinalization` 只校验版本集合和上游 ID，接受回执时没有检查未决修改。这违反 #306 的 pending revision work cannot be bypassed by finalization，以及 U2 Spec 边界 4/7。
+
+修复要求：发起修改与接纳定稿回执共用未决修改约束，保留阅读和保存草稿；补充先定稿 pending、后修改 PENDING/UNKNOWN、再收定稿回执的浏览器反例，未决修改期间不得推进阶段。
+
+## R6 · P2：已保存的项目／阶段草稿被重新绑定到新版本
+
+位置：[u2.tsx:823](https://github.com/qzhike/zhiju-business-core/blob/8bb5d066f12f5afed5d4175cdd1899309db8a98e/apps/workspace-web/src/fixtures/u2.tsx#L823)，草稿读取与依据构造见 [518 行](https://github.com/qzhike/zhiju-business-core/blob/8bb5d066f12f5afed5d4175cdd1899309db8a98e/apps/workspace-web/src/fixtures/u2.tsx#L518)。
+
+浏览器复现：在手册 V1 选择阶段范围，写入并保存意见；切到文件范围另提交一次修改，触发 V2 到达并显式切换；重新选择阶段范围，原草稿仍为“已保存”，直接提交后历史将其“原依据”记成 `F-MANUAL@V2`。诊断观察到原 V1 文件意见保持 `F-MANUAL@V1`，阶段草稿文本未变却记录 V2。
+
+原因：草稿只有 text/state/note，按不含版本的项目／阶段 scope ID 保存；提交时从当前阅读集合构造 `currentBasis`。阅读切换不是对另外保存的阶段意见的显式重新绑定。违反 #306 原依据保留及旧意见不可静默迁移的验收要求、U2 Spec 边界 3。
+
+修复要求：创建／保存草稿时保留原依据；依据变化后要求明确复核／重新绑定或另建草稿，不能继续显示原意见已保存并直接换绑提交。补项目和阶段两类范围的版本切换回归。
+
+## R7 · P2：UNKNOWN 草稿保存不能恢复原请求，反而可重新保存
+
+位置：[u2.tsx:802](https://github.com/qzhike/zhiju-business-core/blob/8bb5d066f12f5afed5d4175cdd1899309db8a98e/apps/workspace-web/src/fixtures/u2.tsx#L802)，保存按钮见 [MarkdownReviewPage.tsx:864](https://github.com/qzhike/zhiju-business-core/blob/8bb5d066f12f5afed5d4175cdd1899309db8a98e/apps/workspace-web/src/MarkdownReviewPage.tsx#L864)。
+
+浏览器复现：输入草稿 → 保存 → 返回 UNKNOWN → 改选 SAVED 并再次返回回执，状态仍为 UNKNOWN；此时保存按钮可用。`applySaveReceipt` 只处理 SAVING，缺少原保存请求查询和固定的保存意图；再次保存会开始新的 SAVING 转移，与“只能查询原保存动作”文案冲突。
+
+修复要求：保存固定文本、scope、basis 和原请求；SAVING/UNKNOWN 都可通过匹配原请求回执收敛，未决时不重复创建保存意图。覆盖 UNKNOWN 恢复、重复保存、导航及输入下轮草稿的场景。此项属于 #306 / U2 Spec 边界 7 的模拟恢复要求。
+
+## 验证证据和未运行边界
+
+- 独立 focused diagnostic：Playwright + Chromium `156.0.8078.4`，临时 fixture Vite 服务连接当前未修改的 U2 源码；以上 3 个反例均可达。阶段草稿历史通过 DOM 文本核实，未读取／输出客户原文、私有路径或截图。
+- 浏览器沙箱启动因 macOS MachPort 权限失败，主机最小启动探针成功后完成复现；该问题是环境限制，不是产品测试失败。
+- 本机依赖工作区存在用户原有 package/lock 改动，故该结果只作为源码路径一致的定向语义反例，不冒充 exact-head 构建或 full Gate。没有重跑完整 configured target，没有修改产品源码／正式测试。
+- [CI run 39581811520 / attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39581811520) 的 head 为本轮 SHA。审查快照：select/checks success；persistence 三分片仍运行，总结果 pending。不得宣称 full PASS，也不把运行中的 CI 记作失败。现有确定阻断足以给出 REQUEST_CHANGES，无须等待 CI。
+- 用户实际 U2 试走与反馈、私有内容试走仍 NOT RUN，须与自动化分开。真实 Runner、服务器保存／定稿、持久化恢复和 U3 不属于本次演练实现，未作为本轮缺陷要求扩展。
+- 正式记录已在本地更新，尚未 commit/push；[COMMENT review](https://github.com/qzhike/zhiju-business-core/pull/307#pullrequestreview-5598183282) 与 R5/R6/R7 三条行内 comments 已发布并回读，绑定本轮 SHA。GitHub 状态为 COMMENTED，REQUEST_CHANGES 是角色结论。
+
+实现者应修复 R5–R7 并补相应回归，再提供新 head 的适用验证和独立复审；#306 人工验收证据另行补齐。本次不提供合并授权。
+
+---
+
+# 先前审查历史（以下结论仅适用于各自 SHA）
+
 APPROVE（最终 P3 复核）。当前 reviewed SHA `4548e8df52191314883a0bc85af03281b1504415`（base 不变 `48d08d8a3a395f7b891105edae38136dfaeb7ad4`，审查日期 2026-10-21）：上一轮 `5785836864ead2153793f7c8158dfbafa75eebb4` 的 R1–R4 已关闭，本轮 4 项 P3（R1 回归、文案方向、changed fail-closed、未使用导出）也已关闭；无剩余代码阻断项。exact-head CI 在本轮审查时尚未出结论。U2 用户实际试走、私有内容逐字试走、真实 Runner/服务器定稿仍为 `NOT RUN`，本轮 APPROVE 不是 U2 验收通过，也不提供合并授权。
 
 # PR #307 独立审查
