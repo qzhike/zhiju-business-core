@@ -3,6 +3,7 @@ import {
   activeSubmission,
   candidateVersion,
   draftAfterEdit,
+  draftAfterEditInPlace,
   draftAfterSaveReceipt,
   draftBasisChanged,
   draftWhileSaving,
@@ -389,8 +390,24 @@ describe('U2 opinion binding and recovery', () => {
     const saved = draftAfterSaveReceipt(draftWhileSaving(draft, 'U2-SAVE-2'), 'UNKNOWN');
     expect(saved.basis).toEqual(original);
     expect(saved.requestLabel).toBe('U2-SAVE-2');
+    expect(saved.savedText).toBe('阶段意见');
     expect(draftBasisChanged(saved, newer)).toBe(true);
     expect(draftBasisChanged({ ...saved, basis: newer }, newer)).toBe(false);
+
+    const edited = draftAfterEditInPlace(saved, '阶段意见补充', newer);
+    expect(edited.basis).toEqual(original);
+    expect(edited.requestLabel).toBe('U2-SAVE-2');
+    expect(edited.state).toBe('UNKNOWN');
+    expect(draftBasisChanged(edited, newer)).toBe(true);
+    expect(draftAfterSaveReceipt(edited, 'SAVED').state).toBe('UNSAVED');
+
+    const ordinaryEdit = draftAfterEditInPlace(
+      { ...draft, state: 'SAVED', requestLabel: undefined },
+      '阶段意见补充',
+      newer,
+    );
+    expect(ordinaryEdit.basis).toEqual(original);
+    expect(draftBasisChanged(ordinaryEdit, newer)).toBe(true);
   });
 });
 

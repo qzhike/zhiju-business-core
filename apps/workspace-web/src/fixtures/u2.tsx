@@ -21,7 +21,7 @@ import {
 import {
   activeSubmission,
   candidateVersion,
-  draftAfterEdit,
+  draftAfterEditInPlace,
   draftAfterSaveReceipt,
   draftBasisChanged,
   draftWhileSaving,
@@ -778,7 +778,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         ...current,
         drafts: {
           ...current.drafts,
-          [selectedScope.id]: draftAfterEdit(text, currentBasis),
+          [selectedScope.id]: draftAfterEditInPlace(latest, text, currentBasis),
         },
         message: latest.text === text ? current.message : undefined,
       };
@@ -910,6 +910,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             scene === 'FAILED'
               ? {
                   text,
+                  basis: currentBasis,
                   state: 'FAILED',
                   note: '模拟提交失败；原文仍在本页，可显式重新提交。',
                 }
@@ -1584,7 +1585,14 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           </select>
         </label>
         <button onClick={applySaveReceipt}>模拟原保存回执到达/查询</button>
-        <button onClick={rebindDraft} disabled={!draftBasisChanged(draft, currentBasis)}>
+        <button
+          onClick={rebindDraft}
+          disabled={
+            !draftBasisChanged(draft, currentBasis) ||
+            draft.state === 'SAVING' ||
+            draft.state === 'UNKNOWN'
+          }
+        >
           显式将当前草稿绑定到当前依据（模拟）
         </button>
         <label>

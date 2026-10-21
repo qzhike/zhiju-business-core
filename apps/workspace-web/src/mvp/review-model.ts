@@ -393,6 +393,8 @@ export interface MvpDraft {
   basis?: OpinionBasis | undefined;
   /** Original simulated save request, retained across UNKNOWN recovery. */
   requestLabel?: string | undefined;
+  /** Text frozen into the original save request. */
+  savedText?: string | undefined;
 }
 
 export const emptyDraft: MvpDraft = {
@@ -418,6 +420,29 @@ export function draftWhileSaving(draft: MvpDraft, requestLabel: string): MvpDraf
     state: 'SAVING',
     note: '正在模拟保存到本页内存；没有调用服务器。',
     requestLabel,
+    savedText: draft.text,
+  };
+}
+
+/**
+ * Editing keeps an unresolved save request and the draft's original basis.
+ * A newer text is a local addition until the original request is resolved.
+ */
+export function draftAfterEditInPlace(
+  draft: MvpDraft,
+  text: string,
+  fallbackBasis: OpinionBasis,
+): MvpDraft {
+  const unresolved = draft.state === 'SAVING' || draft.state === 'UNKNOWN';
+  const next = draftAfterEdit(text, draft.basis ?? fallbackBasis);
+  if (!unresolved) return { ...next, ...(draft.savedText ? { savedText: draft.savedText } : {}) };
+  return {
+    ...next,
+    state: draft.state,
+    ...(draft.requestLabel !== undefined ? { requestLabel: draft.requestLabel } : {}),
+    ...(draft.basis ? { basis: draft.basis } : {}),
+    ...(draft.savedText ? { savedText: draft.savedText } : {}),
+    note: '原保存请求仍未决；新输入仅在本页，请先查询原请求。',
   };
 }
 
@@ -432,12 +457,19 @@ export function draftAfterSaveReceipt(
   draft: MvpDraft,
   outcome: 'SAVED' | 'FAILED' | 'UNKNOWN',
 ): MvpDraft {
-  if (outcome === 'SAVED')
+  if (outcome === 'SAVED') {
+    if (draft.savedText !== undefined && draft.text !== draft.savedText)
+      return {
+        ...draft,
+        state: 'UNSAVED',
+        note: '原保存请求已返回；新输入尚未保存，可再次保存。',
+      };
     return {
       ...draft,
       state: 'SAVED',
       note: '模拟草稿已保存到本页内存；刷新或关闭页面会重置。',
     };
+  }
   if (outcome === 'FAILED')
     return {
       ...draft,
