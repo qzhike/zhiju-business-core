@@ -131,6 +131,8 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
   await expect(page.locator('.stage-finalization-result')).toContainText('U2-STAGE-');
   await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
+  await page.getByLabel('查看当前文件版本').selectOption('V1');
+  await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
   await expect(page.getByRole('link', { name: '进入控制程序与管理制度审阅' })).toBeVisible();
 });
 

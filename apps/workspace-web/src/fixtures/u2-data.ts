@@ -1023,17 +1023,3 @@ export function u2Summary(
     note: `${meta.limitations.join(' ')} 来源与模板均为只读快照；候选不是 Runner 输出。`,
   };
 }
-
-export const u2StageRetained: Record<'MANUAL' | 'PROCEDURES' | 'RECORDS', readonly string[]> = {
-  MANUAL: ['客户质量方针与质量目标', '客户现行岗位与职责安排', '原有签批栏与生效日期控制'],
-  PROCEDURES: [
-    '客户 I/II/III 类分级与审批职责',
-    'C04/C05/C07 内部表单保留',
-    '正式模板只读快照；不修改 Runner',
-  ],
-  RECORDS: [
-    '记录表单先以 Markdown 表格交付',
-    'C05 实施方案确认记录继续保留',
-    '最终交付清单与打包属于 U3',
-  ],
-};

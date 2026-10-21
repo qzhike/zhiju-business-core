@@ -247,7 +247,7 @@ export function StageReviewPage({
             </p>
             {finalization.status === 'DONE' && (
               <p className="muted">
-                本表是当前阅读选择；本次冻结的定稿集合见上方“模拟阶段定稿已完成”。
+                本表是当前阅读选择；本次冻结的定稿集合见“模拟阶段定稿已完成”。
               </p>
             )}
             <table>

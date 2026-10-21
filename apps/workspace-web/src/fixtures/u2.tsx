@@ -1146,7 +1146,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           return {
             ...current,
             finalizationStatus: 'MISMATCH',
-            finalizationRequest: { intent, receipt: matching },
+            finalizationRequest: { intent },
             message: '无法模拟确认期间版本变化：当前没有可切换的替代版本；未定稿，请重新核对。',
           };
         const versions = state.versions.includes(otherVersion)
