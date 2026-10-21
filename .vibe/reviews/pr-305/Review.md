@@ -40,3 +40,13 @@ Reviewer 从三个完整日志的 file-end 和叶级结束记录重新核对：6
 阻断发现为零，`APPROVE` 绑定实现 SHA `ee61acca3affdbb346042f5c35140d3231f1f513`。修复符合授权范围，未削弱测试语义或门禁强度，未发现新增的未决人类技术审查事项。真实客户 Runner、外部 Provider、生产环境和独立人工业务验收不由本次工程验证覆盖，保持各自 NOT RUN 边界。
 
 本文件作为普通后续文档提交加入 PR。新 head 须独立复核该文档增量并取得适用 CI；完整 PR 仍含持久化工具和镜像基线变更，应按 full 路由。旧 head 的成功不预先证明新 head 通过。最终 head、增量审查和 CI 证据保留在 PR，无需为追逐本文件自身提交 SHA 再改写记录。Reviewer 本轮只补齐正式文档，不执行 commit、push、merge 或清理；合并、清理和 main CI 跟进由交付协调方按用户授权及最终门禁执行。
+
+## 2026-10-21 镜像索引漂移增量审查
+
+Reviewer 独立读取 [run 39562052765, attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39562052765/attempts/1) 完整日志。checkout 为 `d3eb6e24d2c667c69b1bbb575151d5c2fcadc5c3` 与当时 main `48d08d8a3a395f7b891105edae38136dfaeb7ad4` 的合成修订；三分片均在 PostgreSQL startup/image verification 阶段因实时 tag 摘要与 pin 不同而退出，测试文件开始及叶级结束记录均为零。普通检查通过，但持久化及最终汇总正确失败；本轮不能记为 full PASS，也没有证据表明连接清理缺陷再次发生。
+
+已独立读取官方 registry 的旧、新 raw manifest，字节 SHA-256 分别为 `5486e8fb206952552c7e2eaf2e36e4c7be3cd36b2b396eb41de618aa5664a781` 和 `1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32`，与失败日志及拟更新值一致。amd64、arm64 的完整 descriptor 均逐字段相同，仍为 PostgreSQL 18.6、同一源码修订和同一平台镜像摘要；索引元数据未变，变化仅涉及 arm/v7、386、ppc64le、s390x 及其 attestation descriptor。这次索引同步不来自对 main 更新的推定。
+
+当前增量仅将 `tools/persistence/baseline.mjs` 的固定摘要更新为上述 `1267…`，并同步技术基准事实；连接关闭实现、业务用例、分片、tag/digest 拒绝和服务端版本校验未改变。独立静态复核未发现新增阻断。交付方另提供 `environment` PASS 和 pinned-baseline 六例 PASS 的窄验证结果；前者不启动容器，二者均不能替代 full。
+
+前述对 `ee61acca…` 的实现 APPROVE 及成功 CI 保留为历史证据，不扩展为此次基线同步后的新 head 已通过。摘要更新与本段入库后，仍须以当前 main `48d08d8a3a395f7b891105edae38136dfaeb7ad4` 为基准复核整合增量，确认摘要冲突处理保留已核对的新 pin 且没有改动 main 的其他内容，并取得最终 head 的适用 full CI。当前远端验证待验，最终证据继续维护在 PR，不为记录自身 SHA 再次修改本文件。
