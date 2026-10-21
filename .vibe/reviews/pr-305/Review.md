@@ -1,0 +1,42 @@
+# PR #305 独立代码审查
+
+APPROVE。独立审查未发现阻断问题；连接关闭顺序修复通过针对性反例、本机完整验证及精确 head 的远端完整 CI。本结论仅绑定下述实现修订，文档入库后的新 head 仍须单独完成增量审查和适用验证。
+
+## 审查对象与依据
+
+- PR：[#305 — fix(test): await PostgreSQL connections before container shutdown](https://github.com/qzhike/zhiju-business-core/pull/305)。
+- Reviewed SHA：[`ee61acca3affdbb346042f5c35140d3231f1f513`](https://github.com/qzhike/zhiju-business-core/commit/ee61acca3affdbb346042f5c35140d3231f1f513)，分支 `codex/persistence-probe-cleanup`；base 为 `main@8e6fca61316e9cd95baa0708a20f3300d95e159e`。审查时 PR head、`vibe repo --json` 和本地 HEAD 一致。
+- 审查完整七文件差异：initial Context suite 的资源登记、新增连接池关闭跟踪器及类型、新增普通回归、PostgreSQL 锁定摘要，以及验证基准和技术基准更新。未修改生产业务、业务断言、真实期限、分片分配或关键用例清单。
+- 依据根 `AGENTS.md`、`.vibe/project.yaml`、`vibe-development` Reviewer 规则、[验证基准 §2.1.1](../../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)和[技术基准 §7](../../implementation-milestone-plan-v0.1/Technology-Baseline-v0.1.md#7-wi-01-已锁定的物理参数源自-issue-29)。此为 T1 测试基础设施修复，适用验证目标为 `full`。
+
+## 独立预期与实际审查
+
+预期是消除正常清理时容器先于连接关闭的竞争，同时保留真实数据库错误、资源关闭失败、有限等待和兜底清理，不能通过吞掉 `57P01`、减少业务覆盖或放宽门禁使 CI 变绿。Reviewer 在检查实际差异前按上述范围建立预期；本记录是同一 Reviewer 已完成审查的正式入库，不声明重新盲审。
+
+1. **关闭顺序。** 已独立读取 [原失败 run 39535840974](https://github.com/qzhike/zhiju-business-core/actions/runs/39535840974) 的完整分片 2 日志：94 个用例通过但存在未处理的 `57P01`，相关连接仍为 `_ending=true`、`_ended=false`。锁定版本的真实 `pg-pool` 源码显示，移除空闲连接后其池计数可以先归零、`pool.end()` 可以先完成，而底层连接尚未发出 `end`。
+2. **修复与独立反例。** 新跟踪器在池第一次连接前登记 `connect` 监听，记录每条已建立连接的 `end` Promise；清理等待 `pool.end()` 和剩余连接全部结束。Reviewer 使用真实锁定版本 `pg.Pool` 配合可控传输结束事件，分别对照空闲连接和清理前已淘汰连接：旧的 pool-only 关闭在结束事件前已完成；当前跟踪器在第一条连接结束后仍等待，直到全部连接结束才完成。该诊断不需要数据库，不替代完整持久化验证。
+3. **失败传播和资源生命周期。** 跟踪器只监听连接建立/结束，没有添加吞掉数据库错误的监听器；池关闭拒绝继续传播。suite 的 `Promise.allSettled` 仍关闭全部已登记资源并聚合错误，隔离层原有 10 秒资源关闭上限、失败退出和容器兜底清理保持不变。未改变禁止复用、测试体收敛、drain 或迟到 setup 的资源回收规则。
+4. **测试有效性。** 六项新增普通回归使用真实锁定版本的连接池，仅控制客户端结束事件，覆盖空闲/已淘汰连接顺序、关闭期间 fatal 错误、关闭拒绝、空池和已结束连接；断言不以池计数或 `pool.end()` 单独充当实际关闭证据。既有隔离、超时和失败探针保持不变，747 个持久化用例及 96 个关键用例没有删减。
+5. **镜像更新边界。** 已独立读取旧、新官方 manifest 原始字节，其 SHA-256 分别与旧、新锁定摘要完全一致。amd64/arm64 均保持 PostgreSQL 18.6 和 Dockerfile 修订 `e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc`，基础系统镜像摘要变化。新摘要为 `sha256:5486e8fb206952552c7e2eaf2e36e4c7be3cd36b2b396eb41de618aa5664a781`；tag/digest 绑定和服务端版本校验没有放宽。此同版本重建同步是独立的环境基线更新，连接时序修复由上述对照证明。
+
+## 验证证据
+
+执行明细保留在 [PR #305](https://github.com/qzhike/zhiju-business-core/pull/305)。Reviewer 已读回本机 `vibe verify full --json` 的完整最终汇总：退出 0、PASS，普通 151 文件 / 3,150 例、浏览器 60 例、持久化 65 文件 / 747 例、96 个关键用例、文件清单、迁移 no-op 和容器清理通过。本机原始输出中部被工具截断；当前 head 的远端完整日志补齐最终运行证据，没有重复运行本机 full。
+
+Reviewer 直接读取已保存的最终 run 元数据和完整日志 ZIP，确认 [run 39555813853, attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/attempts/1) 为 reviewed SHA、completed/success，七个 jobs 全部 success。各 checkout 日志明确关联相同实现 head 与 base；select 选择 `full`，完整变更数为七文件。
+
+| 远端验证 | 独立核验结果 |
+| --- | --- |
+| [普通检查](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119075270500) | 151 文件 / 3,150 例，浏览器 7 + 53 例通过；Workspace 独立构建和生产拒绝检查通过。 |
+| [分片 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119075270610) | 1 文件 / 64 例，64 个关键用例通过。 |
+| [分片 2](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119075270720) | 6 文件 / 94 例，32 个关键用例通过，成功完成收尾。 |
+| [分片 3](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119075270574) | 58 文件 / 589 例，预期关键清单为零，文件清单通过。 |
+| [持久化汇总](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119081127841)及[最终 verify](https://github.com/qzhike/zhiju-business-core/actions/runs/39555813853/job/119081206491) | 所需依赖全部 success，`WORKFLOW_CANCELLED=false`，两层均返回 `PASS`、`failures=[]`。 |
+
+Reviewer 从三个完整日志的 file-end 和叶级结束记录重新核对：65 个文件恰好执行一次，与仓库预期集合完全一致，无缺失、额外或重复；747 条叶级结束状态全部为 passed，关键清单合计 96。每个分片均完成历史 seed、后续迁移、第二次迁移 no-op/history 检查和 PostgreSQL 容器清理。没有将预期业务用例名称中的失败状态词当作执行失败，也未输出序列化错误中的连接凭据。
+
+## 最终结论与交付边界
+
+阻断发现为零，`APPROVE` 绑定实现 SHA `ee61acca3affdbb346042f5c35140d3231f1f513`。修复符合授权范围，未削弱测试语义或门禁强度，未发现新增的未决人类技术审查事项。真实客户 Runner、外部 Provider、生产环境和独立人工业务验收不由本次工程验证覆盖，保持各自 NOT RUN 边界。
+
+本文件作为普通后续文档提交加入 PR。新 head 须独立复核该文档增量并取得适用 CI；完整 PR 仍含持久化工具和镜像基线变更，应按 full 路由。旧 head 的成功不预先证明新 head 通过。最终 head、增量审查和 CI 证据保留在 PR，无需为追逐本文件自身提交 SHA 再改写记录。Reviewer 本轮只补齐正式文档，不执行 commit、push、merge 或清理；合并、清理和 main CI 跟进由交付协调方按用户授权及最终门禁执行。
