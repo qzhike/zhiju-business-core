@@ -252,7 +252,9 @@ export function MarkdownReviewPage({
   useEffect(() => {
     const unsaved =
       opinion.draft.text.trim().length > 0 &&
-      ['UNAVAILABLE', 'SAVING', 'UNSAVED', 'UNKNOWN', 'CONFLICT'].includes(opinion.draft.state);
+      ['UNAVAILABLE', 'SAVING', 'UNSAVED', 'UNKNOWN', 'CONFLICT', 'FAILED'].includes(
+        opinion.draft.state,
+      );
     if (!unsaved) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -354,19 +356,22 @@ export function MarkdownReviewPage({
     Boolean(opinionActions?.onSubmit) &&
     !submission &&
     !stale &&
+    !opinion.submitBlocked &&
     (opinion.draft.text.trim().length > 0 || Boolean(suggestion?.text.trim())) &&
     (!suggestion?.text.trim() || Boolean(baseline));
-  const submitBlocker = !opinionActions?.onSubmit
-    ? '提交能力尚未接入；本页输入保留。'
-    : submission
-      ? submission.status === 'UNKNOWN'
-        ? '核验期间不能重复提交；仍可写下轮草稿。'
-        : '等待本次处理返回，再核对新版本与下轮草稿。'
-      : stale
-        ? '当前阅读版本已被新候选替代，普通意见为待重新核对状态；请显式切换并核对引用后再提交。旧基准 Markdown 改稿可继续复核。'
-        : suggestion?.text.trim() && !baseline
-          ? '请先明确选择改稿的基准版本。'
-          : '';
+  const submitBlocker =
+    opinion.submitBlocked ??
+    (!opinionActions?.onSubmit
+      ? '提交能力尚未接入；本页输入保留。'
+      : submission
+        ? submission.status === 'UNKNOWN'
+          ? '核验期间不能重复提交；仍可写下轮草稿。'
+          : '等待本次处理返回，再核对新版本与下轮草稿。'
+        : stale
+          ? '当前阅读版本已被新候选替代，普通意见为待重新核对状态；请显式切换并核对引用后再提交。旧基准 Markdown 改稿可继续复核。'
+          : suggestion?.text.trim() && !baseline
+            ? '请先明确选择改稿的基准版本。'
+            : '');
   const attachSuggestion = opinionActions?.onAttachSuggestion;
   const attach = async (file: File | undefined) => {
     if (!file || !attachSuggestion) return;
@@ -818,6 +823,24 @@ export function MarkdownReviewPage({
             </label>
           )}
           <p className="markdown-opinion-context">针对：{opinion.context}</p>
+          {opinion.scope && (
+            <label className="markdown-opinion-scope">
+              意见作用范围
+              <select
+                value={opinion.scope.selectedId}
+                onChange={(event) => {
+                  opinionActions?.onSelectScope?.(event.target.value);
+                }}
+              >
+                {opinion.scope.options.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <small>{opinion.scope.note}</small>
+            </label>
+          )}
           <label htmlFor="markdown-note">{draftLabel}</label>
           <textarea
             id="markdown-note"
@@ -836,6 +859,20 @@ export function MarkdownReviewPage({
             {reviewDraftStateLabels[opinion.draft.state]}
             {opinion.draft.note && ` · ${opinion.draft.note}`}
           </p>
+          {opinionActions?.onSaveDraft && (
+            <button
+              disabled={
+                opinion.draft.state === 'SAVING' ||
+                opinion.draft.state === 'UNKNOWN' ||
+                (opinion.draft.text.trim().length === 0 && opinion.draft.state !== 'FAILED')
+              }
+              onClick={() => {
+                opinionActions.onSaveDraft?.();
+              }}
+            >
+              保存意见草稿（模拟）
+            </button>
+          )}
           <button
             className="primary"
             disabled={!canSubmit}
@@ -846,21 +883,25 @@ export function MarkdownReviewPage({
             提交并修改
           </button>
           {submitBlocker && <p className="muted">{submitBlocker}</p>}
-          <button
-            disabled={
-              !opinion.approval.available ||
-              submission?.status === 'UNKNOWN' ||
-              approvalBlockedByDraft ||
-              Boolean(workspace?.candidate) ||
-              narrow
-            }
-            onClick={() => {
-              opinionActions?.onApprove?.();
-            }}
-          >
-            检查完成并批准
-          </button>
-          <p className="muted">{approvalNote}</p>
+          {opinion.approval.visible !== false && (
+            <>
+              <button
+                disabled={
+                  !opinion.approval.available ||
+                  submission?.status === 'UNKNOWN' ||
+                  approvalBlockedByDraft ||
+                  Boolean(workspace?.candidate) ||
+                  narrow
+                }
+                onClick={() => {
+                  opinionActions?.onApprove?.();
+                }}
+              >
+                检查完成并批准
+              </button>
+              <p className="muted">{approvalNote}</p>
+            </>
+          )}
           {opinion.unavailable.length > 0 && (
             <details className="markdown-unavailable">
               <summary>尚未接入的操作</summary>
@@ -869,6 +910,26 @@ export function MarkdownReviewPage({
                   <li key={item}>{item}</li>
                 ))}
               </ul>
+            </details>
+          )}
+          {opinion.history && opinion.history.length > 0 && (
+            <details className="markdown-history">
+              <summary>意见与请求历史 · {opinion.history.length} 条</summary>
+              <ol>
+                {opinion.history.map((entry) => (
+                  <li key={entry.id}>
+                    <strong>{entry.scopeLabel}</strong>
+                    <span className="status-tag">{entry.status}</span>
+                    <p>{entry.text}</p>
+                    <small>
+                      原请求 {entry.requestLabel} · 原依据 {entry.basis}
+                    </small>
+                  </li>
+                ))}
+              </ol>
+              <p className="muted">
+                旧意见按原项目、阶段和文件版本保留；不会自动迁移到新版本或转为阶段定稿。
+              </p>
             </details>
           )}
           {controls}

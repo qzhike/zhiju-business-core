@@ -24,6 +24,7 @@ import {
   type RevisionRequest,
 } from '../plan/model.js';
 import { Missing } from '../shell.js';
+import { MvpHandoffContext } from './handoff.js';
 import {
   u1FormatRules,
   u1InitialBatch,
@@ -384,13 +385,14 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
-function useU1() {
+export function useU1() {
   const state = useContext(Context);
   if (!state) throw new Error('DEVELOPMENT_U1_ADAPTER_ONLY');
   return state;
 }
 export function FixtureU1Overview() {
   const state = useU1();
+  const handoff = useContext(MvpHandoffContext);
   const params = useParams();
   if (params.projectId !== u1Project.id) return <Missing />;
   const acknowledged = state.acknowledgedReportVersion === 2;
@@ -408,26 +410,29 @@ export function FixtureU1Overview() {
         state.plans.find((plan) => plan.planId === state.currentPlan.planId)?.version ?? 1
       }
       scopeEnabled={acknowledged}
-      stages={[
-        {
-          id: 'manual',
-          label: '质量手册',
-          state: state.currentPlan.state === 'CONFIRMED' ? '待审阅（演示）' : '未开始',
-          detail: '确认范围后可生成；U1 不实现候选生成或阶段定稿。',
-        },
-        {
-          id: 'procedures',
-          label: '控制程序与管理制度',
-          state: '未开始',
-          detail: '以质量手册定稿为依据；U1 仅展示名称，不表示已开始。',
-        },
-        {
-          id: 'records',
-          label: '记录表单与交付',
-          state: '未开始',
-          detail: '以前两阶段精确版本为依据；U1 不实现审阅或交付。',
-        },
-      ]}
+      reviewStages={handoff?.reviewStages}
+      stages={
+        handoff?.stages ?? [
+          {
+            id: 'manual',
+            label: '质量手册',
+            state: state.currentPlan.state === 'CONFIRMED' ? '待审阅（演示）' : '未开始',
+            detail: '确认范围后可进入质量手册审阅。',
+          },
+          {
+            id: 'procedures',
+            label: '控制程序与管理制度',
+            state: '未开始',
+            detail: '以质量手册的精确模拟定稿为依据。',
+          },
+          {
+            id: 'records',
+            label: '记录表单与交付',
+            state: '未开始',
+            detail: '以前两阶段精确版本为依据；最终交付属于 U3。',
+          },
+        ]
+      }
       levels={[
         {
           id: 'manual',
@@ -468,7 +473,8 @@ export function FixtureU1Overview() {
         },
       ]}
       next={
-        acknowledged
+        handoff?.next ??
+        (acknowledged
           ? {
               label: '核对修改范围',
               href: `/projects/${u1Project.id}/startup/U1-REPORT-02`,
@@ -484,7 +490,7 @@ export function FixtureU1Overview() {
                 label: '查看资料批次',
                 href: `/projects/${u1Project.id}/intake`,
                 reason: '先核对资料批次和读取限制，再进入分析与澄清。',
-              }
+              })
       }
     />
   );
@@ -680,6 +686,7 @@ export function FixtureU1Analysis() {
 export function FixtureU1Plan() {
   const state = useU1();
   const params = useParams();
+  const navigate = useNavigate();
   if (params.reportId !== 'U1-REPORT-02' || params.projectId !== u1Project.id) return <Missing />;
   if (state.acknowledgedReportVersion !== 2) {
     return (
@@ -732,6 +739,7 @@ export function FixtureU1Plan() {
           entered: state.nextStagePlans[plan.planId] === true,
           onEnter: () => {
             state.enterNextStage(plan.planId);
+            void navigate(`/projects/${u1Project.id}/stages/manual`);
           },
           disabledReason: confirmed ? undefined : '请先确认当前范围计划。',
         }}

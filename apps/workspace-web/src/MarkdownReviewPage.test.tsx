@@ -293,4 +293,66 @@ describe('bounded review workspace boundaries', () => {
     expect(selected).toContain('提交时最新版本 第 2 版');
     expect(/<button[^>]*>提交并修改<\/button>/u.exec(selected)?.[0]).not.toContain('disabled');
   });
+  it('states the opinion scope, keeps save distinct from submit and blocks a second batch', () => {
+    const html = markup({
+      opinionActions: {
+        onSubmit: () => undefined,
+        onSaveDraft: () => undefined,
+        onSelectScope: () => undefined,
+      },
+      opinion: {
+        ...opinion,
+        draft: { text: '本轮意见', state: 'UNSAVED', note: '仅在本页内存' },
+        scope: {
+          options: [
+            { id: 'project:p', label: '项目 p', kind: 'PROJECT' },
+            { id: 'stage:MANUAL', label: '阶段 质量手册', kind: 'STAGE' },
+            { id: 'file:manual:v1', label: '文件 质量手册 · 第 1 版', kind: 'FILE_VERSION' },
+          ],
+          selectedId: 'stage:MANUAL',
+          note: '保存、提交和阶段定稿是不同动作。',
+        },
+        submitBlocked: '本项目已有待回执的修改请求；可以继续保存下轮草稿。',
+      },
+    });
+    expect(html).toContain('意见作用范围');
+    expect(html).toContain('阶段 质量手册');
+    expect(html).toContain('保存意见草稿（模拟）');
+    expect(html).toContain('本项目已有待回执的修改请求');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>保存意见草稿（模拟）<\/button>/u.exec(html)?.[0]).not.toContain(
+      'disabled',
+    );
+  });
+  it('hides per-file approval for stage-finalization journeys but keeps append-only history', () => {
+    const html = markup({
+      opinion: {
+        ...opinion,
+        approval: { available: false, note: '阶段定稿在完整集合中确认。', visible: false },
+        history: [
+          {
+            id: 'opinion-1',
+            scopeLabel: '文件 质量手册 · 第 1 版',
+            status: 'RECEIVED',
+            text: '保留客户质量目标',
+            requestLabel: 'U2-REV-01',
+            basis: 'U1-PLAN-01 · F-MANUAL@V1',
+          },
+          {
+            id: 'opinion-2',
+            scopeLabel: '阶段 控制程序与管理制度',
+            status: 'FAILED',
+            text: '补充编号映射',
+            requestLabel: 'U2-REV-02',
+            basis: 'U1-PLAN-01 · F-MANUAL@V2',
+          },
+        ],
+      },
+    });
+    expect(html).not.toContain('检查完成并批准');
+    expect(html).toContain('意见与请求历史 · 2 条');
+    expect(html).toContain('保留客户质量目标');
+    expect(html).toContain('U2-REV-01');
+    expect(html).toContain('不会自动迁移到新版本');
+  });
 });

@@ -7,14 +7,25 @@ const steps = [
   { id: 'analysis', label: '分析与澄清', path: `${base}/analysis/U1-REPORT-01` },
   { id: 'scope', label: '修改范围', path: `${base}/startup/U1-REPORT-02` },
 ] as const;
+
+export interface JourneyReviewStage {
+  id: 'MANUAL' | 'PROCEDURES' | 'RECORDS';
+  label: string;
+  href: string;
+  ready: boolean;
+  reason?: string | undefined;
+}
+
 export function JourneyNav({
   current,
   analysisReportId,
   scopeEnabled,
+  reviewStages,
 }: {
-  current: (typeof steps)[number]['id'];
+  current: (typeof steps)[number]['id'] | JourneyReviewStage['id'];
   analysisReportId: string;
   scopeEnabled: boolean;
+  reviewStages?: readonly JourneyReviewStage[] | undefined;
 }) {
   return (
     <nav className="journey-nav" aria-label="同一项目的页面路径">
@@ -40,7 +51,26 @@ export function JourneyNav({
             </Link>
           </li>
         ))}
+        {reviewStages?.map((stage) => (
+          <li key={stage.id}>
+            <Link
+              aria-current={current === stage.id ? 'page' : undefined}
+              aria-disabled={stage.ready ? undefined : 'true'}
+              title={stage.ready ? undefined : stage.reason}
+              to={stage.href}
+              onClick={(event) => {
+                if (!stage.ready) event.preventDefault();
+              }}
+            >
+              {stage.label}
+              {!stage.ready && <span className="journey-locked"> · 待前置</span>}
+            </Link>
+          </li>
+        ))}
       </ol>
+      {reviewStages && (
+        <p className="muted">阶段入口按上游模拟定稿启用；直接打开链接不会补造缺失的依据。</p>
+      )}
     </nav>
   );
 }

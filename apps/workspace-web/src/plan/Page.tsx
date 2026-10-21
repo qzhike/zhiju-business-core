@@ -383,18 +383,16 @@ export function PlanPage({
           )}
         </div>
         <div className="plan-next-stage">
-          <h3>下一业务阶段（演示）</h3>
-          <p>进入下一阶段不重复范围审批；此处只演练交互，不实现 U2 审阅或生成。</p>
+          <h3>下一业务阶段：质量手册审阅（演示）</h3>
+          <p>进入下一阶段不重复范围审批；审阅页沿用本计划、报告与输入依据。</p>
           <button
             disabled={!confirmed || nextStage.entered}
             onClick={nextStage.onEnter}
             title={nextStage.disabledReason}
           >
-            {nextStage.entered ? '已进入第二阶段（演示）' : '进入第二阶段（演示）'}
+            {nextStage.entered ? '已进入质量手册审阅（演示）' : '进入质量手册审阅（演示）'}
           </button>
-          {nextStage.entered && (
-            <p role="status">范围依据沿用本计划；没有再次弹出范围确认。第二阶段内容尚未交付。</p>
-          )}
+          {nextStage.entered && <p role="status">范围依据沿用本计划；没有再次弹出范围确认。</p>}
           {!confirmed && nextStage.disabledReason && (
             <p className="muted">{nextStage.disabledReason}</p>
           )}

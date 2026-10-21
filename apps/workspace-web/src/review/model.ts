@@ -43,13 +43,15 @@ export interface ReviewFileActions {
 }
 
 export type ReviewDraftState =
-  'UNAVAILABLE' | 'SAVING' | 'SAVED' | 'UNSAVED' | 'CONFLICT' | 'UNKNOWN';
+  'EMPTY' | 'UNAVAILABLE' | 'SAVING' | 'SAVED' | 'UNSAVED' | 'CONFLICT' | 'FAILED' | 'UNKNOWN';
 export const reviewDraftStateLabels: Record<ReviewDraftState, string> = {
+  EMPTY: '尚未输入意见',
   UNAVAILABLE: '未保存 · 服务器草稿能力尚未接入',
   SAVING: '正在保存个人草稿…',
   SAVED: '个人草稿已保存',
   UNSAVED: '个人草稿尚未保存',
   CONFLICT: '另一设备也保存了此草稿，请核对后显式选择',
+  FAILED: '模拟保存失败，输入仍在本页',
   UNKNOWN: '保存结果待核验，仍在查询原保存请求',
 };
 
@@ -87,21 +89,50 @@ export interface ReviewSubmission {
   note: string;
 }
 
+export interface ReviewOpinionScopeOption {
+  id: string;
+  label: string;
+  kind: 'PROJECT' | 'STAGE' | 'FILE_VERSION';
+}
+
+/** The single opinion area states which project, stage or file version it targets. */
+export interface ReviewOpinionScope {
+  options: readonly ReviewOpinionScopeOption[];
+  selectedId: string;
+  note: string;
+}
+
+export interface ReviewOpinionHistoryEntry {
+  id: string;
+  scopeLabel: string;
+  status: string;
+  text: string;
+  requestLabel: string;
+  basis: string;
+}
+
 export interface ReviewOpinionModel {
   /** Exact file/version context this area submits against. */
   context: string;
   draft: { text: string; state: ReviewDraftState; note: string };
   submission?: ReviewSubmission | undefined;
   suggestion?: ReviewSuggestion | undefined;
-  approval: { available: boolean; note: string };
+  approval: { available: boolean; note: string; visible?: boolean | undefined };
+  scope?: ReviewOpinionScope | undefined;
+  /** Append-only opinions that keep their original scope and basis. */
+  history?: readonly ReviewOpinionHistoryEntry[] | undefined;
+  /** A project-wide active batch that prevents starting another submission. */
+  submitBlocked?: string | undefined;
   unavailable: readonly string[];
 }
 
 export interface ReviewOpinionActions {
   onDraftChange?: ((text: string) => void) | undefined;
+  onSaveDraft?: (() => void) | undefined;
   onSubmit?: (() => void) | undefined;
   onQuerySubmission?: (() => void) | undefined;
   onApprove?: (() => void) | undefined;
+  onSelectScope?: ((id: string) => void) | undefined;
   onAttachSuggestion?: ((file: { name: string; text: string }) => void) | undefined;
   onRemoveSuggestion?: (() => void) | undefined;
   onSelectBaseline?: ((id: string) => void) | undefined;

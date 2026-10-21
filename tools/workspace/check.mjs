@@ -71,6 +71,12 @@ async function checkProductionBundle() {
       '模拟本文件新候选到达',
       '合成长清单文件',
       '多处修改示例',
+      'DEVELOPMENT_U2_ADAPTER_ONLY',
+      'U2 三阶段审阅演练',
+      'U2 显式场景控制',
+      '模拟生成本阶段候选',
+      '质量手册 · 第 1 版候选',
+      'MANUAL01',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);
     }

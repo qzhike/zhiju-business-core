@@ -1,0 +1,165 @@
+.stage-review-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.stage-review-page .page-head {
+  margin-bottom: 0;
+}
+
+.stage-basis ul,
+.stage-upstream {
+  display: grid;
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.stage-basis li,
+.stage-upstream li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.stage-basis li span,
+.stage-upstream li span {
+  color: var(--muted);
+}
+
+.stage-set table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.stage-set th,
+.stage-set td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.stage-set thead th {
+  background: var(--soft);
+}
+
+.stage-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.stage-finalization-result dl {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.stage-finalization-result dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 140px) 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.stage-finalization-result dt {
+  color: var(--muted);
+}
+
+.stage-finalization-result dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stage-next {
+  border-left: 4px solid var(--purple);
+}
+
+.markdown-opinion-scope {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.markdown-opinion-scope small {
+  color: var(--muted);
+}
+
+.markdown-history ol {
+  display: grid;
+  gap: 10px;
+  padding-left: 18px;
+}
+
+.markdown-history li {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.markdown-history li p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.markdown-history li small {
+  color: var(--muted);
+}
+
+.journey-locked {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.stage-controls .fixture-options {
+  margin-top: 8px;
+}
+
+.stage-controls label {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.stage-controls fieldset {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.stage-controls legend {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .stage-review-page {
+    gap: 10px;
+  }
+
+  .stage-finalization-result dl > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .stage-set th,
+  .stage-set td {
+    white-space: normal;
+  }
+}
