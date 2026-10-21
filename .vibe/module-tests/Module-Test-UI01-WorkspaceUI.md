@@ -171,6 +171,8 @@ reviewer and timestamp
 | UI-258-011 / Cache + Diagnostics | logout/401/撤权/切用户Scope、多Tab、bfcache；callback/token/body/file探针 | 敏感DOM/cache/objectURL清理，迟到响应不能复填；no-store；日志/trace字段allowlist无token/Subject/客户正文 | 确定性本地+HTTP PASS：受保护响应 no-store/no-referrer/nosniff、generation+Principal+Scope 迟到响应拦截、多 Tab 失效信号不携带 token/内容、日志/trace 无 token/Subject/客户正文（`trusted-session.test.ts`、`guard.test.ts`、`workspace-trusted-http.test.ts` 断言响应不出现 JWT/secret/subject）。真实 bfcache 与多 Tab 浏览器行为 `NOT RUN` |
 | UI-258-012 / Actual Browser + Accessibility + Manual | 固定脱敏资料，Windows/macOS实际两稳定版Chrome/Edge；顾问登录→目录→已注册D14→原intent恢复 | 已批准布局/默认不选/键盘焦点/深链接真实可用；允许及拒绝链可追溯；记录build/环境/实际版本/独立审核人，不拿Chromium/axe代人验 | 未执行 / `NOT RUN`：受控 Chromium 的工程外壳门禁（`workspace:check`）与受控制品旅程（`workspace-built-browser.test.ts`、`workspace-controlled-keycloak.test.ts` 的真实 Keycloak 登录）已执行，但 Windows/macOS 实际 Chrome/Edge 平台矩阵与独立顾问人工验收仍未执行 |
 
+UI-258-011 的合成 OIDC HTTP 泄漏探针按替身实际签发的 compact JWT 三段结构识别令牌，并逐项拒绝本次登录新签发的非空 opaque refresh token；保留原 URL、响应 JSON、Cookie 观测面及 secret、subject、Bearer 和 subject hash 断言。合法 PKCE challenge、state、nonce 或 opaque Cookie 偶然包含 `eyJ` 不构成令牌泄漏。确定性反例须同时覆盖这类合法随机值、真实 RSA 签名的 access/ID token 在各观测面出现、空签名三段形式及重复检测稳定性；该探针只服务测试替身，不作为生产 JWT 解析或认证实现。
+
 ## 工作台页面验收（#281）
 
 以下为页面/组件验收，执行证据归 Issue/PR；不替代 #266 真实服务或完整浏览器矩阵。

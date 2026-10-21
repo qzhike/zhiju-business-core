@@ -50,3 +50,13 @@ Reviewer 独立读取 [run 39562052765, attempt 1](https://github.com/qzhike/zhi
 当前增量仅将 `tools/persistence/baseline.mjs` 的固定摘要更新为上述 `1267…`，并同步技术基准事实；连接关闭实现、业务用例、分片、tag/digest 拒绝和服务端版本校验未改变。独立静态复核未发现新增阻断。交付方另提供 `environment` PASS 和 pinned-baseline 六例 PASS 的窄验证结果；前者不启动容器，二者均不能替代 full。
 
 前述对 `ee61acca…` 的实现 APPROVE 及成功 CI 保留为历史证据，不扩展为此次基线同步后的新 head 已通过。摘要更新与本段入库后，仍须以当前 main `48d08d8a3a395f7b891105edae38136dfaeb7ad4` 为基准复核整合增量，确认摘要冲突处理保留已核对的新 pin 且没有改动 main 的其他内容，并取得最终 head 的适用 full CI。当前远端验证待验，最终证据继续维护在 PR，不为记录自身 SHA 再次修改本文件。
+
+## 2026-10-21 合成令牌泄漏探针增量审查
+
+Reviewer 独立读取 [run 39564156344, attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/39564156344/attempts/1) 的分片 3 完整日志：head `9e56e21a1c5e8c7cd8f640d4667ae868ab3a65d6` 的该分片为 588 例通过、1 例失败。唯一失败来自 `workspace-trusted-http.test.ts` 原 `not.toContain('eyJ')` 断言；实际触发值是 43 字符、无点号分段的合法 PKCE challenge，其中偶然包含该三字符子串。此失败不构成令牌泄漏证据，也不能记为 full PASS。
+
+依据 [UI01 Spec §6](../../module-specs/Module-Spec-UI01-WorkspaceUI.md#6-bffsession-与认证) 和 [UI-258-011](../../module-tests/Module-Test-UI01-WorkspaceUI.md#可信-session-与公开接入验收场景258)，独立审查本轮四文件增量：测试专用探针、16 项普通回归、原 HTTP 用例与 owning Test 说明。探针按现有替身签发格式识别三段 compact JWT，包含空签名且没有全局或 sticky 状态；真实 RSA access/ID token 的 URL、JSON、Cookie、嵌入字符串泄漏与合法随机值均有对照。原 observed 数组经逐字比较保持不变，secret、subject、Bearer 和 subject hash 断言均保留；新增 opaque refresh token 检查要求本次新签发、非空且不同于旧值，并在全部原观测面拒绝其实际值。没有改动生产认证、provider 签发行为、持久化用例名称、分片或关键清单。
+
+Reviewer 直接导入实际探针，以独立生成并验签的 RSA token、空签名形式及原失败 PKCE 完成 20 个配对观测面检查，全部通过，并确认重复调用稳定。交付方提供新增普通回归 16/16 PASS；Reviewer 另读回真实 PostgreSQL 与 HTTP 的整文件聚焦诊断：退出 0、11/11 PASS、服务端版本 180006、第二次迁移 no-op 和容器清理完成。该输出中部迁移表被工具截断，最终测试与清理汇总完整，且明确标注关键清单未检查；这些窄证据均不替代 full。
+
+本轮静态及反例审查未发现新增阻断，原误报已在当前未提交增量中纠正。此前实现 APPROVE 和后续失败历史各自保留；本段不批准尚未产生的最终 head，也不将聚焦通过等同于合并门禁通过。正式提交后仍须独立复核精确 head，并取得适用完整 CI，确认全部持久化用例、96 个关键用例、文件清单、迁移与清理通过。最终修订和执行证据继续保留在 PR，不为追逐本文件自身 SHA 再改写记录。

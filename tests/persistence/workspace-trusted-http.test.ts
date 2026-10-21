@@ -21,6 +21,7 @@ import { createWorkspaceCoreFromEnv } from '../../apps/api/src/workspace/server.
 import { createBff } from '../../apps/workspace-bff/src/app.js';
 import { FakeOidcProvider } from '../../apps/workspace-bff/src/testing/fake-oidc.js';
 import { newUuidV7 } from '@zhiju/shared-kernel';
+import { SYNTHETIC_COMPACT_JWT_PATTERN } from '../helpers/synthetic-token-disclosure.js';
 
 import {
   API_AUDIENCE,
@@ -771,6 +772,7 @@ describe.skipIf(!databaseUrl)(
     });
 
     it('never echoes a token, the client secret, the external subject or a customer payload', async () => {
+      const previousRefreshToken = stack.provider.lastRefreshToken;
       const login = await fetch(
         `${stack.publicOrigin}/bff/auth/login?returnTo=${encodeURIComponent('/workbench')}`,
         { method: 'GET', redirect: 'manual' },
@@ -806,6 +808,12 @@ describe.skipIf(!databaseUrl)(
         },
       );
 
+      const refreshToken = stack.provider.lastRefreshToken;
+      if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
+        throw new Error('the disclosure probe requires a newly issued refresh token');
+      }
+      expect(refreshToken !== previousRefreshToken).toBe(true);
+
       const observed: string[] = [
         login.headers.get('location') ?? '',
         authorize.headers.get('location') ?? '',
@@ -817,7 +825,8 @@ describe.skipIf(!databaseUrl)(
       for (const text of observed) {
         expect(text).not.toContain(CLIENT_SECRET);
         expect(text).not.toContain(SUBJECT_EXTERNAL_ID);
-        expect(text).not.toContain('eyJ');
+        expect(text).not.toMatch(SYNTHETIC_COMPACT_JWT_PATTERN);
+        expect(text.includes(refreshToken)).toBe(false);
         expect(text).not.toContain('Bearer ');
       }
       // The external subject is never an identity key on the wire, and the raw
