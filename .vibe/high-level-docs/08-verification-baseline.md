@@ -600,3 +600,9 @@ EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存
 严格.vibe Markdown设计diff执行vibe verify docs --json，另定向检查唯一Owner、Catalog/proposed字段/Ref/Hash/transition/trace链接；自动docs或静态对账不能替代独立设计Review和精确修订人类技术批准。本节是场景索引，不声称用例已执行或记录普通任务验证日志。后续混合实现仍按现有code/full规则，不以文档目标覆盖code/SQL/registry。
 
 真实生成profile的Runner可行性、Host原invocation→IG→TE→ART接纳、PostgreSQL/RLS/CAS/full、OIDC/HTTP/download、批准Chrome/Edge矩阵及独立Human内容检查/Approval均NOT RUN，需分别取证。原型36changes/旧版改稿/6.5秒UNKNOWN演示仅synthetic交互输入；本提案的10秒/3次预算、Markdown限制与不规则表拒绝也不是生产配置/业务验收。
+
+## MVP B1 项目与资料托管设计及实现出口（已批准设计）
+
+[B1 设计](../mvp/b1-design.md)与 [MVP01 Spec/Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)定义一个完整资料托管结果。T2 设计增量使用配置 `vibe verify docs --json`，并独立检查字段/状态、权限、事务与文件一致性、原请求恢复、ZIP/OOXML/XLSX 失败场景、初始化及 UI 对照；人类技术批准绑定精确内容，静态 PASS 不替代该批准。
+
+后续实现涉及新认证/归属边界、API、数据库、文件存储、解包和初始化，配置目标必须为 `full`；新或实质变化容器运行环境先执行一次 `environment`。同修订可信 CI 可复用，但不得从 docs/旧链 full 推导新实现 PASS。B1-01–14 覆盖受控 Contract/Unit、真实 disposable PostgreSQL、文件 fault/restart、公开可信 HTTP/Browser 和独立本机用户试走。每层记录自身证据；B1 接纳不是文件语义理解，U1–U3 模拟流程确认不是新链验收；所有新增 runtime/persistence/manual 均为 NOT RUN。

@@ -12,6 +12,14 @@
 
 下文七模块所有权、旧 Contract 和数据库要求继续描述并约束现有实现。旧长期企业平台、完整飞书、通用执行审批链和强制 canonical 内容路线，不再是新 MVP 的产品前置。具体替代接口/Schema/事务/安全定义须经必要设计审查后写入相应权威位置；本次不直接变更其实现，不借产品收缩取消历史、访问保护或失败恢复。
 
+### B1 独立应用边界（已批准设计）
+
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。取舍见 [B1 设计](../mvp/b1-design.md)。新 `DocumentDelivery`（MVP01）是精简 MVP composition 的唯一业务 Owner；B1 只拥有项目、输入批次、精确来源/manifest、请求/尝试与恢复。它不是旧七模块中的第八个协作参与者，也不访问旧 Repository、跨旧 schema 写入或借用旧业务授权事实。
+
+拟代码边界为 `modules/document-delivery` 与 `apps/api` 的独立 MVP 启动 composition；保留现有 Web/BFF 工程，后者在本实例只装配有限 MVP routes。部署模式启动时固定，不能因依赖失败在 legacy/MVP/fixture 间降级。独立数据库/文件根/instanceId 与旧环境分开，具体存储映射归 07。通用 UUID/hash、OIDC校验、上传流、安全解包、不可覆盖文件机制可提取复用；不能为了复用引入旧 Preparation/Task/CompanyPublication 等运行前置。
+
+MVP01 独立验证 OIDC 身份并映射本实例明确的单员工绑定，拥有其项目/文件访问判断；旧 IP 仍只拥有旧平台授权。BFF 仍不拥有业务事实；后台提取只执行已持久化意图。新增职责不改变旧接口/200项兼容基线。真实 Runner、阶段确认及交付服务按后续批次设计，本增量不预先授予其新接口或写入权。
+
 ## 文档说明
 
 本文根据此前“Zhiju Business Core Planning”对话中已经形成的架构决策、核心 Contract 和 Domain Model v0.1 第一部分归纳重建。

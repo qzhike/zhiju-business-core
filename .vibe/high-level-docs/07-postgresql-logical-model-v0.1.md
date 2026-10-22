@@ -20,6 +20,28 @@
 
 ## 1. 文档目标
 
+### B1 独立数据库与逻辑表（已批准设计）
+
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。新MVP使用专用database（逻辑标识 `zhiju_mvp`，实例化名称由独立配置固定）和 `document_delivery` schema，唯一Owner为MVP01。不在旧七schema创建新MVP表，不共享旧migration history，不借旧主键/RLS函数/跨schema外键。现有数据库、migration和历史记录不改。新迁移目录拟为 `modules/document-delivery/migrations`，从独立空库初始化；只批准逻辑结构，此文不执行DDL。
+
+| 表 | 最小字段/约束 |
+|---|---|
+| installation | 单行instance_id、schema_version、store_id、store_identity、created_at；数据库/store实例绑定缺失或不匹配拒绝运行，不自动补造 |
+| operator_binding | owner_id PK、精确issuer/subject UNIQUE、enabled、auth_epoch；首版一条显式部署绑定；只由初始化/维护角色改变，无公开管理API |
+| projects | owner_id+project_id PK、customer_name/title、created_at、创建序号、version、last_batch_no、active_batch_id nullable；owner不可改；active指针必须属于本项目 |
+| requests | owner_id+request_id PK、operation、target_id、project_id、original_payload、payload_hash、不可变authorization(owner_id/auth_epoch/authorized_at)、不可变receipt、committed_at；同key跨operation/target不同payload冲突；不保存token/Actor推理 |
+| input_batches | owner_id+project_id+batch_id PK、batch_no、固定原输入、status、version、original_request_id、policy_version、manifest_id?；UNIQUE(project_id,batch_no)，原输入不可改；每项目活动批次唯一 |
+| batch_attempts | owner_id/project_id/batch_id/attempt_id、kind、number、generation、状态、incarnation/fence、authorization_request_id、authorized_owner_id/auth_epoch、原输入hash、staging receipts、timestamps；同batch/kind/number唯一，授权FK/镜像必须对应同owner/project/batch的创建或恢复Request；旧attempt不重用 |
+| input_manifests | owner_id/project_id/batch_id/manifest_id、完整canonical payload、manifest_hash；UNIQUE(batch_id)，scope/id/hash镜像一致性CHECK；INSERT后禁止UPDATE/DELETE |
+| source_entries | owner_id/project_id/batch_id、entry_id、manifest_id、ordinal、source_id?、source对象元数据/receipt?、entry状态；ordinal在manifest内唯一，ACCEPTED才有完整source；原ZIP源在manifest对应受控对象记录；immutable |
+| custody_events | owner_id/project_id、batch_id?、event_id、attempt_id?、event_type、from/to状态、reason_codes、time、request_id?；项目创建与批次/恢复事实均可记录，attempt须关联batch；append-only，无正文/note/凭据 |
+
+原ZIP的持久对象记录由 input_batches 的 sealed `original_zip_source` 字段持有，包含 sourceId/sha/length/media/object receipt；manifest 原样引用并核对，不使用尚可变化的staging位置。只有manifest封存事务可将其从技术staging提升为业务来源。所有源、entry、manifest、attempt和request使用复合外键核对相同owner/project/batch，不允许仅凭全局UUID建立跨项目关联。attempt引用的authorization只读，原Request重放不更新epoch；新恢复Request可授权新attempt，不能覆盖原授权历史。Hash保留算法和域版本；完整payload为唯一源，提升字段受CHECK/应用双重校验。
+
+运行角色 `mvp_runtime` 非superuser、非BYPASSRLS、非schema/table owner；迁移/初始化角色独立且不进入应用连接。所有业务表ENABLE/FORCE RLS，以事务内SET LOCAL的owner_id为第一层；project内访问同时绑定已核验project_id。项目目录的专用只读路径只按owner扫描projects，不借目录权限读取所有来源。连接池归还前结束事务，缺上下文fail closed；worker从已提交意图和当前binding取得受限上下文，不能从请求参数选择任意owner。request查找可先通过owner+requestId的有限索引取得其projectId，再绑定project上下文读完整receipt；不得从该索引暴露payload。operator_binding/installation只暴露有限只读解析，运行角色无维护写权。
+
+immutable原输入、manifest/source/receipt和events通过权限/约束禁止覆盖；可变status/version依CAS更新。不可用DB返回未知/依赖失败，不将查询失败当ABSENT。容量不足拒绝新写但保留旧只读事实，不自动删历史或重建实例。状态/恢复规则唯一见MVP01，旧07下文仍约束旧数据库。
+
 本文回答：
 
 1. 哪些业务事实进入 PostgreSQL，哪些进入对象存储；

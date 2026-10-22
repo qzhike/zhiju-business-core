@@ -372,3 +372,24 @@ vibe verify full --json
 - 页面产物/匿名截图在忽略的 `test-results/`，当前 Playwright 配置为 `trace: off`；不承诺未配置的录像、HAR 或 HTML 报告文件一定存在。
 - 记录对应修订、目标、macOS/CPU 架构、浏览器实际版本、Docker context、成功/失败范围及剩余缺口。证据进入对应 GitHub Issue/PR，不在本 runbook 累积每次运行日志。
 - 本目标可以证明已有登录、权限隔离、精确内容与下载的受控技术行为；完整客户业务、真实 Runner、跨设备草稿和独立顾问验收仍分别取证。
+
+## 10. 下一精简 MVP 的 B1 本机联调设计（尚未实现）
+
+该实例与前述现有 A/B 环境并列，技术选择见 [部署安全基线 B1](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#mvp-b1-独立本机实例已批准设计)。本节是实施要求，不提供尚不存在的启动命令；现有 `env:b:*` 不能据此当作新 MVP 初始化器。
+
+### 10.1 配置与初始化交付要求
+
+一个封闭的实例配置须包含：instanceId、loopback Web/BFF/Core/OIDC/数据库端口与 origin、专用 PostgreSQL database/schema/运行与迁移连接的 secret reference、文件根与 storeId、OIDC issuer/client/audience/URI、明确 operator issuer+subject 绑定、服务 peer/trust 与 cursor 签名 secret reference、固定 ZIP policy/extractor 版本。名称、字段校验与安全默认值随实现提供；不复用旧 B 的业务配置，不接收客户端指定目录，不将 Runner 配置作为 B1 启动前置。
+
+1. 初始化前输出只读资源计划，核对当前 Docker context、配置非秘密摘要、端口占用、目标根/卷/database 是否为本实例；与旧 A/B 冲突即停止，不抢端口或覆盖目录。秘密及客户名称、说明、文件路径不进入资源报告。
+2. 经实际初始化授权后，仅建立该计划中的专用 PostgreSQL/Keycloak 容器与持久卷、库/角色、文件根和安装标记，导入专用 realm/client 与操作者已核对的唯一身份绑定。使用当前已固定镜像，不改变旧服务和系统配置。安装中断按同一身份续接，不能再次建一个看似成功的空实例。
+3. 初始化完成读回 installation、schema revision、root/store identity 与绑定；运行时缺配置/错库/错根/版本不符 fail closed。配置相同的再次初始化为核对/补完，不重复 seed 或替换绑定。新配置、新身份及未知残留必须人工检查后按管理操作处理。
+4. 实施交付实际 init/start/status/stop 命令后替换本节的操作说明，并记录示例输出与回退步骤；本轮只完成设计，不启动服务。
+
+### 10.2 B1 实际试走与回退
+
+新入口使用已确认的项目/资料页，登录后创建项目、接收三格式 ZIP、显示不支持/损坏/受限条目、追加补充批次；固定原请求查询，必要时核对同一尝试，确认原写者终止后才能重传/继续或显式放弃。分析页面显示未接入；不注入 Environment A 演练结果。详细验收由 [MVP01 Test B1-01–14](../module-tests/Module-Test-MVP01-DocumentDelivery.md)拥有，合法真实三格式样本按来源准备，敏感内容不上传公开 Issue。
+
+保存非敏感的项目/批次/manifest/source 身份及摘要；停止本实例应用与容器但保留卷/文件，再启动、重登并从浏览器读回相同数据和字节。进程重启与文件/数据库故障分别取证；通过技术检查不等于内容理解或 Runner 接通。测试清理仅针对显式一次性测试资源，实际输入与持久化实例不得自动清空。
+
+回退时停止且只停止本实例已登记的进程/容器，保留本实例数据，再使用原 A/B 入口；检查旧端口/卷/目录未变。不能 `down -v`、删除文件根、改全局 Docker context 或用新库覆盖旧库。容量、权限或身份故障保持明确错误；恢复既有业务数据须有独立证据，不能用重新初始化空库替代。

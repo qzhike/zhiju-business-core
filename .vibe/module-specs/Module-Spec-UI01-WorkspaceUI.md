@@ -508,9 +508,9 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 ## 缩编 MVP：U3 返工、恢复与交付（2026-10-21）
 
-状态：`IMPLEMENTED PRESENTATION DELTA / AUTOMATED ACCEPTANCE PASS / USER U3 WALKTHROUGH NOT RUN`。
+状态：`IMPLEMENTED PRESENTATION DELTA / AUTOMATED ACCEPTANCE PASS / SIMULATED UI FLOW USER CONFIRMED`。用户确认来源见 [PR #309 正式 Review](../reviews/pr-309/Review.md)；不扩大为私有原文或真实服务验收。
 
-本增量承接已确认的 [交付计划 U3](../mvp/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段) 和 U1/U2 同一项目旅程。它只定义环境 A 中的共享页面、展示模型与隔离 adapter，不注册 API、数据库对象或 Runner 协议，不使真实保存、执行、定稿、打包或下载能力可用。U3 结束后仍须用户在同项目完成一次包含上游返工、部分结果恢复、未知请求核对和打包失败重试的完整试走，才可能形成第一阶段整体确认。
+本增量承接已确认的 [交付计划 U3](../mvp/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段) 和 U1/U2 同一项目旅程。它只定义环境 A 中的共享页面、展示模型与隔离 adapter，不注册 API、数据库对象或 Runner 协议，不使真实保存、执行、定稿、打包或下载能力可用。U3/UI-01–08 整体模拟流程已有用户明确确认，未逐项声明的反例、私有正文及平台覆盖仍不推定通过。
 
 ### 连续结果与依据
 
@@ -549,3 +549,16 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 范围为 Workspace Web 的 `mvp/` 展示模型与页面、U2 阶段状态扩展、隔离 adapter、开发内容、导航/概览交接、对应单元与浏览器测试，以及本 Spec 与 owning Test 的增量。复用现有页面、导航、表单、弹窗和内容安全能力；不建设第二套原型站点。真实 BFF/Core/Runner、授权、持久化、服务端恢复、真实打包下载和生产启用继续为 `NOT RUN`。若实现需要真实授权、公开协议、Core 业务状态或持久化变更，应停止该扩展并重新评估范围与分类。
 
 实施已落在 Workspace Web 的 `mvp/u3-model.ts`、`mvp/ReworkPage.tsx`、`mvp/RecoveryPage.tsx`、`mvp/DeliveryFlowPage.tsx`、`mvp/u3.css`、`mvp/review-model.ts` 的重新定稿扩展、`mvp/StageReviewPage.tsx` 的上游变化/历史/记录复核区、`mvp/JourneyNav.tsx` 的 U3 入口、U2 阶段状态扩展 (`fixtures/u2.tsx`/`u2-data.ts`)、隔离 adapter (`fixtures/u3.tsx`/`u3-data.ts`)、概览交接及对应单元/浏览器测试。环境 A 的合同范围、确认冻结、失败重试、未知核对、`ZIP` 成员内容与历史包均由页面内存状态驱动；生产构建排除 U3 adapter、场景文案、合成导出器与演练路由内容。未改变真实授权、公开协议、Core 状态或持久化。验收见 [U3 矩阵](../module-tests/Module-Test-UI01-WorkspaceUI.md#缩编-mvpu3-返工恢复与交付验收2026-10-21)。
+
+## 缩编 MVP：B1 真实项目与资料托管接线（已批准设计）
+
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。复用已确认 U1 项目/资料旅程及既有安全 Web/BFF 外壳；新 wire/state 权威由 [MVP01 Spec](Module-Spec-MVP01-DocumentDelivery.md)拥有，页面展示类型不得反过来注册协议。
+
+- 新真实 composition 使用 `/bff/mvp/v1` 的有限 adapter、当前会话与服务能力；项目创建/批次/条目/历史来自服务器。Environment A 保留隔离，现有旧真实入口按原契约回归，生产新入口无 fixture fallback。
+- 创建项目显示客户名称与项目标题，提交前固定 requestId/targetId/原始 payload；批次提交先固定包名、长度、SHA 与说明，不能把开始接收显示成接纳。补充批次追加原清单旁，不把新文件自动加入旧分析依据。
+- 页面能区分已提交意图、接收/提取、已接纳/部分、拒绝、已知失败、未知与显式放弃；全部条目与限制可分页核对，0 accepted 清楚显示没有可分析来源。接收是托管事实，不承诺文件已读懂。原包/accepted 来源附件下载使用精确身份，失败/受限隔离条目不暴露对象定位。
+- 提交前在当前标签页保存仅含 instanceId/已验证 ownerId/authEpoch、operation、projectId、requestId、targetId、原 expectedProjectVersion/expectedBatchVersion（适用时）和 payloadHash 的恢复标记；不存原字节、名称、说明、token 或完整 payload。刷新/登录恢复后重新验证实例与身份再查原 request/batch；标记不作为权限依据，失权/换用户立即清理。已有业务事实由服务器提供，跨设备从项目/批次列表找回。原意图未提交时同会话内保留原 payload 供同键重发；刷新后若原请求查无结果且内存 payload 已丢失，则不自动重建，明确请求用户重新选择/输入并核对与原 hash 相同后才可同键重发。未确定原提交结果前禁止新 key 创建替代意图。
+- 响应丢失/UNKNOWN 只查原请求，恢复按钮来自服务器 permittedActions；只在服务端重新验证后续原尝试，已知结束才能重传同一包/继续提取。已无活跃写者且未接纳时可明确放弃，保留历史后再建新批次；无盲目终止未知执行按钮。
+- 新实例只声明 PROJECT_CUSTODY；分析/范围/生成显示尚未接入和当前可执行动作，不伪造报告、运行或确认。技术诊断不进入正常操作流程，用户看到可理解的原因和下一步。
+
+验收映射到 UI Test 与 MVP01 B1-01–14。任何使用户步骤或确认对象变化的实现须回到流程确认；协议映射不要求重新审批已确认的全部 UI。

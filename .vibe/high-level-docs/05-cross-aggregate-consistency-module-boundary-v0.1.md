@@ -8,6 +8,14 @@
 
 ## 1. 文档目标
 
+### B1 托管一致性增量（已批准设计）
+
+状态 `DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。在独立 [MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) Owner 内，创建 Project+Request 为一事务；创建批次在 Project 行锁下原子保存 batchNo、activeBatchId、原请求、初始 Attempt；接纳在同一事务保存 manifest/entries、batch终态与释放活动占用。首次提取安排及恢复安排均把当前授权Request依据、PREPARED Attempt、generation/fence和batch状态在同一事务写入，副作用在提交后执行；RECONCILE不授权旧epoch继续执行。Project/InputBatch 是新项目根及其实体的一致性边界，不跨旧模块 Repository 或借用旧 Process Manager。业务行锁顺序为 Project → Batch → Attempt → Request（其前先锁定binding）；其他写入遵守相同顺序，重放先查原 receipt，避免反向锁。
+
+文件副作用在请求/尝试提交之后执行；文件已写与业务已接纳分开。staging receipt、稳定目标、inspect、fencing、真实进程/文件锁与恢复规则唯一由 [MVP01 §4](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#4-状态与恢复)维护。DB提交与文件存储不宣称分布式原子性；未知状态不允许新意图冒充原请求，lease超时不证明原写者结束。manifest接纳时重验owner binding及epoch，采用同事务锁定binding行防止与停用/改epoch竞态；所有相关路径按 binding → Project → Batch → Attempt → Request 顺序获取锁。
+
+后台任务不保存Human token，只持有已提交意图及其owner/authEpoch；执行/接纳前核对当前binding。用户登出不撤销已提交意图，停用binding/改epoch则禁止新的接纳；保留已写技术事实，重获授权后通过显式原请求恢复建立当前授权依据，不自动沿用旧epoch。GET只读；显式recovery提交新的恢复记录但不改变原输入或原业务意图。原七模块的跨Aggregate协议保持不变。
+
 本文承接 [`04-domain-model-v0.1.md`](04-domain-model-v0.1.md)，使用完整业务案例验证三个主域之间的一致性，并冻结跨 Aggregate 命令、事件、事务、Process Manager、并发、幂等和逻辑模块协作边界。
 
 本文不映射数据库、ORM、REST、MCP Tool、飞书事件 JSON、Renderer 或 Runtime Adapter 代码。

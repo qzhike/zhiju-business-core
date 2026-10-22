@@ -2,9 +2,11 @@
 
 日期：2026-10-20
 
-状态：`DELIVERY PLAN USER CONFIRMED / UI FLOW ACCEPTANCE NOT RUN / BACKEND DESIGN PENDING`
+状态：`DELIVERY PLAN USER CONFIRMED / SIMULATED UI FLOW USER CONFIRMED / B1 DESIGN USER APPROVED / REAL BUSINESS ACCEPTANCE NOT RUN`
 
 用户已于 2026-10-20 确认本交付计划：优先订正 UI，确认完整操作流程后，再补齐后端业务能力。本文细化这一顺序、交付结果、依赖和验收；计划确认不表示 UI 流程已经验收、业务已经实施或字段级技术设计已经批准。
+
+后续 U3/UI-01–08 模拟流程确认已记录在 [PR #309 正式 Review](../reviews/pr-309/Review.md)，不再沿用收口摘要中相冲突的总体 NOT RUN。确认只覆盖记录声明的 UI 旅程，不推定每个反例/平台或私有正文逐字检查已通过。2026-10-22 用户要求完成下一批前置设计，已批准取舍与精确修订见 [B1 设计](b1-design.md)。
 
 产品要求唯一见 [MVP 可用闭环](usable-loop.md)，架构取舍及代码处置见 [Core 缩编重构方案](core-refactoring-plan.md)，Current/Next/Later 唯一由 [roadmap](../product/roadmap.md)维护。本文不维护任务状态、Issue 正文或逐轮执行日志，也不改变既有契约、数据库及验证门禁。
 
@@ -111,7 +113,7 @@ UI 内容与业务演练也遵守正式模板约束：
 
 U1“从资料到确认范围”的页面实现及用户反馈见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303)，页面行为与验收场景以 owning UI Spec/Test 为准。U1 属于普通 UI 实现的 T1 工作，不改变整个 Core 重构的 T2 分类；后续批次若需改变真实授权、公开协议或业务状态，必须先拆清边界并重新评估，不能按普通页面订正处理。
 
-U2“三阶段审阅与定稿”已由 [Issue #306](https://github.com/qzhike/zhiju-business-core/issues/306) / [PR #307](https://github.com/qzhike/zhiju-business-core/pull/307) 交付，用户暂时批准人工测试并授权合并；详细证据与限制保留在 Issue/PR 及正式 Review。下一批按 U1/U2 实际反馈准备 U3。Planner 应基于当前 main 核对上游精确依据、正式内容来源及可用客户样本，补齐本批 owning UI Spec/Test 的适用增量，并选择完整 diff 所需验证目标，再判断 NOW + READY。局部暂时批准不代替私有原文内容试走或 U1–U3 总体验收。以上工作无需先完成后端字段设计；后端缺口不阻止隔离的 UI 订正，不预建批量 Issue。
+U2“三阶段审阅与定稿”已由 [Issue #306](https://github.com/qzhike/zhiju-business-core/issues/306) / [PR #307](https://github.com/qzhike/zhiju-business-core/pull/307) 交付；U3“返工、恢复与交付”已由 [Issue #308](https://github.com/qzhike/zhiju-business-core/issues/308) / [PR #309](https://github.com/qzhike/zhiju-business-core/pull/309) 交付。完整模拟旅程的用户确认及限制见该 PR 正式 Review；私有原文内容和真实业务层继续分开取证。现在围绕下一独立结果 B1 完成 §4 的适用设计，再判断实现 NOW + READY，不预建 B2–B5 批量 Issue。
 
 ## 4. 第二阶段：从确认的 UI 反推最小后端设计
 
@@ -137,6 +139,8 @@ UI 确认之后才固化新业务 API、状态与持久化模型并开始后端�
 - 相关 Spec Delta 完成独立审查和适用的人类技术批准；之后才将对应后端实现评为 NOW + READY。
 
 同一组设计可按下一交付结果逐步闭合。资料接收的独立结果不必等待所有 Runner 生成能力完成，但不得把缺 Runner 的后续批次标为 READY；跨版本、确认与恢复这些难以补救的基础语义不能留到最后。
+
+B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-已批准的-spec-delta)及 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。只有其独立审查、人类技术批准及可访问权威修订齐全，才发布依赖它的可执行 implementation Issue。真实 Runner 核验属于依赖分析能力的 B2 入口；不让 B1 托管伪装成该核验已完成。
 
 ## 5. 第三阶段：逐段接通真实业务能力
 
@@ -204,4 +208,4 @@ UI 确认之后才固化新业务 API、状态与持久化模型并开始后端�
 | 独立审查与精确修订证据 | Reviewer、Implementer，必要时人类技术审查者 | 各交付合并前；T2 设计批准先于实现 | 修复实际阻断，按最新 head 复核；保留未运行边界 |
 | Issue/Git/合并与清理 | 用户授权，执行者按门禁交付 | 各操作发生前 | 规划完成不自动产生发布、合并或删除权限 |
 
-下一轮依据 U1/U2 的实际反馈准备 U3，核对当前 main 的上游依据、正式内容来源、owning UI Spec/Test 增量及 NOW + READY，再按授权创建并实施当前批次。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进；完整流程确认后再转入 §4。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；UI 确认后结合真实对接结果估算当前后端批次，不一次性排死整个重构。
+B1 前置设计已完成复审及人类技术批准；权威修订进入主干并回读后，再按当前 main、依赖与授权发布一个完整的项目与资料托管 implementation Issue。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；结合真实对接结果估算当前批次，不一次性排死整个重构。

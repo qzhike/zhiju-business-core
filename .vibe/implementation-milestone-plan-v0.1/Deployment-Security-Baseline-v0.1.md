@@ -218,3 +218,17 @@ Ubuntu release/kernel/architecture、镜像/二进制digest、MAC策略、Provid
 ### 模板分析依据的产品校正（2026-10-18）
 
 用户重申以客户资料、项目模板和 AGENTS.md 进行阅读比对，并批准先接通分析。按 [校正决定](../decisions/template-driven-preparation.md)，正常业务分析依据与 macOS Runtime 技术适配分开；不新增仅 B 可用的模板业务模式，也不要求为本轮准备项目虚构完整规范发布。此前“公司模板/规则按真实来源发布”落实为精确模板及分析基准的真实授权使用，旧 startup bundle 保持其旧接受集。当前新增分支仍在设计审查，未安装生产 Runtime、未执行 Provider 或未接纳报告的状态不得提升。
+
+## MVP B1 独立本机实例（已批准设计）
+
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。本节只拥有 [B1 设计](../mvp/b1-design.md)的新本机初始化与安全边界，不改变旧环境 B 或 Ubuntu 生产 Provider/Secret/KMS 决定。认证/归属语义由 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)拥有。
+
+- 独立 composition 只实例化 MVP01 业务服务；复用 OIDC Code + PKCE、BFF 内存 Session、Core 独立 access-token 验证与明确 peer/trust binding。缺少本实例 operator binding 时拒绝准入，不回退旧 IP、不自动按 email 建账号。B1 只绑定一个员工，不提供注册/管理用户 API。
+- 本机 OIDC 使用专用 Keycloak 实例、realm/client 与持久卷，版本/digest 复用仓库已固定基线；启动器检查专用配置的 issuer、audience、redirect/logout URI、算法及 JWKS。受信 bootstrap 由操作者核对精确 issuer/subject 后写唯一绑定，不将首次登录者自动设为 owner。此选择不迁移或修改旧 B 的 realm/用户/客户端。
+- PostgreSQL 使用独立 database、runtime/migration role、`document_delivery` schema 和专用持久卷；文件存储使用独占的新根。安装固定 instanceId/storeId/root device+inode，在数据库 installation 与文件根标记中交叉核对；不允许用旧根、旧库、可写共享目录或符号链接代替。运行角色非 owner、无 BYPASSRLS，无 DDL/旧 schema 权限；具体约束见 07。
+- 初始化为显式管理操作：先只读检查端口、Docker context、目录/卷身份及权限，再创建专用资源；在新空库迁移/安装记录/绑定、写入新根身份标记后读回。中断须按同一 installation 意图核对已有资源；相同输入可续，任一身份/配置摘要不符停止，不能清库重试。重启不执行 seed、替换绑定或隐式迁移；schema 未准备好即拒绝启动。
+- 秘密从受限配置文件/secret reference 加载，不入仓库、业务表、普通日志或 HTTP 返回；配置文件0600、配置目录/文件根0700、对象0600且无symlink。Keycloak 密码/客户端 secret、数据库密码及服务信任密钥不打印；配置摘要只包含非秘密投影和引用版本，不作为秘密低熵 hash 输出。数据库与文件卷同属受控本机测试资料边界，不能宣称生产加密/备份符合性。
+- Web/BFF/Core/Keycloak/数据库只绑定明确 loopback 地址与无冲突的独立端口；不创建 Tailscale/公网映射、后台系统服务或修改全局 Docker 配置。复用安全 loader 的限制，不通过关闭 Cookie、Origin/CSRF、token 或 peer 检查接通页面；单实例进程锁与 attempt 锁须在真实本机文件系统上验证。
+- 启动需专用实例标识及封闭配置；`status` 必须区分初始化状态、数据持久性、存储完整性、身份可用和分析未接入。停止只终止有身份记录的本实例进程/容器，保留卷、文件和绑定；回退切换到原入口即可，不对旧实例执行迁移/重置/删除。升级失败保留新资源及诊断；仅兼容的旧二进制可读取原 schema，不将代码回退误称数据库回滚。
+
+B1 实施时交付配置 schema/example（仅非秘密占位）、初始化/启停/状态入口和操作者文档；实际名称在代码存在后更新 runbook，不把本节描述冒充可运行命令。本设计不执行安装或常驻映射；真实本机初始化授权、重启读回及资源隔离证据进入对应 Issue/PR。生产 S3/OpenBao/Ubuntu、备份恢复和多用户均未在本节通过。
