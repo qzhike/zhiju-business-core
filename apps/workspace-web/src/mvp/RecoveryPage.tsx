@@ -53,6 +53,12 @@ export interface RecoveryPageProps {
     status: string;
     requestLabel?: string | undefined;
     note: string;
+    history: readonly {
+      requestId: string;
+      status: string;
+      fileIds: readonly string[];
+      note: string;
+    }[];
     failedFiles: readonly string[];
     canRetry: boolean;
     canQuery: boolean;
@@ -221,6 +227,19 @@ export function RecoveryPage({
           {retry.status}
           {retry.requestLabel ? ` · 原请求 ${retry.requestLabel}` : ''}
         </p>
+        {retry.history.length > 0 && (
+          <div className="muted">
+            <h3>已结束的重试请求</h3>
+            <ul>
+              {retry.history.map((entry) => (
+                <li key={`${entry.requestId}:${entry.status}`}>
+                  {entry.requestId} · {entry.status} · 文件 {entry.fileIds.join('、')} ·{' '}
+                  {entry.note}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="panel" aria-label="尝试历史">

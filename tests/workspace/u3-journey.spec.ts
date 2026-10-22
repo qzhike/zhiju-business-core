@@ -13,6 +13,10 @@ const rework = `${base}/rework`;
 const recovery = `${base}/recovery`;
 const delivery = `${base}/delivery`;
 
+function requestId(text: string | null): string {
+  return text?.match(/U3-(?:RETRY|FINAL)-[0-9a-f]+/u)?.[0] ?? '';
+}
+
 function journeyLink(page: Page, name: string) {
   return page.getByRole('navigation', { name: '同一项目的页面路径' }).getByRole('link', { name });
 }
@@ -317,21 +321,24 @@ test('recovery retries only failed files, reconciles unknown requests and keeps 
   await expect(page.locator('.u3-page')).toContainText('结果可审阅');
   await expect(page.locator('.u3-page')).toContainText('本项目同时只保留一个活动修改批次');
 
-  await page.getByLabel('重试回执场景').selectOption('mismatch');
+  await page.getByLabel('重试回执场景').selectOption('failed');
   await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
-  await expect(page.getByText('原请求 U3-RETRY-')).toBeVisible();
-  await page.getByRole('button', { name: '查询原重试请求' }).click();
-  await expect(page.getByText('回执属于其他项目/尝试或文件集合')).toBeVisible();
-  await expect(page.locator('.u3-attempt')).toHaveCount(1);
+  await expect(
+    page.getByText('模拟重试失败；原尝试、成功候选与错误历史保留，可再次只重试失败文件。'),
+  ).toBeVisible();
+  const failedRequestId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
+  await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeEnabled();
 
   await page.getByLabel('重试回执场景').selectOption('pending');
   await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
-  const requestNote = page.getByText(/原请求 U3-RETRY-/u);
-  const firstRequest = await requestNote.textContent();
+  const firstRequestId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
+  expect(firstRequestId).not.toBe(failedRequestId);
+  await expect(page.locator('.u3-page')).toContainText('已结束的重试请求');
+  await expect(page.locator('.u3-page')).toContainText(failedRequestId);
   await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
   await page.getByRole('link', { name: '项目概览' }).click();
   await page.getByRole('link', { name: '执行与恢复', exact: true }).click();
-  await expect(page.getByText(firstRequest ?? '')).toBeVisible();
+  await expect(page.locator('.u3-page')).toContainText(firstRequestId);
   await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
   await page.getByRole('button', { name: '查询原重试请求' }).click();
   await expect(page.locator('.u3-attempt')).toHaveCount(2);
@@ -355,6 +362,106 @@ test('recovery retries only failed files, reconciles unknown requests and keeps 
   await page.getByRole('link', { name: '执行与恢复', exact: true }).click();
   await expect(page.locator('#recovery-note')).toHaveValue('恢复期间保存的下一轮意见');
   await expect(page.locator('.markdown-history')).toContainText('恢复期间保存的下一轮意见');
+});
+
+test('mismatched recovery receipt keeps the original request locked until a matching result', async ({
+  page,
+}) => {
+  await confirmScope(page);
+  await journeyLink(page, '执行与恢复').click();
+  await page.getByLabel('重试回执场景').selectOption('mismatch');
+  await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
+  const originalId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
+  await page.getByRole('button', { name: '查询原重试请求' }).click();
+  await expect(page.getByText('回执属于其他项目/尝试或文件集合')).toBeVisible();
+  await expect(page.locator('.u3-attempt')).toHaveCount(1);
+  await expect(page.getByText('错绑回执不能证明原尝试结束')).toBeVisible();
+  await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
+  expect(requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent())).toBe(originalId);
+
+  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '执行与恢复').click();
+  await expect(page.locator('.u3-page')).toContainText(originalId);
+  await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
+  await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
+  await page.getByRole('button', { name: '查询原重试请求' }).click();
+  await expect(page.locator('.u3-attempt')).toHaveCount(2);
+  await expect(page.locator('.u3-page')).toContainText('原重试回执已核验');
+  await expect(page.locator('.u3-page')).toContainText(originalId);
+  await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
+});
+
+test('unresolved final confirmation survives list operations and navigation', async ({ page }) => {
+  await reachDeliveryReady(page);
+  await page.getByRole('button', { name: '重新核对当前清单（模拟）' }).click();
+  await page.getByLabel('确认回执场景').selectOption('unknown');
+  await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
+  const originalId = requestId(await page.getByText(/原请求 U3-FINAL-/u).textContent());
+  await expect(page.getByRole('checkbox', { name: '选择 质量手册' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();
+
+  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '最终交付').click();
+  await expect(page.locator('.u3-page')).toContainText(originalId);
+  await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();
+  await page.getByRole('button', { name: '模拟原确认回执到达' }).click();
+  await page.getByRole('button', { name: '重新查询原确认请求' }).click();
+  await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
+});
+
+test('mismatched final confirmation stays locked until explicitly ended', async ({ page }) => {
+  await reachDeliveryReady(page);
+  await page.getByRole('button', { name: '重新核对当前清单（模拟）' }).click();
+  await page.getByLabel('确认回执场景').selectOption('mismatch');
+  await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
+  await page.getByRole('button', { name: '重新查询原确认请求' }).click();
+  await expect(page.getByText('确认回执与清单或依据不匹配')).toBeVisible();
+  const originalId = requestId(await page.getByText(/原请求 U3-FINAL-/u).textContent());
+  await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();
+
+  await page.getByRole('button', { name: '标记原确认请求已结束（模拟）' }).click();
+  await expect(page.getByText('已显式标记原确认请求结束')).toBeVisible();
+  await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeEnabled();
+  await page.getByRole('button', { name: '重新核对当前清单（模拟）' }).click();
+  await expect(page.getByText('已结束的确认请求')).toBeVisible();
+  await expect(page.locator('.u3-page')).toContainText(originalId);
+  await page.getByLabel('确认回执场景').selectOption('matched');
+  await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
+  await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
+});
+
+test('unresolved recovery request blocks final delivery until reconciled', async ({ page }) => {
+  await reachDeliveryReady(page);
+  await journeyLink(page, '执行与恢复').click();
+  await page.getByLabel('重试回执场景').selectOption('unknown');
+  await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
+  const retryId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
+
+  await journeyLink(page, '最终交付').click();
+  await expect(
+    page.getByText(`仍有待回执或待核验的恢复请求 ${retryId}；不能确认最终交付。`),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '重新核对当前清单（模拟）' }).click();
+  await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();
+  await page.getByRole('link', { name: '执行与恢复' }).first().click();
+  await expect(page.locator('.u3-page')).toContainText(retryId);
+  await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
+  await page.getByRole('button', { name: '查询原重试请求' }).click();
+  await expect(page.locator('.u3-attempt')).toHaveCount(2);
+
+  await journeyLink(page, '最终交付').click();
+  await page.getByRole('button', { name: '重新核对当前清单（模拟）' }).click();
+  await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeEnabled();
+  await page.getByLabel('确认回执场景').selectOption('matched');
+  await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
+  await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
 });
 
 test('deep links and missing prerequisites cannot fabricate the U3 journey', async ({ page }) => {

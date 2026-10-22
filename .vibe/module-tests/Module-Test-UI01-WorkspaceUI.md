@@ -421,6 +421,8 @@ ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理�
 
 公开自动化仅使用关联 C01–C07/T01–T06 的非敏感展示状态和合成 ZIP 成员，不复制客户原件、正式模板正文、私有清单或截图。自动化通过不升级为私有内容试走、真实服务或人工验收；未执行项保持 `NOT RUN`。
 
+PR #309 独立审查 R1–R3 的回归已并入上述矩阵：未决最终确认在重新核对、改选与导航后保留原 `U3-FINAL-*` 请求并阻止第二个意图；未决/错绑执行恢复请求计入最终交付阻断，收敛后才可冻结；错绑恢复回执保持原 `U3-RETRY-*` 请求锁定，只有同一请求的匹配结果或明确失败/结束才允许新意图并保留已结束请求历史。
+
 本增量自动化入口为 `tests/workspace/u3-journey.spec.ts`；展示模型单测位于 `apps/workspace-web/src/mvp/u3-model.test.ts`，U2 返工扩展仍由 `mvp/review-model.test.ts` 与 `u2-journey.spec.ts` 回归。配置验证为 `vibe verify full --json`；新或变化容器环境在首个本地 full 前执行一次 `vibe verify environment --json` 并复用有效结果。完整实际 PR diff 不在既有低风险允许列表内，未改用 `code`。
 
 最终实现须按精确修订独立审查并保留 `.vibe/reviews/pr-<number>/Review.md`。证据及用户反馈进入对应 Issue/PR；真实 Runner、服务端保存/定稿/打包、重启与跨设备、用户 U3 整体确认、第一阶段整体确认及 MVP-01–10 继续分别为 `NOT RUN`。

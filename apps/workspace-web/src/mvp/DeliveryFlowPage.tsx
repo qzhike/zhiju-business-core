@@ -34,9 +34,11 @@ export interface DeliveryFlowPageProps {
     status: 'NONE' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH' | 'DONE';
     requestLabel?: string | undefined;
     note: string;
+    history: readonly { requestId: string; status: string; note: string }[];
     canConfirm: boolean;
     onConfirm: () => void;
     onQuery: () => void;
+    onMarkEnded?: (() => void) | undefined;
     onReceipt?: (() => void) | undefined;
     frozen?: FrozenDelivery | undefined;
   };
@@ -171,7 +173,13 @@ export function DeliveryFlowPage({
   const [open, setOpen] = useState(false);
   const selected = selectedMembers(proposal, selection.selectedIds);
   const selectionComplete = selected.length === proposal.members.length;
-  const ready = blockers.length === 0 && !selection.stale && selectionComplete;
+  const confirmationLocked =
+    confirmation.status === 'PENDING' ||
+    confirmation.status === 'UNKNOWN' ||
+    confirmation.status === 'MISMATCH' ||
+    confirmation.status === 'DONE';
+  const ready =
+    blockers.length === 0 && !selection.stale && selectionComplete && !confirmationLocked;
   return (
     <div className="u3-page">
       <JourneyNav
@@ -222,8 +230,9 @@ export function DeliveryFlowPage({
             </ul>
             <p>
               可返回
-              <Link to={links.rework}>返工与复核</Link> 或
-              <Link to={links.records}>记录表单审阅</Link>
+              <Link to={links.rework}>返工与复核</Link>、
+              <Link to={links.records}>记录表单审阅</Link> 或
+              <Link to={links.recovery}>执行与恢复</Link>
               处理阻断；本页保留当前选择与上下文。
             </p>
           </div>
@@ -261,6 +270,7 @@ export function DeliveryFlowPage({
                         type="checkbox"
                         aria-label={`选择 ${member.title}`}
                         checked={selection.selectedIds.includes(member.fileId)}
+                        disabled={confirmation.status !== 'NONE'}
                         onChange={() => {
                           selection.onToggle(member.fileId);
                         }}
@@ -287,8 +297,15 @@ export function DeliveryFlowPage({
           已选 {selected.length} / {proposal.members.length} 份
           {selection.stale ? ' · 所选版本或依据已变化，需重新核对' : ''}
         </p>
+        {confirmationLocked && confirmation.status !== 'DONE' && (
+          <p className="notice" role="status">
+            原确认请求仍未收敛；清单选择已保留。请查询原请求或显式结束它，不能据此创建第二个确认意图。
+          </p>
+        )}
         <div className="u3-actions">
-          <button onClick={selection.onRecheck}>重新核对当前清单（模拟）</button>
+          <button disabled={confirmationLocked} onClick={selection.onRecheck}>
+            重新核对当前清单（模拟）
+          </button>
         </div>
       </section>
 
@@ -363,19 +380,38 @@ export function DeliveryFlowPage({
                 </AlertDialog.Portal>
               </AlertDialog.Root>
               {confirmation.onReceipt &&
-                (confirmation.status === 'PENDING' || confirmation.status === 'UNKNOWN') && (
+                (confirmation.status === 'PENDING' ||
+                  confirmation.status === 'UNKNOWN' ||
+                  confirmation.status === 'MISMATCH') && (
                   <button onClick={confirmation.onReceipt}>模拟原确认回执到达</button>
                 )}
               {(confirmation.status === 'PENDING' ||
                 confirmation.status === 'UNKNOWN' ||
                 confirmation.status === 'MISMATCH') && (
-                <button onClick={confirmation.onQuery}>重新查询原确认请求</button>
+                <>
+                  <button onClick={confirmation.onQuery}>重新查询原确认请求</button>
+                  {confirmation.onMarkEnded && (
+                    <button onClick={confirmation.onMarkEnded}>标记原确认请求已结束（模拟）</button>
+                  )}
+                </>
               )}
             </div>
             <p className="muted">
               缺必需文件、未解决依据变化、所选版本变化或回执错绑时确认保持不可用；选择与上下文不会丢失。
             </p>
           </>
+        )}
+        {confirmation.history.length > 0 && (
+          <div className="muted">
+            <h3>已结束的确认请求</h3>
+            <ul>
+              {confirmation.history.map((entry) => (
+                <li key={`${entry.requestId}:${entry.status}`}>
+                  {entry.requestId} · {entry.status} · {entry.note}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
 

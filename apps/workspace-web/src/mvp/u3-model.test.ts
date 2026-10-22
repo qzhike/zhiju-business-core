@@ -199,6 +199,9 @@ describe('delivery selection and blockers', () => {
     expect(deliveryBlockers({ ...base, activeSubmission: 'REQ-1' })).toContain(
       '仍有待回执或待核验的修改请求 REQ-1；不能确认最终交付。',
     );
+    expect(deliveryBlockers({ ...base, unresolvedRecovery: 'RETRY-1' })).toContain(
+      '仍有待回执或待核验的恢复请求 RETRY-1；不能确认最终交付。',
+    );
     expect(
       deliveryBlockers({
         ...base,

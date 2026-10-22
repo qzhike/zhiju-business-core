@@ -157,6 +157,7 @@ export interface DeliveryBlockerInput {
   recordExpectedFiles: readonly string[];
   currentRecordLatest: readonly FileVersionRef[];
   activeSubmission?: string | undefined;
+  unresolvedRecovery?: string | undefined;
   selection: SelectionIssues;
 }
 
@@ -194,6 +195,8 @@ export function deliveryBlockers(input: DeliveryBlockerInput): string[] {
   }
   if (input.activeSubmission)
     blockers.push(`仍有待回执或待核验的修改请求 ${input.activeSubmission}；不能确认最终交付。`);
+  if (input.unresolvedRecovery)
+    blockers.push(`仍有待回执或待核验的恢复请求 ${input.unresolvedRecovery}；不能确认最终交付。`);
   if (input.selection.missingRequired.length > 0)
     blockers.push(`最终清单缺少必需文件：${input.selection.missingRequired.join('、')}。`);
   if (input.selection.stale.length > 0)

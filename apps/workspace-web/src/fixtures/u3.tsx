@@ -105,6 +105,7 @@ interface DeliveryState {
   confirmScene: 'matched' | 'mismatch' | 'pending' | 'unknown' | 'failed' | 'changed';
   confirmStatus: 'NONE' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH' | 'DONE';
   confirmRequest?: ConfirmRequest | undefined;
+  confirmHistory: readonly { requestId: string; status: string; note: string }[];
   confirmNote: string;
   frozen?: FrozenDelivery | undefined;
   packagingScene: 'AVAILABLE' | 'FAILED' | 'UNKNOWN' | 'MISMATCH';
@@ -121,6 +122,12 @@ interface ExecutionState {
   retryScene: 'matched' | 'pending' | 'unknown' | 'failed' | 'mismatch';
   retryStatus: 'NONE' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH' | 'RECEIVED';
   retryRequest?: { intent: RetryIntent; receipt?: RetryReceipt | undefined } | undefined;
+  retryHistory: readonly {
+    requestId: string;
+    status: string;
+    fileIds: readonly string[];
+    note: string;
+  }[];
   retryNote: string;
   late: readonly (LateResultRecord & { filesLabel: string })[];
   draft: MvpDraft;
@@ -163,6 +170,7 @@ function initialExecution(planId: string, planVersion: number): ExecutionState {
     attempts: [attempt],
     retryScene: 'matched',
     retryStatus: 'NONE',
+    retryHistory: [],
     retryNote: '只对已知失败文件建立新尝试；成功文件保持原候选与历史。',
     late: [],
     draft: emptyDraft,
@@ -176,6 +184,7 @@ function initialDelivery(): DeliveryState {
   return {
     confirmScene: 'matched',
     confirmStatus: 'NONE',
+    confirmHistory: [],
     confirmNote: '一次显式确认冻结精确清单；阅读、候选到达或打包回执都不能代替确认。',
     packagingScene: 'AVAILABLE',
     packagingStatus: 'NONE',
@@ -329,6 +338,13 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const active = activeSubmission(
     Object.values(u2.sessions).flatMap((session) => session.submissions),
   );
+  const unresolvedRecovery =
+    execution.retryRequest &&
+    (execution.retryStatus === 'PENDING' ||
+      execution.retryStatus === 'UNKNOWN' ||
+      execution.retryStatus === 'MISMATCH')
+      ? execution.retryRequest.intent.requestId
+      : undefined;
   const blockerInput = (selection: SelectionIssues) => ({
     planReady: u2.planCheck.ready,
     ...(u2.planCheck.reason !== undefined ? { planReason: u2.planCheck.reason } : {}),
@@ -340,6 +356,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     recordExpectedFiles: planStageFiles(plan, 'RECORDS').map((file) => file.id),
     currentRecordLatest,
     ...(active ? { activeSubmission: active.requestId } : {}),
+    ...(unresolvedRecovery ? { unresolvedRecovery } : {}),
     selection,
   });
   const blockers = deliveryBlockers(blockerInput(issues));
@@ -507,6 +524,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     failedFiles.length > 0 &&
     execution.retryStatus !== 'PENDING' &&
     execution.retryStatus !== 'UNKNOWN' &&
+    execution.retryStatus !== 'MISMATCH' &&
     execution.retryStatus !== 'RECEIVED';
   const executionProps: RecoveryPageProps = {
     projectId,
@@ -570,7 +588,10 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       note:
         execution.retryStatus === 'UNKNOWN'
           ? '原重试请求结果未知；只查询原请求，不启动第二次执行。'
-          : '原尝试、固定输入和错误历史保留；重试意图只包含失败文件。',
+          : execution.retryStatus === 'MISMATCH'
+            ? '错绑回执不能证明原尝试结束；原请求保持可核对且不可重发。'
+            : '原尝试、固定输入和错误历史保留；重试意图只包含失败文件。',
+      history: execution.retryHistory,
       failedFiles: failedFiles.map((file) => file.title),
       canRetry: retryCanRun,
       canQuery:
@@ -583,7 +604,9 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       onQuery: () => {
         queryRetry();
       },
-      ...(execution.retryStatus === 'PENDING' || execution.retryStatus === 'UNKNOWN'
+      ...(execution.retryStatus === 'PENDING' ||
+      execution.retryStatus === 'UNKNOWN' ||
+      execution.retryStatus === 'MISMATCH'
         ? {
             onReceipt: () => {
               receiveRetry();
@@ -695,9 +718,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     delivery.selection !== undefined &&
     issues.missingRequired.length === 0 &&
     issues.stale.length === 0 &&
-    delivery.confirmStatus !== 'PENDING' &&
-    delivery.confirmStatus !== 'UNKNOWN' &&
-    delivery.confirmStatus !== 'DONE';
+    delivery.confirmStatus === 'NONE';
   const deliveryProps: DeliveryFlowPageProps = {
     projectId,
     analysisReportId: u1.viewedReportId,
@@ -726,6 +747,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       onToggle: (fileId: string) => {
         setDelivery((current) => {
           if (!current.selection) return current;
+          if (current.confirmStatus !== 'NONE')
+            return {
+              ...current,
+              confirmNote: '原确认请求仍未收敛；清单选择已保留，只能查询或结束原请求。',
+            };
           const exists = current.selection.members.some((member) => member.fileId === fileId);
           const member = proposal.members.find((entry) => entry.fileId === fileId);
           if (!exists && !member) return current;
@@ -739,24 +765,49 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
                     (entry): entry is NonNullable<typeof entry> => entry !== undefined,
                   ),
             },
-            confirmStatus: 'NONE',
-            confirmRequest: undefined,
             confirmNote: '选择已变化；请重新核对后再次显式确认。',
           };
         });
       },
       onRecheck: () => {
-        setDelivery((current) => ({
-          ...current,
-          selection: {
-            proposalKey: deliveryListKey(proposal),
-            members: proposal.members.map((member) => ({ ...member })),
-          },
-          confirmStatus: 'NONE',
-          confirmRequest: undefined,
-          confirmNote: '已按当前精确清单重新核对；请显式确认冻结。',
-          note: '',
-        }));
+        setDelivery((current) => {
+          if (
+            current.confirmStatus === 'PENDING' ||
+            current.confirmStatus === 'UNKNOWN' ||
+            current.confirmStatus === 'MISMATCH' ||
+            current.confirmStatus === 'DONE'
+          )
+            return {
+              ...current,
+              confirmNote:
+                current.confirmStatus === 'DONE'
+                  ? '清单已冻结；如需新一轮交付，请使用“开始新一轮最终交付确认”。'
+                  : '原确认请求仍未收敛；清单选择已保留，只能查询或结束原请求。',
+            };
+          const history =
+            current.confirmStatus === 'FAILED' && current.confirmRequest
+              ? [
+                  ...current.confirmHistory,
+                  {
+                    requestId: current.confirmRequest.intent.requestId,
+                    status: 'FAILED',
+                    note: current.confirmNote,
+                  },
+                ]
+              : current.confirmHistory;
+          return {
+            ...current,
+            selection: {
+              proposalKey: deliveryListKey(proposal),
+              members: proposal.members.map((member) => ({ ...member })),
+            },
+            confirmStatus: 'NONE',
+            confirmRequest: undefined,
+            confirmHistory: history,
+            confirmNote: '已按当前精确清单重新核对；请显式确认冻结。',
+            note: '',
+          };
+        });
       },
     },
     confirmation: {
@@ -765,6 +816,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         ? { requestLabel: delivery.confirmRequest.intent.requestId }
         : {}),
       note: delivery.confirmNote,
+      history: delivery.confirmHistory,
       canConfirm,
       onConfirm: () => {
         confirmDelivery();
@@ -777,17 +829,33 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
             onReceipt: () => {
               setDelivery((current) => {
                 const request = current.confirmRequest;
-                if (!request || request.receipt) return current;
+                if (!request) return current;
+                if (request.receipt && current.confirmStatus !== 'MISMATCH') return current;
                 const receipt =
-                  current.confirmScene === 'mismatch'
-                    ? wrongReceipt(request.intent)
-                    : exactReceipt(request.intent);
+                  current.confirmStatus === 'MISMATCH'
+                    ? exactReceipt(request.intent)
+                    : current.confirmScene === 'mismatch'
+                      ? wrongReceipt(request.intent)
+                      : exactReceipt(request.intent);
                 return {
                   ...current,
                   confirmRequest: { ...request, receipt },
-                  confirmNote: '原定稿回执已到达；请显式查询原请求，不自动冻结。',
+                  confirmNote: '原确认请求收到新的回执；请显式查询原请求，不自动冻结。',
                 };
               });
+            },
+          }
+        : {}),
+      ...(delivery.confirmStatus === 'PENDING' ||
+      delivery.confirmStatus === 'UNKNOWN' ||
+      delivery.confirmStatus === 'MISMATCH'
+        ? {
+            onMarkEnded: () => {
+              setDelivery((current) => ({
+                ...current,
+                confirmStatus: 'FAILED',
+                confirmNote: '已显式标记原确认请求结束；请重新核对当前清单后再创建新意图。',
+              }));
             },
           }
         : {}),
@@ -938,10 +1006,17 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     setExecution((current) => {
       const attempt = current.attempts.at(-1);
       if (!attempt) return current;
-      if (current.retryStatus === 'PENDING' || current.retryStatus === 'UNKNOWN')
+      if (
+        current.retryStatus === 'PENDING' ||
+        current.retryStatus === 'UNKNOWN' ||
+        current.retryStatus === 'MISMATCH'
+      )
         return {
           ...current,
-          retryNote: '原重试请求仍未决；只查询原请求，不创建第二个执行意图。',
+          retryNote:
+            current.retryStatus === 'MISMATCH'
+              ? '错绑回执不能证明原尝试结束；原请求保持可核对且不可重发。'
+              : '原重试请求仍未决；只查询原请求，不创建第二个执行意图。',
         };
       const intent = retryIntentFor(attempt, `U3-RETRY-${crypto.randomUUID().slice(0, 8)}`);
       if (!intent)
@@ -949,9 +1024,22 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
           ...current,
           retryNote: '当前没有已知失败文件；成功文件不会重新生成。',
         };
+      const retryHistory =
+        current.retryStatus === 'FAILED' && current.retryRequest
+          ? [
+              ...current.retryHistory,
+              {
+                requestId: current.retryRequest.intent.requestId,
+                status: 'FAILED',
+                fileIds: [...current.retryRequest.intent.fileIds],
+                note: current.retryNote,
+              },
+            ]
+          : current.retryHistory;
       if (current.retryScene === 'failed')
         return {
           ...current,
+          retryHistory,
           retryStatus: 'FAILED',
           retryRequest: { intent },
           retryNote: '模拟重试失败；原尝试、成功候选与错误历史保留，可再次只重试失败文件。',
@@ -959,6 +1047,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       if (current.retryScene === 'pending' || current.retryScene === 'unknown')
         return {
           ...current,
+          retryHistory,
           retryStatus: current.retryScene === 'pending' ? 'PENDING' : 'UNKNOWN',
           retryRequest: { intent },
           retryNote:
@@ -975,6 +1064,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         };
         return {
           ...current,
+          retryHistory,
           retryStatus: 'PENDING',
           retryRequest: { intent, receipt: wrong },
           retryNote: '模拟回执属于其他尝试；请查询原请求核对。',
@@ -982,6 +1072,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       }
       return {
         ...current,
+        retryHistory,
         retryStatus: 'PENDING',
         retryRequest: { intent },
         retryNote: '重试请求待回执；请显式查询原请求，不自动轮询。',
@@ -992,7 +1083,8 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   function receiveRetry() {
     setExecution((current) => {
       const request = current.retryRequest;
-      if (!request || request.receipt) return current;
+      if (!request) return current;
+      if (request.receipt && current.retryStatus !== 'MISMATCH') return current;
       const receipt: RetryReceipt = {
         classification: 'DEVELOPMENT_FIXTURE_ONLY',
         ...request.intent,
@@ -1001,7 +1093,10 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       return {
         ...current,
         retryRequest: { ...request, receipt },
-        retryNote: '原重试回执已到达；请显式查询原请求，不自动生成第二个尝试。',
+        retryNote:
+          current.retryStatus === 'MISMATCH'
+            ? '原重试请求收到匹配回执；请显式查询原请求核对，不创建新意图。'
+            : '原重试回执已到达；请显式查询原请求，不自动生成第二个尝试。',
       };
     });
   }
@@ -1183,7 +1278,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       }));
       setDelivery((current) => ({
         ...current,
-        confirmStatus: 'MISMATCH',
+        confirmStatus: 'FAILED',
         confirmRequest: { intent },
         confirmNote: '确认前版本/依据已变化；未冻结。请重新复核受影响表单并显式重新核对清单。',
       }));
@@ -1235,6 +1330,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     setDelivery((current) => {
       const request = current.confirmRequest;
       if (!request) return current;
+      if (blockers.length > 0)
+        return {
+          ...current,
+          confirmNote: `仍有未解决事项：${blockers.join(' ')}；未冻结。请先处理后再查询原请求。`,
+        };
       if (!request.receipt)
         return {
           ...current,
