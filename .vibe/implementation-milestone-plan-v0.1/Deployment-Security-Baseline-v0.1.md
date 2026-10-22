@@ -219,9 +219,9 @@ Ubuntu release/kernel/architecture、镜像/二进制digest、MAC策略、Provid
 
 用户重申以客户资料、项目模板和 AGENTS.md 进行阅读比对，并批准先接通分析。按 [校正决定](../decisions/template-driven-preparation.md)，正常业务分析依据与 macOS Runtime 技术适配分开；不新增仅 B 可用的模板业务模式，也不要求为本轮准备项目虚构完整规范发布。此前“公司模板/规则按真实来源发布”落实为精确模板及分析基准的真实授权使用，旧 startup bundle 保持其旧接受集。当前新增分支仍在设计审查，未安装生产 Runtime、未执行 Provider 或未接纳报告的状态不得提升。
 
-## MVP B1 独立本机实例（提案）
+## MVP B1 独立本机实例（已批准设计）
 
-状态：`PROPOSED / HUMAN TECHNICAL APPROVAL REQUIRED / NOT IMPLEMENTED`。本节只拥有 [B1 设计](../mvp/b1-design.md)的新本机初始化与安全边界，不改变旧环境 B 或 Ubuntu 生产 Provider/Secret/KMS 决定。认证/归属语义由 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)拥有。
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。本节只拥有 [B1 设计](../mvp/b1-design.md)的新本机初始化与安全边界，不改变旧环境 B 或 Ubuntu 生产 Provider/Secret/KMS 决定。认证/归属语义由 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)拥有。
 
 - 独立 composition 只实例化 MVP01 业务服务；复用 OIDC Code + PKCE、BFF 内存 Session、Core 独立 access-token 验证与明确 peer/trust binding。缺少本实例 operator binding 时拒绝准入，不回退旧 IP、不自动按 email 建账号。B1 只绑定一个员工，不提供注册/管理用户 API。
 - 本机 OIDC 使用专用 Keycloak 实例、realm/client 与持久卷，版本/digest 复用仓库已固定基线；启动器检查专用配置的 issuer、audience、redirect/logout URI、算法及 JWKS。受信 bootstrap 由操作者核对精确 issuer/subject 后写唯一绑定，不将首次登录者自动设为 owner。此选择不迁移或修改旧 B 的 realm/用户/客户端。

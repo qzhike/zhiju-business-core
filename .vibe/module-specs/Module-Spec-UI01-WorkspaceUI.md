@@ -550,9 +550,9 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 实施已落在 Workspace Web 的 `mvp/u3-model.ts`、`mvp/ReworkPage.tsx`、`mvp/RecoveryPage.tsx`、`mvp/DeliveryFlowPage.tsx`、`mvp/u3.css`、`mvp/review-model.ts` 的重新定稿扩展、`mvp/StageReviewPage.tsx` 的上游变化/历史/记录复核区、`mvp/JourneyNav.tsx` 的 U3 入口、U2 阶段状态扩展 (`fixtures/u2.tsx`/`u2-data.ts`)、隔离 adapter (`fixtures/u3.tsx`/`u3-data.ts`)、概览交接及对应单元/浏览器测试。环境 A 的合同范围、确认冻结、失败重试、未知核对、`ZIP` 成员内容与历史包均由页面内存状态驱动；生产构建排除 U3 adapter、场景文案、合成导出器与演练路由内容。未改变真实授权、公开协议、Core 状态或持久化。验收见 [U3 矩阵](../module-tests/Module-Test-UI01-WorkspaceUI.md#缩编-mvpu3-返工恢复与交付验收2026-10-21)。
 
-## 缩编 MVP：B1 真实项目与资料托管接线（提案）
+## 缩编 MVP：B1 真实项目与资料托管接线（已批准设计）
 
-状态：`PROPOSED / HUMAN TECHNICAL APPROVAL REQUIRED / NOT IMPLEMENTED`。复用已确认 U1 项目/资料旅程及既有安全 Web/BFF 外壳；新 wire/state 权威由 [MVP01 Spec](Module-Spec-MVP01-DocumentDelivery.md)拥有，页面展示类型不得反过来注册协议。
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。复用已确认 U1 项目/资料旅程及既有安全 Web/BFF 外壳；新 wire/state 权威由 [MVP01 Spec](Module-Spec-MVP01-DocumentDelivery.md)拥有，页面展示类型不得反过来注册协议。
 
 - 新真实 composition 使用 `/bff/mvp/v1` 的有限 adapter、当前会话与服务能力；项目创建/批次/条目/历史来自服务器。Environment A 保留隔离，现有旧真实入口按原契约回归，生产新入口无 fixture fallback。
 - 创建项目显示客户名称与项目标题，提交前固定 requestId/targetId/原始 payload；批次提交先固定包名、长度、SHA 与说明，不能把开始接收显示成接纳。补充批次追加原清单旁，不把新文件自动加入旧分析依据。

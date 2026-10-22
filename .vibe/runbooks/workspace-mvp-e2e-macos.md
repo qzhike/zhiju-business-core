@@ -375,7 +375,7 @@ vibe verify full --json
 
 ## 10. 下一精简 MVP 的 B1 本机联调设计（尚未实现）
 
-该实例与前述现有 A/B 环境并列，技术选择见 [部署安全基线 B1](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#mvp-b1-独立本机实例提案)。本节是实施要求，不提供尚不存在的启动命令；现有 `env:b:*` 不能据此当作新 MVP 初始化器。
+该实例与前述现有 A/B 环境并列，技术选择见 [部署安全基线 B1](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#mvp-b1-独立本机实例已批准设计)。本节是实施要求，不提供尚不存在的启动命令；现有 `env:b:*` 不能据此当作新 MVP 初始化器。
 
 ### 10.1 配置与初始化交付要求
 

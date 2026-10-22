@@ -2,7 +2,7 @@
 
 日期：2026-10-22
 
-状态：`B1 PROPOSED / HUMAN TECHNICAL APPROVAL REQUIRED / NOT IMPLEMENTED`。
+状态：`B1 DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
@@ -14,7 +14,7 @@ Core 每次独立验证 token、BFF peer/session binding/trust-config；验证�
 
 全部资源读写均先检查当前绑定及 owner，项目内的 batch/source/manifest/attempt 必须精确属于路径 project。RLS 是纵深保护，不替代服务端检查。无权/不存在资源统一 404；已登录但未获实例准入为 403。B1 不提供多用户产品能力；隔离测试可布置另一 owner 的封闭数据作为负例。
 
-基础类型沿 [MVP v1 共享协议](../api-contract-v0.1/API-Contract-v0.1.md#mvp-v1-b1-共享协议提案)：UUIDv7、UTC RFC3339、十六进制 SHA-256、安全整数。version/batchNo/attempt number/generation/ordinal 从1开始；计数和文件 byteLength 可为0，声明的 ZIP declaredBytes 必须为正且不超过 policy。原始提交字符串不 trim/NFC 改写后参与幂等；只对非法值拒绝。所有 JSON 是闭对象，未知/重复字段拒绝，optional 缺省用省略，不用 null。`version` 是并发令牌；它不能代替不可变 manifest/source 身份。
+基础类型沿 [MVP v1 共享协议](../api-contract-v0.1/API-Contract-v0.1.md#mvp-v1-b1-共享协议已批准设计)：UUIDv7、UTC RFC3339、十六进制 SHA-256、安全整数。version/batchNo/attempt number/generation/ordinal 从1开始；计数和文件 byteLength 可为0，声明的 ZIP declaredBytes 必须为正且不超过 policy。原始提交字符串不 trim/NFC 改写后参与幂等；只对非法值拒绝。所有 JSON 是闭对象，未知/重复字段拒绝，optional 缺省用省略，不用 null。`version` 是并发令牌；它不能代替不可变 manifest/source 身份。
 
 ## 2. 持久事实与不变量
 
@@ -44,7 +44,7 @@ Core 每次独立验证 token、BFF peer/session binding/trust-config；验证�
 
 ## 3. 有限 API 与返回形状
 
-Core 前缀 `/api/mvp/v1`，BFF 前缀 `/bff/mvp/v1`，下表使用相对路径。名称由 [06 的 B1 目录](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#mvp-b1-独立目录提案)登记。JSON 写均需 Idempotency-Key；GET/流读也受当前会话和归属保护。BFF 不接收任意上游路径，Core 仅接受已配置 BFF peer。任一未实现操作返回明确不可用，不走 fixture。
+Core 前缀 `/api/mvp/v1`，BFF 前缀 `/bff/mvp/v1`，下表使用相对路径。名称由 [06 的 B1 目录](../high-level-docs/06-typed-references-contract-catalog-v0.1.md#mvp-b1-独立目录已批准设计)登记。JSON 写均需 Idempotency-Key；GET/流读也受当前会话和归属保护。BFF 不接收任意上游路径，Core 仅接受已配置 BFF peer。任一未实现操作返回明确不可用，不走 fixture。
 
 | Operation / HTTP | 输入 | 成功 result / 语义 |
 |---|---|---|
@@ -129,4 +129,4 @@ MVP policy 标识 `mvp.zip-input@1`，固定于批次创建时；后续 policy �
 
 ## 7. 设计与验收出口
 
-验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。设计批准前不得执行新初始化、注册真实接口或修改现有 DB/store。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-提议的-spec-delta)，不由本文件的字段完整性推定批准。
+验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已获人类技术批准，但本轮只交付设计；新初始化、真实接口注册及现有 DB/store 变更仍需对应实施/环境授权。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。

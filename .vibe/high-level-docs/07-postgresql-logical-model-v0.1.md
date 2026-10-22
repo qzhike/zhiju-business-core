@@ -20,9 +20,9 @@
 
 ## 1. 文档目标
 
-### B1 独立数据库与逻辑表（提案）
+### B1 独立数据库与逻辑表（已批准设计）
 
-状态：`PROPOSED / HUMAN TECHNICAL APPROVAL REQUIRED / NOT IMPLEMENTED`。新MVP使用专用database（逻辑标识 `zhiju_mvp`，实例化名称由独立配置固定）和 `document_delivery` schema，唯一Owner为MVP01。不在旧七schema创建新MVP表，不共享旧migration history，不借旧主键/RLS函数/跨schema外键。现有数据库、migration和历史记录不改。新迁移目录拟为 `modules/document-delivery/migrations`，从独立空库初始化；只批准逻辑结构，此文不执行DDL。
+状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。新MVP使用专用database（逻辑标识 `zhiju_mvp`，实例化名称由独立配置固定）和 `document_delivery` schema，唯一Owner为MVP01。不在旧七schema创建新MVP表，不共享旧migration history，不借旧主键/RLS函数/跨schema外键。现有数据库、migration和历史记录不改。新迁移目录拟为 `modules/document-delivery/migrations`，从独立空库初始化；只批准逻辑结构，此文不执行DDL。
 
 | 表 | 最小字段/约束 |
 |---|---|

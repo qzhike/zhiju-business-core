@@ -601,7 +601,7 @@ EP结论的Task语义是历史正式完成，不宣称TE当前USABLE或尚不存
 
 真实生成profile的Runner可行性、Host原invocation→IG→TE→ART接纳、PostgreSQL/RLS/CAS/full、OIDC/HTTP/download、批准Chrome/Edge矩阵及独立Human内容检查/Approval均NOT RUN，需分别取证。原型36changes/旧版改稿/6.5秒UNKNOWN演示仅synthetic交互输入；本提案的10秒/3次预算、Markdown限制与不规则表拒绝也不是生产配置/业务验收。
 
-## MVP B1 项目与资料托管设计及实现出口（提案）
+## MVP B1 项目与资料托管设计及实现出口（已批准设计）
 
 [B1 设计](../mvp/b1-design.md)与 [MVP01 Spec/Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)定义一个完整资料托管结果。T2 设计增量使用配置 `vibe verify docs --json`，并独立检查字段/状态、权限、事务与文件一致性、原请求恢复、ZIP/OOXML/XLSX 失败场景、初始化及 UI 对照；人类技术批准绑定精确内容，静态 PASS 不替代该批准。
 

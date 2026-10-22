@@ -8,9 +8,9 @@
 
 ## 1. 目标与非目标
 
-### MVP v1 B1 共享协议（提案）
+### MVP v1 B1 共享协议（已批准设计）
 
-状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。仅适用于[独立MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)，不改变下文旧Envelope/Schema Registry的规则。Core `/api/mvp/v1` 与BFF `/bff/mvp/v1` 采用有限HTTP接口，operation唯一命名仍归06；无任意operation/URL代理或私有handler直通。
+状态：`DESIGN APPROVED 2026-10-22 / NOT REGISTERED / NOT IMPLEMENTED`。仅适用于[独立MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)，不改变下文旧Envelope/Schema Registry的规则。Core `/api/mvp/v1` 与BFF `/bff/mvp/v1` 采用有限HTTP接口，operation唯一命名仍归06；无任意operation/URL代理或私有handler直通。
 
 - JSON request body上限64 KiB；严格UTF-8/JSON闭对象、重复key/未知字段拒绝；UUIDv7、UTC RFC3339、安全整数（正值或允许0由 owning 字段规定）、lowercase hex SHA-256。路径必须标准编码且无重复/未知query参数。未给optional字段用省略，不能以null代替。业务字符串保持原字节语义，不做隐式trim/normalize来改变幂等输入。
 - JSON写使用 `Idempotency-Key: <UUIDv7>`；Client首次发出前固定key、target和payload。逻辑hash为cv1闭对象 `{protocol:'mvp@1',operation,projectId,targetId,payload}` 的SHA-256；projectId和targetId均由完整路由取值（create_project两者相等），不得遗漏batch所在project；owner取当前服务器身份，唯一键为owner+key。原操作receipt原样重放但必须重新授权；query纯读，不触发续步。并发CAS字段属于第一次意图，同键重放不能用新version改写payload。

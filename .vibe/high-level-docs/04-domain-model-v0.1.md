@@ -9,9 +9,9 @@
 
 ## 1. 文档目标
 
-### B1 项目与批次领域增量（提案）
+### B1 项目与批次领域增量（已批准设计）
 
-仅适用于 [新 MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)，状态 `PROPOSED / NOT IMPLEMENTED`。Project 为文档交付项目根，InputBatch 为项目内独立 CAS 的资料批次；原包/accepted Source、封存 InputManifest、Request receipt 与历史 events 不可变，Attempt 状态有追加历史。客户名称不产生旧 Enterprise/QMS/Fact；不存在隐式 Project start 或分析完成。
+仅适用于 [新 MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)，状态 `DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。Project 为文档交付项目根，InputBatch 为项目内独立 CAS 的资料批次；原包/accepted Source、封存 InputManifest、Request receipt 与历史 events 不可变，Attempt 状态有追加历史。客户名称不产生旧 Enterprise/QMS/Fact；不存在隐式 Project start 或分析完成。
 
 首包和补充包按同项目连续 batchNo 区分，不能按名称/Hash覆盖或合并历史。每项目最多一个活动托管批次；技术失败、结果未知与内容拒绝分别表达。新来源不自动改变后续已确认计划/固定输入。领域字段、状态表与失败不变量定向由 MVP01 §2/§4 拥有，避免维护第二份状态机；旧对象与不变量继续适用于旧 API。
 

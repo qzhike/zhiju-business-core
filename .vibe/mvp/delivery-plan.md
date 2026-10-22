@@ -2,11 +2,11 @@
 
 日期：2026-10-20
 
-状态：`DELIVERY PLAN USER CONFIRMED / SIMULATED UI FLOW USER CONFIRMED / B1 DESIGN PROPOSED / REAL BUSINESS ACCEPTANCE NOT RUN`
+状态：`DELIVERY PLAN USER CONFIRMED / SIMULATED UI FLOW USER CONFIRMED / B1 DESIGN USER APPROVED / REAL BUSINESS ACCEPTANCE NOT RUN`
 
 用户已于 2026-10-20 确认本交付计划：优先订正 UI，确认完整操作流程后，再补齐后端业务能力。本文细化这一顺序、交付结果、依赖和验收；计划确认不表示 UI 流程已经验收、业务已经实施或字段级技术设计已经批准。
 
-后续 U3/UI-01–08 模拟流程确认已记录在 [PR #309 正式 Review](../reviews/pr-309/Review.md)，不再沿用收口摘要中相冲突的总体 NOT RUN。确认只覆盖记录声明的 UI 旅程，不推定每个反例/平台或私有正文逐字检查已通过。2026-10-22 用户要求完成下一批前置设计，当前取舍与待批准范围见 [B1 设计](b1-design.md)。
+后续 U3/UI-01–08 模拟流程确认已记录在 [PR #309 正式 Review](../reviews/pr-309/Review.md)，不再沿用收口摘要中相冲突的总体 NOT RUN。确认只覆盖记录声明的 UI 旅程，不推定每个反例/平台或私有正文逐字检查已通过。2026-10-22 用户要求完成下一批前置设计，已批准取舍与精确修订见 [B1 设计](b1-design.md)。
 
 产品要求唯一见 [MVP 可用闭环](usable-loop.md)，架构取舍及代码处置见 [Core 缩编重构方案](core-refactoring-plan.md)，Current/Next/Later 唯一由 [roadmap](../product/roadmap.md)维护。本文不维护任务状态、Issue 正文或逐轮执行日志，也不改变既有契约、数据库及验证门禁。
 
@@ -140,7 +140,7 @@ UI 确认之后才固化新业务 API、状态与持久化模型并开始后端�
 
 同一组设计可按下一交付结果逐步闭合。资料接收的独立结果不必等待所有 Runner 生成能力完成，但不得把缺 Runner 的后续批次标为 READY；跨版本、确认与恢复这些难以补救的基础语义不能留到最后。
 
-B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-提议的-spec-delta)及 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。只有其独立审查、人类技术批准及可访问权威修订齐全，才发布依赖它的可执行 implementation Issue。真实 Runner 核验属于依赖分析能力的 B2 入口；不让 B1 托管伪装成该核验已完成。
+B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-已批准的-spec-delta)及 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。只有其独立审查、人类技术批准及可访问权威修订齐全，才发布依赖它的可执行 implementation Issue。真实 Runner 核验属于依赖分析能力的 B2 入口；不让 B1 托管伪装成该核验已完成。
 
 ## 5. 第三阶段：逐段接通真实业务能力
 
@@ -208,4 +208,4 @@ B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-提议的-spec-delta)
 | 独立审查与精确修订证据 | Reviewer、Implementer，必要时人类技术审查者 | 各交付合并前；T2 设计批准先于实现 | 修复实际阻断，按最新 head 复核；保留未运行边界 |
 | Issue/Git/合并与清理 | 用户授权，执行者按门禁交付 | 各操作发生前 | 规划完成不自动产生发布、合并或删除权限 |
 
-当前完成 B1 前置设计及适用批准，再按当前 main、依赖与授权发布一个完整的项目与资料托管 implementation Issue。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；结合真实对接结果估算当前批次，不一次性排死整个重构。
+B1 前置设计已完成复审及人类技术批准；权威修订进入主干并回读后，再按当前 main、依赖与授权发布一个完整的项目与资料托管 implementation Issue。每批以“可操作结果 → 用户反馈 → 修正 → 适用验证”推进。当前没有人员投入与 Runner 就绪日期，不承诺日历工期；结合真实对接结果估算当前批次，不一次性排死整个重构。
