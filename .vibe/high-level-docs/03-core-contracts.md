@@ -8,6 +8,10 @@
 
 ## 1. 文档目标
 
+### B1 新应用适用增量（提案）
+
+[B1 前置设计](../mvp/b1-design.md)在独立 MVP composition 中使用不可变 InputManifest/SourceRef，详细结构唯一由 [MVP01 §2](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#2-持久事实与不变量)拥有。它们标识收到的原包/条目，不是旧 ArtifactRevision、WorkOrder、AgentResult、Quality Gate 或批准。B1 不建立四个旧核心 Contract 作为托管前置，不将其字段填空来冒充兼容。新旧引用命名空间禁止互换；后续 B2 若消费新来源，必须精确绑定 manifest/source tuple，不能用可变“所有最新资料”。本增量待人类技术批准，原四个 Contract 及其已有实现仍按下文解释。
+
 本文将四个 Harness-neutral 核心 Contract 抽成独立 Source of Truth：
 
 ```text

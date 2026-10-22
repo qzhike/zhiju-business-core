@@ -8,6 +8,8 @@
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是本项目的产品与工程冻结基准。Agent 从根目录 `AGENTS.md` 进入，按角色与任务读取本文相关章节；本文负责说明产品目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
+2026-10-22 B1 技术增量为待批准设计：见 [B1 前置设计](../mvp/b1-design.md)、[MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)及[Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。它提出独立 MVP composition、DocumentDelivery Owner、新数据/身份边界及有限 API；以下七模块、统一 Envelope、Enterprise RLS 等旧实现规则继续有效。新应用的明确例外只在 B1 已列出的 owning 增量范围内提出，须经独立审查和人类技术批准才可实施，不是对旧平台的静默豁免。
+
 ---
 
 ## 1. Agent 启动协议

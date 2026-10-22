@@ -8,6 +8,19 @@
 
 ## 1. 目标与非目标
 
+### MVP v1 B1 共享协议（提案）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。仅适用于[独立MVP01](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)，不改变下文旧Envelope/Schema Registry的规则。Core `/api/mvp/v1` 与BFF `/bff/mvp/v1` 采用有限HTTP接口，operation唯一命名仍归06；无任意operation/URL代理或私有handler直通。
+
+- JSON request body上限64 KiB；严格UTF-8/JSON闭对象、重复key/未知字段拒绝；UUIDv7、UTC RFC3339、安全整数（正值或允许0由 owning 字段规定）、lowercase hex SHA-256。路径必须标准编码且无重复/未知query参数。未给optional字段用省略，不能以null代替。业务字符串保持原字节语义，不做隐式trim/normalize来改变幂等输入。
+- JSON写使用 `Idempotency-Key: <UUIDv7>`；Client首次发出前固定key、target和payload。逻辑hash为cv1闭对象 `{protocol:'mvp@1',operation,projectId,targetId,payload}` 的SHA-256；projectId和targetId均由完整路由取值（create_project两者相等），不得遗漏batch所在project；owner取当前服务器身份，唯一键为owner+key。原操作receipt原样重放但必须重新授权；query纯读，不触发续步。并发CAS字段属于第一次意图，同键重放不能用新version改写payload。
+- JSON成功形状 `{ok:true,data,receipt?,observedAt}`，data由owning操作定义；JSON写必带receipt，其形状为 `{requestId,projectId,operation,targetId,payloadHash,committedAt,result}`，result是本次data的不可变快照，不递归包含receipt。query没有顶层receipt，`get_request`的data可包含原receipt；流上传以batch/attempt为身份，不生成新的JSON写receipt。HTTP 201/200只证明该操作成功，202只证明已记录受理/续步，不证明资料已接纳或分析运行。当前状态通过资源query读取。
+- 错误 `{ok:false,error:{code,message,requestId?,retryable},observedAt}`，message为固定安全文本；不得含原payload、note、subject、token、SQL或存储路径。retryable只是依赖可重试提示，不授予新意图/上传权限；允许动作来自原资源query并在写时重验。
+- 错误闭集：400 `INVALID_REQUEST`；401 `AUTHENTICATION_REQUIRED`；403 `INSTANCE_ACCESS_DENIED`；404 `RESOURCE_NOT_FOUND`；409 `IDEMPOTENCY_CONFLICT|TARGET_EXISTS|VERSION_CONFLICT|PROJECT_BUSY|UPLOAD_BUSY|BATCH_SEALED|RECOVERY_NOT_ALLOWED|MANIFEST_NOT_READY|CURSOR_INVALID`；413 `INPUT_LIMIT_EXCEEDED`；422 `INPUT_REJECTED`；503 `DEPENDENCY_UNAVAILABLE|STORAGE_INTEGRITY_ERROR|OUTCOME_UNKNOWN`。分类只表达实际已知原因；网络/存储未知不能伪装422/404。batch内容拒绝也以当前status/reasonCodes持久记录，不只留HTTP错误。
+- Browser只持BFF opaque cookie+CSRF；token只在BFF内存。BFF转发原始access token、服务端session binding和固定trust hash；Core独立验证及实例owner解析。拒绝actor/owner/授权override headers。读写均核对当前会话/Host/可信peer，同源敏感读取，写及流上传额外Origin/CSRF；登出/失权清DOM/cache并忽略旧session迟到结果。
+- 上传不用旧D14 ticket，采用当前认证+精确batch/attempt/generation+声明bytes/hash+独占claim；这些header本身不是权限。Content-Length必需且匹配声明，拒绝Range/Content-Encoding及multipart替换；流总时限5分钟、无数据30秒，沿已有bounded-stream取消/背压语义。超时只描述观察，恢复仍需原写者结束证明。
+- API shape/version改变通过显式新version与兼容说明；B1没有任意extensions字段。实施须为每个有限route提供request/result/error schema和负例，并验证Web/BFF/Core同一契约；本设计不把描述当成已注册代码。
+
 本文把高层业务 Contract 落到可生成 Schema、Fixture、SDK 和 Handler 骨架的字段级 API，但不绑定传输协议。
 
 本阶段冻结：

@@ -8,6 +8,27 @@
 
 ## 1. 文档目标
 
+### MVP B1 独立目录（提案）
+
+状态：`PROPOSED / NOT REGISTERED / NOT IMPLEMENTED`。下列 `mvp.*` 属于独立 MVP v1 HTTP composition，唯一 Owner 为 `DocumentDelivery (MVP01)`；不是旧 Registry 的增量，也不改变历史200项兼容基线。实现须建立有限闭集 schema/route 声明及其一致性检查，未实现的操作不得通过通用dispatcher开放。传输/错误见共享 API 的 MVP v1 增量，字段/HTTP路径唯一见 [MVP01 §3](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#3-有限-api-与返回形状)。
+
+| Operation | 类别 | 版本 |
+|---|---|---|
+| mvp.get_session | QUERY | 1 |
+| mvp.create_project | COMMAND | 1 |
+| mvp.list_projects | QUERY | 1 |
+| mvp.get_project | QUERY | 1 |
+| mvp.create_input_batch | COMMAND | 1 |
+| mvp.list_input_batches | QUERY | 1 |
+| mvp.get_input_batch | QUERY | 1 |
+| mvp.get_input_entries | QUERY | 1 |
+| mvp.get_request | QUERY | 1 |
+| mvp.recover_input_batch | COMMAND | 1 |
+| mvp.upload_input_zip | STREAM_WRITE | 1 |
+| mvp.read_input_source | STREAM_READ | 1 |
+
+新引用只使用 MVP01 声明的完整 Project/Batch/Source/Manifest tuple 与 Hash，不接受旧 ObjectRef/ScopeRef/Envelope 或自由格式type替换。请求UUID、实体UUID、manifest业务身份、内容Hash及并发version各自独立。资源ID不携带权限；Client传入的projectId与任何完整引用都须由Owner回读验证归属。B1无公开Domain Event或Runner命令。
+
 本文冻结跨模块引用类型、统一 Command/Query/Event Envelope、Contract 版本与兼容性规则，并建立七个逻辑模块的公开 Contract Catalog。
 
 本文不定义数据库结构、编程语言类型、HTTP Route、MCP Tool、消息中间件 Topic 或飞书事件 JSON。
