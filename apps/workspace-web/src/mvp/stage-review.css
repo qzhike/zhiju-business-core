@@ -52,6 +52,27 @@
   background: var(--soft);
 }
 
+.stage-rework-impact table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.stage-rework-impact th,
+.stage-rework-impact td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.stage-rework-impact thead th {
+  background: var(--soft);
+}
+
 .stage-action-row {
   display: flex;
   flex-wrap: wrap;

@@ -10,9 +10,15 @@ const manual = `${base}/stages/manual`;
 const procedures = `${base}/stages/procedures`;
 const records = `${base}/stages/records`;
 
+async function openAnalysisControls(page: Page) {
+  const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
+  await details.waitFor({ state: 'attached' });
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+}
+
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
-  await page.locator('summary', { hasText: 'U1 分析演示控制' }).click();
+  await openAnalysisControls(page);
   await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();

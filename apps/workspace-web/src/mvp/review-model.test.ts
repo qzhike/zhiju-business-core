@@ -263,6 +263,8 @@ describe('U2 upstream finalization', () => {
         files: [file('F-MANUAL', ['V1', 'V2'], 'V1')],
       }),
     ).toContain('新候选已到达');
+    expect(finalizationBlocker({ ...base, finalized: true })).toContain('如需重新定稿');
+    expect(finalizationBlocker({ ...base, finalized: true, refinalization: true })).toBeUndefined();
     expect(finalizationBlocker({ ...base, active: true })).toContain('不能跨过');
     expect(
       finalizationBlocker({

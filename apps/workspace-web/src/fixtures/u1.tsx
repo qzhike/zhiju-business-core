@@ -644,7 +644,7 @@ export function FixtureU1Analysis() {
           </>
         }
         controls={
-          <details className="fixture-options">
+          <details className="fixture-options" open>
             <summary>U1 分析演示控制</summary>
             <p>固定合成答复；不上传或分析附件，不调用 Runner。刷新清理本页内存。</p>
             <select

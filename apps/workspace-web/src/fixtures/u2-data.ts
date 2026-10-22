@@ -297,6 +297,50 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
         },
       ],
     },
+    V3: {
+      fileId: 'F-MANUAL',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选（返工）',
+      sections: [
+        {
+          title: '1 四层文件结构与编号一致性',
+          paragraphs: [
+            '返工稿保留四层文件结构与既有质量方针；本轮只处理手册变更控制章节与下游引用的一致性。',
+            '下游程序、管理制度和记录表单按各自层级重新引用本版手册；不新增审批层级。',
+          ],
+        },
+        {
+          title: '2 4.2.4 变更控制与下游依据',
+          paragraphs: [
+            '手册明确变更控制章节是程序与记录表单的上游依据；手册版本变化后，下游须标记待复核并重新确认。',
+            '客户 I/II/III 类术语继续保留；分流结论、判定人和日期由程序与记录表单承载。',
+          ],
+        },
+        {
+          title: '3 文件与记录控制迁移',
+          paragraphs: [
+            '文件控制保持 4.3.5、记录控制保持 4.3.6；编号迁移沿用客户 A1 答复。',
+            '本稿不改变客户岗位授权，不把模板示例写成客户事实。',
+          ],
+          table: {
+            caption: '返工稿下游影响（候选）',
+            headers: ['下游文件', '处理', '理由'],
+            rows: [
+              ['变更控制程序', '修改', '同步手册依据与变更控制引用'],
+              ['外来文件管理规定', '保留', '职责与范围未受手册返工影响'],
+              ['记录表单', '复核', '按程序与手册新依据核对字段和编号'],
+            ],
+          },
+        },
+        {
+          title: '4 读取限制与待核对',
+          paragraphs: [
+            '组织图、流程图、批注和修订仍未核验；记录编号映射继续待业务核对。',
+            '本稿是环境 A 返工演练候选，不是 Runner 输出或客户确认。',
+          ],
+        },
+      ],
+    },
   },
   'F-PROCEDURE': {
     V1: {
@@ -391,6 +435,51 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
               ['变更通知单', 'T02 新增', '责任部门待核对'],
             ],
           },
+        },
+      ],
+    },
+    V3: {
+      fileId: 'F-PROCEDURE',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选（返工）',
+      sections: [
+        {
+          title: '1 返工依据与新手册版本',
+          paragraphs: [
+            '本稿以返工后的质量手册第 3 版为依据，重新核对变更控制章节、分流判定和下游记录引用。',
+            '客户 I/II/III 类分级与现有审批职责保持不变；不因手册返工新增审批关卡。',
+          ],
+        },
+        {
+          title: '2 变更控制与分流判定',
+          paragraphs: [
+            '变更申请、影响评估、评审、批准、实施、效果确认和关闭继续沿用客户职责。',
+            '分流结论必须记录判定依据、判定人和日期；无法判断时保持待确认，不以默认结论推进。',
+          ],
+        },
+        {
+          title: '3 下游记录与编号',
+          paragraphs: [
+            '四份记录表单按新手册与程序依据复核；变更申请单、评审记录和实施记录需要修改引用。',
+            '外来文件管理规定不随本次手册返工修改，继续采用已确认版本并保留理由。',
+          ],
+          table: {
+            caption: '返工后记录复核清单（候选）',
+            headers: ['记录', '处理', '理由'],
+            rows: [
+              ['变更申请单', '修改', '同步新的分流判定与手册版本引用'],
+              ['变更评审记录', '修改', '同步风险触发与手册依据'],
+              ['变更实施记录', '修改', '同步实施记录编号引用'],
+              ['变更通知单', '保留', '通知字段与本次手册返工无直接依赖'],
+            ],
+          },
+        },
+        {
+          title: '4 读取限制与待核对',
+          paragraphs: [
+            '流程图、批注和版式仍未核验；记录编号映射继续待业务核对。',
+            '本稿是环境 A 返工演练候选，不声称客户已确认或 Runner 已执行。',
+          ],
         },
       ],
     },
@@ -538,6 +627,32 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
               ['判定人与日期', '实际判定人', '签名与日期', '不预填审批人'],
               ['客户分级参考', 'I / II / III 类', '保留客户术语', '与初步判定并列'],
               ['申请意见', '申请部门意见与日期', '原有签批', '不新增审批层级'],
+            ],
+          },
+        },
+      ],
+    },
+    V3: {
+      fileId: 'F-FORM-APPLY',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选（后续改稿）',
+      sections: [
+        {
+          title: '变更申请信息与返工后手册依据',
+          paragraphs: [
+            '本稿按返工后的质量手册与变更控制程序核对申请单字段；客户现有申请信息与签批位置保留。',
+            '新增的手册版本引用与分流判定栏只补充必要依据，不改变申请与审批路径。',
+          ],
+          table: {
+            caption: '变更申请单后续改稿（候选）',
+            headers: ['字段', '现有内容', '本轮处理', '备注'],
+            rows: [
+              ['变更事项', '变更前与变更后描述', '保留', ''],
+              ['变更原因', '申请依据与原因', '保留', ''],
+              ['注册影响', '是否涉及注册事项', '保留并补充初步判定', '待业务核对'],
+              ['手册依据', '本次适用的质量手册版本', '新增引用', '第 3 版返工稿'],
+              ['分流判定', '实质性 / 非实质性 / 待确认', '增加初步判定栏', '不替代评审结论'],
+              ['申请意见', '申请部门意见', '保留原有签批', ''],
             ],
           },
         },
@@ -703,14 +818,15 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
 };
 
 export function u2VersionLabel(versionId: string): string {
+  if (versionId === 'V3') return '第 3 版候选';
   return versionId === 'V2' ? '第 2 版候选' : '第 1 版候选';
 }
 
 const revisionIds: Record<string, Record<string, string>> = {
-  'F-MANUAL': { V1: 'MANUAL01', V2: 'MANUAL02' },
-  'F-PROCEDURE': { V1: 'PROCED01', V2: 'PROCED02' },
+  'F-MANUAL': { V1: 'MANUAL01', V2: 'MANUAL02', V3: 'MANUAL03' },
+  'F-PROCEDURE': { V1: 'PROCED01', V2: 'PROCED02', V3: 'PROCED03' },
   'F-EXTERNAL-RULE': { V1: 'EXTRULE1', V2: 'EXTRULE2' },
-  'F-FORM-APPLY': { V1: 'FORMAPP1', V2: 'FORMAPP2' },
+  'F-FORM-APPLY': { V1: 'FORMAPP1', V2: 'FORMAPP2', V3: 'FORMAPP3' },
   'F-FORM-REVIEW': { V1: 'FORMREV1', V2: 'FORMREV2' },
   'F-FORM-IMPLEMENT': { V1: 'FORMIMP1', V2: 'FORMIMP2' },
   'F-FORM-NOTICE': { V1: 'FORMNOT1', V2: 'FORMNOT2' },
