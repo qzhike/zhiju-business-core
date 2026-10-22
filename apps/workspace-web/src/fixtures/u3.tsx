@@ -53,6 +53,7 @@ import {
   type RetryReceipt,
   type SelectionIssues,
 } from '../mvp/u3-model.js';
+import { MvpActivityContext } from './activity.js';
 import { MvpHandoffContext, type MvpHandoff } from './handoff.js';
 import { FixtureDelivery } from './delivery.js';
 import { u1Project } from './u1-data.js';
@@ -338,13 +339,17 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const active = activeSubmission(
     Object.values(u2.sessions).flatMap((session) => session.submissions),
   );
-  const unresolvedRecovery =
+  const recoveryActivity =
     execution.retryRequest &&
     (execution.retryStatus === 'PENDING' ||
       execution.retryStatus === 'UNKNOWN' ||
       execution.retryStatus === 'MISMATCH')
-      ? execution.retryRequest.intent.requestId
+      ? {
+          requestId: execution.retryRequest.intent.requestId,
+          status: execution.retryStatus,
+        }
       : undefined;
+  const unresolvedRecovery = recoveryActivity?.requestId;
   const blockerInput = (selection: SelectionIssues) => ({
     planReady: u2.planCheck.ready,
     ...(u2.planCheck.reason !== undefined ? { planReason: u2.planCheck.reason } : {}),
@@ -521,6 +526,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const currentFiles = [...merged.values()];
   const failedFiles = currentFiles.filter((file) => file.state === 'FAILED');
   const retryCanRun =
+    !active &&
     failedFiles.length > 0 &&
     execution.retryStatus !== 'PENDING' &&
     execution.retryStatus !== 'UNKNOWN' &&
@@ -585,8 +591,9 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     retry: {
       status: execution.retryNote,
       ...(execution.retryRequest ? { requestLabel: execution.retryRequest.intent.requestId } : {}),
-      note:
-        execution.retryStatus === 'UNKNOWN'
+      note: active
+        ? `本项目已有待回执或待核验的修改请求 ${active.requestId}；不能启动第二个修改批次。`
+        : execution.retryStatus === 'UNKNOWN'
           ? '原重试请求结果未知；只查询原请求，不启动第二次执行。'
           : execution.retryStatus === 'MISMATCH'
             ? '错绑回执不能证明原尝试结束；原请求保持可核对且不可重发。'
@@ -998,11 +1005,14 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const api: U3Api = { rework, execution: executionProps, delivery: deliveryProps };
   return (
     <U3Context.Provider value={api}>
-      <MvpHandoffContext.Provider value={handoff}>{children}</MvpHandoffContext.Provider>
+      <MvpActivityContext.Provider value={recoveryActivity ? { recovery: recoveryActivity } : {}}>
+        <MvpHandoffContext.Provider value={handoff}>{children}</MvpHandoffContext.Provider>
+      </MvpActivityContext.Provider>
     </U3Context.Provider>
   );
 
   function requestRetry() {
+    if (active) return;
     setExecution((current) => {
       const attempt = current.attempts.at(-1);
       if (!attempt) return current;

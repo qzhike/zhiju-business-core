@@ -56,6 +56,7 @@ import {
 import type { JourneyReviewStage } from '../mvp/JourneyNav.js';
 import { u1Project } from './u1-data.js';
 import { useU1 } from './u1.js';
+import { useMvpActivity } from './activity.js';
 import { MvpHandoffContext, type MvpHandoff } from './handoff.js';
 import { u2Candidate, u2FileMetas, u2Summary, u2VersionLabel, u2VersionsFor } from './u2-data.js';
 import {
@@ -586,6 +587,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const active = activeSubmission(
     Object.values(sessions).flatMap((candidate) => candidate.submissions),
   );
+  const recoveryActivity = useMvpActivity().recovery;
   const allSubmissions = Object.values(sessions)
     .flatMap((candidate) => candidate.submissions)
     .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
@@ -1112,7 +1114,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     const projectActive = activeSubmission(
       Object.values(sessions).flatMap((candidate) => candidate.submissions),
     );
-    if (projectActive) return;
+    if (projectActive || recoveryActivity) return;
     if (!currentSet) return;
     update((current) => {
       const requestId = `U2-REV-${crypto.randomUUID().slice(0, 8)}`;
@@ -1594,9 +1596,11 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       ? '当前范围的意见仍在等待原保存请求回执；请先查询原保存请求，再提交修改。'
       : draftBasisChanged(draft, currentBasis)
         ? '该草稿按上一版本依据保存；请显式重新绑定到当前依据后再提交。'
-        : active && active.scope.id !== selectedScope.id
-          ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
-          : undefined;
+        : recoveryActivity
+          ? `本项目已有待回执或待核验的恢复请求 ${recoveryActivity.requestId}；可以保存下轮草稿，但不能启动第二个修改批次。`
+          : active && active.scope.id !== selectedScope.id
+            ? '本项目已有待回执或待核验的修改请求；可以继续保存下轮草稿，但不能启动第二个批次。'
+            : undefined;
   const history = allSubmissions.map((entry) => ({
     id: entry.submissionId,
     scopeLabel: entry.scope.label,

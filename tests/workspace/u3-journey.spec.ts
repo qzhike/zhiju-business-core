@@ -17,6 +17,10 @@ function requestId(text: string | null): string {
   return text?.match(/U3-(?:RETRY|FINAL)-[0-9a-f]+/u)?.[0] ?? '';
 }
 
+function stageRequestId(text: string | null): string {
+  return text?.match(/U2-REV-[0-9a-f]+/u)?.[0] ?? '';
+}
+
 function journeyLink(page: Page, name: string) {
   return page.getByRole('navigation', { name: '同一项目的页面路径' }).getByRole('link', { name });
 }
@@ -462,6 +466,58 @@ test('unresolved recovery request blocks final delivery until reconciled', async
   await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
   await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
+});
+
+test('unresolved recovery blocks a second stage modification and releases after convergence', async ({
+  page,
+}) => {
+  await reachRecordsWithCandidates(page);
+  await journeyLink(page, '执行与恢复').click();
+  await page.getByLabel('重试回执场景').selectOption('unknown');
+  await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
+  const retryId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
+
+  await journeyLink(page, '记录表单审阅').click();
+  await page.locator('#markdown-note').fill('恢复未收敛时尝试的第二批次');
+  await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
+  await expect(page.getByText(`本项目已有待回执或待核验的恢复请求 ${retryId}`)).toBeVisible();
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
+  await expect(page.locator('main')).not.toContainText('U2-REV-');
+
+  page.once('dialog', (dialog) => {
+    void dialog.accept();
+  });
+  await journeyLink(page, '执行与恢复').click();
+  await expect(page.locator('.u3-page')).toContainText(retryId);
+  await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
+  await page.getByRole('button', { name: '查询原重试请求' }).click();
+  await journeyLink(page, '记录表单审阅').click();
+  await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
+  await page.getByRole('button', { name: '提交并修改' }).click();
+  await expect(page.locator('.markdown-history')).toContainText('U2-REV-');
+});
+
+test('unresolved stage modification blocks recovery and releases after convergence', async ({
+  page,
+}) => {
+  await reachRecordsWithCandidates(page);
+  await page.locator('#markdown-note').fill('先创建的阶段修改批次');
+  await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
+  await page.getByRole('button', { name: '提交并修改' }).click();
+  const stageId = stageRequestId(await page.locator('.markdown-submission').textContent());
+
+  await journeyLink(page, '执行与恢复').click();
+  await page.getByLabel('重试回执场景').selectOption('pending');
+  await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
+  await expect(page.getByText(`本项目已有待回执或待核验的修改请求 ${stageId}`)).toBeVisible();
+  await expect(page.getByText(/原请求 U3-RETRY-/u)).toHaveCount(0);
+
+  await journeyLink(page, '记录表单审阅').click();
+  await page.getByRole('button', { name: '模拟原修订回执到达' }).click();
+  await page.getByRole('button', { name: '重新查询原修订请求' }).click();
+  await journeyLink(page, '执行与恢复').click();
+  await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
+  await expect(page.getByText(/原请求 U3-RETRY-/u)).toBeVisible();
 });
 
 test('deep links and missing prerequisites cannot fabricate the U3 journey', async ({ page }) => {
