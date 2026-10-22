@@ -189,7 +189,7 @@ async function provisionInstallation(config, secrets, store) {
   });
   await admin.connect();
   try {
-    await admin.query('SET ROLE mvp_owner');
+    await admin.query('SET ROLE mvp_ddl');
     const installation = (
       await admin.query(
         'SELECT instance_id, schema_version, store_id::text, store_identity FROM document_delivery.installation WHERE singleton',

@@ -401,7 +401,7 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     const owner = new Client({ connectionString: adminConnection.toString() });
     await owner.connect();
     try {
-      await owner.query('SET ROLE mvp_owner');
+      await owner.query('SET ROLE mvp_ddl');
       await owner.query(
         'UPDATE document_delivery.operator_binding SET auth_epoch = auth_epoch + 1 WHERE owner_id = $1',
         [fixture.ownerId],

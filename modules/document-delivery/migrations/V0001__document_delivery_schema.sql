@@ -4,19 +4,19 @@
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mvp_owner') THEN
-    CREATE ROLE mvp_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mvp_ddl') THEN
+    CREATE ROLE mvp_ddl NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mvp_runtime') THEN
     CREATE ROLE mvp_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS;
   END IF;
 END $$;
 
-CREATE SCHEMA IF NOT EXISTS document_delivery AUTHORIZATION mvp_owner;
+CREATE SCHEMA IF NOT EXISTS document_delivery AUTHORIZATION mvp_ddl;
 REVOKE ALL ON SCHEMA document_delivery FROM PUBLIC;
 GRANT USAGE ON SCHEMA document_delivery TO mvp_runtime;
 
-SET ROLE mvp_owner;
+SET ROLE mvp_ddl;
 
 CREATE TABLE document_delivery.installation (
   singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
@@ -493,11 +493,11 @@ ALTER TABLE document_delivery.source_entries FORCE ROW LEVEL SECURITY;
 ALTER TABLE document_delivery.custody_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_delivery.custody_events FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY installation_owner ON document_delivery.installation TO mvp_owner
+CREATE POLICY installation_owner ON document_delivery.installation TO mvp_ddl
   USING (true) WITH CHECK (true);
 CREATE POLICY installation_runtime ON document_delivery.installation TO mvp_runtime
   USING (true) WITH CHECK (false);
-CREATE POLICY operator_binding_owner ON document_delivery.operator_binding TO mvp_owner
+CREATE POLICY operator_binding_owner ON document_delivery.operator_binding TO mvp_ddl
   USING (true) WITH CHECK (true);
 
 CREATE POLICY projects_runtime ON document_delivery.projects TO mvp_runtime
@@ -523,19 +523,19 @@ CREATE POLICY events_runtime ON document_delivery.custody_events TO mvp_runtime
   WITH CHECK (owner_id = document_delivery.current_owner());
 
 -- Owner policies are required because FORCE RLS also applies to the owner.
-CREATE POLICY projects_owner ON document_delivery.projects TO mvp_owner
+CREATE POLICY projects_owner ON document_delivery.projects TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY requests_owner ON document_delivery.requests TO mvp_owner
+CREATE POLICY requests_owner ON document_delivery.requests TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY batches_owner ON document_delivery.input_batches TO mvp_owner
+CREATE POLICY batches_owner ON document_delivery.input_batches TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY attempts_owner ON document_delivery.batch_attempts TO mvp_owner
+CREATE POLICY attempts_owner ON document_delivery.batch_attempts TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY manifests_owner ON document_delivery.input_manifests TO mvp_owner
+CREATE POLICY manifests_owner ON document_delivery.input_manifests TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY entries_owner ON document_delivery.source_entries TO mvp_owner
+CREATE POLICY entries_owner ON document_delivery.source_entries TO mvp_ddl
   USING (true) WITH CHECK (true);
-CREATE POLICY events_owner ON document_delivery.custody_events TO mvp_owner
+CREATE POLICY events_owner ON document_delivery.custody_events TO mvp_ddl
   USING (true) WITH CHECK (true);
 
 REVOKE ALL ON ALL TABLES IN SCHEMA document_delivery FROM PUBLIC, mvp_runtime;

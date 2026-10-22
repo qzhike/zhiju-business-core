@@ -282,7 +282,7 @@ export async function provisionMvp(
   const admin = new Client({ connectionString: url.toString() });
   await admin.connect();
   try {
-    await admin.query('SET ROLE mvp_owner');
+    await admin.query('SET ROLE mvp_ddl');
     await admin.query(
       `INSERT INTO document_delivery.installation
          (instance_id, schema_version, store_id, store_identity, created_at)
