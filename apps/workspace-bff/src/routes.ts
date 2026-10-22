@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { httpStatusForBody, readJsonBody } from './body.js';
+import { httpStatusForBody, readJsonBody, readRawJsonBody } from './body.js';
 import { parseCallbackQuery, resolveReturnTo } from './callback-query.js';
 import {
   LOGIN_COOKIE,
@@ -58,6 +58,91 @@ export interface BffRouterContext {
   now: () => number;
   fetchImpl: FetchLike;
   refreshWaitMs: number;
+  /** Configured only for the dedicated MVP instance. */
+  mvp?: { readonly coreBaseUrl: string };
+}
+
+const MVP_PREFIX = '/bff/mvp/v1';
+
+export interface MvpRouteMatch {
+  readonly kind: 'read' | 'write' | 'upload' | 'download';
+  readonly corePath: string;
+  readonly query: readonly string[];
+}
+
+function idSegment(value: string | undefined): boolean {
+  return value !== undefined && isUuidV7(value);
+}
+
+/**
+ * Finite `/bff/mvp/v1` route table. There is no generic upstream URL, and a
+ * path outside this closed set is never forwarded.
+ */
+export function matchMvpRoute(path: string, method: string): MvpRouteMatch | 'METHOD' | undefined {
+  if (path !== MVP_PREFIX && !path.startsWith(`${MVP_PREFIX}/`)) return undefined;
+  const rest = path.slice(MVP_PREFIX.length);
+  if (rest.length === 0 || rest.endsWith('/')) return undefined;
+  const segments = rest.split('/').slice(1);
+  const corePath = `/api/mvp/v1${rest}`;
+  if (segments.length === 1 && segments[0] === 'session')
+    return method === 'GET' ? { kind: 'read', corePath, query: [] } : 'METHOD';
+  if (segments.length === 1 && segments[0] === 'projects')
+    return method === 'GET' ? { kind: 'read', corePath, query: ['limit', 'cursor'] } : 'METHOD';
+  if (segments.length === 2 && segments[0] === 'requests' && idSegment(segments[1]))
+    return method === 'GET' ? { kind: 'read', corePath, query: [] } : 'METHOD';
+  if (segments.length === 2 && segments[0] === 'projects' && idSegment(segments[1])) {
+    if (method === 'GET') return { kind: 'read', corePath, query: [] };
+    if (method === 'PUT') return { kind: 'write', corePath, query: [] };
+    return 'METHOD';
+  }
+  if (
+    segments.length === 3 &&
+    segments[0] === 'projects' &&
+    idSegment(segments[1]) &&
+    segments[2] === 'batches'
+  )
+    return method === 'GET' ? { kind: 'read', corePath, query: ['limit', 'cursor'] } : 'METHOD';
+  if (
+    segments.length === 4 &&
+    segments[0] === 'projects' &&
+    idSegment(segments[1]) &&
+    segments[2] === 'batches' &&
+    idSegment(segments[3])
+  ) {
+    if (method === 'GET')
+      return { kind: 'read', corePath, query: ['attemptLimit', 'attemptCursor'] };
+    if (method === 'PUT') return { kind: 'write', corePath, query: [] };
+    return 'METHOD';
+  }
+  if (
+    segments.length === 5 &&
+    segments[0] === 'projects' &&
+    idSegment(segments[1]) &&
+    segments[2] === 'batches' &&
+    idSegment(segments[3])
+  ) {
+    if (segments[4] === 'entries')
+      return method === 'GET'
+        ? { kind: 'read', corePath, query: ['manifestId', 'limit', 'cursor'] }
+        : 'METHOD';
+    if (segments[4] === 'recovery')
+      return method === 'POST' ? { kind: 'write', corePath, query: [] } : 'METHOD';
+    if (segments[4] === 'zip')
+      return method === 'PUT' ? { kind: 'upload', corePath, query: [] } : 'METHOD';
+    return undefined;
+  }
+  if (
+    segments.length === 7 &&
+    segments[0] === 'projects' &&
+    idSegment(segments[1]) &&
+    segments[2] === 'batches' &&
+    idSegment(segments[3]) &&
+    segments[4] === 'sources' &&
+    idSegment(segments[5]) &&
+    segments[6] === 'content'
+  )
+    return method === 'GET' ? { kind: 'download', corePath, query: [] } : 'METHOD';
+  return undefined;
 }
 
 type SessionLookup =
@@ -262,6 +347,52 @@ export function createRequestHandler(
     return { record: lookup.record };
   }
 
+  /**
+   * Protected read: current session, Host and same-origin proof. A sensitive
+   * GET may arrive without Origin, but only with `Sec-Fetch-Site: same-origin`;
+   * no CSRF token is accepted as a substitute for a live session.
+   */
+  function guardRead(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): { record: SessionRecord } | { handled: true } {
+    const lookup = lookupSession(request);
+    const failure = guardSessionRead(reply, lookup);
+    if (failure) return { handled: true };
+    if (lookup.status !== 'active') return { handled: true };
+    const target = effectiveTarget(request);
+    if (
+      !originAllowed(config.publicOrigin, target.origin) &&
+      !(
+        request.method === 'GET' &&
+        target.origin === undefined &&
+        request.headers['sec-fetch-site'] === 'same-origin'
+      )
+    ) {
+      return {
+        handled: sendSafeError(
+          reply,
+          403,
+          UI_ERROR.ORIGIN_REJECTED,
+          'Request origin rejected.',
+          false,
+        ),
+      };
+    }
+    if (!hostAllowed(config.allowedHosts, target.host)) {
+      return {
+        handled: sendSafeError(
+          reply,
+          403,
+          UI_ERROR.ORIGIN_REJECTED,
+          'Request host rejected.',
+          false,
+        ),
+      };
+    }
+    return { record: lookup.record };
+  }
+
   function sessionPayload(record: SessionRecord, extra: Record<string, unknown> = {}) {
     return {
       accessState: 'ALLOWED',
@@ -445,31 +576,43 @@ export function createRequestHandler(
       });
       const identity = verifiedIdentity(idToken, accessToken);
       const sessionBinding = randomToken(SESSION_BINDING_BYTES);
-      const bootstrap = await bootstrapCore({
-        accessToken: tokens.accessToken,
-        sessionBinding,
-      });
-      if (bootstrap === undefined) {
-        return sendSafeError(
-          reply,
-          503,
-          UI_ERROR.SERVICE_NOT_CONFIGURED,
-          'Identity service unavailable.',
-          true,
-        );
-      }
-      if (bootstrap.status !== 200) {
-        return sendCoreFailure(reply, bootstrap);
-      }
-      const principal = principalSummary(bootstrap.body);
-      if (principal === undefined) {
-        return sendSafeError(
-          reply,
-          503,
-          UI_ERROR.SERVICE_NOT_CONFIGURED,
-          'Identity service response invalid.',
-          true,
-        );
+      // The MVP transport does not own a workspace Human bootstrap. Its Core
+      // resolves the operator binding per request; this opaque per-login id is
+      // only a client cache/session-scope label, never an authorization fact.
+      let principal: SessionPrincipalSummary | undefined;
+      if (context.mvp !== undefined) {
+        principal = {
+          principalId: uuidV7(),
+          principalKind: 'HUMAN',
+          displayName: '当前员工',
+        };
+      } else {
+        const bootstrap = await bootstrapCore({
+          accessToken: tokens.accessToken,
+          sessionBinding,
+        });
+        if (bootstrap === undefined) {
+          return sendSafeError(
+            reply,
+            503,
+            UI_ERROR.SERVICE_NOT_CONFIGURED,
+            'Identity service unavailable.',
+            true,
+          );
+        }
+        if (bootstrap.status !== 200) {
+          return sendCoreFailure(reply, bootstrap);
+        }
+        principal = principalSummary(bootstrap.body);
+        if (principal === undefined) {
+          return sendSafeError(
+            reply,
+            503,
+            UI_ERROR.SERVICE_NOT_CONFIGURED,
+            'Identity service response invalid.',
+            true,
+          );
+        }
       }
       const refreshToken = tokens.refreshToken;
       // Atomic per-browser generation boundary: exactly one callback issued
@@ -1027,6 +1170,357 @@ export function createRequestHandler(
     }
   }
 
+  async function handleMvp(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    path: string,
+    rawQuery: string,
+    method: string,
+  ): Promise<boolean> {
+    const route = matchMvpRoute(path, method);
+    if (route === undefined) return false;
+    if (route === 'METHOD')
+      return sendSafeError(reply, 405, UI_ERROR.CLIENT_STATE_INVALID, 'Method not allowed.', false);
+    const mvp = context.mvp;
+    if (mvp === undefined)
+      return sendSafeError(
+        reply,
+        503,
+        UI_ERROR.SERVICE_NOT_CONFIGURED,
+        'Business service not configured.',
+        false,
+      );
+    const parameters = new URLSearchParams(rawQuery);
+    for (const key of parameters.keys()) {
+      if (!route.query.includes(key) || parameters.getAll(key).length !== 1)
+        return sendSafeError(
+          reply,
+          400,
+          UI_ERROR.CLIENT_STATE_INVALID,
+          'Request parameters rejected.',
+          false,
+        );
+    }
+    const expectedContentType =
+      route.kind === 'upload'
+        ? ZIP_CONTENT_TYPE
+        : route.kind === 'write'
+          ? JSON_CONTENT_TYPE
+          : undefined;
+    const guarded =
+      route.kind === 'read' || route.kind === 'download'
+        ? guardRead(request, reply)
+        : guardProtected(request, reply, expectedContentType);
+    if ('handled' in guarded) return true;
+    if (
+      expectedContentType !== undefined &&
+      !contentTypeAllowed(singleHeaderValue(request.headers['content-type']), expectedContentType)
+    )
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Unsupported content type.',
+        false,
+      );
+    try {
+      assertNoOverrideHeaders(request.headers);
+    } catch {
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Caller-supplied identity fields are not accepted.',
+        false,
+      );
+    }
+    const fresh = await ensureFreshSession(guarded.record);
+    if (fresh === undefined)
+      return sendSafeError(reply, 401, UI_ERROR.SESSION_EXPIRED, 'Session expired.', true);
+    if (route.kind === 'upload')
+      return handleMvpUpload(request, reply, route, fresh, mvp.coreBaseUrl);
+    if (route.kind === 'download') return handleMvpSource(reply, route, fresh, mvp.coreBaseUrl);
+    return handleMvpJson(request, reply, route, rawQuery, fresh, mvp.coreBaseUrl);
+  }
+
+  async function handleMvpJson(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    route: MvpRouteMatch,
+    rawQuery: string,
+    fresh: SessionRecord,
+    coreBaseUrl: string,
+  ): Promise<boolean> {
+    let bodyText: string | undefined;
+    let idempotency: string | undefined;
+    if (route.kind === 'write') {
+      const value = singleHeaderValue(request.headers['idempotency-key']);
+      if (value === undefined || !isUuidV7(value))
+        return sendSafeError(
+          reply,
+          400,
+          UI_ERROR.CLIENT_STATE_INVALID,
+          'Idempotency key rejected.',
+          false,
+        );
+      idempotency = value;
+      const body = await readRawJsonBody(request, 64 * 1024);
+      if (body.status !== 'ok')
+        return sendSafeError(
+          reply,
+          httpStatusForBody(body),
+          UI_ERROR.CLIENT_STATE_INVALID,
+          'Request body rejected.',
+          false,
+        );
+      bodyText = body.value;
+    }
+    const url = `${trimTrailingSlash(coreBaseUrl)}${route.corePath}${rawQuery.length === 0 ? '' : `?${rawQuery}`}`;
+    let response: Response;
+    try {
+      response = await context.fetchImpl(url, {
+        method: request.method,
+        redirect: 'error',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${fresh.accessToken}`,
+          'x-workspace-session-binding': fresh.sessionBinding,
+          'x-workspace-trust-config-hash': loaded.configHash,
+          ...(bodyText === undefined
+            ? {}
+            : { 'content-type': JSON_CONTENT_TYPE, 'idempotency-key': idempotency ?? '' }),
+        },
+        ...(bodyText === undefined ? {} : { body: bodyText }),
+        signal: AbortSignal.timeout(config.httpTimeoutSeconds * 1000),
+      });
+    } catch {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upstream dependency unavailable.',
+        true,
+      );
+    }
+    const text = await response.text();
+    if (text.length > CORE_RESPONSE_LIMIT)
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upstream result rejected.',
+        true,
+      );
+    if (!sessions.isCurrent(fresh))
+      return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
+    reply
+      .status(response.status)
+      .header('content-type', 'application/json; charset=utf-8')
+      .send(text);
+    return true;
+  }
+
+  async function handleMvpUpload(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    route: MvpRouteMatch,
+    fresh: SessionRecord,
+    coreBaseUrl: string,
+  ): Promise<boolean> {
+    if (request.url.includes('?'))
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Upload request rejected.',
+        false,
+      );
+    const lengthHeader = singleHeaderValue(request.headers['content-length']);
+    const attemptId = singleHeaderValue(request.headers['x-mvp-upload-attempt']);
+    const generation = singleHeaderValue(request.headers['x-mvp-upload-generation']);
+    if (
+      lengthHeader === undefined ||
+      !/^[1-9][0-9]*$/u.test(lengthHeader) ||
+      attemptId === undefined ||
+      !isUuidV7(attemptId) ||
+      generation === undefined ||
+      !/^[1-9][0-9]{0,8}$/u.test(generation) ||
+      request.headers['content-encoding'] !== undefined ||
+      request.headers.range !== undefined
+    )
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Upload request rejected.',
+        false,
+      );
+    if (activeUploads >= config.maxConcurrentUploads)
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upload unavailable.',
+        true,
+      );
+    activeUploads += 1;
+    let upload: ReturnType<typeof createBoundedZipBody> | undefined;
+    const abort = () => upload?.abort();
+    request.raw.once('aborted', abort);
+    try {
+      upload = createBoundedZipBody({
+        source: request.raw,
+        currentSession: () => sessions.isCurrent(fresh),
+        cancelSource: () => {
+          if (!request.raw.complete) request.raw.destroy();
+        },
+        contentLength: Number(lengthHeader),
+      });
+      const response = await context.fetchImpl(
+        `${trimTrailingSlash(coreBaseUrl)}${route.corePath}`,
+        {
+          method: 'PUT',
+          redirect: 'error',
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/zip',
+            authorization: `Bearer ${fresh.accessToken}`,
+            'x-workspace-session-binding': fresh.sessionBinding,
+            'x-workspace-trust-config-hash': loaded.configHash,
+            'content-length': lengthHeader,
+            'x-mvp-upload-attempt': attemptId,
+            'x-mvp-upload-generation': generation,
+          },
+          body: upload.body,
+          signal: upload.signal,
+          duplex: 'half',
+        },
+      );
+      const text = await response.text();
+      if (text.length > CORE_RESPONSE_LIMIT) throw new Error('MVP_UPLOAD_RESULT_REJECTED');
+      if (!sessions.isCurrent(fresh))
+        return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
+      const value: unknown = JSON.parse(text);
+      if (!isPlainObject(value)) throw new Error('MVP_UPLOAD_RESULT_REJECTED');
+      reply.status(response.status).header('content-type', 'application/json').send(value);
+      return true;
+    } catch {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Upload result unknown.',
+        false,
+      );
+    } finally {
+      activeUploads -= 1;
+      request.raw.removeListener('aborted', abort);
+      upload?.abort();
+    }
+  }
+
+  async function handleMvpSource(
+    reply: FastifyReply,
+    route: MvpRouteMatch,
+    fresh: SessionRecord,
+    coreBaseUrl: string,
+  ): Promise<boolean> {
+    let response: Response;
+    try {
+      response = await context.fetchImpl(`${trimTrailingSlash(coreBaseUrl)}${route.corePath}`, {
+        method: 'GET',
+        redirect: 'error',
+        headers: {
+          accept: 'application/octet-stream',
+          authorization: `Bearer ${fresh.accessToken}`,
+          'x-workspace-session-binding': fresh.sessionBinding,
+          'x-workspace-trust-config-hash': loaded.configHash,
+        },
+        signal: AbortSignal.timeout(config.httpTimeoutSeconds * 1000),
+      });
+    } catch {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Download unavailable.',
+        true,
+      );
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      reply
+        .status(response.status)
+        .header('content-type', 'application/json; charset=utf-8')
+        .send(text.length > CORE_RESPONSE_LIMIT ? '' : text);
+      return true;
+    }
+    const length = response.headers.get('content-length');
+    const contentType = response.headers.get('content-type');
+    const disposition = response.headers.get('content-disposition');
+    const checksum = response.headers.get('content-sha256');
+    if (
+      length === null ||
+      !/^[1-9][0-9]*$/u.test(length) ||
+      contentType === null ||
+      disposition === null ||
+      checksum === null ||
+      !/^[0-9a-f]{64}$/u.test(checksum) ||
+      response.body === null
+    ) {
+      await response.body?.cancel().catch(() => undefined);
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Download unavailable.',
+        true,
+      );
+    }
+    const expected = Number(length);
+    const reader = response.body.getReader();
+    const abort = new AbortController();
+    let sent = 0;
+    const currentSession = () => sessions.isCurrent(fresh);
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          abort.signal.throwIfAborted();
+          if (!currentSession()) throw new Error('Download interrupted');
+          const chunk = await reader.read();
+          abort.signal.throwIfAborted();
+          if (!currentSession()) throw new Error('Download interrupted');
+          if (chunk.done) {
+            if (sent !== expected) throw new Error('Incomplete download');
+            controller.close();
+            abort.abort();
+            return;
+          }
+          const bytes = chunk.value as Uint8Array;
+          sent += bytes.byteLength;
+          if (sent > expected) throw new Error('Download exceeds its binding');
+          controller.enqueue(bytes);
+        } catch (error) {
+          controller.error(error);
+          abort.abort();
+          await reader.cancel().catch(() => undefined);
+        }
+      },
+      async cancel() {
+        abort.abort();
+        await reader.cancel().catch(() => undefined);
+      },
+    });
+    reply.header('content-type', contentType);
+    reply.header('content-disposition', disposition);
+    reply.header('content-length', length);
+    reply.header('content-sha256', checksum);
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('cache-control', 'no-store');
+    await reply.send(stream);
+    return true;
+  }
+
   async function handleMarkdownContent(
     request: FastifyRequest,
     reply: FastifyReply,
@@ -1172,6 +1666,8 @@ export function createRequestHandler(
   return async (request, reply) => {
     const { path, rawQuery } = splitUrl(request.url);
     const method = request.method.toUpperCase();
+    if (path.startsWith(`${MVP_PREFIX}/`) || path === MVP_PREFIX)
+      return handleMvp(request, reply, path, rawQuery, method);
     if (path.startsWith('/api/markdown-representations/'))
       return handleMarkdownContent(request, reply, path);
     if (path.startsWith('/bff/queries/') || path.startsWith('/bff/commands/')) {

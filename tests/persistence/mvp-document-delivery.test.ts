@@ -1,0 +1,416 @@
+import { Client } from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { newUuidV7 } from '@zhiju/shared-kernel';
+import {
+  MvpDatabase,
+  MvpService,
+  type SessionIdentity,
+} from '../../modules/document-delivery/src/index.js';
+import {
+  applyMvpMigration,
+  corruptStoredFile,
+  createMvpDatabase,
+  docxBytes,
+  markdownBytes,
+  provisionMvp,
+  sha256,
+  singleChunk,
+  textBytes,
+  xlsxBytes,
+  zipBytes,
+  type MvpFixture,
+} from './mvp-fixtures.js';
+
+const adminUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
+const gateEnabled = adminUrl !== undefined;
+const terminal = new Set(['RECEIVED', 'PARTIAL', 'REJECTED', 'FAILED', 'ABANDONED']);
+
+describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated PostgreSQL)', () => {
+  let admin: Client | undefined;
+  let fixture: MvpFixture;
+  let database: MvpDatabase;
+  let service: MvpService;
+  let identity: SessionIdentity;
+
+  beforeAll(async () => {
+    if (adminUrl === undefined) throw new Error('persistence gate is required');
+    admin = await createMvpDatabase(adminUrl);
+    await applyMvpMigration(adminUrl);
+    fixture = await provisionMvp(adminUrl, { owner2: true });
+    identity = {
+      ownerId: fixture.ownerId,
+      displayName: 'MVP 操作者',
+      authEpoch: 1,
+    };
+    database = new MvpDatabase({ connectionString: fixture.databaseUrl });
+    service = new MvpService({
+      database,
+      store: fixture.store,
+      cursorKey: Buffer.alloc(32, 7),
+      incarnation: 'vitest',
+    });
+    await service.startup();
+  }, 180_000);
+
+  afterAll(async () => {
+    try {
+      await database.close();
+    } catch {
+      // beforeAll may have failed before a pool existed.
+    }
+    await admin?.end();
+  }, 60_000);
+
+  async function createProject(name = '客户甲'): Promise<string> {
+    const projectId = newUuidV7();
+    await service.createProject(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      payload: { customerName: name, title: `${name}交付项目` },
+    });
+    return projectId;
+  }
+
+  async function createBatch(
+    projectId: string,
+    bytes: Buffer,
+    note?: string,
+  ): Promise<{ batchId: string; version: number }> {
+    const project = await service.getProject(identity, projectId);
+    const batchId = newUuidV7();
+    const outcome = await service.createBatch(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: {
+        expectedProjectVersion: project.version,
+        originalName: 'materials.zip',
+        declaredBytes: bytes.length,
+        zipSha256: sha256(bytes),
+        ...(note === undefined ? {} : { note }),
+      },
+    });
+    return { batchId, version: outcome.data.batch.version };
+  }
+
+  async function upload(
+    projectId: string,
+    batchId: string,
+    bytes: Buffer,
+    contentLength = bytes.length,
+  ): Promise<void> {
+    const detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = detail.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('batch has no attempt');
+    await service.upload(identity, {
+      projectId,
+      batchId,
+      attemptId: attempt.attemptId,
+      generation: attempt.generation,
+      contentLength,
+      chunks: singleChunk(bytes),
+    });
+  }
+
+  async function waitForTerminal(projectId: string, batchId: string) {
+    await service.whenIdle();
+    const detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    if (!terminal.has(detail.batch.status))
+      throw new Error(`batch did not reach a terminal state: ${detail.batch.status}`);
+    return detail;
+  }
+
+  it('creates, replays and conflicts a project idempotently', async () => {
+    const projectId = newUuidV7();
+    const requestId = newUuidV7();
+    const input = {
+      requestId,
+      projectId,
+      payload: { customerName: '客户甲', title: '资料托管项目' },
+    };
+    const first = await service.createProject(identity, input);
+    expect(first.replayed).toBe(false);
+    const replay = await service.createProject(identity, input);
+    expect(replay.replayed).toBe(true);
+    expect(replay.receipt).toEqual(first.receipt);
+    await expect(
+      service.createProject(identity, {
+        ...input,
+        payload: { customerName: '客户甲', title: '不同标题' },
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+    await expect(
+      service.createProject(identity, { ...input, requestId: newUuidV7() }),
+    ).rejects.toMatchObject({ code: 'TARGET_EXISTS' });
+  });
+
+  it('receives a mixed DOCX/Markdown/XLSX package with exact bytes and paths', async () => {
+    const projectId = await createProject();
+    const docx = docxBytes();
+    const markdown = markdownBytes();
+    const xlsx = xlsxBytes();
+    const original = zipBytes([
+      { name: 'readme.md', bytes: markdown },
+      { name: 'specifications/', bytes: Buffer.alloc(0), directory: true },
+      { name: 'specifications/design.docx', bytes: docx },
+      { name: 'budget.xlsx', bytes: xlsx },
+      { name: 'legacy.xls', bytes: textBytes('not a workbook') },
+    ]);
+    const { batchId } = await createBatch(projectId, original);
+    await upload(projectId, batchId, original);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('PARTIAL');
+    expect(detail.manifest).not.toBeNull();
+    const manifestId = detail.manifest?.manifestId;
+    if (manifestId === undefined) throw new Error('manifest missing');
+    const page = await service.getEntries(identity, projectId, batchId, manifestId, 100, undefined);
+    expect(page.entries.map((entry) => entry.originalName)).toEqual([
+      'readme.md',
+      'specifications/design.docx',
+      'budget.xlsx',
+      'legacy.xls',
+    ]);
+    expect(page.entries.map((entry) => entry.status)).toEqual([
+      'ACCEPTED',
+      'ACCEPTED',
+      'ACCEPTED',
+      'UNSUPPORTED',
+    ]);
+    expect(page.entries[3]?.reasonCodes).toEqual(['UNSUPPORTED_MEDIA_TYPE']);
+
+    const sealedManifest = detail.manifest;
+    if (sealedManifest === undefined) throw new Error('manifest missing');
+    const originalSource = await service.readSource(
+      identity,
+      projectId,
+      batchId,
+      sealedManifest.originalZip.sourceId,
+    );
+    expect(originalSource.bytes.equals(original)).toBe(true);
+    expect(originalSource.sourceRef.sha256).toBe(sha256(original));
+    expect(originalSource.sourceRef.byteLength).toBe(original.length);
+
+    for (const entry of page.entries) {
+      if (entry.sourceRef === undefined) continue;
+      const source = await service.readSource(
+        identity,
+        projectId,
+        batchId,
+        entry.sourceRef.sourceId,
+      );
+      expect(sha256(source.bytes)).toBe(entry.sourceRef.sha256);
+      if (entry.originalName === 'readme.md') expect(source.bytes.equals(markdown)).toBe(true);
+      if (entry.originalName === 'specifications/design.docx')
+        expect(source.bytes.equals(docx)).toBe(true);
+      if (entry.originalName === 'budget.xlsx') expect(source.bytes.equals(xlsx)).toBe(true);
+    }
+
+    const request = await service.getRequest(identity, detail.batch.originalRequestId);
+    expect(request.operation).toBe('mvp.create_input_batch');
+  });
+
+  it('rejects an unsafe outer package without creating a manifest', async () => {
+    const projectId = await createProject();
+    const unsafe = zipBytes([{ name: '../escape.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, unsafe);
+    await upload(projectId, batchId, unsafe);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('REJECTED');
+    expect(detail.manifest).toBeUndefined();
+    await expect(
+      service.getEntries(identity, projectId, batchId, newUuidV7(), 50, undefined),
+    ).rejects.toMatchObject({ code: 'MANIFEST_NOT_READY' });
+  });
+
+  it('keeps a safe package with zero accepted entries explicit', async () => {
+    const projectId = await createProject();
+    const onlyUnsupported = zipBytes([
+      { name: 'paper.pdf', bytes: textBytes('%PDF-1.7') },
+      { name: 'sheet.xls', bytes: textBytes('legacy') },
+    ]);
+    const { batchId } = await createBatch(projectId, onlyUnsupported);
+    await upload(projectId, batchId, onlyUnsupported);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('PARTIAL');
+    expect(detail.manifest?.acceptedEntries).toBe(0);
+    expect(detail.manifest?.totalEntries).toBe(2);
+    const manifestId = detail.manifest?.manifestId;
+    if (manifestId === undefined) throw new Error('manifest missing');
+    const page = await service.getEntries(identity, projectId, batchId, manifestId, 50, undefined);
+    expect(page.entries.every((entry) => entry.status === 'UNSUPPORTED')).toBe(true);
+  });
+
+  it('appends a supplementary batch without changing the first manifest', async () => {
+    const projectId = await createProject();
+    const firstBytes = zipBytes([{ name: 'first.md', bytes: markdownBytes('first') }]);
+    const firstBatch = await createBatch(projectId, firstBytes);
+    await upload(projectId, firstBatch.batchId, firstBytes);
+    const firstDetail = await waitForTerminal(projectId, firstBatch.batchId);
+    const firstManifest = firstDetail.manifest;
+    if (firstManifest === undefined) throw new Error('manifest missing');
+
+    const secondBytes = zipBytes([{ name: 'first.md', bytes: markdownBytes('second') }]);
+    const secondBatch = await createBatch(projectId, secondBytes, '补充说明');
+    const projectAfterSecond = await service.getProject(identity, projectId);
+    expect(projectAfterSecond.lastBatchNo).toBe(2);
+    expect(secondBatch.version).toBe(1);
+    await upload(projectId, secondBatch.batchId, secondBytes);
+    const secondDetail = await waitForTerminal(projectId, secondBatch.batchId);
+    expect(secondDetail.batch.batchNo).toBe(2);
+    expect(secondDetail.batch.kind).toBe('SUPPLEMENT');
+    expect(secondDetail.manifest?.manifestId).not.toBe(firstManifest.manifestId);
+
+    const reread = await service.getBatch(identity, projectId, firstBatch.batchId, 20, undefined);
+    expect(reread.manifest).toEqual(firstManifest);
+    const firstEntries = await service.getEntries(
+      identity,
+      projectId,
+      firstBatch.batchId,
+      firstManifest.manifestId,
+      50,
+      undefined,
+    );
+    expect(firstEntries.entries.map((entry) => entry.originalName)).toEqual(['first.md']);
+  });
+
+  it('keeps failed uploads recoverable through RETRY_UPLOAD and refuses stale authorization', async () => {
+    const projectId = await createProject();
+    const expected = zipBytes([{ name: 'retry.md', bytes: markdownBytes('retry') }]);
+    const { batchId } = await createBatch(projectId, expected);
+    await expect(
+      upload(projectId, batchId, textBytes('wrong'), expected.length),
+    ).rejects.toMatchObject({ code: 'INPUT_REJECTED' });
+    const failed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(failed.batch.status).toBe('FAILED');
+    expect(failed.permittedActions).toContain('RETRY_UPLOAD');
+    const retry = await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: failed.batch.version, action: 'RETRY_UPLOAD' },
+    });
+    expect(retry.data.batch.status).toBe('AWAITING_UPLOAD');
+    await upload(projectId, batchId, expected);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('RECEIVED');
+  });
+
+  it('abandons an unstarted batch and preserves its history', async () => {
+    const projectId = await createProject();
+    const bytes = zipBytes([{ name: 'abandon.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, bytes);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(before.permittedActions).toContain('ABANDON');
+    const abandoned = await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: before.batch.version, action: 'ABANDON' },
+    });
+    expect(abandoned.data.batch.status).toBe('ABANDONED');
+    const detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(detail.permittedActions).toEqual([]);
+    const replay = await service.recover(identity, {
+      requestId: abandoned.receipt.requestId,
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: before.batch.version, action: 'ABANDON' },
+    });
+    expect(replay.replayed).toBe(true);
+  });
+
+  it('rejects cross-owner reads, cursor reuse and forged scope combinations', async () => {
+    const projectId = await createProject('隔离客户');
+    const other: SessionIdentity = {
+      ownerId: fixture.owner2,
+      displayName: '第二操作者',
+      authEpoch: 1,
+    };
+    await expect(service.getProject(other, projectId)).rejects.toMatchObject({
+      code: 'RESOURCE_NOT_FOUND',
+    });
+    const first = await service.listProjects(identity, 1, undefined);
+    const cursor = first.nextCursor;
+    expect(cursor).toBeDefined();
+    await expect(service.listProjects(other, 1, cursor)).rejects.toMatchObject({
+      code: 'CURSOR_INVALID',
+    });
+    await expect(
+      service.readSource(other, projectId, newUuidV7(), newUuidV7()),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+  });
+
+  it('reads the same facts and bytes after reopening the service and database', async () => {
+    const projectId = await createProject('重启客户');
+    const original = zipBytes([{ name: 'restart.docx', bytes: docxBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
+    await upload(projectId, batchId, original);
+    const detail = await waitForTerminal(projectId, batchId);
+    const manifest = detail.manifest;
+    if (manifest === undefined) throw new Error('manifest missing');
+    await database.close();
+    database = new MvpDatabase({ connectionString: fixture.databaseUrl });
+    service = new MvpService({
+      database,
+      store: fixture.store,
+      cursorKey: Buffer.alloc(32, 7),
+      incarnation: 'vitest-restart',
+    });
+    await service.startup();
+    await service.resumePendingExtractions();
+    const reopened = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(reopened.batch.status).toBe('RECEIVED');
+    expect(reopened.manifest).toEqual(manifest);
+    const source = await service.readSource(
+      identity,
+      projectId,
+      batchId,
+      manifest.originalZip.sourceId,
+    );
+    expect(source.bytes.equals(original)).toBe(true);
+  });
+
+  it('fails visibly when a stored original is corrupted instead of substituting bytes', async () => {
+    const projectId = await createProject('损坏客户');
+    const original = zipBytes([{ name: 'corrupt.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
+    await upload(projectId, batchId, original);
+    const detail = await waitForTerminal(projectId, batchId);
+    const manifest = detail.manifest;
+    if (manifest === undefined) throw new Error('manifest missing');
+    const uploadAttempt = detail.attempts.find((attempt) => attempt.kind === 'UPLOAD');
+    if (uploadAttempt === undefined) throw new Error('upload attempt missing');
+    await corruptStoredFile(
+      fixture.storeRoot,
+      `original/${fixture.ownerId}/${projectId}/${batchId}/${uploadAttempt.attemptId}`,
+    );
+    await expect(
+      service.readSource(identity, projectId, batchId, manifest.originalZip.sourceId),
+    ).rejects.toMatchObject({ code: 'STORAGE_INTEGRITY_ERROR' });
+    const reread = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(reread.batch.status).toBe('RECEIVED');
+  });
+
+  it('refuses to advance execution under a changed authorization epoch', async () => {
+    const projectId = await createProject('授权客户');
+    const bytes = zipBytes([{ name: 'epoch.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, bytes);
+    const adminConnection = new URL(fixture.adminUrl);
+    adminConnection.pathname = '/zhiju_mvp_test';
+    const owner = new Client({ connectionString: adminConnection.toString() });
+    await owner.connect();
+    try {
+      await owner.query('SET ROLE mvp_owner');
+      await owner.query(
+        'UPDATE document_delivery.operator_binding SET auth_epoch = auth_epoch + 1 WHERE owner_id = $1',
+        [fixture.ownerId],
+      );
+    } finally {
+      await owner.end();
+    }
+    await expect(upload(projectId, batchId, bytes)).rejects.toMatchObject({
+      code: 'RECOVERY_NOT_ALLOWED',
+    });
+  });
+});

@@ -45,3 +45,39 @@ export async function readJsonBody(
 export function httpStatusForBody(result: Exclude<BodyReadResult, { status: 'ok' }>): number {
   return result.status === 'too-large' ? 413 : 400;
 }
+
+export type RawBodyReadResult =
+  { status: 'ok'; value: string } | { status: 'too-large' } | { status: 'invalid' };
+
+/**
+ * Reads the exact bounded UTF-8 bytes of one JSON write so the Core, not the
+ * BFF, can apply its strict duplicate-key/unknown-field validation.
+ */
+export async function readRawJsonBody(
+  request: FastifyRequest,
+  limit: number,
+): Promise<RawBodyReadResult> {
+  const contentLength = request.headers['content-length'];
+  const declared =
+    typeof contentLength === 'string' ? Number.parseInt(contentLength, 10) : undefined;
+  if (declared !== undefined && Number.isFinite(declared) && declared > limit) {
+    return { status: 'too-large' };
+  }
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request.raw as AsyncIterable<Buffer>) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.byteLength;
+    if (size > limit) return { status: 'too-large' };
+    chunks.push(buffer);
+  }
+  if (size === 0) return { status: 'invalid' };
+  try {
+    const value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      Buffer.concat(chunks),
+    );
+    return { status: 'ok', value };
+  } catch {
+    return { status: 'invalid' };
+  }
+}

@@ -30,6 +30,9 @@
     },
     {
       "path": "../../modules/artifact"
+    },
+    {
+      "path": "../../modules/document-delivery"
     }
   ]
 }

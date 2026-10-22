@@ -2,7 +2,7 @@
 
 日期：2026-10-22
 
-状态：`B1 DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。
+状态：`IMPLEMENTED 2026-10-22 / AUTOMATED EVIDENCE PARTIAL / REAL DEVICE AND USER ACCEPTANCE NOT RUN`。实现位于 `modules/document-delivery`（独立迁移 `migrations/V0001__document_delivery_schema.sql`）、`apps/api/src/mvp*`、`apps/workspace-bff/src/{routes,app,body}.ts` 的 `/bff/mvp/v1` 适配、`apps/workspace-web/src/custody` 与 `tools/mvp-environment`。自动化覆盖见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)；真实本机初始化、进程重启读回与人工内容验收仍未运行。
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 

@@ -62,6 +62,9 @@ importers:
       '@zhiju/contracts':
         specifier: workspace:*
         version: link:contracts
+      '@zhiju/document-delivery':
+        specifier: workspace:*
+        version: link:modules/document-delivery
       '@zhiju/enterprise-project':
         specifier: workspace:*
         version: link:modules/enterprise-project
@@ -125,6 +128,9 @@ importers:
       '@zhiju/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@zhiju/document-delivery':
+        specifier: workspace:*
+        version: link:../../modules/document-delivery
       '@zhiju/enterprise-project':
         specifier: workspace:*
         version: link:../../modules/enterprise-project
@@ -253,6 +259,22 @@ importers:
       pg:
         specifier: 8.23.0
         version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
+
+  modules/document-delivery:
+    dependencies:
+      '@zhiju/shared-kernel':
+        specifier: workspace:*
+        version: link:../../packages/shared-kernel
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
+      saxes:
+        specifier: 6.0.0
+        version: 6.0.0
     devDependencies:
       '@types/pg':
         specifier: 8.15.5
