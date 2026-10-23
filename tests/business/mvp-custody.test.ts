@@ -35,6 +35,38 @@ function codeOf(run: () => unknown): string | undefined {
   }
 }
 
+const spreadsheetNamespace = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+function relatedSpreadsheetPart(kind: string, path: string, root: string) {
+  const fixture = xlsxBytes();
+  return [
+    ...parseZipContainer(fixture, createScanBudget(fixture.length)).map((entry) => ({
+      name: entry.originalName,
+      bytes:
+        entry.originalName === '[Content_Types].xml'
+          ? textBytes(
+              entry.bytes
+                .toString()
+                .replace(
+                  '</Types>',
+                  `<Override PartName="/${path}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.${kind}+xml"/></Types>`,
+                ),
+            )
+          : entry.originalName === 'xl/_rels/workbook.xml.rels'
+            ? textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(
+                    '</Relationships>',
+                    `<Relationship Id="rOptional" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${kind}" Target="${path.slice(3)}"/></Relationships>`,
+                  ),
+              )
+            : entry.bytes,
+    })),
+    { name: path, bytes: textBytes(`<${root} xmlns="${spreadsheetNamespace}"/>`) },
+  ];
+}
+
 describe('MVP01 custody safety', () => {
   it('admits DOCX, Markdown and XLSX and reports unsupported entries', () => {
     const packageBytes = zipBytes([
@@ -183,8 +215,7 @@ describe('MVP01 custody safety', () => {
   });
 
   it('preserves XLSX shared strings, inline strings, empty sheets, zero and formulas without evaluation', () => {
-    const fixture = xlsxBytes();
-    const entries = parseZipContainer(fixture, createScanBudget(fixture.length));
+    const entries = relatedSpreadsheetPart('sharedStrings', 'xl/sharedStrings.xml', 'sst');
     const sheet = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     for (const cells of [
       '',
@@ -192,21 +223,129 @@ describe('MVP01 custody safety', () => {
     ]) {
       const workbook = zipBytes([
         ...entries.map((entry) => ({
-          name: entry.originalName,
+          name: entry.name,
           bytes:
-            entry.originalName === 'xl/worksheets/sheet1.xml'
+            entry.name === 'xl/worksheets/sheet1.xml'
               ? textBytes(`<worksheet xmlns="${sheet}"><sheetData>${cells}</sheetData></worksheet>`)
-              : entry.bytes,
+              : entry.name === 'xl/sharedStrings.xml'
+                ? textBytes(`<sst xmlns="${sheet}"><si><t>shared</t></si></sst>`)
+                : entry.bytes,
         })),
-        {
-          name: 'xl/sharedStrings.xml',
-          bytes: textBytes(`<sst xmlns="${sheet}"><si><t>shared</t></si></sst>`),
-        },
       ]);
       const result = scanInputPackage(zipBytes([{ name: 'cells.xlsx', bytes: workbook }]))
         .entries[0];
       expect(result?.status).toBe('ACCEPTED');
       expect(result?.content).toEqual(workbook);
+    }
+  });
+
+  it.each([
+    ['sharedStrings', 'sst', 'xl/sharedStrings.xml'],
+    ['sharedStrings', 'sst', 'xl/custom/strings.xml'],
+    ['styles', 'styleSheet', 'xl/styles.xml'],
+    ['styles', 'styleSheet', 'xl/custom/style.xml'],
+  ])('validates related XLSX %s XML at %s / %s', (kind, root, path) => {
+    const baseline = relatedSpreadsheetPart(kind, path, root);
+    const bytes = zipBytes(baseline);
+    const valid = scanInputPackage(zipBytes([{ name: 'valid.xlsx', bytes }])).entries[0];
+    expect(valid?.status).toBe('ACCEPTED');
+    expect(valid?.content).toEqual(bytes);
+    const defaultType = baseline.map((entry) =>
+      entry.name === '[Content_Types].xml'
+        ? {
+            ...entry,
+            bytes: textBytes(
+              entry.bytes
+                .toString()
+                .replace(`Override PartName="/${path}"`, 'Default Extension="xml"'),
+            ),
+          }
+        : entry,
+    );
+    const defaultBytes = zipBytes(defaultType);
+    expect(
+      scanInputPackage(zipBytes([{ name: 'default.xlsx', bytes: defaultBytes }])).entries[0],
+    ).toMatchObject({ status: 'ACCEPTED', content: defaultBytes });
+    const external = baseline.map((entry) =>
+      entry.name === 'xl/_rels/workbook.xml.rels'
+        ? {
+            ...entry,
+            bytes: textBytes(
+              entry.bytes
+                .toString()
+                .replace(
+                  `Target="${path.slice(3)}"`,
+                  'Target="https://example.invalid/never-fetch.xml" TargetMode="External"',
+                ),
+            ),
+          }
+        : entry,
+    );
+    const limited = scanInputPackage(
+      zipBytes([{ name: 'external.xlsx', bytes: zipBytes(external) }]),
+    ).entries[0];
+    expect(limited).toMatchObject({
+      status: 'READ_LIMITED',
+      reasonCodes: ['EXTERNAL_REFERENCE_REQUIRES_REVIEW'],
+    });
+    expect(limited?.content).toBeUndefined();
+    const variants = [
+      baseline.filter((entry) => entry.name !== path),
+      ...[
+        `<!DOCTYPE ${root} [<!ENTITY marker "harmless">]><${root} xmlns="${spreadsheetNamespace}"/>`,
+        `<${root} xmlns="urn:forged"/>`,
+        `<wrongRoot xmlns="${spreadsheetNamespace}"/>`,
+      ].map((xml) =>
+        baseline.map((entry) =>
+          entry.name === path ? { ...entry, bytes: textBytes(xml) } : entry,
+        ),
+      ),
+      baseline.map((entry) =>
+        entry.name === '[Content_Types].xml'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(`spreadsheetml.${kind}+xml`, 'spreadsheetml.worksheet+xml'),
+              ),
+            }
+          : entry,
+      ),
+      baseline.map((entry) =>
+        entry.name === 'xl/_rels/workbook.xml.rels'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(`Target="${path.slice(3)}"`, 'Target="../../escape.xml"'),
+              ),
+            }
+          : entry,
+      ),
+      baseline.map((entry) =>
+        entry.name === 'xl/_rels/workbook.xml.rels'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(
+                    '</Relationships>',
+                    `<Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${kind}" Target="${path.slice(3)}"/></Relationships>`,
+                  ),
+              ),
+            }
+          : entry,
+      ),
+    ];
+    for (const entries of variants) {
+      const result = scanInputPackage(
+        zipBytes([{ name: 'invalid.xlsx', bytes: zipBytes(entries) }]),
+      ).entries[0];
+      expect(result).toMatchObject({ status: 'CORRUPT', reasonCodes: ['INVALID_XLSX'] });
+      expect(result?.content).toBeUndefined();
     }
   });
 
