@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
+import {
+  createScanBudget,
+  parseZipContainer,
+} from '../../modules/document-delivery/src/custody/zip.js';
 
 import {
   ZipSafetyError,
@@ -134,6 +139,139 @@ describe('MVP01 custody safety', () => {
     corrupted[index] = (corrupted[index] ?? 0) ^ 0xff;
     expect(codeOf(() => scanInputPackage(corrupted))).toBe('ZIP_CORRUPT');
     expect(codeOf(() => scanInputPackage(valid.subarray(0, valid.length - 4)))).toBe('ZIP_CORRUPT');
+  });
+
+  it('rejects symlinks, encryption and a valid high-ratio deflate package', () => {
+    const original = zipBytes([{ name: 'link.md', bytes: markdownBytes() }]);
+    const central = original.readUInt32LE(original.length - 6);
+    const link = Buffer.from(original);
+    link.writeUInt16LE(0x0314, central + 4);
+    link.writeUInt32LE(0xa1ff0000, central + 38);
+    expect(codeOf(() => scanInputPackage(link))).toBe('ZIP_UNSAFE');
+    const encrypted = Buffer.from(original);
+    encrypted.writeUInt16LE(1, 6);
+    encrypted.writeUInt16LE(1, central + 8);
+    expect(codeOf(() => scanInputPackage(encrypted))).toBe('ZIP_UNSAFE');
+
+    const bytes = Buffer.alloc(65_536, 65);
+    const stored = zipBytes([{ name: 'bomb.md', bytes }]);
+    const compressed = deflateRawSync(bytes);
+    const start = 30 + stored.readUInt16LE(26);
+    const centralStart = stored.readUInt32LE(stored.length - 6);
+    const local = Buffer.from(stored.subarray(0, start));
+    const directory = Buffer.from(stored.subarray(centralStart, stored.length - 22));
+    const end = Buffer.from(stored.subarray(stored.length - 22));
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(compressed.length, 18);
+    directory.writeUInt16LE(8, 10);
+    directory.writeUInt32LE(compressed.length, 20);
+    end.writeUInt32LE(local.length + compressed.length, 16);
+    expect(codeOf(() => scanInputPackage(Buffer.concat([local, compressed, directory, end])))).toBe(
+      'ZIP_LIMIT_EXCEEDED',
+    );
+  });
+
+  it('charges nested OOXML entries against the one outer-package budget', () => {
+    const docx = docxBytes();
+    expect(scanInputPackage(zipBytes([{ name: 'one.docx', bytes: docx }])).entries[0]?.status).toBe(
+      'ACCEPTED',
+    );
+    const many = zipBytes(
+      Array.from({ length: 334 }, (_, index) => ({ name: `${index}.docx`, bytes: docx })),
+    );
+    expect(codeOf(() => scanInputPackage(many))).toBe('ZIP_LIMIT_EXCEEDED');
+  });
+
+  it('preserves XLSX shared strings, inline strings, empty sheets, zero and formulas without evaluation', () => {
+    const fixture = xlsxBytes();
+    const entries = parseZipContainer(fixture, createScanBudget(fixture.length));
+    const sheet = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+    for (const cells of [
+      '',
+      '<row><c r="A1"><v>0</v></c><c r="B1" t="inlineStr"><is><t>inline</t></is></c><c r="C1" t="s"><v>0</v></c><c r="D1"><f>1+1</f><v>2</v></c></row>',
+    ]) {
+      const workbook = zipBytes([
+        ...entries.map((entry) => ({
+          name: entry.originalName,
+          bytes:
+            entry.originalName === 'xl/worksheets/sheet1.xml'
+              ? textBytes(`<worksheet xmlns="${sheet}"><sheetData>${cells}</sheetData></worksheet>`)
+              : entry.bytes,
+        })),
+        {
+          name: 'xl/sharedStrings.xml',
+          bytes: textBytes(`<sst xmlns="${sheet}"><si><t>shared</t></si></sst>`),
+        },
+      ]);
+      const result = scanInputPackage(zipBytes([{ name: 'cells.xlsx', bytes: workbook }]))
+        .entries[0];
+      expect(result?.status).toBe('ACCEPTED');
+      expect(result?.content).toEqual(workbook);
+    }
+  });
+
+  it('rejects XLSX missing parts, duplicate relationship IDs, forged namespaces and XXE declarations', () => {
+    const fixture = xlsxBytes();
+    const entries = parseZipContainer(fixture, createScanBudget(fixture.length)).map((entry) => ({
+      name: entry.originalName,
+      bytes: entry.bytes,
+    }));
+    const variants = [
+      entries.filter((entry) => entry.name !== 'xl/workbook.xml'),
+      entries.filter((entry) => entry.name !== 'xl/worksheets/sheet1.xml'),
+      entries.map((entry) =>
+        entry.name === 'xl/_rels/workbook.xml.rels'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(
+                    '</Relationships>',
+                    `${/<Relationship Id=.*?\/>/u.exec(entry.bytes.toString())?.[0] ?? ''}</Relationships>`,
+                  ),
+              ),
+            }
+          : entry,
+      ),
+      entries.map((entry) =>
+        entry.name === 'xl/workbook.xml'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(
+                    'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+                    'urn:forged',
+                  ),
+              ),
+            }
+          : entry,
+      ),
+      entries.map((entry) =>
+        entry.name === 'xl/workbook.xml'
+          ? {
+              ...entry,
+              bytes: textBytes(
+                entry.bytes
+                  .toString()
+                  .replace(
+                    '?>',
+                    '?><!DOCTYPE workbook [<!ENTITY xxe SYSTEM "file:///must-not-read">]>',
+                  ),
+              ),
+            }
+          : entry,
+      ),
+    ];
+    for (const entries of variants) {
+      const result = scanInputPackage(
+        zipBytes([{ name: 'invalid.xlsx', bytes: zipBytes(entries) }]),
+      ).entries[0];
+      expect(result).toMatchObject({ status: 'CORRUPT', reasonCodes: ['INVALID_XLSX'] });
+      expect(result?.content).toBeUndefined();
+    }
   });
 });
 

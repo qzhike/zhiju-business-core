@@ -4159,12 +4159,12 @@ describe.skipIf(!gateEnabled)('WorkOrder DRAFT creation and exact draft read', (
     );
     expect(history.rows.length).toBeGreaterThan(0);
     expect(history.rows.every((row) => row.success)).toBe(true);
-    const onDisk = readdirSync(new URL('../../migrations', import.meta.url).pathname, {
+    const onDisk = readdirSync(new URL('../../migrations', import.meta.url), {
       withFileTypes: true,
     })
       .filter((entry) => entry.isDirectory())
       .flatMap((entry) =>
-        readdirSync(new URL(`../../migrations/${entry.name}`, import.meta.url).pathname)
+        readdirSync(new URL(`../../migrations/${entry.name}`, import.meta.url))
           .filter((file) => /^V\d+__.*\.sql$/u.test(file))
           .map((file) => file.slice(1, file.indexOf('__'))),
       );

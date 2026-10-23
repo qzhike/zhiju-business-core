@@ -214,6 +214,55 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     return detail;
   }
 
+  it('lists only the requested project across batch pages and concurrent new batches', async () => {
+    const projectId = await createProject('分页目标项目');
+    const otherProjectId = await createProject('同一员工的其他项目');
+    const bytes = zipBytes([{ name: 'notes.md', bytes: markdownBytes() }]);
+    const other = await createBatch(otherProjectId, bytes);
+    const first = await createBatch(projectId, bytes);
+    await upload(projectId, first.batchId, bytes);
+    await waitForTerminal(projectId, first.batchId);
+    const second = await createBatch(projectId, bytes);
+    await upload(projectId, second.batchId, bytes);
+    await waitForTerminal(projectId, second.batchId);
+    const attempts = await service.getBatch(identity, projectId, first.batchId, 1, undefined);
+    expect(attempts.nextAttemptCursor).toBeTypeOf('string');
+    const following = await service.getBatch(
+      identity,
+      projectId,
+      first.batchId,
+      1,
+      attempts.nextAttemptCursor,
+    );
+    expect(following.attempts).toHaveLength(1);
+    expect(following.attempts[0]?.kind).toBe('EXTRACT');
+    await expect(
+      service.getBatch(identity, projectId, second.batchId, 1, attempts.nextAttemptCursor),
+    ).rejects.toMatchObject({ code: 'CURSOR_INVALID' });
+    const page = await service.listBatches(identity, projectId, 1, undefined);
+    expect(page.items.map((batch) => batch.batchId)).toEqual([first.batchId]);
+    expect(page.nextCursor).toBeTypeOf('string');
+    const third = await createBatch(projectId, bytes);
+    const next = await service.listBatches(identity, projectId, 1, page.nextCursor);
+    expect(next.items.map((batch) => batch.batchId)).toEqual([second.batchId]);
+    expect(next.nextCursor).toBeUndefined();
+    const refreshed = await service.listBatches(identity, projectId, 50, undefined);
+    expect(refreshed.items.map((batch) => batch.batchId)).toEqual([
+      first.batchId,
+      second.batchId,
+      third.batchId,
+    ]);
+    expect(refreshed.items.every((batch) => batch.projectId === projectId)).toBe(true);
+    expect(
+      (await service.listBatches(identity, otherProjectId, 50, undefined)).items,
+    ).toMatchObject([{ batchId: other.batchId, projectId: otherProjectId }]);
+    await expect(
+      service.listBatches(identity, otherProjectId, 1, page.nextCursor),
+    ).rejects.toMatchObject({
+      code: 'CURSOR_INVALID',
+    });
+  });
+
   it('creates, replays and conflicts a project idempotently', async () => {
     const projectId = newUuidV7();
     const requestId = newUuidV7();

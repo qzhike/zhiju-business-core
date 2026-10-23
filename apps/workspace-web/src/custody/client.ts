@@ -13,6 +13,7 @@ import {
   type CustodyEntryPage,
   type CustodyPage,
   type CustodyProject,
+  type CustodyProjectSummary,
   type CustodyRequestView,
   type CustodySession,
   type RecoveryAction,
@@ -93,7 +94,7 @@ export async function readSession(signal?: AbortSignal): Promise<CustodySession>
 export async function listProjects(
   cursor?: string,
   signal?: AbortSignal,
-): Promise<CustodyPage<CustodyProject>> {
+): Promise<CustodyPage<CustodyProjectSummary>> {
   const query = cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`;
   const result = await request(pathFor(`/projects${query}`), {
     method: 'GET',

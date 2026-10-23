@@ -4,7 +4,7 @@ import { fail } from './errors.js';
 
 /**
  * Opaque, server-authenticated pagination cursor. It binds the owner and
- * authorization epoch, the endpoint and the project/manifest scope; a cursor
+ * authorization epoch, the endpoint and the project/batch/manifest scope; a cursor
  * cannot be reused across users, scopes or a changed binding. The signed
  * payload also carries the immutable high-water mark of the first page, so new
  * rows never appear inside an existing snapshot.
@@ -14,6 +14,7 @@ export interface CursorScope {
   readonly ownerId: string;
   readonly authEpoch: number;
   readonly projectId?: string;
+  readonly batchId?: string;
   readonly manifestId?: string;
 }
 
@@ -58,6 +59,7 @@ export function createCursorCodec(secret: Buffer): CursorCodec {
         upper: state.upper,
         last: state.last,
         ...(state.projectId === undefined ? {} : { projectId: state.projectId }),
+        ...(state.batchId === undefined ? {} : { batchId: state.batchId }),
         ...(state.manifestId === undefined ? {} : { manifestId: state.manifestId }),
       };
       const payload = encode(JSON.stringify(wire));
@@ -85,6 +87,7 @@ export function createCursorCodec(secret: Buffer): CursorCodec {
         value.ownerId !== scope.ownerId ||
         value.authEpoch !== scope.authEpoch ||
         value.projectId !== scope.projectId ||
+        value.batchId !== scope.batchId ||
         value.manifestId !== scope.manifestId
       )
         fail('CURSOR_INVALID');

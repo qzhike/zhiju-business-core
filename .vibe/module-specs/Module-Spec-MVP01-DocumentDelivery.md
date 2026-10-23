@@ -1,8 +1,8 @@
 # Module-Spec-MVP01-DocumentDelivery
 
-日期：2026-10-22
+日期：2026-10-23
 
-状态：`IMPLEMENTED 2026-10-22 / AUTOMATED EVIDENCE PARTIAL / REAL DEVICE AND USER ACCEPTANCE NOT RUN`。实现位于 `modules/document-delivery`（独立迁移 `migrations/V0001__document_delivery_schema.sql`）、`apps/api/src/mvp*`、`apps/workspace-bff/src/{routes,app,body}.ts` 的 `/bff/mvp/v1` 适配、`apps/workspace-web/src/custody` 与 `tools/mvp-environment`。自动化覆盖见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)；真实本机初始化、进程重启读回与人工内容验收仍未运行。
+状态：`IMPLEMENTED 2026-10-22 / AUTOMATED EVIDENCE PARTIAL / LOCAL PERSISTENT JOURNEY VERIFIED / USER ACCEPTANCE NOT RUN`。实现位于 `modules/document-delivery`（独立迁移 `migrations/V0001__document_delivery_schema.sql`）、`apps/api/src/mvp*`、`apps/workspace-bff/src/{routes,app,body}.ts` 的 `/bff/mvp/v1` 适配、`apps/workspace-web/src/custody` 与 `tools/mvp-environment`。自动化覆盖见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)；隔离本机初始化、真实 Keycloak 登录及保留卷/文件的停启读回已执行；正式来源人工试走和内容验收仍未运行。
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
@@ -129,4 +129,4 @@ MVP policy 标识 `mvp.zip-input@1`，固定于批次创建时；后续 policy �
 
 ## 7. 设计与验收出口
 
-验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已获人类技术批准，但本轮只交付设计；新初始化、真实接口注册及现有 DB/store 变更仍需对应实施/环境授权。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。
+验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已按获批设计实现并进入 `batch/mvp-b1-document-delivery`；当前收口包含独立本机实例验收及缺陷修复，尚未完成 main 交付。初始化按实例取得环境授权；既有 A/B 的 DB/store 未迁移。正式来源人工验收、批次最终审查/full、main 合入授权及合入后 main full 分别保留门禁。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。

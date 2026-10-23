@@ -197,7 +197,7 @@ export class MvpRepository {
     endpoint: string,
     ownerId: string,
     authEpoch: number,
-    extra: { projectId?: string; manifestId?: string } = {},
+    extra: { projectId?: string; batchId?: string; manifestId?: string } = {},
   ): CursorScope {
     return { endpoint, ownerId, authEpoch, ...extra };
   }
@@ -357,8 +357,9 @@ export class MvpRepository {
       const rows = (
         await client.query(
           `SELECT ${BATCH_COLUMNS} FROM document_delivery.input_batches
-           WHERE batch_no > $1 AND batch_no <= $2 ORDER BY batch_no ASC LIMIT $3`,
-          [last, upper, limit + 1],
+           WHERE owner_id = $1 AND project_id = $2
+             AND batch_no > $3 AND batch_no <= $4 ORDER BY batch_no ASC LIMIT $5`,
+          [ownerId, projectId, last, upper, limit + 1],
         )
       ).rows;
       const page = rows.slice(0, limit).map(batchRecord);
@@ -420,7 +421,7 @@ export class MvpRepository {
       ).rows[0];
       if (batchRow === undefined) fail('RESOURCE_NOT_FOUND');
       const batch = batchRecord(batchRow);
-      const scope = this.#scope('attempts', ownerId, authEpoch, { projectId });
+      const scope = this.#scope('attempts', ownerId, authEpoch, { projectId, batchId });
       const position =
         attemptCursor === undefined ? undefined : this.#cursors.decode(attemptCursor, scope);
       const upper =
