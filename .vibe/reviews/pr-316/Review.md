@@ -8,7 +8,7 @@
 - 本次被审批次 head：`48f739949c2277b064190b19042d181fe467cd66`。
 - 本记录形成于 2026-10-23；包含本记录及必要修正的最终批次 head、实际 main 基线和检查仍待确认。
 
-当前累计差异仅含[验证基准](../../high-level-docs/08-verification-baseline.md#212-批次交付第一阶段)、[批次设计](../../decisions/batch-integration-ci.md)及 [PR #314 正式 Review](../pr-314/Review.md)三份文档。本记录及必要修正须通过新的 docs 补丁 PR 进入受保护批次，补丁 PR 取得真实编号后另行保留其正式 Review，不在此预造编号。
+上述被审 head 的累计差异仅含[验证基准](../../high-level-docs/08-verification-baseline.md#212-批次交付第一阶段)、[批次设计](../../decisions/batch-integration-ci.md)及 [PR #314 正式 Review](../pr-314/Review.md)三份文档。本记录及必要修正由 [docs 补丁 PR #317](https://github.com/qzhike/zhiju-business-core/pull/317)提交到受保护批次，其独立审查见 [PR #317 正式 Review](../pr-317/Review.md)。补丁合入后的最终批次候选仍须重新确认。
 
 [PR #315](https://github.com/qzhike/zhiju-business-core/pull/315) 是不合并的可抛弃探针。已检查当前批次树不包含其文本 fixture 或正式 Review；探针证据可用于平台验收，探针内容不属于本批交付。
 
