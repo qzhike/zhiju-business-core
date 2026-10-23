@@ -43,6 +43,7 @@ import {
 } from './domain/validation.js';
 import type { MvpDatabase } from './persistence/db.js';
 import { MvpRepository } from './persistence/repository.js';
+import { batchView } from './persistence/rows.js';
 import type {
   CreateBatchInput,
   CreateProjectInput,
@@ -440,16 +441,24 @@ export class MvpService {
         throw error;
       }
       if (inspected === null) {
-        if (state.batch.status !== 'UNKNOWN')
-          await this.#repository.markUploadUnknown(identity.ownerId, projectId, batchId);
+        await this.#repository.failIncompleteUpload(
+          identity.ownerId,
+          projectId,
+          batchId,
+          upload.attemptId,
+        );
         return;
       }
       if (
         inspected.byteLength !== state.batch.declaredBytes ||
         inspected.sha256 !== state.batch.zipSha256
       ) {
-        if (state.batch.status !== 'UNKNOWN')
-          await this.#repository.markUploadUnknown(identity.ownerId, projectId, batchId);
+        await this.#repository.failIncompleteUpload(
+          identity.ownerId,
+          projectId,
+          batchId,
+          upload.attemptId,
+        );
         return;
       }
       await this.#repository.convergeUploadStaged(
@@ -470,10 +479,7 @@ export class MvpService {
     }
   }
 
-  async upload(
-    identity: SessionIdentity,
-    input: UploadInput,
-  ): Promise<{ batch: BatchRecord; attempt: AttemptRecord }> {
+  async upload(identity: SessionIdentity, input: UploadInput): Promise<{ batch: BatchView }> {
     const projectId = uuidV7(input.projectId);
     const batchId = uuidV7(input.batchId);
     const attemptId = uuidV7(input.attemptId);
@@ -531,15 +537,24 @@ export class MvpService {
         byteLength: staged.byteLength,
         mediaType: 'application/zip',
       };
-      completed = await this.#repository.completeUpload(
-        identity.ownerId,
-        identity.authEpoch,
-        projectId,
-        batchId,
-        attemptId,
-        generation,
-        receipt,
-      );
+      try {
+        completed = await this.#repository.completeUpload(
+          identity.ownerId,
+          identity.authEpoch,
+          projectId,
+          batchId,
+          attemptId,
+          generation,
+          receipt,
+        );
+      } catch (error) {
+        if (error instanceof MvpError && error.code === 'RECOVERY_NOT_ALLOWED') {
+          await this.#repository
+            .markUploadUnknown(identity.ownerId, projectId, batchId)
+            .catch(() => undefined);
+        }
+        throw error;
+      }
     } finally {
       await lock.release();
     }
@@ -553,7 +568,7 @@ export class MvpService {
         identity.authEpoch,
       ),
     );
-    return completed;
+    return { batch: batchView(completed.batch, completed.attempt) };
   }
 
   async resumePendingExtractions(): Promise<void> {

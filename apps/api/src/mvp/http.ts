@@ -59,12 +59,17 @@ function idempotencyKey(request: FastifyRequest): string {
   return value;
 }
 
-function limitParameter(parameters: URLSearchParams, name: string, fallback: number): number {
+function limitParameter(
+  parameters: URLSearchParams,
+  name: string,
+  fallback: number,
+  maximum = 50,
+): number {
   const value = parameters.get(name);
   if (value === null) return fallback;
   if (!/^[1-9][0-9]{0,2}$/u.test(value)) fail('INVALID_REQUEST');
   const parsed = Number(value);
-  if (parsed > 50) fail('INVALID_REQUEST');
+  if (parsed > maximum) fail('INVALID_REQUEST');
   return parsed;
 }
 
@@ -282,7 +287,7 @@ export function registerMvpTransport(server: FastifyInstance, runtime: MvpCoreRu
       pathId(request, 'projectId'),
       pathId(request, 'batchId'),
       manifestId,
-      limitParameter(parameters, 'limit', 50),
+      limitParameter(parameters, 'limit', 50, 100),
       cursorParameter(parameters, 'cursor'),
     );
     sendSuccess(reply, 200, page);

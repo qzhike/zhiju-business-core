@@ -5,8 +5,10 @@ import { newUuidV7 } from '@zhiju/shared-kernel';
 import {
   MvpDatabase,
   MvpService,
+  errorCodeOf,
   type SessionIdentity,
 } from '../../modules/document-delivery/src/index.js';
+import { originalObjectKey } from '../../modules/document-delivery/src/custody/keys.js';
 import {
   applyMvpMigration,
   corruptStoredFile,
@@ -62,9 +64,12 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     await admin?.end();
   }, 60_000);
 
-  async function createProject(name = '客户甲'): Promise<string> {
+  async function createProject(
+    name = '客户甲',
+    actor: SessionIdentity = identity,
+  ): Promise<string> {
     const projectId = newUuidV7();
-    await service.createProject(identity, {
+    await service.createProject(actor, {
       requestId: newUuidV7(),
       projectId,
       payload: { customerName: name, title: `${name}交付项目` },
@@ -76,10 +81,11 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     projectId: string,
     bytes: Buffer,
     note?: string,
+    actor: SessionIdentity = identity,
   ): Promise<{ batchId: string; version: number }> {
-    const project = await service.getProject(identity, projectId);
+    const project = await service.getProject(actor, projectId);
     const batchId = newUuidV7();
-    const outcome = await service.createBatch(identity, {
+    const outcome = await service.createBatch(actor, {
       requestId: newUuidV7(),
       projectId,
       batchId,
@@ -113,9 +119,13 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     });
   }
 
-  async function waitForTerminal(projectId: string, batchId: string) {
+  async function waitForTerminal(
+    projectId: string,
+    batchId: string,
+    viewer: SessionIdentity = identity,
+  ) {
     await service.whenIdle();
-    const detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const detail = await service.getBatch(viewer, projectId, batchId, 20, undefined);
     if (!terminal.has(detail.batch.status))
       throw new Error(`batch did not reach a terminal state: ${detail.batch.status}`);
     return detail;
@@ -392,6 +402,319 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(reread.batch.status).toBe('RECEIVED');
   });
 
+  it('keeps zero-byte accepted Markdown sources and downloads them', async () => {
+    const projectId = await createProject('空文件客户');
+    const empty = Buffer.alloc(0);
+    const original = zipBytes([
+      { name: 'empty.md', bytes: empty },
+      { name: 'normal.md', bytes: markdownBytes('normal') },
+    ]);
+    const { batchId } = await createBatch(projectId, original);
+    await upload(projectId, batchId, original);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('RECEIVED');
+    expect(detail.manifest?.acceptedEntries).toBe(2);
+    const manifestId = detail.manifest?.manifestId;
+    if (manifestId === undefined) throw new Error('manifest missing');
+    const page = await service.getEntries(identity, projectId, batchId, manifestId, 100, undefined);
+    const emptyEntry = page.entries.find((entry) => entry.originalName === 'empty.md');
+    expect(emptyEntry?.status).toBe('ACCEPTED');
+    expect(emptyEntry?.sourceRef?.byteLength).toBe(0);
+    if (emptyEntry?.sourceRef === undefined) throw new Error('empty source missing');
+    const source = await service.readSource(
+      identity,
+      projectId,
+      batchId,
+      emptyEntry.sourceRef.sourceId,
+    );
+    expect(source.bytes.length).toBe(0);
+    expect(source.sourceRef.sha256).toBe(sha256(empty));
+  });
+
+  it('does not expose a staged or rejected original without a sealed manifest', async () => {
+    const projectId = await createProject('隔离客户');
+    const original = zipBytes([{ name: 'readme.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await service.repository.claimUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+    );
+    const key = originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId);
+    const stored = await fixture.store.putImmutable(key, original, 'application/zip');
+    const uploaded = await service.repository.completeUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+      {
+        objectKey: key,
+        sha256: stored.sha256,
+        byteLength: stored.byteLength,
+        mediaType: 'application/zip',
+      },
+    );
+    expect(uploaded.batch.status).toBe('STAGED');
+    const staged = await service.repository.readBatchState(identity.ownerId, projectId, batchId);
+    const stagedSource = staged.batch.originalZipSource;
+    if (stagedSource === undefined) throw new Error('staged source missing');
+    await expect(
+      service.readSource(identity, projectId, batchId, stagedSource.sourceId),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+    await service.resumePendingExtractions();
+    const accepted = await waitForTerminal(projectId, batchId);
+    expect(accepted.manifest).toBeDefined();
+    const acceptedSource = accepted.manifest?.originalZip;
+    if (acceptedSource === undefined) throw new Error('accepted source missing');
+    const bytes = await service.readSource(identity, projectId, batchId, acceptedSource.sourceId);
+    expect(bytes.bytes.equals(original)).toBe(true);
+  });
+
+  it('rejects original reads after a safety rejection without a manifest', async () => {
+    const projectId = await createProject('拒绝读取客户');
+    const unsafe = zipBytes([{ name: '../escape.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, unsafe);
+    await upload(projectId, batchId, unsafe);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch.status).toBe('REJECTED');
+    expect(detail.manifest).toBeUndefined();
+    const state = await service.repository.readBatchState(identity.ownerId, projectId, batchId);
+    const rejectedSource = state.batch.originalZipSource;
+    if (rejectedSource === undefined) throw new Error('quarantined source missing');
+    await expect(
+      service.readSource(identity, projectId, batchId, rejectedSource.sourceId),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+  });
+
+  it('converges a terminated incomplete upload to an explicit retry', async () => {
+    const projectId = await createProject('中断客户');
+    const bytes = zipBytes([{ name: 'retry.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, bytes);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await service.repository.claimUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+    );
+    const claimed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(claimed.batch.status).toBe('RECEIVING');
+    const reconciled = await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: claimed.batch.version, action: 'RECONCILE' },
+    });
+    expect(reconciled.data.batch.status).toBe('FAILED');
+    const after = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(after.permittedActions).toContain('RETRY_UPLOAD');
+    expect(after.permittedActions).not.toContain('RECONCILE');
+    const retry = await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: after.batch.version, action: 'RETRY_UPLOAD' },
+    });
+    expect(retry.data.batch.status).toBe('AWAITING_UPLOAD');
+    await upload(projectId, batchId, bytes);
+    const completed = await waitForTerminal(projectId, batchId);
+    expect(completed.batch.status).toBe('RECEIVED');
+  });
+
+  it('recovers a durable original before the first EXTRACT arrangement commits', async () => {
+    const projectId = await createProject('提取前客户');
+    const original = zipBytes([{ name: 'gap.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await service.repository.claimUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+    );
+    const key = originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId);
+    await fixture.store.putImmutable(key, original, 'application/zip');
+    const current = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const reconciled = await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: current.batch.version, action: 'RECONCILE' },
+    });
+    expect(reconciled.data.batch.status).toBe('STAGED');
+    expect(reconciled.data.batch.manifestId).toBeUndefined();
+    const staged = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(staged.permittedActions).toContain('CONTINUE_EXTRACTION');
+    await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: staged.batch.version, action: 'CONTINUE_EXTRACTION' },
+    });
+    const completed = await waitForTerminal(projectId, batchId);
+    expect(completed.batch.status).toBe('RECEIVED');
+  });
+
+  it('does not resume a prepared extraction under a changed authorization epoch', async () => {
+    const projectId = await createProject('重启授权客户');
+    const original = zipBytes([{ name: 'restart-auth.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await service.repository.claimUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+    );
+    const key = originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId);
+    const stored = await fixture.store.putImmutable(key, original, 'application/zip');
+    await service.repository.completeUpload(
+      identity.ownerId,
+      identity.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+      {
+        objectKey: key,
+        sha256: stored.sha256,
+        byteLength: stored.byteLength,
+        mediaType: 'application/zip',
+      },
+    );
+    const adminConnection = new URL(fixture.adminUrl);
+    adminConnection.pathname = '/zhiju_mvp_test';
+    const owner = new Client({ connectionString: adminConnection.toString() });
+    await owner.connect();
+    try {
+      await owner.query('SET ROLE mvp_ddl');
+      await owner.query(
+        'UPDATE document_delivery.operator_binding SET auth_epoch = auth_epoch + 1 WHERE owner_id = $1',
+        [fixture.ownerId],
+      );
+    } finally {
+      await owner.end();
+    }
+    await database.close();
+    database = new MvpDatabase({ connectionString: fixture.databaseUrl });
+    service = new MvpService({
+      database,
+      store: fixture.store,
+      cursorKey: Buffer.alloc(32, 7),
+      incarnation: 'vitest-restart-auth',
+    });
+    await service.startup();
+    await service.resumePendingExtractions();
+    const fresh: SessionIdentity = {
+      ownerId: fixture.ownerId,
+      displayName: 'MVP 操作者',
+      authEpoch: 2,
+    };
+    const stopped = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    expect(stopped.batch.status).toBe('FAILED');
+    expect(stopped.manifest).toBeUndefined();
+    const failedExtract = stopped.attempts.find((item) => item.kind === 'EXTRACT');
+    expect(failedExtract?.status).toBe('FAILED');
+    expect(failedExtract?.reasonCodes).toContain('AUTHORIZATION_CHANGED');
+    await service.recover(fresh, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: stopped.batch.version, action: 'CONTINUE_EXTRACTION' },
+    });
+    const completed = await waitForTerminal(projectId, batchId, fresh);
+    expect(completed.batch.status).toBe('RECEIVED');
+    const extractAttempts = completed.attempts.filter((item) => item.kind === 'EXTRACT');
+    expect(extractAttempts).toHaveLength(2);
+  });
+
+  it('serializes a concurrent upload claim and rejects a late old generation', async () => {
+    const fresh: SessionIdentity = {
+      ownerId: fixture.ownerId,
+      displayName: 'MVP 操作者',
+      authEpoch: 2,
+    };
+    const projectId = await createProject('并发布次客户', fresh);
+    const bytes = zipBytes([{ name: 'race.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, bytes, undefined, fresh);
+    const before = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    const firstAttempt = before.batch.currentAttempt;
+    if (firstAttempt === undefined) throw new Error('attempt missing');
+    const claims = await Promise.allSettled([
+      service.repository.claimUpload(
+        fresh.ownerId,
+        fresh.authEpoch,
+        projectId,
+        batchId,
+        firstAttempt.attemptId,
+        firstAttempt.generation,
+      ),
+      service.repository.claimUpload(
+        fresh.ownerId,
+        fresh.authEpoch,
+        projectId,
+        batchId,
+        firstAttempt.attemptId,
+        firstAttempt.generation,
+      ),
+    ]);
+    expect(
+      claims.map((result) =>
+        result.status === 'fulfilled' ? 'ok' : (errorCodeOf(result.reason) ?? 'unknown'),
+      ),
+    ).toEqual(expect.arrayContaining(['ok', 'UPLOAD_BUSY']));
+    await service.repository.failUpload(fresh.ownerId, projectId, batchId, firstAttempt.attemptId, [
+      'UPLOAD_INCOMPLETE',
+    ]);
+    const failed = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    await service.recover(fresh, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: failed.batch.version, action: 'RETRY_UPLOAD' },
+    });
+    const retried = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    const current = retried.batch.currentAttempt;
+    if (current === undefined) throw new Error('retry attempt missing');
+    await expect(
+      service.repository.completeUpload(
+        fresh.ownerId,
+        fresh.authEpoch,
+        projectId,
+        batchId,
+        firstAttempt.attemptId,
+        firstAttempt.generation,
+        {
+          objectKey: originalObjectKey(fresh.ownerId, projectId, batchId, firstAttempt.attemptId),
+          sha256: sha256(bytes),
+          byteLength: bytes.length,
+          mediaType: 'application/zip',
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+    expect(retried.batch.currentAttempt?.attemptId).toBe(current.attemptId);
+  });
+
   it('refuses to advance execution under a changed authorization epoch', async () => {
     const projectId = await createProject('授权客户');
     const bytes = zipBytes([{ name: 'epoch.md', bytes: markdownBytes() }]);
@@ -412,5 +735,26 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     await expect(upload(projectId, batchId, bytes)).rejects.toMatchObject({
       code: 'RECOVERY_NOT_ALLOWED',
     });
+    const fresh: SessionIdentity = {
+      ownerId: fixture.ownerId,
+      displayName: 'MVP 操作者',
+      authEpoch: 2,
+    };
+    const detail = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    const attempt = detail.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await expect(
+      service.upload(fresh, {
+        projectId,
+        batchId,
+        attemptId: attempt.attemptId,
+        generation: attempt.generation,
+        contentLength: bytes.length,
+        chunks: singleChunk(bytes),
+      }),
+    ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+    const after = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    expect(after.batch.status).not.toBe('RECEIVED');
+    expect(after.manifest).toBeUndefined();
   });
 });

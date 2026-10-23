@@ -311,7 +311,7 @@ export async function downloadSource(path: string): Promise<Blob> {
   const blob = await response.blob();
   if (
     length === null ||
-    !/^[1-9][0-9]*$/u.test(length) ||
+    !/^[0-9]+$/u.test(length) ||
     checksum === null ||
     !/^[0-9a-f]{64}$/u.test(checksum) ||
     blob.size !== Number(length) ||

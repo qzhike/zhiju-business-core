@@ -229,7 +229,7 @@ CREATE TABLE document_delivery.source_entries (
       AND source_byte_length IS NULL AND source_media_type IS NULL AND object_key IS NULL)
     OR
     (source_kind = 'ACCEPTED_ENTRY' AND octet_length(source_sha256) = 32
-      AND source_byte_length > 0 AND source_media_type IS NOT NULL AND object_key IS NOT NULL)
+      AND source_byte_length >= 0 AND source_media_type IS NOT NULL AND object_key IS NOT NULL)
   ),
   CHECK ((sha256 IS NULL) = (byte_length IS NULL)),
   CHECK ((status = 'ACCEPTED') OR source_id IS NULL)

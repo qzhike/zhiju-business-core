@@ -1461,12 +1461,11 @@ export function createRequestHandler(
     const checksum = response.headers.get('content-sha256');
     if (
       length === null ||
-      !/^[1-9][0-9]*$/u.test(length) ||
+      !/^[0-9]+$/u.test(length) ||
       contentType === null ||
       disposition === null ||
       checksum === null ||
-      !/^[0-9a-f]{64}$/u.test(checksum) ||
-      response.body === null
+      !/^[0-9a-f]{64}$/u.test(checksum)
     ) {
       await response.body?.cancel().catch(() => undefined);
       return sendSafeError(
@@ -1478,6 +1477,26 @@ export function createRequestHandler(
       );
     }
     const expected = Number(length);
+    reply.header('content-type', contentType);
+    reply.header('content-disposition', disposition);
+    reply.header('content-length', length);
+    reply.header('content-sha256', checksum);
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('cache-control', 'no-store');
+    if (expected === 0) {
+      await response.body?.cancel().catch(() => undefined);
+      reply.send(Buffer.alloc(0));
+      return true;
+    }
+    if (response.body === null) {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Download unavailable.',
+        true,
+      );
+    }
     const reader = response.body.getReader();
     const abort = new AbortController();
     let sent = 0;
@@ -1511,12 +1530,6 @@ export function createRequestHandler(
         await reader.cancel().catch(() => undefined);
       },
     });
-    reply.header('content-type', contentType);
-    reply.header('content-disposition', disposition);
-    reply.header('content-length', length);
-    reply.header('content-sha256', checksum);
-    reply.header('x-content-type-options', 'nosniff');
-    reply.header('cache-control', 'no-store');
     await reply.send(stream);
     return true;
   }

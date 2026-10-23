@@ -301,6 +301,25 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
     expect(sealed.status).toBe('RECEIVED');
     const manifest = data.manifest as Record<string, unknown>;
     expect(manifest.acceptedEntries).toBe(3);
+    expect(sealed.originalZipSource).toBeUndefined();
+    expect(sealed.ownerId).toBeUndefined();
+    const manifestId = String(manifest.manifestId);
+    const entriesAt100 = await json(
+      `/projects/${projectId}/batches/${batchId}/entries?manifestId=${manifestId}&limit=100`,
+    );
+    expect(entriesAt100.status).toBe(200);
+    const entriesAt51 = await json(
+      `/projects/${projectId}/batches/${batchId}/entries?manifestId=${manifestId}&limit=51`,
+    );
+    expect(entriesAt51.status).toBe(200);
+    const entriesAt101 = await json(
+      `/projects/${projectId}/batches/${batchId}/entries?manifestId=${manifestId}&limit=101`,
+    );
+    expect(entriesAt101.status).toBe(400);
+    const projectsAt50 = await json('/projects?limit=50');
+    expect(projectsAt50.status).toBe(200);
+    const projectsAt51 = await json('/projects?limit=51');
+    expect(projectsAt51.status).toBe(400);
     const originalZip = manifest.originalZip as Record<string, unknown>;
     const source = await fetch(
       `${origin}/api/mvp/v1/projects/${projectId}/batches/${batchId}/sources/${String(originalZip.sourceId)}/content`,

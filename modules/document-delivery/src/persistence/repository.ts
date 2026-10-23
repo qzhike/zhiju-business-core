@@ -27,7 +27,7 @@ import type {
 } from '../domain/types.js';
 import { entryObjectKey } from '../custody/keys.js';
 import type { MvpDatabase } from './db.js';
-import { isUniqueViolation, stringColumn, type Queryable } from './db.js';
+import { isUniqueViolation, nullableStringColumn, stringColumn, type Queryable } from './db.js';
 import {
   attemptRecord,
   attemptSummary,
@@ -39,7 +39,6 @@ import {
   projectSummary,
   projectView,
   requestRecord,
-  sourceRefFromJson,
 } from './rows.js';
 
 const PROJECT_COLUMNS =
@@ -595,22 +594,39 @@ export class MvpRepository {
     return this.#db.transaction(ownerId, projectId, async (client) => {
       const batchRow = (
         await client.query(
-          `SELECT original_zip_source, original_object_key FROM document_delivery.input_batches
+          `SELECT status, manifest_id, original_zip_source, original_object_key
+           FROM document_delivery.input_batches
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3`,
           [ownerId, projectId, batchId],
         )
       ).rows[0];
       if (batchRow === undefined) fail('RESOURCE_NOT_FOUND');
-      const original = sourceRefFromJson(batchRow.original_zip_source);
-      if (original?.sourceId === sourceId) {
+      const manifestId = nullableStringColumn(batchRow as Record<string, unknown>, 'manifest_id');
+      const status = stringColumn(batchRow as Record<string, unknown>, 'status');
+      if (manifestId === undefined || !['RECEIVED', 'PARTIAL'].includes(status))
+        fail('RESOURCE_NOT_FOUND');
+      const manifestRow = (
+        await client.query(
+          `SELECT payload, manifest_hash, manifest_id, total_entries
+           FROM document_delivery.input_manifests
+           WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND manifest_id = $4`,
+          [ownerId, projectId, batchId, manifestId],
+        )
+      ).rows[0];
+      if (manifestRow === undefined) fail('RESOURCE_NOT_FOUND');
+      const manifest = manifestRecord(manifestRow as Record<string, unknown>);
+      if (manifest.manifestId !== manifestId) fail('RESOURCE_NOT_FOUND');
+      const original = manifest.originalZip;
+      if (original.sourceId === sourceId) {
         const objectKey = stringColumn(batchRow as Record<string, unknown>, 'original_object_key');
         return { sourceRef: original, objectKey, fileName: 'original.zip' };
       }
       const entryRow = (
         await client.query(
           `SELECT * FROM document_delivery.source_entries
-           WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND source_id = $4`,
-          [ownerId, projectId, batchId, sourceId],
+           WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND source_id = $4
+             AND manifest_id = $5`,
+          [ownerId, projectId, batchId, sourceId, manifestId],
         )
       ).rows[0];
       if (entryRow === undefined) fail('RESOURCE_NOT_FOUND');
@@ -685,6 +701,22 @@ export class MvpRepository {
     if (row === undefined) fail('RECOVERY_NOT_ALLOWED');
     if (row.enabled !== true) fail('RECOVERY_NOT_ALLOWED');
     if (Number(row.auth_epoch) !== authEpoch) fail('RECOVERY_NOT_ALLOWED');
+  }
+
+  /**
+   * The persisted attempt's original authorization must still be the current
+   * binding. A fresh caller at a newer epoch cannot continue an old attempt;
+   * only an explicit recovery Request creates a new authorized attempt.
+   */
+  async #assertAttemptAuthorization(
+    client: PoolClient,
+    ownerId: string,
+    authEpoch: number,
+    attempt: AttemptRecord,
+  ): Promise<void> {
+    if (attempt.authorizedOwnerId !== ownerId || attempt.authorizedAuthEpoch !== authEpoch)
+      fail('RECOVERY_NOT_ALLOWED');
+    await this.#assertCurrentBinding(client, ownerId, authEpoch);
   }
 
   async #releaseActive(
@@ -980,7 +1012,7 @@ export class MvpRepository {
         batch.generation !== generation
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertCurrentBinding(client, ownerId, authEpoch);
+      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, current);
       const at = this.#now().toISOString();
       const attemptRow: Record<string, unknown> = (
         await client.query(
@@ -1035,7 +1067,7 @@ export class MvpRepository {
         batch.generation !== generation
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertCurrentBinding(client, ownerId, authEpoch);
+      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, current);
       const at = this.#now().toISOString();
       const sourceRef: SourceRef = {
         projectId,
@@ -1157,6 +1189,63 @@ export class MvpRepository {
     });
   }
 
+  /**
+   * Persist a reconciled upload whose original object is proven absent while
+   * the caller holds the exclusive attempt lock. This releases the project's
+   * active batch slot and exposes the bounded retry/abandon route; it is not
+   * used when a writer may still be active.
+   */
+  async failIncompleteUpload(
+    ownerId: string,
+    projectId: string,
+    batchId: string,
+    attemptId: string,
+  ): Promise<BatchRecord> {
+    return this.#db.transaction(ownerId, projectId, async (client) => {
+      const batch = await this.#lockBatch(client, ownerId, projectId, batchId);
+      const attempts = await this.#allAttempts(client, ownerId, projectId, batchId);
+      const attempt = attempts.find((item) => item.attemptId === attemptId);
+      if (
+        batch.manifestId !== undefined ||
+        !['AWAITING_UPLOAD', 'RECEIVING', 'UNKNOWN'].includes(batch.status)
+      )
+        fail('RECOVERY_NOT_ALLOWED');
+      if (attempt === undefined) fail('RECOVERY_NOT_ALLOWED');
+      if (attempt.kind !== 'UPLOAD' || !['PREPARED', 'RUNNING', 'UNKNOWN'].includes(attempt.status))
+        fail('RECOVERY_NOT_ALLOWED');
+      const at = this.#now().toISOString();
+      const reasons = ['UPLOAD_INCOMPLETE'];
+      await client.query(
+        `UPDATE document_delivery.batch_attempts
+         SET status = 'FAILED', ended_at = $5, reason_codes = $6::jsonb
+         WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND attempt_id = $4`,
+        [ownerId, projectId, batchId, attemptId, at, JSON.stringify(reasons)],
+      );
+      const batchRow: Record<string, unknown> = (
+        await client.query(
+          `UPDATE document_delivery.input_batches
+           SET status = 'FAILED', version = version + 1, reason_codes = $4::jsonb, observed_at = $5
+           WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3
+           RETURNING ${BATCH_COLUMNS}`,
+          [ownerId, projectId, batchId, JSON.stringify(reasons), at],
+        )
+      ).rows[0];
+      await this.#releaseActive(client, ownerId, projectId, batchId);
+      await transitionEvent(client, {
+        ownerId,
+        projectId,
+        batchId,
+        attemptId,
+        eventType: 'BATCH_STATE',
+        fromStatus: batch.status,
+        toStatus: 'FAILED',
+        reasonCodes: reasons,
+        at,
+      });
+      return batchRecord(batchRow);
+    });
+  }
+
   async claimExtraction(
     ownerId: string,
     authEpoch: number,
@@ -1179,7 +1268,7 @@ export class MvpRepository {
         (attempt.status === 'RUNNING' && batch.status !== 'EXTRACTING')
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertCurrentBinding(client, ownerId, authEpoch);
+      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, attempt);
       const at = this.#now().toISOString();
       if (attempt.status === 'RUNNING')
         return attemptRecord(
@@ -1253,7 +1342,7 @@ export class MvpRepository {
         manifest.originalZip.sourceId !== batch.originalZipSource?.sourceId
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertCurrentBinding(client, ownerId, authEpoch);
+      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, attempt);
       const at = this.#now().toISOString();
       const accepted = entries.filter((entry) => entry.status === 'ACCEPTED').length;
       const reasons = [
@@ -1424,7 +1513,7 @@ export class MvpRepository {
         !['RECEIVING', 'UNKNOWN'].includes(batch.status)
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertCurrentBinding(client, ownerId, authEpoch);
+      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, attempt);
       const at = this.#now().toISOString();
       if (attempt.status === 'PREPARED') {
         await client.query(
