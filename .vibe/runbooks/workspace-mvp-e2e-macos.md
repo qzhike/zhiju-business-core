@@ -384,7 +384,7 @@ vibe verify full --json
 1. 初始化前输出只读资源计划，核对当前 Docker context、配置非秘密摘要、端口占用、目标根/卷/database 是否为本实例；与旧 A/B 冲突即停止，不抢端口或覆盖目录。秘密及客户名称、说明、文件路径不进入资源报告。
 2. 经实际初始化授权后，仅建立该计划中的专用 PostgreSQL/Keycloak 容器与持久卷、库/角色、文件根和安装标记，导入专用 realm/client 与操作者已核对的唯一身份绑定。使用当前已固定镜像，不改变旧服务和系统配置。安装中断按同一身份续接，不能再次建一个看似成功的空实例。
 3. 初始化完成读回 installation、schema revision、root/store identity 与绑定；运行时缺配置/错库/错根/版本不符 fail closed。配置相同的再次初始化为核对/补完，不重复 seed 或替换绑定。新配置、新身份及未知残留必须人工检查后按管理操作处理。
-4. 实施交付实际 init/start/status/stop 命令后替换本节的操作说明，并记录示例输出与回退步骤；本轮只完成设计，不启动服务。
+4. 实际入口为仓库根目录的 `pnpm mvp:init`、`pnpm mvp:start`、`pnpm mvp:status`、`pnpm mvp:stop`；配置默认写入 `config/mvp.local.json`，私有数据、密钥、安装标记、文件根与登录信息写入 `.local/mvp/`（均已被 Git 忽略）。初始化创建独立 PostgreSQL/Keycloak 容器、持久卷、`zhiju_mvp` 数据库、`document_delivery` schema、文件根身份与唯一 operator binding；`start` 只启动本实例 Core/BFF/Web，`stop` 停止本实例进程与容器并保留卷和文件。重复 `init` 会核对既有安装/绑定/文件根身份，不覆盖密钥、绑定或数据库。本轮未实际执行初始化，以下命令的示例输出和回退证据仍为 `NOT RUN`。
 
 ### 10.2 B1 实际试走与回退
 

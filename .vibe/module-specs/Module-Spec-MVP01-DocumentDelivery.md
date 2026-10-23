@@ -2,7 +2,7 @@
 
 日期：2026-10-22
 
-状态：`B1 DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。
+状态：`IMPLEMENTED 2026-10-22 / AUTOMATED EVIDENCE PARTIAL / REAL DEVICE AND USER ACCEPTANCE NOT RUN`。实现位于 `modules/document-delivery`（独立迁移 `migrations/V0001__document_delivery_schema.sql`）、`apps/api/src/mvp*`、`apps/workspace-bff/src/{routes,app,body}.ts` 的 `/bff/mvp/v1` 适配、`apps/workspace-web/src/custody` 与 `tools/mvp-environment`。自动化覆盖见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)；真实本机初始化、进程重启读回与人工内容验收仍未运行。
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
@@ -86,7 +86,7 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 | ABANDONED | 用户显式放弃尚未接纳且已证明无活跃写者的批次；保留原意图/错误与隔离对象，解除活动占用；不是取消运行中进程或删除历史 |
 | UNKNOWN | 存储、数据库提交或原进程结果未定；锁定项目活动占用，只能 RECONCILE；时间/网络断开不能转成 FAILED |
 
-`RECONCILE` 只核对原 request、attempt、文件 receipt 与 DB 事实，不执行另一份上传/分析；命令以独立 recovery request 留意图及核对观察，不创建替代原尝试的执行。完整原包已存在则核验后恢复 STAGED；续提取必须另有符合资格的 CONTINUE_EXTRACTION 意图；manifest 已提交则返回同一结果。无可靠证据保持 UNKNOWN，并显示需检查依赖/原尝试；无盲目“标为结束”按钮。
+`RECONCILE` 只核对原 request、attempt、文件 receipt 与 DB 事实，不执行另一份上传/分析；命令以独立 recovery request 留意图及核对观察，不创建替代原尝试的执行。完整原包已存在则核验后恢复 STAGED；该收敛只记录旧 writer 的已证实观察，可由当前授权的恢复 Request 在 epoch 变化后执行，但不改变 attempt 原授权；续提取必须另有符合资格的 CONTINUE_EXTRACTION 意图；manifest 已提交则返回同一结果。无可靠证据保持 UNKNOWN，并显示需检查依赖/原尝试；无盲目“标为结束”按钮。
 
 `RETRY_UPLOAD` 仅在已知 FAILED/AWAITING_UPLOAD 的原 attempt 已结束、无完整匹配 staged 原包且未有 manifest，且没有活跃旧写者时许可。在 Batch CAS 下废止旧 generation，追加新 UPLOAD attempt，重传同一声明 sha/length 的原包；不允许从重试改名称/note/内容。`CONTINUE_EXTRACTION` 在原完整包经 inspect 证明可用、无 manifest，且没有活跃写者时允许：既包括从未建立 EXTRACT attempt，也包括已有 EXTRACT attempt 全部已证实结束。持有原 attempt/实例互斥锁并校验 Batch CAS 后，一个事务保存恢复 Request/当前 authorization/receipt、原尝试的已证实结束观察、新 PREPARED EXTRACT attempt（稳定输入/目标、引用该 recoveryRequestId）、递增 generation/fence 与 batch.currentAttempt/STAGED。提交后才执行提取；同 recovery key 重放只返回原 receipt，不再分配 attempt 或 generation。成功条目对象按稳定目标幂等复用，最终只提交一个 manifest。
 

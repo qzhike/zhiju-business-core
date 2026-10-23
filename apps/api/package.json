@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "start:mvp": "node dist/mvp-main.js"
   },
   "dependencies": {
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-fastify": "catalog:",
     "@zhiju/contracts": "workspace:*",
+    "@zhiju/document-delivery": "workspace:*",
     "fastify": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",

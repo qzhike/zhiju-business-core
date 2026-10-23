@@ -6,13 +6,18 @@
     "allowImportingTsExtensions": true,
     "tsBuildInfoFile": "./.tsbuildinfo"
   },
-  "include": ["./**/*.ts", "../persistence/synthetic-token-disclosure.ts"],
+  "include": [
+    "./**/*.ts",
+    "../persistence/synthetic-token-disclosure.ts",
+    "../persistence/mvp-fixtures.ts"
+  ],
   "exclude": ["../../node_modules", ".tsbuildinfo"],
   "references": [
     { "path": "../../packages/shared-kernel" },
     { "path": "../../contracts" },
     { "path": "../../modules/enterprise-project" },
     { "path": "../../modules/artifact" },
-    { "path": "../../modules/integration-gateway" }
+    { "path": "../../modules/integration-gateway" },
+    { "path": "../../modules/document-delivery" }
   ]
 }

@@ -10,4 +10,6 @@ coverage/
 .env.*
 !.env.example
 .local/workspace-env-b/
+.local/mvp/
 config/workspace-e2e.local.json
+config/mvp.local.json

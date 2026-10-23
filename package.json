@@ -30,7 +30,11 @@
     "env:b:init": "node tools/workspace-environment/main.mjs init",
     "env:b:start": "node tools/workspace-environment/main.mjs start",
     "env:b:status": "node tools/workspace-environment/main.mjs status",
-    "env:b:stop": "node tools/workspace-environment/main.mjs stop"
+    "env:b:stop": "node tools/workspace-environment/main.mjs stop",
+    "mvp:init": "node tools/mvp-environment/main.mjs init",
+    "mvp:start": "node tools/mvp-environment/main.mjs start",
+    "mvp:status": "node tools/mvp-environment/main.mjs status",
+    "mvp:stop": "node tools/mvp-environment/main.mjs stop"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -40,6 +44,7 @@
     "@zhiju/api": "workspace:*",
     "@zhiju/artifact": "workspace:*",
     "@zhiju/contracts": "workspace:*",
+    "@zhiju/document-delivery": "workspace:*",
     "@zhiju/enterprise-project": "workspace:*",
     "@zhiju/identity-policy": "workspace:*",
     "@zhiju/integration-gateway": "workspace:*",

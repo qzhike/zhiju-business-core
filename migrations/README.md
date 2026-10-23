@@ -35,6 +35,8 @@ Issue #279 reserves exactly `V7018` for IntegrationGateway Markdown render bindi
 
 Issue #266 adds `V1008__workspace_self_discovery_reader.sql` inside the `identity_policy` range for the self-only workspace project-discovery read boundary. It creates the NOLOGIN/NOINHERIT/NOBYPASSRLS role `identity_workspace_discovery_reader` with SELECT-only access to `identity_policy.capability_grant`, guarded by a dedicated self-only, Project-scope-only RLS policy that exposes only rows whose owning principal equals `platform_security.context_principal_id()` and whose `scope_kind` is `PROJECT` under a valid technical context. The role receives no write, BYPASSRLS, EnterpriseProject or other-schema access, and no existing `*_app`, `*_dispatcher`, `audit_reader` or `projection_app` grant changes. The version stays inside its own owning range, so no shared-history reservation and no out-of-order execution is involved.
 
+MVP B1 使用独立的 `zhiju_mvp` 数据库和独立 Flyway history，迁移位于 `modules/document-delivery/migrations/`，不注册到本目录或共享 `public.flyway_schema_history`；本目录的七模块版本区间和历史不变。初始化/迁移由 `tools/mvp-environment` 执行。
+
 命名规则：`V<4位版本>__<snake_case_description>.sql`。projection 的可重建对象随各模块区间发布，不单独拥有版本区间。
 
 `V0003` 的 Context 写入口只授予 NOLOGIN 的 `platform_context_establisher`；七模块

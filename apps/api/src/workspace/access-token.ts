@@ -23,7 +23,6 @@ import type { VerifiedOidcContextInput } from '@zhiju/identity-policy';
 import { sha256CanonicalJson } from '@zhiju/shared-kernel';
 
 import { CORE_ERROR_CODE, CORE_ERROR_TABLE, type CoreErrorCode } from './errors.js';
-import type { WorkspaceCoreTrustConfig } from './trust-config.js';
 
 export type AccessTokenFetchLike = typeof fetch;
 
@@ -86,8 +85,25 @@ export interface WorkspaceSessionBinding {
 
 export type WorkspaceSessionBindingResult = WorkspaceSessionBinding | AccessTokenRejected;
 
+/** The closed trust fields the token verifier consumes. */
+export interface AccessTokenTrustConfig {
+  readonly trustConfigHash: string;
+  readonly issuer: string;
+  readonly providerCode: string;
+  readonly discoveryUrl: string;
+  readonly clientId: string;
+  readonly apiAudience: string;
+  readonly allowedAzp: string;
+  readonly oidcEndpointAllowlist: readonly string[];
+  readonly accessTokenAlgorithms: readonly string[];
+  readonly accessTokenMaxAgeSeconds: number;
+  readonly clockSkewSeconds: number;
+  readonly jwksTtlSeconds: number;
+  readonly httpTimeoutSeconds: number;
+}
+
 export interface AccessTokenVerifierOptions {
-  readonly trustConfig: WorkspaceCoreTrustConfig;
+  readonly trustConfig: AccessTokenTrustConfig;
   /** Trusted server clock; defaults to the process clock. */
   readonly now?: (() => Date) | undefined;
   /** Injected transport for determinant tests; defaults to the global fetch. */
@@ -247,7 +263,7 @@ function verifyRs256(parsed: ParsedAccessToken, key: KeyObject): boolean {
  */
 function validateClaims(
   parsed: ParsedAccessToken,
-  config: WorkspaceCoreTrustConfig,
+  config: AccessTokenTrustConfig,
   validatedAt: Date,
 ): VerifiedClaims {
   if (parsed.header.typ !== 'JWT') throw new TokenRejectedError('JOSE type rejected');
@@ -309,7 +325,7 @@ function validateClaims(
  * authentication context binds, hashed with the shared canonical JSON rule so
  * the digest is stable across processes and object key order.
  */
-function issuerConfigHash(config: WorkspaceCoreTrustConfig): string {
+function issuerConfigHash(config: AccessTokenTrustConfig): string {
   return sha256CanonicalJson({
     issuer: config.issuer,
     discoveryUrl: config.discoveryUrl,
