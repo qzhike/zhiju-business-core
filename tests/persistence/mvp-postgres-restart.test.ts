@@ -11,6 +11,7 @@ import {
   MvpService,
   type SessionIdentity,
 } from '../../modules/document-delivery/src/index.js';
+import { assertServerVersion, postgresImageReference } from '../../tools/persistence/baseline.mjs';
 import {
   applyMvpMigration,
   createMvpDatabase,
@@ -34,7 +35,7 @@ describe.skipIf(!gateEnabled)('MVP01 PostgreSQL process restart (isolated contai
   let identity: SessionIdentity;
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:18.6')
+    container = await new PostgreSqlContainer(postgresImageReference())
       .withDatabase('postgres')
       .withUsername('postgres')
       .withPassword('zhiju-gate-test')
@@ -42,6 +43,10 @@ describe.skipIf(!gateEnabled)('MVP01 PostgreSQL process restart (isolated contai
       .start();
     const adminUrl = `postgres://postgres:zhiju-gate-test@${container.getHost()}:${container.getMappedPort(5432)}/postgres`;
     admin = await createMvpDatabase(adminUrl);
+    const version = await admin.query<{ server_version_num: string }>('SHOW server_version_num');
+    const serverVersion = version.rows[0]?.server_version_num;
+    if (serverVersion === undefined) throw new Error('server version missing');
+    assertServerVersion(serverVersion);
     await applyMvpMigration(adminUrl);
     fixture = await provisionMvp(adminUrl);
     identity = {

@@ -180,6 +180,17 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     }
   }
 
+  async function sourceEntryCount(batchId: string): Promise<number> {
+    const result = await withMvpAdmin((client) =>
+      client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM document_delivery.source_entries
+         WHERE owner_id = $1 AND batch_id = $2`,
+        [fixture.ownerId, batchId],
+      ),
+    );
+    return Number(result.rows[0]?.count ?? '0');
+  }
+
   async function manifestCount(batchId: string): Promise<number> {
     const result = await withMvpAdmin((client) =>
       client.query<{ count: string }>(
@@ -687,6 +698,7 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
       expect(failed.batch.status).toBe('FAILED');
       expect(failed.manifest).toBeUndefined();
       expect(await manifestCount(batchId)).toBe(0);
+      expect(await sourceEntryCount(batchId)).toBe(0);
       const state = await service.repository.readBatchState(identity.ownerId, projectId, batchId);
       const extract = state.attempts.find((attempt) => attempt.kind === 'EXTRACT');
       if (extract === undefined) throw new Error('extract attempt missing');
@@ -730,6 +742,7 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     const accepted = await waitForTerminal(projectId, batchId);
     expect(accepted.batch.status).toBe('RECEIVED');
     expect(await manifestCount(batchId)).toBe(1);
+    expect(await sourceEntryCount(batchId)).toBeGreaterThan(0);
     const acceptedSource = accepted.manifest?.originalZip;
     if (acceptedSource === undefined) throw new Error('accepted source missing');
     const acceptedBytes = await service.readSource(
@@ -771,6 +784,7 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     } finally {
       service.repository.acceptManifest = originalAccept;
     }
+    expect(injected).toBe(true);
 
     const committed = await service.getBatch(identity, projectId, batchId, 20, undefined);
     expect(committed.batch.status).toBe('RECEIVED');

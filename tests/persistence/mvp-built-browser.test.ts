@@ -447,6 +447,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     });
     await page.getByRole('button', { name: /第 1 批/ }).click();
     await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: /第 2 批/ }).click();
+    await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
     vitestExpect(project).toMatch(/^\/custody\/projects\//u);
   }, 120_000);
 });
