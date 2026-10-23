@@ -1513,7 +1513,12 @@ export class MvpRepository {
         !['RECEIVING', 'UNKNOWN'].includes(batch.status)
       )
         fail('RECOVERY_NOT_ALLOWED');
-      await this.#assertAttemptAuthorization(client, ownerId, authEpoch, attempt);
+      // RECONCILE only observes a proven old writer under its exclusive lock;
+      // it does not authorize new execution. The current identity may record
+      // that observation even after an epoch change, while the attempt keeps
+      // its original authorization. CONTINUE_EXTRACTION is the separate
+      // current-epoch Request that authorizes the first real extraction.
+      await this.#assertCurrentBinding(client, ownerId, authEpoch);
       const at = this.#now().toISOString();
       if (attempt.status === 'PREPARED') {
         await client.query(

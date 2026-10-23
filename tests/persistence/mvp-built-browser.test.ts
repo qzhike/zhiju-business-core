@@ -353,13 +353,83 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     const path = await download.path();
     vitestExpect(readFileSync(path).equals(packageBytes)).toBe(true);
 
+    const supplementBytes = zipBytes([
+      { name: 'supplement.md', bytes: markdownBytes('# 补充资料') },
+    ]);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'supplement.zip',
+      mimeType: 'application/zip',
+      buffer: supplementBytes,
+    });
+    await expect(page.getByText(/supplement\.zip.*SHA-256/u)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: '登记并上传' })).toBeEnabled({
+      timeout: 30_000,
+    });
+    await page.getByRole('button', { name: '登记并上传' }).click();
+    await expect(page.getByRole('heading', { name: /批次 2/ })).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible();
+    await expect(page.getByText('supplement.md')).toBeVisible();
+
+    const recoveredBytes = zipBytes([{ name: 'recovered.md', bytes: markdownBytes('# 恢复资料') }]);
+    let dropped = false;
+    const commitState: { promise: Promise<Response> | null } = { promise: null };
+    const batchRoute = '**/bff/mvp/v1/projects/*/batches/*';
+    await page.route(batchRoute, async (route) => {
+      const request = route.request();
+      const contentType = request.headers()['content-type'] ?? '';
+      if (!dropped && request.method() === 'PUT' && contentType.includes('application/json')) {
+        dropped = true;
+        const headers = { ...request.headers() };
+        delete headers.host;
+        delete headers['content-length'];
+        const body = request.postData();
+        commitState.promise = fetch(request.url(), {
+          method: request.method(),
+          headers,
+          ...(body === null ? {} : { body }),
+        });
+        await route.abort('failed');
+        const committed = await commitState.promise;
+        if (!committed.ok) throw new Error(`server did not commit: ${committed.status}`);
+        return;
+      }
+      await route.continue();
+    });
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'recovered.zip',
+      mimeType: 'application/zip',
+      buffer: recoveredBytes,
+    });
+    await expect(page.getByText(/recovered\.zip.*SHA-256/u)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: '登记并上传' }).click();
+    await expect(page.getByRole('heading', { name: '存在未确认的原请求' })).toBeVisible({
+      timeout: 30_000,
+    });
+    if (commitState.promise === null) throw new Error('create request was not intercepted');
+    const committed = await commitState.promise;
+    if (!committed.ok) throw new Error(`server did not commit: ${committed.status}`);
+    await page.unroute(batchRoute);
+    await page.getByRole('button', { name: '登记并上传' }).evaluate((button) => {
+      (button as unknown as { click: () => void }).click();
+    });
+    await expect(page.getByRole('heading', { name: /批次 3/ })).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(page.getByText('recovered.md')).toBeVisible();
+
     const project = new URL(page.url()).pathname;
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByRole('button', { name: /第 1 批/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /第 2 批/ })).toBeVisible();
     await page.getByRole('button', { name: /第 1 批/ }).click();
     await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: /第 2 批/ }).click();
+    await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
     vitestExpect(project).toMatch(/^\/custody\/projects\//u);
   }, 120_000);
 });

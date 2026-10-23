@@ -105,11 +105,12 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     batchId: string,
     bytes: Buffer,
     contentLength = bytes.length,
+    actor: SessionIdentity = identity,
   ): Promise<void> {
-    const detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const detail = await service.getBatch(actor, projectId, batchId, 20, undefined);
     const attempt = detail.batch.currentAttempt;
     if (attempt === undefined) throw new Error('batch has no attempt');
-    await service.upload(identity, {
+    await service.upload(actor, {
       projectId,
       batchId,
       attemptId: attempt.attemptId,
@@ -117,6 +118,45 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
       contentLength,
       chunks: singleChunk(bytes),
     });
+  }
+
+  async function currentEpoch(): Promise<number> {
+    const binding = await service.currentBinding(fixture.ownerId);
+    if (binding === undefined) throw new Error('operator binding missing');
+    return binding.authEpoch;
+  }
+
+  async function advanceEpoch(): Promise<number> {
+    const adminConnection = new URL(fixture.adminUrl);
+    adminConnection.pathname = '/zhiju_mvp_test';
+    const owner = new Client({ connectionString: adminConnection.toString() });
+    await owner.connect();
+    try {
+      await owner.query('SET ROLE mvp_ddl');
+      const result = await owner.query<{ auth_epoch: string }>(
+        `UPDATE document_delivery.operator_binding
+         SET auth_epoch = auth_epoch + 1 WHERE owner_id = $1
+         RETURNING auth_epoch`,
+        [fixture.ownerId],
+      );
+      const row = result.rows[0];
+      if (row === undefined) throw new Error('binding update returned no row');
+      return Number(row.auth_epoch);
+    } finally {
+      await owner.end();
+    }
+  }
+
+  async function restartService(incarnation: string): Promise<void> {
+    await database.close();
+    database = new MvpDatabase({ connectionString: fixture.databaseUrl });
+    service = new MvpService({
+      database,
+      store: fixture.store,
+      cursorKey: Buffer.alloc(32, 7),
+      incarnation,
+    });
+    await service.startup();
   }
 
   async function waitForTerminal(
@@ -715,30 +755,69 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(retried.batch.currentAttempt?.attemptId).toBe(current.attemptId);
   });
 
+  it('reconciles a durable first-upload gap across an epoch change and continues at the current epoch', async () => {
+    const epoch = await currentEpoch();
+    const current: SessionIdentity = { ...identity, authEpoch: epoch };
+    const projectId = await createProject('跨代恢复客户', current);
+    const original = zipBytes([{ name: 'cross-epoch.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original, undefined, current);
+    const before = await service.getBatch(current, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    await service.repository.claimUpload(
+      current.ownerId,
+      current.authEpoch,
+      projectId,
+      batchId,
+      attempt.attemptId,
+      attempt.generation,
+    );
+    await fixture.store.putImmutable(
+      originalObjectKey(current.ownerId, projectId, batchId, attempt.attemptId),
+      original,
+      'application/zip',
+    );
+    const next = await advanceEpoch();
+    expect(await currentEpoch()).toBe(next);
+    await restartService('vitest-reconcile-epoch');
+    const fresh: SessionIdentity = { ...identity, authEpoch: next };
+    const reopened = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    expect(reopened.batch.status).toBe('RECEIVING');
+    const reconciled = await service.recover(fresh, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: reopened.batch.version, action: 'RECONCILE' },
+    });
+    expect(reconciled.data.batch.status).toBe('STAGED');
+    const staged = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+    expect(staged.batch.manifestId).toBeUndefined();
+    expect(staged.permittedActions).toContain('CONTINUE_EXTRACTION');
+    await service.recover(fresh, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: staged.batch.version, action: 'CONTINUE_EXTRACTION' },
+    });
+    const completed = await waitForTerminal(projectId, batchId, fresh);
+    expect(completed.batch.status).toBe('RECEIVED');
+  });
+
   it('refuses to advance execution under a changed authorization epoch', async () => {
-    const projectId = await createProject('授权客户');
+    const epoch = await currentEpoch();
+    const current: SessionIdentity = { ...identity, authEpoch: epoch };
+    const projectId = await createProject('授权客户', current);
     const bytes = zipBytes([{ name: 'epoch.md', bytes: markdownBytes() }]);
-    const { batchId } = await createBatch(projectId, bytes);
-    const adminConnection = new URL(fixture.adminUrl);
-    adminConnection.pathname = '/zhiju_mvp_test';
-    const owner = new Client({ connectionString: adminConnection.toString() });
-    await owner.connect();
-    try {
-      await owner.query('SET ROLE mvp_ddl');
-      await owner.query(
-        'UPDATE document_delivery.operator_binding SET auth_epoch = auth_epoch + 1 WHERE owner_id = $1',
-        [fixture.ownerId],
-      );
-    } finally {
-      await owner.end();
-    }
-    await expect(upload(projectId, batchId, bytes)).rejects.toMatchObject({
+    const { batchId } = await createBatch(projectId, bytes, undefined, current);
+    const next = await advanceEpoch();
+    expect(await currentEpoch()).toBe(next);
+    await expect(upload(projectId, batchId, bytes, bytes.length, current)).rejects.toMatchObject({
       code: 'RECOVERY_NOT_ALLOWED',
     });
     const fresh: SessionIdentity = {
       ownerId: fixture.ownerId,
       displayName: 'MVP 操作者',
-      authEpoch: 2,
+      authEpoch: next,
     };
     const detail = await service.getBatch(fresh, projectId, batchId, 20, undefined);
     const attempt = detail.batch.currentAttempt;
@@ -756,5 +835,15 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     const after = await service.getBatch(fresh, projectId, batchId, 20, undefined);
     expect(after.batch.status).not.toBe('RECEIVED');
     expect(after.manifest).toBeUndefined();
+    const retry = await service.recover(fresh, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: after.batch.version, action: 'RETRY_UPLOAD' },
+    });
+    expect(retry.data.batch.status).toBe('AWAITING_UPLOAD');
+    await upload(projectId, batchId, bytes, bytes.length, fresh);
+    const accepted = await waitForTerminal(projectId, batchId, fresh);
+    expect(accepted.batch.status).toBe('RECEIVED');
   });
 });

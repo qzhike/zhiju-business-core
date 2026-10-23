@@ -466,7 +466,11 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
   const uploadRef = useRef<AbortController | null>(null);
 
   const refreshBatches = useCallback(async () => {
-    const page = await listBatches(projectId);
+    const [loadedProject, page] = await Promise.all([
+      getProject(projectId),
+      listBatches(projectId),
+    ]);
+    setProject(loadedProject);
     setBatches(page.items);
   }, [projectId]);
 
@@ -529,10 +533,12 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
         return;
       }
       void refreshDetail(selected.batch.batchId)
-        .then((detail) => {
+        .then(async (detail) => {
           if (!live) return;
-          if (!['RECEIVING', 'STAGED', 'EXTRACTING'].includes(detail.batch.status))
+          if (!['RECEIVING', 'STAGED', 'EXTRACTING'].includes(detail.batch.status)) {
             window.clearInterval(timer);
+            await refreshBatches();
+          }
         })
         .catch(() => {
           window.clearInterval(timer);
@@ -542,7 +548,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
       live = false;
       window.clearInterval(timer);
     };
-  }, [refreshDetail, selected]);
+  }, [refreshBatches, refreshDetail, selected]);
 
   const chooseFile = useCallback(async (value: File | null) => {
     uploadRef.current?.abort();
@@ -566,15 +572,17 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
     setError(null);
     setNotice(null);
     try {
+      const existing = markerRef.current;
+      const expectedProjectVersion =
+        existing?.expectedVersion ?? (await getProject(projectId)).version;
       const payload: Record<string, unknown> = {
-        expectedProjectVersion: project.version,
+        expectedProjectVersion,
         originalName: file.name,
         declaredBytes: file.size,
         zipSha256: fileDigest,
         ...(note.trim().length === 0 ? {} : { note }),
       };
       const fingerprint = await stableFingerprint(payload);
-      const existing = markerRef.current;
       if (existing !== null && existing.operation !== 'mvp.create_input_batch') {
         setError('已有其他未确认的原请求；请先核对或清除该标记。');
         return;
@@ -595,7 +603,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
           requestId,
           targetId: batchId,
           fingerprint,
-          expectedVersion: project.version,
+          expectedVersion: expectedProjectVersion,
         };
         savePendingIntent(created);
         markerRef.current = created;
@@ -606,7 +614,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
         projectId,
         batchId,
         requestId,
-        expectedProjectVersion: project.version,
+        expectedProjectVersion,
         originalName: file.name,
         declaredBytes: file.size,
         zipSha256: fileDigest,
@@ -636,6 +644,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
           setNotice('上传流已校验，正在提取条目；提取结果以批次当前状态为准。');
           await refreshBatches();
           await refreshDetail(batch.batchId);
+          await refreshBatches();
         } catch (reason) {
           if (reason instanceof CustodyFailure && reason.status === 401) onSessionFailure();
           setError(`${failureText(reason)} 批次已登记；刷新后可核对原尝试，不会自动换用新键。`);
