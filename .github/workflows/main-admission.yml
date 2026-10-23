@@ -1,0 +1,43 @@
+name: main admission
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: main-admission-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verification:
+    uses: ./.github/workflows/ci.yml
+
+  # This name is never emitted as a skipped child-PR job.
+  main-admission:
+    needs: verification
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject failed or cancelled verification
+        if: ${{ cancelled() || needs.verification.result != 'success' }}
+        run: exit 1
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - name: Check main entry and the current verified candidate
+        env:
+          BATCH_DELIVERY_ENABLED: ${{ vars.VIBE_BATCH_DELIVERY_ENABLED }}
+          SELECTED_TARGET: ${{ needs.verification.outputs.target }}
+          VERIFICATION_RESULT: ${{ needs.verification.result }}
+          VERIFICATION_ATTEMPT: ${{ needs.verification.outputs.attempt }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types tools/verification/check-delivery.mts --main

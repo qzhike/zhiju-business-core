@@ -156,4 +156,16 @@ describe('CI persistence partition topology', () => {
       );
     }
   });
+  it('propagates attempts captured only when the required producers execute', () => {
+    expect(job('select')).toContain('attempt: ${{ steps.verification.outputs.attempt }}');
+    for (const name of ['checks', 'persistence', 'verify']) {
+      expect(job(name)).toContain('attempt: ${{ steps.completed.outputs.attempt }}');
+      expect(job(name)).toContain('id: completed');
+      expect(job(name)).toContain('echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"');
+    }
+    expect(workflow).toContain('value: ${{ jobs.verify.outputs.attempt }}');
+    expect(persistenceWorkflow).toContain('value: ${{ jobs.gate.outputs.attempt }}');
+    expect(persistenceWorkflow).toContain('attempt: ${{ steps.completed.outputs.attempt }}');
+    expect(persistenceWorkflow).toContain('echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"');
+  });
 });

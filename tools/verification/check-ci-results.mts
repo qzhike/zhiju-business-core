@@ -6,7 +6,19 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-export function ciVerificationFailures(needs: unknown, workflowCancelled: boolean): string[] {
+function attemptFailures(needs: unknown, names: readonly string[], attempt: string): string[] {
+  if (!/^[1-9][0-9]*$/u.test(attempt)) return ['missing or invalid current attempt'];
+  const dependencies = record(needs);
+  return names
+    .filter((name) => record(record(dependencies?.[name])?.outputs)?.attempt !== attempt)
+    .map((name) => `${name}: expected current attempt ${attempt}`);
+}
+
+export function ciVerificationFailures(
+  needs: unknown,
+  workflowCancelled: boolean,
+  attempt = '1',
+): string[] {
   const failures: string[] = workflowCancelled ? ['workflow was cancelled'] : [];
   const dependencies = record(needs);
   if (!dependencies) return [...failures, 'invalid CI dependency data'];
@@ -24,12 +36,16 @@ export function ciVerificationFailures(needs: unknown, workflowCancelled: boolea
       failures.push(`${name}: expected ${expected}`);
     }
   }
+  failures.push(
+    ...attemptFailures(needs, target === 'full' ? names : ['select', 'checks'], attempt),
+  );
   return failures;
 }
 
 export function persistenceVerificationFailures(
   needs: unknown,
   workflowCancelled: boolean,
+  attempt = '1',
 ): string[] {
   const failures: string[] = workflowCancelled ? ['workflow was cancelled'] : [];
   const dependencies = record(needs);
@@ -42,6 +58,7 @@ export function persistenceVerificationFailures(
   for (const name of names)
     if (record(dependencies[name])?.result !== 'success')
       failures.push(`${name}: expected success`);
+  failures.push(...attemptFailures(needs, names, attempt));
   return failures;
 }
 
@@ -57,7 +74,7 @@ function main(): void {
       throw new Error('invalid verification scope');
     const failures = (
       scope === 'partitions' ? persistenceVerificationFailures : ciVerificationFailures
-    )(needs, cancellation === 'true');
+    )(needs, cancellation === 'true', process.env.GITHUB_RUN_ATTEMPT ?? '');
     process.stdout.write(
       `${JSON.stringify({ status: failures.length ? 'FAIL' : 'PASS', failures })}\n`,
     );

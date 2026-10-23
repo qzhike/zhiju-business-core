@@ -1,12 +1,23 @@
 import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import {
+  eventPullRequest,
+  githubRead,
+  independentPushPullRequest,
+  isBatchBranch,
+  record,
+  type PullRequestBoundary,
+} from './delivery-context.mts';
 
 export type VerificationTarget = 'docs' | 'code' | 'full';
 
 export interface VerificationContext {
   eventName: string;
   isDraftPullRequest: boolean;
+  batchDeliveryEnabled?: boolean;
+  pullRequest?: PullRequestBoundary;
+  independentDocumentationPush?: boolean;
 }
 
 export interface VerificationSelection {
@@ -17,6 +28,35 @@ export interface VerificationSelection {
 export function isDocumentationOnlyPath(path: string): boolean {
   return path === 'README.md' || (path.startsWith('.vibe/') && path.endsWith('.md'));
 }
+
+export function isBatchBusinessPath(path: string): boolean {
+  if (
+    !/^[A-Za-z0-9_.\/-]+$/u.test(path) ||
+    path.split('/').some((p) => !p || p === '.' || p === '..')
+  )
+    return false;
+  if (engineeringTestPaths.has(path)) return false;
+  const basename = path.split('/').at(-1) ?? '';
+  if (
+    /^(?:package(?:-lock)?\.json|pnpm-.*|tsconfig.*|.*\.config\.[^.]+|AGENTS\.md)$/u.test(basename)
+  )
+    return false;
+  return (
+    /^(?:(?:apps|modules|packages)\/[^/]+\/(?:src|tests?)\/|contracts\/src\/|tests\/(?:business|workspace|persistence)\/)[A-Za-z0-9_.\/-]+\.(?:ts|tsx|mts|js|mjs|css|json|html|md|sql)$/u.test(
+      path,
+    ) ||
+    /^tests\/fixtures\/[A-Za-z0-9_.\/-]+\.(?:json|md|txt|sql)$/u.test(path) ||
+    /^migrations\/[A-Za-z0-9_.\/-]+\.sql$/u.test(path)
+  );
+}
+
+// Verification infrastructure tests retain the engineering gate even under tests/business.
+const engineeringTestPaths = new Set([
+  'tests/business/pinned-baseline.test.ts',
+  'tests/business/migration-isolation.test.ts',
+  'tests/business/persistence-case-inventory.test.ts',
+  'tests/business/workspace-boundaries.test.ts',
+]);
 
 // Audited presentation/fixture boundaries, not a blanket frontend exemption.
 // Production integration or new responsibilities must update this allowlist.
@@ -73,6 +113,37 @@ export function selectVerificationTarget(
     return { target: 'full', reason: 'no-changed-paths' };
   }
 
+  if (context.batchDeliveryEnabled) {
+    const pr = context.pullRequest;
+    if (context.eventName === 'push') {
+      return context.independentDocumentationPush && paths.every(isDocumentationOnlyPath)
+        ? { target: 'docs', reason: 'independent-documentation-main-push' }
+        : { target: 'full', reason: 'phase-one-main-full' };
+    }
+    if (context.eventName !== 'pull_request' || !pr)
+      return { target: 'full', reason: 'unknown-delivery-context' };
+    if (
+      pr.baseRef === 'main' &&
+      isBatchBranch(pr.headRef) &&
+      pr.headRepository === pr.baseRepository
+    )
+      return { target: 'full', reason: 'batch-final-candidate' };
+    if (isBatchBranch(pr.baseRef) && pr.headRepository === pr.baseRepository) {
+      if (paths.every(isDocumentationOnlyPath))
+        return { target: 'docs', reason: 'batch-documentation-child' };
+      return paths.every((p) => isDocumentationOnlyPath(p) || isBatchBusinessPath(p))
+        ? { target: 'code', reason: 'batch-business-child' }
+        : { target: 'full', reason: 'batch-engineering-or-unknown-change' };
+    }
+    if (
+      pr.baseRef === 'main' &&
+      !pr.headRef.startsWith('batch/') &&
+      paths.every(isDocumentationOnlyPath)
+    )
+      return { target: 'docs', reason: 'independent-documentation-pr' };
+    return { target: 'full', reason: 'outside-batch-delivery' };
+  }
+
   if (paths.every(isDocumentationOnlyPath)) {
     return { target: 'docs', reason: 'strict-documentation-only' };
   }
@@ -93,11 +164,11 @@ export function selectVerificationTarget(
   };
 }
 
-function readChangedPaths(baseSha: string, headSha: string): string[] {
+export function readChangedPaths(baseSha: string, headSha: string, cwd = process.cwd()): string[] {
   const output = execFileSync(
     'git',
     ['diff', '--name-only', '-z', '--no-renames', `${baseSha}...${headSha}`],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', cwd },
   );
 
   return output.split('\0').filter(Boolean);
@@ -108,6 +179,7 @@ function emitSelection(selection: VerificationSelection, changedPathCount: numbe
     `target=${selection.target}`,
     `reason=${selection.reason}`,
     `changed_path_count=${changedPathCount}`,
+    `attempt=${process.env.GITHUB_RUN_ATTEMPT ?? ''}`,
   ].join('\n');
 
   if (process.env.GITHUB_OUTPUT) {
@@ -117,7 +189,7 @@ function emitSelection(selection: VerificationSelection, changedPathCount: numbe
   process.stdout.write(`[verification] ${output.replaceAll('\n', ' ')}\n`);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [baseSha, headSha, eventName = '', draftValue = 'false'] = process.argv.slice(2);
 
   if (!baseSha || !headSha) {
@@ -127,10 +199,49 @@ function main(): void {
 
   try {
     const changedPaths = readChangedPaths(baseSha, headSha);
+    const flag = process.env.BATCH_DELIVERY_ENABLED ?? '';
+    if (!['', 'false', 'true'].includes(flag)) {
+      emitSelection({ target: 'full', reason: 'invalid-activation-setting' }, changedPaths.length);
+      return;
+    }
+    const enabled = flag === 'true';
+    const repository = process.env.GITHUB_REPOSITORY ?? '';
+    const event: unknown = process.env.GITHUB_EVENT_PATH
+      ? JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
+      : undefined;
+    const pr = eventPullRequest(event, repository);
+    let independentDocumentationPush = false;
+    if (
+      enabled &&
+      eventName === 'push' &&
+      changedPaths.every(isDocumentationOnlyPath) &&
+      record(record(event)?.repository)?.full_name === repository &&
+      record(event)?.ref === 'refs/heads/main' &&
+      record(event)?.before === baseSha &&
+      record(event)?.after === headSha
+    ) {
+      try {
+        const associated = await githubRead(
+          `/repos/${repository}/commits/${headSha}/pulls?per_page=100`,
+        );
+        const merged = independentPushPullRequest(associated, repository, headSha);
+        // Check the associated PR's complete diff too, not just the final push.
+        // The API base SHA can advance after merge; use the actual push baseline
+        // against the original PR head to inspect the full proposed change.
+        const mergedPaths = merged ? readChangedPaths(baseSha, merged.headSha) : [];
+        independentDocumentationPush =
+          mergedPaths.length > 0 && mergedPaths.every(isDocumentationOnlyPath);
+      } catch {
+        /* Missing proof keeps full. */
+      }
+    }
     emitSelection(
       selectVerificationTarget(changedPaths, {
         eventName,
         isDraftPullRequest: draftValue === 'true',
+        batchDeliveryEnabled: enabled,
+        ...(pr ? { pullRequest: pr } : {}),
+        independentDocumentationPush,
       }),
       changedPaths.length,
     );
@@ -143,5 +254,5 @@ function main(): void {
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : undefined;
 if (invokedPath === import.meta.url) {
-  main();
+  void main();
 }
