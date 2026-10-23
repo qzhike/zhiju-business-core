@@ -1,0 +1,3 @@
+Phase-one batch delivery routing probe.
+This inert fixture exercises the existing business-path classification in a disposable platform-acceptance PR.
+It is not loaded by application code and must not be delivered to main.
