@@ -1,14 +1,21 @@
+import { execFileSync } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import {
   MvpDatabase,
+  MvpError,
   MvpService,
   errorCodeOf,
   type SessionIdentity,
 } from '../../modules/document-delivery/src/index.js';
-import { originalObjectKey } from '../../modules/document-delivery/src/custody/keys.js';
+import {
+  entryObjectKey,
+  originalObjectKey,
+} from '../../modules/document-delivery/src/custody/keys.js';
 import {
   applyMvpMigration,
   corruptStoredFile,
@@ -147,8 +154,7 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     }
   }
 
-  async function restartService(incarnation: string): Promise<void> {
-    await database.close();
+  async function openService(incarnation: string): Promise<void> {
     database = new MvpDatabase({ connectionString: fixture.databaseUrl });
     service = new MvpService({
       database,
@@ -157,6 +163,51 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
       incarnation,
     });
     await service.startup();
+  }
+
+  async function restartService(incarnation: string): Promise<void> {
+    await database.close();
+    await openService(incarnation);
+  }
+
+  async function waitForDatabase(): Promise<void> {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const client = new Client({ connectionString: fixture.databaseUrl });
+      try {
+        await client.connect();
+        await client.query('SELECT 1');
+        return;
+      } catch {
+        await delay(500);
+      } finally {
+        await client.end().catch(() => undefined);
+      }
+    }
+    throw new Error('PostgreSQL did not accept connections after restart');
+  }
+
+  async function withMvpAdmin<T>(run: (client: Client) => Promise<T>): Promise<T> {
+    const adminConnection = new URL(fixture.adminUrl);
+    adminConnection.pathname = '/zhiju_mvp_test';
+    const owner = new Client({ connectionString: adminConnection.toString() });
+    await owner.connect();
+    try {
+      await owner.query('SET ROLE mvp_ddl');
+      return await run(owner);
+    } finally {
+      await owner.end();
+    }
+  }
+
+  async function manifestCount(batchId: string): Promise<number> {
+    const result = await withMvpAdmin((client) =>
+      client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM document_delivery.input_manifests
+         WHERE owner_id = $1 AND batch_id = $2`,
+        [fixture.ownerId, batchId],
+      ),
+    );
+    return Number(result.rows[0]?.count ?? '0');
   }
 
   async function waitForTerminal(
@@ -611,6 +662,163 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(completed.batch.status).toBe('RECEIVED');
   });
 
+  it('rolls back entry acceptance when an entry row write fails and preserves prior custody', async () => {
+    const priorProject = await createProject('既有托管客户');
+    const priorBytes = zipBytes([{ name: 'prior.md', bytes: markdownBytes('# 既有资料') }]);
+    const { batchId: priorBatchId } = await createBatch(priorProject, priorBytes);
+    await upload(priorProject, priorBatchId, priorBytes);
+    const prior = await waitForTerminal(priorProject, priorBatchId);
+    const priorManifestId = prior.manifest?.manifestId;
+    const priorSource = prior.manifest?.originalZip;
+    if (priorManifestId === undefined || priorSource === undefined)
+      throw new Error('prior manifest missing');
+
+    const projectId = await createProject('条目写失败客户');
+    const bytes = zipBytes([
+      { name: 'first.md', bytes: markdownBytes('# 第一项') },
+      { name: 'second.md', bytes: markdownBytes('# 第二项') },
+    ]);
+    const { batchId } = await createBatch(projectId, bytes);
+    await withMvpAdmin(async (client) => {
+      await client.query(
+        'DROP TRIGGER IF EXISTS mvp_test_fail_entry ON document_delivery.source_entries',
+      );
+      await client.query('DROP FUNCTION IF EXISTS document_delivery.mvp_test_fail_entry()');
+      await client.query(
+        `CREATE FUNCTION document_delivery.mvp_test_fail_entry() RETURNS trigger
+         LANGUAGE plpgsql SET search_path = pg_catalog AS $$
+         BEGIN
+           RAISE EXCEPTION 'injected entry insert failure';
+         END
+         $$`,
+      );
+      await client.query(
+        `CREATE TRIGGER mvp_test_fail_entry BEFORE INSERT ON document_delivery.source_entries
+         FOR EACH ROW WHEN (NEW.batch_id = '${batchId}'::uuid)
+         EXECUTE FUNCTION document_delivery.mvp_test_fail_entry()`,
+      );
+    });
+
+    let failed: Awaited<ReturnType<typeof waitForTerminal>>;
+    try {
+      await upload(projectId, batchId, bytes);
+      failed = await waitForTerminal(projectId, batchId);
+      expect(failed.batch.status).toBe('FAILED');
+      expect(failed.manifest).toBeUndefined();
+      expect(await manifestCount(batchId)).toBe(0);
+      const state = await service.repository.readBatchState(identity.ownerId, projectId, batchId);
+      const extract = state.attempts.find((attempt) => attempt.kind === 'EXTRACT');
+      if (extract === undefined) throw new Error('extract attempt missing');
+      const staged = await fixture.store.inspect(
+        entryObjectKey(identity.ownerId, projectId, batchId, extract.attemptId, 0),
+      );
+      expect(staged).not.toBeNull();
+      await expect(
+        service.readSource(identity, projectId, batchId, newUuidV7()),
+      ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+      const priorAfterFailure = await service.getBatch(
+        identity,
+        priorProject,
+        priorBatchId,
+        20,
+        undefined,
+      );
+      expect(priorAfterFailure.manifest?.manifestId).toBe(priorManifestId);
+      const priorBytesAfterFailure = await service.readSource(
+        identity,
+        priorProject,
+        priorBatchId,
+        priorSource.sourceId,
+      );
+      expect(priorBytesAfterFailure.bytes.equals(priorBytes)).toBe(true);
+    } finally {
+      await withMvpAdmin(async (client) => {
+        await client.query(
+          'DROP TRIGGER IF EXISTS mvp_test_fail_entry ON document_delivery.source_entries',
+        );
+        await client.query('DROP FUNCTION IF EXISTS document_delivery.mvp_test_fail_entry()');
+      });
+    }
+
+    await service.recover(identity, {
+      requestId: newUuidV7(),
+      projectId,
+      batchId,
+      payload: { expectedBatchVersion: failed.batch.version, action: 'CONTINUE_EXTRACTION' },
+    });
+    const accepted = await waitForTerminal(projectId, batchId);
+    expect(accepted.batch.status).toBe('RECEIVED');
+    expect(await manifestCount(batchId)).toBe(1);
+    const acceptedSource = accepted.manifest?.originalZip;
+    if (acceptedSource === undefined) throw new Error('accepted source missing');
+    const acceptedBytes = await service.readSource(
+      identity,
+      projectId,
+      batchId,
+      acceptedSource.sourceId,
+    );
+    expect(acceptedBytes.bytes.equals(bytes)).toBe(true);
+  });
+
+  it('reconciles a committed manifest after its success response is lost without duplicate acceptance', async () => {
+    const priorProject = await createProject('提交丢失前客户');
+    const priorBytes = zipBytes([{ name: 'stable.md', bytes: markdownBytes('# 稳定资料') }]);
+    const { batchId: priorBatchId } = await createBatch(priorProject, priorBytes);
+    await upload(priorProject, priorBatchId, priorBytes);
+    const prior = await waitForTerminal(priorProject, priorBatchId);
+    const priorManifestId = prior.manifest?.manifestId;
+    const priorSource = prior.manifest?.originalZip;
+    if (priorManifestId === undefined || priorSource === undefined)
+      throw new Error('prior manifest missing');
+
+    const projectId = await createProject('清单提交丢失客户');
+    const bytes = zipBytes([{ name: 'committed.md', bytes: markdownBytes('# 已提交资料') }]);
+    const { batchId } = await createBatch(projectId, bytes);
+    const originalAccept = service.repository.acceptManifest.bind(service.repository);
+    let injected = false;
+    service.repository.acceptManifest = async (...args) => {
+      const result = await originalAccept(...args);
+      if (!injected) {
+        injected = true;
+        throw new MvpError('DEPENDENCY_UNAVAILABLE');
+      }
+      return result;
+    };
+    try {
+      await upload(projectId, batchId, bytes);
+      await service.whenIdle();
+    } finally {
+      service.repository.acceptManifest = originalAccept;
+    }
+
+    const committed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(committed.batch.status).toBe('RECEIVED');
+    const manifestId = committed.manifest?.manifestId;
+    if (manifestId === undefined) throw new Error('committed manifest missing');
+    expect(await manifestCount(batchId)).toBe(1);
+
+    await restartService('vitest-manifest-response-loss');
+    const reread = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(reread.manifest?.manifestId).toBe(manifestId);
+    expect(await manifestCount(batchId)).toBe(1);
+    const source = reread.manifest?.originalZip;
+    if (source === undefined) throw new Error('committed source missing');
+    const sourceBytes = await service.readSource(identity, projectId, batchId, source.sourceId);
+    expect(sourceBytes.bytes.equals(bytes)).toBe(true);
+    await service.resumePendingExtractions();
+    expect(await manifestCount(batchId)).toBe(1);
+
+    const priorAfter = await service.getBatch(identity, priorProject, priorBatchId, 20, undefined);
+    expect(priorAfter.manifest?.manifestId).toBe(priorManifestId);
+    const priorBytesAfter = await service.readSource(
+      identity,
+      priorProject,
+      priorBatchId,
+      priorSource.sourceId,
+    );
+    expect(priorBytesAfter.bytes.equals(priorBytes)).toBe(true);
+  });
+
   it('does not resume a prepared extraction under a changed authorization epoch', async () => {
     const projectId = await createProject('重启授权客户');
     const original = zipBytes([{ name: 'restart-auth.md', bytes: markdownBytes() }]);
@@ -846,4 +1054,51 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     const accepted = await waitForTerminal(projectId, batchId, fresh);
     expect(accepted.batch.status).toBe('RECEIVED');
   });
+
+  it('reads the same accepted manifest after a real PostgreSQL stop-start', async () => {
+    const containerId = process.env.ZJU_PERSISTENCE_CONTAINER_ID;
+    if (containerId === undefined) throw new Error('persistence container id missing');
+    const epoch = await currentEpoch();
+    const current: SessionIdentity = { ...identity, authEpoch: epoch };
+    const projectId = await createProject('数据库重启客户', current);
+    const original = zipBytes([{ name: 'restart.md', bytes: markdownBytes('# 重启资料') }]);
+    const { batchId } = await createBatch(projectId, original, undefined, current);
+    await upload(projectId, batchId, original, original.length, current);
+    const accepted = await waitForTerminal(projectId, batchId, current);
+    const manifestId = accepted.manifest?.manifestId;
+    const source = accepted.manifest?.originalZip;
+    if (manifestId === undefined || source === undefined) throw new Error('manifest missing');
+
+    await database.close();
+    await admin?.end();
+    admin = undefined;
+    let stopped = false;
+    try {
+      execFileSync('docker', ['stop', '--time', '10', containerId]);
+      stopped = true;
+      execFileSync('docker', ['start', containerId]);
+      stopped = false;
+    } finally {
+      if (stopped) execFileSync('docker', ['start', containerId]);
+    }
+    const mapping = execFileSync('docker', ['port', containerId, '5432/tcp'], {
+      encoding: 'utf8',
+    }).trim();
+    const port = mapping.slice(mapping.lastIndexOf(':') + 1);
+    const mutable = fixture as { databaseUrl: string; adminUrl: string };
+    const databaseUrl = new URL(fixture.databaseUrl);
+    databaseUrl.port = port;
+    mutable.databaseUrl = databaseUrl.toString();
+    const adminUrl = new URL(fixture.adminUrl);
+    adminUrl.port = port;
+    mutable.adminUrl = adminUrl.toString();
+    await waitForDatabase();
+    await openService('vitest-postgres-restart');
+
+    const reread = await service.getBatch(current, projectId, batchId, 20, undefined);
+    expect(reread.manifest?.manifestId).toBe(manifestId);
+    const bytes = await service.readSource(current, projectId, batchId, source.sourceId);
+    expect(bytes.bytes.equals(original)).toBe(true);
+    expect(await manifestCount(batchId)).toBe(1);
+  }, 60_000);
 });

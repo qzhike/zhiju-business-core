@@ -179,6 +179,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   let webOrigin = '';
+  let coreOrigin = '';
+  let coreEnv: Record<string, string> = {};
 
   beforeAll(async () => {
     if (adminUrl === undefined) throw new Error('persistence gate is required');
@@ -201,7 +203,7 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     const corePort = await freePort();
     webOrigin = `http://127.0.0.1:${webPort}`;
     const bffOrigin = `http://127.0.0.1:${bffPort}`;
-    const coreOrigin = `http://127.0.0.1:${corePort}`;
+    coreOrigin = `http://127.0.0.1:${corePort}`;
     const trust = {
       trustConfigVersion: 'mvp-trust-v1',
       publicOrigin: webOrigin,
@@ -248,21 +250,22 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
       boardService: { principalId: newUuidV7() },
     };
     const rawTrust = JSON.stringify(trust);
+    coreEnv = {
+      NODE_ENV: 'production',
+      ZHIJU_MVP_INSTANCE_ID: fixture.instanceId,
+      ZHIJU_MVP_DATABASE_URL: fixture.databaseUrl,
+      ZHIJU_MVP_STORE_ROOT: fixture.storeRoot,
+      ZHIJU_MVP_STORE_ID: fixture.storeId,
+      ZHIJU_MVP_STORE_IDENTITY: fixture.store.identity.storeIdentity,
+      ZHIJU_MVP_CURSOR_KEY: '55'.repeat(32),
+      ZHIJU_MVP_TRUST_CONFIG: rawTrust,
+      ZHIJU_MVP_CORE_HOST: '127.0.0.1',
+      ZHIJU_MVP_CORE_PORT: String(corePort),
+    };
     core = await startChild({
       name: 'mvp-core',
       entry: coreEntry,
-      env: {
-        NODE_ENV: 'production',
-        ZHIJU_MVP_INSTANCE_ID: fixture.instanceId,
-        ZHIJU_MVP_DATABASE_URL: fixture.databaseUrl,
-        ZHIJU_MVP_STORE_ROOT: fixture.storeRoot,
-        ZHIJU_MVP_STORE_ID: fixture.storeId,
-        ZHIJU_MVP_STORE_IDENTITY: fixture.store.identity.storeIdentity,
-        ZHIJU_MVP_CURSOR_KEY: '55'.repeat(32),
-        ZHIJU_MVP_TRUST_CONFIG: rawTrust,
-        ZHIJU_MVP_CORE_HOST: '127.0.0.1',
-        ZHIJU_MVP_CORE_PORT: String(corePort),
-      },
+      env: coreEnv,
       readyUrl: `${coreOrigin}/api/mvp/v1/session`,
     });
     bff = await startChild({
@@ -430,6 +433,20 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: /第 2 批/ }).click();
     await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
+
+    await core?.stop().catch(() => undefined);
+    core = await startChild({
+      name: 'mvp-core-restart',
+      entry: coreEntry,
+      env: coreEnv,
+      readyUrl: `${coreOrigin}/api/mvp/v1/session`,
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
     vitestExpect(project).toMatch(/^\/custody\/projects\//u);
   }, 120_000);
 });
