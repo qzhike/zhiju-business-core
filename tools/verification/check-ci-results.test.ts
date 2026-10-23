@@ -6,9 +6,9 @@ import type { VerificationTarget } from './select-target.mts';
 
 function completed(target: VerificationTarget = 'full') {
   return {
-    select: { result: 'success', outputs: { target } },
-    checks: { result: 'success', outputs: {} },
-    persistence: { result: target === 'full' ? 'success' : 'skipped', outputs: {} },
+    select: { result: 'success', outputs: { target, attempt: '1' } },
+    checks: { result: 'success', outputs: { attempt: '1' } },
+    persistence: { result: target === 'full' ? 'success' : 'skipped', outputs: { attempt: '1' } },
   };
 }
 
@@ -53,7 +53,7 @@ describe('required CI verification aggregation', () => {
   it.each([undefined, '', 'unknown'])('rejects target %s', (target) => {
     expect(
       ciVerificationFailures(
-        { ...completed(), select: { result: 'success', outputs: { target } } },
+        { ...completed(), select: { result: 'success', outputs: { target, attempt: '1' } } },
         false,
       ),
     ).not.toEqual([]);
@@ -71,6 +71,21 @@ describe('required CI verification aggregation', () => {
     expect(
       ciVerificationFailures({ ...completed(), extra: { result: 'failure' } }, false),
     ).not.toEqual([]);
+  });
+  it('accepts a whole rerun and rejects reused successes from an earlier attempt', () => {
+    for (const target of ['docs', 'code', 'full'] as const) {
+      const current = completed(target);
+      for (const job of Object.values(current)) job.outputs.attempt = '2';
+      expect(ciVerificationFailures(current, false, '2')).toEqual([]);
+      for (const name of target === 'full'
+        ? ['select', 'checks', 'persistence']
+        : ['select', 'checks']) {
+        const mixed = structuredClone(current);
+        mixed[name as keyof typeof mixed].outputs.attempt = '1';
+        expect(ciVerificationFailures(mixed, false, '2')).not.toEqual([]);
+      }
+      expect(ciVerificationFailures(current, false, '')).not.toEqual([]);
+    }
   });
   it('rejects an unknown job result', () => {
     expect(
@@ -93,7 +108,12 @@ describe('required CI verification aggregation', () => {
           fileURLToPath(new URL('./check-ci-results.mts', import.meta.url)),
         ],
         {
-          env: { ...process.env, NEEDS_JSON: needs, WORKFLOW_CANCELLED: cancellation },
+          env: {
+            ...process.env,
+            NEEDS_JSON: needs,
+            WORKFLOW_CANCELLED: cancellation,
+            GITHUB_RUN_ATTEMPT: '1',
+          },
           encoding: 'utf8',
         },
       );
@@ -104,10 +124,10 @@ describe('required CI verification aggregation', () => {
 
 describe('three independent persistence results', () => {
   const success = {
-    select: { result: 'success', outputs: { target: 'full' } },
-    'persistence-1': { result: 'success' },
-    'persistence-2': { result: 'success' },
-    'persistence-3': { result: 'success' },
+    select: { result: 'success', outputs: { target: 'full', attempt: '1' } },
+    'persistence-1': { result: 'success', outputs: { attempt: '1' } },
+    'persistence-2': { result: 'success', outputs: { attempt: '1' } },
+    'persistence-3': { result: 'success', outputs: { attempt: '1' } },
   };
   it('requires all three named partitions and full selection', () => {
     expect(persistenceVerificationFailures(success, false)).toEqual([]);
@@ -115,6 +135,17 @@ describe('three independent persistence results', () => {
     expect(
       persistenceVerificationFailures({ ...success, extra: { result: 'success' } }, false),
     ).not.toEqual([]);
+  });
+  it('requires every partition and selection to execute within the current attempt', () => {
+    const current = structuredClone(success);
+    for (const job of Object.values(current)) job.outputs.attempt = '2';
+    expect(persistenceVerificationFailures(current, false, '2')).toEqual([]);
+    for (const name of Object.keys(current)) {
+      const mixed = structuredClone(current);
+      mixed[name as keyof typeof mixed].outputs.attempt = '1';
+      expect(persistenceVerificationFailures(mixed, false, '2')).not.toEqual([]);
+    }
+    expect(persistenceVerificationFailures(current, false, '')).not.toEqual([]);
   });
   for (const name of Object.keys(success)) {
     it.each(['failure', 'cancelled', 'skipped', 'pending', '', undefined])(
@@ -137,7 +168,7 @@ describe('three independent persistence results', () => {
   it.each(['docs', 'code', '', undefined])('rejects target %j', (target) => {
     expect(
       persistenceVerificationFailures(
-        { ...success, select: { result: 'success', outputs: { target } } },
+        { ...success, select: { result: 'success', outputs: { target, attempt: '1' } } },
         false,
       ),
     ).not.toEqual([]);
@@ -164,6 +195,7 @@ describe('three independent persistence results', () => {
           NEEDS_JSON: JSON.stringify(needs),
           WORKFLOW_CANCELLED: cancelled,
           VERIFICATION_SCOPE: scope,
+          GITHUB_RUN_ATTEMPT: '1',
         },
         encoding: 'utf8',
       },

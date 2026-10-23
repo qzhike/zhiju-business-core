@@ -2,6 +2,10 @@ name: persistence partition
 
 on:
   workflow_call:
+    outputs:
+      attempt:
+        description: The attempt that completed this persistence partition.
+        value: ${{ jobs.gate.outputs.attempt }}
     inputs:
       partition:
         required: true
@@ -14,6 +18,8 @@ jobs:
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      attempt: ${{ steps.completed.outputs.attempt }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -34,3 +40,6 @@ jobs:
         env:
           PERSISTENCE_PARTITION: ${{ inputs.partition }}
         run: pnpm persistence:gate --partition="$PERSISTENCE_PARTITION"
+      - name: Record completed attempt
+        id: completed
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
