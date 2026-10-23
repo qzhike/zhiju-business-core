@@ -37,6 +37,8 @@
 
 #### 2.1.1 配置化验证目标与 CI 路由
 
+本节风险路由是批次流程尚未启用时的默认规则；启用后按 §2.1.2 分配子任务与批次出口的验证。检查内容、失败判定、持久化分片及关键清单仍沿用本节。
+
 项目配置保留三个确定性目标，并始终选择覆盖当前变更风险边界的最小充分目标：
 
 - `docs`：严格限于 `.vibe/` 下 Markdown 或根 `README.md` 的文档变更，检查变更路径、diff whitespace、冲突标记、Markdown fence 和仓库既有格式 Gate；设计、Contract 语义与 `NOT RUN` 边界仍由独立审查和适用的人类门禁判断，不能由该自动化结果替代；
@@ -74,6 +76,24 @@ initial Context 的连接池清理须等待所有已建立连接的 `end` 事件
 CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` 执行 docs 或完整 code 检查，`persistence-1/2/3` 仅在 full 时调用同一复用工作流，分别在独立 runner 执行固定分片。数据库任务先安装受控 Chromium 并 clean build 自己的 workspace libraries；不重复普通测试、格式、lint、Architecture 或 Contract Gate，也不把同一数据库内文件并行化。原 `persistence` 名称保留为汇总，要求三个明确分片全部 success，缺失、失败、取消、非法结果和意外 skipped 一律拒绝。本地配置的 full 仍是 code + 不分片 persistence 的完整顺序验证。原 `verify` 检查作为 always 汇总，必须确认 select/checks 成功，full 的 persistence 成功，docs/code 的 persistence 为预期 skipped；失败、取消、缺失/非法结果、未知目标和意外跳过不能通过。文档任务传入同一 BASE_SHA/GITHUB_SHA 边界；根 `vitest.persistence.config.ts` 单独变化也必须 full。分片带来的实际 CI 耗时改善须由调整后的远端运行验证，不能由历史耗时相加推定已达成。
 
 Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与应用依赖边界反例，以及实际构建匿名开发制品的受控 Chromium 旅程，接入 `code/full` 的普通检查。CI 为该检查安装锁定 Playwright 的 Chromium；它不替代真实 OIDC/业务 HTTP/Runner、Windows/macOS Chrome/Edge 支持矩阵、生产或独立人工验收。生成的匿名截图保持本地忽略，执行证据进入 Issue/PR。
+
+#### 2.1.2 批次交付第一阶段
+
+本节落实[已批准的批次设计](../decisions/batch-integration-ci.md)。共享 Vibe 只解释项目声明的阶段；本项目以仓库变量 `VIBE_BATCH_DELIVERY_ENABLED` 精确等于 `true` 为远端启用条件。缺失或 `false` 保持 §2.1.1 路由，非法值拒绝准入。设计批准、本地实现和本地验证不等于 GitHub 已启用。本轮不修改仓库变量、分支保护或其他 GitHub 设置。
+
+启用后，普通业务、UI 与紧急修复 PR 均先进入同仓库的 `batch/<goal>`；`<goal>` 使用小写字母、数字和分隔单词的连字符，可以只有一个子 PR。子 PR 完整累计 diff 仅含严格文档时为 `docs`，包含明确业务源代码、业务测试或 migration 路径时为 `code`，同时仍须执行 Issue 本阶段约定的事务、权限等聚焦检查。工程配置、依赖、构建、验证策略、未知和混合工程路径保留 `full`。允许路径由 `select-target.mts` 维护，不能为省略验证放宽路径。直接进入 main 的普通业务 PR 即使 full 通过也不准入；严格独立文档是例外，启用前有限的工程引导 PR 仍走旧规则 full。
+
+`batch/<goal> → main` 一律 `full`，包括 UI-only 和 docs-only 批次。批次冻结后先同步当前 main，记录 base SHA、head SHA、实际测试合并 SHA 与 tree，并完成最终语义审查。`ci.yml` 对非 main PR 独立运行，对 main push 保留运行，并可被 `main-admission.yml` 的 main PR 流程复用。主干准入等待本次完整验证结果后才执行，不在子 PR 上产生可被误用的 skipped 同名主干检查。PR 的 `edited` 事件重新验证，包含改 base 的情形；目前对其他元数据编辑也保守重跑，不通过跳过整个必需 job 优化。
+
+验证汇总拒绝选中检查的失败、取消、缺失与意外 skipped，full 必须含三个持久化分片。准入脚本还核对本地 checkout、合并候选的双亲、事件载荷以及只读 API 返回的当前 base/head/merge SHA 和 open 状态；无法读取或边界变化时拒绝旧证据。普通 PR 与 main PR 都绑定当前候选，不能把子 PR 旧绿灯用于改目标后的主干合入。不同 PR 的 concurrency 隔离，同 PR 新运行取消旧运行；每次 main push 独立验证。最终检查与实际合入之间的竞态仍需分支保护的 up-to-date 要求和合入时精确 head 校验，本地脚本不能代替平台保护。
+
+第一阶段合入 main 后仍执行 full；批次合入即使最终只剩文档也不降级。仅当 main push 的完整 diff 为严格文档、GitHub 只读查询能唯一关联到同 SHA 已合并的独立非批次文档 PR，且其累计 diff 也为严格文档时，保留独立 docs 路由；来源未知、关联失败或不一致均退回 full。这只判断文档来源，不复用其他运行的 full 结果。第二阶段的同代码树证据复用、跨 SHA 免跑和自动生成通过状态均未实现。
+
+失败处理与 Review 收口遵守设计 §4–§5：批次出口失败时保持冻结，区分实现缺陷、验证缺陷、环境问题和新设计决定；修复通过同批次补丁 PR、阶段检查与独立审查进入，新候选重新 full。相同候选的临时环境故障首版重跑整个 workflow，不拼接不同 attempt 的分片成功。选路、检查、每个持久化分片及汇总都输出实际执行的 attempt；汇总与主干准入要求这些输出属于当前 attempt，只重跑失败任务或单独重跑准入不能沿用旧成功。移除子任务必须复核依赖、撤回受影响批准并更新批次接受标准。main 合入后 full 失败时暂停后续批次最终合入及发布；允许从故障 main 建立单 PR 恢复批次，恢复仍执行合入前后 full。环境恢复和故障归因不代表业务验收通过。
+
+正式 `.vibe/reviews/pr-<number>/Review.md` 在冻结最终候选前记录语义发现、处置、阶段与目标；最终 SHA/检查确认留在 PR review/comment 中，不为回填成功日志产生新提交。实质发现和修复仍更新文档、重新审查并验证受影响候选。子任务进入集成分支不等于产品目标交付；main 与其必需 post-merge full 完成后才按授权更新真实交付事实。本地尚无 PR 时不伪造编号或预写正式批准。
+
+配置目标 `delivery` 用于路由、准入、累计 diff、候选漂移、取消与证据来源的聚焦回归；验证策略改动仍必须执行 `full`。启用顺序为：先以变量关闭状态交付工作流并验证真实 check 名称；为 main 配置实际主干准入与对应验证检查、up-to-date 和必需审查，为 batch 配置实际子 PR 验证与审查；验证保护及重定向负例后才设置变量为 `true`。检查名称以真实 GitHub 运行读取结果为准，不能仅凭本地 job id 宣称设置正确。此平台验收留待另行授权，不以本地测试替代。
 
 ### 2.2 Unit
 

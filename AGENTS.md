@@ -56,6 +56,25 @@ Apply the shared Planner's independent delivery goal and first-version acceptanc
 principles using the [project acceptance policy](.vibe/high-level-docs/08-verification-baseline.md#28-首版可用验收与任务粒度).
 Planner, Implementer, and Reviewer use the agreed scope and acceptance consistently.
 
+The approved [batch delivery design](.vibe/decisions/batch-integration-ci.md)
+defines staged acceptance. Phase one is prepared locally; remote activation and
+platform acceptance are separate. Until `VIBE_BATCH_DELIVERY_ENABLED` is exactly
+`true` in repository variables after required protections are verified, retain
+the existing risk routing below. A branch name, design approval, or local setting
+does not establish remote activation.
+
+Once activated, ordinary business, UI, and urgent PRs first enter a same-repository
+`batch/<goal>` branch; a batch may contain one PR. Children require `docs` or `code`,
+their declared focused behavior checks, and independent review. Engineering,
+verification-policy, and unknown paths retain `full`. Direct business PRs to main
+are rejected even if their full run passes. Strict independent documentation may
+go directly to main; bootstrap engineering PRs use the existing full route before
+activation. Freeze the batch, reconcile current main, and review the cumulative
+candidate with full before main delivery. Phase one retains post-merge main full,
+including documentation-only batches; same-code-tree evidence reuse is deferred.
+Use [the verification policy](.vibe/high-level-docs/08-verification-baseline.md#212-批次交付第一阶段)
+for activation, failure recovery, and evidence boundaries.
+
 ## Project boundaries
 
 - Preserve module ownership and public contracts. Update affected authority
@@ -70,11 +89,13 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
     evidence;
   - `docs` for a strict documentation-only change limited to Markdown under
     `.vibe/` or the repository README;
-  - `code` for Draft or ready Pull Requests whose complete diff contains only
+  - `delivery` for focused CI routing and admission regression checks; this does
+    not replace the required `full` for verification-policy changes;
+  - before batch activation, `code` for Draft or ready Pull Requests whose complete diff contains only
     the explicit low-risk UI allowlist and optional strict documentation; see
     [verification routing](.vibe/high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由).
     This still includes the workspace build and browser checks;
-  - `full` for non-document main pushes, Core/business/security/contract or
+  - before batch activation, `full` for non-document main pushes, Core/business/security/contract or
     persistence changes, dependency/build/verification-policy changes, and
     unknown or mixed scope. Draft status does not exempt high-risk changes.
     The `full` target includes a clean build and the Docker/PostgreSQL persistence
@@ -97,5 +118,12 @@ Planner, Implementer, and Reviewer use the agreed scope and acceptance consisten
   ordinary work. Find historical records through `.vibe/archive/issue-index.md`; preserve their evidence and
   reconcile unique constraints before treating them as obsolete. New formal review
   records belong in `.vibe/reviews/pr-<number>/Review.md`.
+- For staged delivery, formal Review documents record semantic findings,
+  dispositions, and the stage/target before freezing the final candidate. Confirm
+  the final SHA and checks in PR review/comments; do not create a new commit only
+  to copy CI success into Review.md. Substantive findings, scope changes, and
+  fixes still require document updates and renewed affected review/verification.
+  Integration approval does not close the batch product goal; reconcile delivery
+  only after authorized main merge and its required post-merge checks.
 - After authorized merge, read back remote state and update durable documents
   only where their truth or forward intent changed.

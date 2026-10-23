@@ -2,15 +2,25 @@ name: ci
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    branches-ignore: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [main]
+  workflow_call:
+    outputs:
+      target:
+        description: The verification target selected for this exact event.
+        value: ${{ jobs.select.outputs.target }}
+      attempt:
+        description: The attempt in which all selected verification passed.
+        value: ${{ jobs.verify.outputs.attempt }}
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  group: verification-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -19,6 +29,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       target: ${{ steps.verification.outputs.target }}
+      attempt: ${{ steps.verification.outputs.attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +42,8 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+          BATCH_DELIVERY_ENABLED: ${{ vars.VIBE_BATCH_DELIVERY_ENABLED }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: >-
           node --experimental-strip-types tools/verification/select-target.mts
           "$BASE_SHA" "$GITHUB_SHA" "$GITHUB_EVENT_NAME" "$PR_DRAFT"
@@ -39,6 +52,8 @@ jobs:
     needs: select
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      attempt: ${{ steps.completed.outputs.attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +77,9 @@ jobs:
       - name: Verify code
         if: needs.select.outputs.target == 'code' || needs.select.outputs.target == 'full'
         run: pnpm clean && pnpm verify:code
+      - name: Record completed attempt
+        id: completed
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
   persistence-1:
     needs: select
@@ -89,6 +107,8 @@ jobs:
     if: ${{ always() && needs.select.outputs.target == 'full' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      attempt: ${{ steps.completed.outputs.attempt }}
     steps:
       - uses: actions/checkout@v4
         if: ${{ !cancelled() }}
@@ -106,15 +126,22 @@ jobs:
           WORKFLOW_CANCELLED: 'false'
           VERIFICATION_SCOPE: partitions
         run: node --experimental-strip-types tools/verification/check-ci-results.mts
+      - name: Record completed attempt
+        id: completed
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
   verify:
     needs: [select, checks, persistence]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      attempt: ${{ steps.completed.outputs.attempt }}
     steps:
       - uses: actions/checkout@v4
         if: ${{ !cancelled() }}
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         if: ${{ !cancelled() }}
         with:
@@ -129,3 +156,14 @@ jobs:
           WORKFLOW_CANCELLED: 'false'
           VERIFICATION_SCOPE: workflow
         run: node --experimental-strip-types tools/verification/check-ci-results.mts
+      - name: Bind passing verification to the current pull request candidate
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        env:
+          BATCH_DELIVERY_ENABLED: ${{ vars.VIBE_BATCH_DELIVERY_ENABLED }}
+          SELECTED_TARGET: ${{ needs.select.outputs.target }}
+          VERIFICATION_RESULT: success
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types tools/verification/check-delivery.mts
+      - name: Record completed attempt
+        id: completed
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"

@@ -3,5 +3,7 @@ workflow: vibe-v2
 verify:
   environment: pnpm verify:environment
   docs: pnpm verify:docs
+  # Focused delivery regressions; policy changes still require full.
+  delivery: pnpm exec vitest run tools/verification/batch-delivery.test.ts tools/verification/batch-delivery-cli.test.ts tools/verification/select-target.test.ts tools/verification/ci-workflow.test.ts tools/verification/check-ci-results.test.ts
   code: pnpm clean && pnpm verify:code
   full: pnpm clean && pnpm verify
