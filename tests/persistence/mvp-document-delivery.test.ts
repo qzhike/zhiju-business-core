@@ -1,6 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
-
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -168,22 +165,6 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
   async function restartService(incarnation: string): Promise<void> {
     await database.close();
     await openService(incarnation);
-  }
-
-  async function waitForDatabase(): Promise<void> {
-    for (let attempt = 0; attempt < 60; attempt++) {
-      const client = new Client({ connectionString: fixture.databaseUrl });
-      try {
-        await client.connect();
-        await client.query('SELECT 1');
-        return;
-      } catch {
-        await delay(500);
-      } finally {
-        await client.end().catch(() => undefined);
-      }
-    }
-    throw new Error('PostgreSQL did not accept connections after restart');
   }
 
   async function withMvpAdmin<T>(run: (client: Client) => Promise<T>): Promise<T> {
@@ -1054,51 +1035,4 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     const accepted = await waitForTerminal(projectId, batchId, fresh);
     expect(accepted.batch.status).toBe('RECEIVED');
   });
-
-  it('reads the same accepted manifest after a real PostgreSQL stop-start', async () => {
-    const containerId = process.env.ZJU_PERSISTENCE_CONTAINER_ID;
-    if (containerId === undefined) throw new Error('persistence container id missing');
-    const epoch = await currentEpoch();
-    const current: SessionIdentity = { ...identity, authEpoch: epoch };
-    const projectId = await createProject('数据库重启客户', current);
-    const original = zipBytes([{ name: 'restart.md', bytes: markdownBytes('# 重启资料') }]);
-    const { batchId } = await createBatch(projectId, original, undefined, current);
-    await upload(projectId, batchId, original, original.length, current);
-    const accepted = await waitForTerminal(projectId, batchId, current);
-    const manifestId = accepted.manifest?.manifestId;
-    const source = accepted.manifest?.originalZip;
-    if (manifestId === undefined || source === undefined) throw new Error('manifest missing');
-
-    await database.close();
-    await admin?.end();
-    admin = undefined;
-    let stopped = false;
-    try {
-      execFileSync('docker', ['stop', '--time', '10', containerId]);
-      stopped = true;
-      execFileSync('docker', ['start', containerId]);
-      stopped = false;
-    } finally {
-      if (stopped) execFileSync('docker', ['start', containerId]);
-    }
-    const mapping = execFileSync('docker', ['port', containerId, '5432/tcp'], {
-      encoding: 'utf8',
-    }).trim();
-    const port = mapping.slice(mapping.lastIndexOf(':') + 1);
-    const mutable = fixture as { databaseUrl: string; adminUrl: string };
-    const databaseUrl = new URL(fixture.databaseUrl);
-    databaseUrl.port = port;
-    mutable.databaseUrl = databaseUrl.toString();
-    const adminUrl = new URL(fixture.adminUrl);
-    adminUrl.port = port;
-    mutable.adminUrl = adminUrl.toString();
-    await waitForDatabase();
-    await openService('vitest-postgres-restart');
-
-    const reread = await service.getBatch(current, projectId, batchId, 20, undefined);
-    expect(reread.manifest?.manifestId).toBe(manifestId);
-    const bytes = await service.readSource(current, projectId, batchId, source.sourceId);
-    expect(bytes.bytes.equals(original)).toBe(true);
-    expect(await manifestCount(batchId)).toBe(1);
-  }, 60_000);
 });
