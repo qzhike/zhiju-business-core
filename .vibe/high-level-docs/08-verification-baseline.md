@@ -97,7 +97,9 @@ Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与
 
 #### 远端启用操作约束
 
-远端保护以 GitHub 实际匹配到的规则为准：main 的必需检查是 `verification / verify` 与 `main-admission`，batch 子 PR 的必需检查是 `verify`；检查来源绑定 GitHub Actions，不接受同名的其他来源。两类目标都要求 PR、当前基线验证、至少 1 个正式批准、最新推送重新批准及未解决对话清零，不配置管理员或应用旁路，第一阶段使用普通 merge commit。
+远端保护以 GitHub 实际匹配到的规则为准：main 的必需检查是 `verification / verify` 与 `main-admission`，batch 子 PR 的必需检查是 `verify`；检查来源绑定 GitHub Actions，不接受同名的其他来源。两类目标都要求 PR、当前基线验证及未解决对话清零，不配置管理员或应用旁路，第一阶段使用普通 merge commit。
+
+项目按用户确认的单人开发方式执行审查：独立 Agent 审查、正式 Review 文档与人的合入授权仍然必需，人的授权可来自当前会话并在 PR 中记录其范围。GitHub 不支持作者正式批准自己的 PR，因此 main 和 batch 的 `required_approving_review_count=0`、`require_last_push_approval=false`；不要求第二个账户，不伪造 formal approval。平台自动执行 PR、CI 与基线门禁；Agent 审查和人的授权由交付流程核对，不能声称 GitHub 自动强制了这两项。候选、目标或基线变化后仍须重新判断审查和授权适用性，不将旧结论直接沿用到新组合。
 
 普通 `batch/<goal>` 的起点必须是已完成 main full 的精确 main 修订。main full 失败后的专用单 PR 恢复批次保留上述窄例外：记录故障修订与最近已验证基线，不扩展业务，恢复候选合入前后仍须 full。batch 创建豁免状态检查仅用于建立合法起点，不能夹带未经审查的变更；后续更新仍须经 PR、阶段检查与审查。GitHub 规则无法证明创建来源，执行者与独立 Reviewer 必须核对普通或恢复批次的起点身份及范围。活跃批次禁止删除和强推；批次交付后，清理仅对获授权的确切已完成分支处理，不为清理撤销其他批次保护。
 
