@@ -28,6 +28,9 @@
       "path": "../../modules/integration-gateway"
     },
     {
+      "path": "../../modules/document-delivery"
+    },
+    {
       "path": "../../modules/quality-governance"
     },
     {

@@ -309,7 +309,13 @@ function parseTrustConfig(document: Record<string, unknown>): BffTrustConfig | u
 
   if (!/^env:[A-Za-z_][A-Za-z0-9_]*$/u.test(clientAuthSecretRef)) return undefined;
   if (callbackUri !== `${publicOrigin}/bff/auth/callback`) return undefined;
-  if (postLogoutRedirectUri !== `${publicOrigin}/workbench`) return undefined;
+  // The dedicated MVP surface returns to its custody entry; the legacy
+  // workspace keeps its existing /workbench logout destination.
+  if (
+    postLogoutRedirectUri !== `${publicOrigin}/workbench` &&
+    postLogoutRedirectUri !== `${publicOrigin}/custody`
+  )
+    return undefined;
 
   return {
     trustConfigVersion,

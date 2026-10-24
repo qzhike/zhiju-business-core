@@ -194,7 +194,12 @@ function closeEnvironment(environment: Environment, settled = false): Promise<vo
 // reusable environment is never lent to the next business case.
 export function registerIsolatedInitialContextGroups(
   groups: readonly { label: string; cases: readonly IsolatedInitialContextCase[] }[],
-  options: { databasePerCase?: boolean; deliveryOnly?: boolean } = {},
+  options: {
+    databasePerCase?: boolean;
+    deliveryOnly?: boolean;
+    // Lifecycle probes scale hook budgets without mocking the test framework itself.
+    hookTimeouts?: { setup: number; cleanup: number; afterCase: number };
+  } = {},
 ): void {
   const lanes = groups.map((group) => {
     const environment = (): Environment => ({
@@ -285,7 +290,7 @@ export function registerIsolatedInitialContextGroups(
       beginExit();
       throw error;
     }
-  }, 300_000);
+  }, options.hookTimeouts?.setup ?? 300_000);
 
   afterAll(async () => {
     beginExit();
@@ -297,7 +302,7 @@ export function registerIsolatedInitialContextGroups(
     );
     if (failures.length)
       throw new AggregateError(failures, 'isolated initial Context cleanup failed');
-  }, 120_000);
+  }, options.hookTimeouts?.cleanup ?? 120_000);
 
   lanes.forEach((lane, index) => {
     describe(definedValue(groups[index]).label, { concurrent: true }, () => {
@@ -321,7 +326,7 @@ export function registerIsolatedInitialContextGroups(
           }
           throw error;
         }
-      }, 120_000);
+      }, options.hookTimeouts?.afterCase ?? 120_000);
       for (const { test, environment } of lane) {
         it(test.name, { concurrent: false, timeout: test.timeout }, async () => {
           if (environment.failed || !environment.available || environment.closing)

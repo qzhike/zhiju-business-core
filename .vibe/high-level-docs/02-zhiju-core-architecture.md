@@ -14,7 +14,7 @@
 
 ### B1 独立应用边界（已批准设计）
 
-状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。取舍见 [B1 设计](../mvp/b1-design.md)。新 `DocumentDelivery`（MVP01）是精简 MVP composition 的唯一业务 Owner；B1 只拥有项目、输入批次、精确来源/manifest、请求/尝试与恢复。它不是旧七模块中的第八个协作参与者，也不访问旧 Repository、跨旧 schema 写入或借用旧业务授权事实。
+状态：`DESIGN APPROVED 2026-10-22 / IMPLEMENTATION CANDIDATE`。取舍见 [B1 设计](../mvp/b1-design.md)。实现为 `modules/document-delivery` 与 `apps/api` 的独立 MVP 启动 composition；真实实例与人工验收未运行。新 `DocumentDelivery`（MVP01）是精简 MVP composition 的唯一业务 Owner；B1 只拥有项目、输入批次、精确来源/manifest、请求/尝试与恢复。它不是旧七模块中的第八个协作参与者，也不访问旧 Repository、跨旧 schema 写入或借用旧业务授权事实。
 
 拟代码边界为 `modules/document-delivery` 与 `apps/api` 的独立 MVP 启动 composition；保留现有 Web/BFF 工程，后者在本实例只装配有限 MVP routes。部署模式启动时固定，不能因依赖失败在 legacy/MVP/fixture 间降级。独立数据库/文件根/instanceId 与旧环境分开，具体存储映射归 07。通用 UUID/hash、OIDC校验、上传流、安全解包、不可覆盖文件机制可提取复用；不能为了复用引入旧 Preparation/Task/CompanyPublication 等运行前置。
 

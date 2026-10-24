@@ -6,6 +6,7 @@ packages:
 
 allowBuilds:
   cpu-features: false
+  fs-ext: true
   protobufjs: false
   ssh2: false
 

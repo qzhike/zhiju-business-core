@@ -29,6 +29,22 @@ class ShellController {
 @Module({ controllers: [ShellController] })
 class ShellModule {}
 
+/** The MVP upstream is a fixed loopback HTTP origin, never a browser value. */
+function validatedLoopbackUrl(value: string | undefined): string | undefined {
+  if (value === undefined || value.length === 0) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  const loopback =
+    url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1';
+  if (url.protocol !== 'http:' || !loopback || url.username !== '' || url.password !== '')
+    return undefined;
+  return url.origin;
+}
+
 export interface CreateBffOptions {
   env?: Record<string, string | undefined>;
   clock?: () => number;
@@ -55,6 +71,7 @@ export async function createBff(options: CreateBffOptions = {}): Promise<NestFas
   const clock = options.clock ?? (() => Date.now());
   const fetchImpl = options.fetchImpl ?? fetch;
   const trust = loadBffTrustConfigFromEnv(env);
+  const mvpCoreBaseUrl = validatedLoopbackUrl(env.ZHIJU_BFF_MVP_CORE_URL);
 
   // Pass the approved direct version rather than Nest's older transitive Fastify.
   const server = fastify({ logger: false, bodyLimit: 16_384 });
@@ -95,6 +112,7 @@ export async function createBff(options: CreateBffOptions = {}): Promise<NestFas
           now: clock,
           fetchImpl,
           refreshWaitMs: options.refreshWaitMs ?? REFRESH_WAIT_MS,
+          ...(mvpCoreBaseUrl === undefined ? {} : { mvp: { coreBaseUrl: mvpCoreBaseUrl } }),
         })
       : undefined;
 

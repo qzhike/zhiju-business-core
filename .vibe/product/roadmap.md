@@ -3,19 +3,19 @@
 本文件是当前推进意图的唯一入口，不保存逐轮执行日志或完整 Issue 正文。
 收敛后的文档集中见 [MVP 文档目录](../mvp/README.md)。当前产品范围及退出条件见 [MVP 可用闭环](../mvp/usable-loop.md)，阶段交付与验收安排见 [MVP 交付计划](../mvp/delivery-plan.md)，目标结构见 [Core 缩编重构方案](../mvp/core-refactoring-plan.md)；权威衔接见 [HL-Spec](../high-level-docs/HL-Spec.md)。旧 [Implementation Milestone Plan](../implementation-milestone-plan-v0.1/Implementation-Milestone-Plan-v0.1.md)保留原里程碑及其工程约束。
 
-## Current — B1 设计交付与实施准备（2026-10-22）
+## Current — B1 批次收口与真实资料验收（2026-10-23）
 
 用户已确认“先订正 UI、确认流程，再补后端”的交付计划，并要求完成下一批前置设计。当前独立结果是登录 → 创建项目 → 首次/补充 ZIP 托管 → 核对清单与限制 → 原请求恢复 → 重启后读回；设计见 [B1 前置设计](../mvp/b1-design.md)及 MVP01 Spec/Test。
 
 - U1–U3 模拟旅程已交付：[U1 #302/#303](https://github.com/qzhike/zhiju-business-core/pull/303)、[U2 #306/#307](https://github.com/qzhike/zhiju-business-core/pull/307)、[U3 #308/#309](https://github.com/qzhike/zhiju-business-core/pull/309)。U3 正式 Review 保存用户“手动验证已完成通过”的整体 UI 确认，具体修订与边界见 [记录](../reviews/pr-309/Review.md)。这校正后续收口摘要的总体 NOT RUN，不推定私有正文、全部反例或平台矩阵已人工通过。
 - B1 技术方案为已批准的 T2 设计：新精简应用 Owner、独立初始化/数据边界、最小 OIDC 员工绑定、有限 API、不可变原包与 manifest、三格式安全接收、必要恢复。2026-10-22 独立设计复审及人类技术批准已完成，精确依据见 B1 设计；当前交付权威修订，后续实施仍按对应 Issue 和门禁进行。
-- 真实 Core/BFF/存储/数据库新链、Runner、持久重启与业务内容验收仍为 NOT RUN。B1 不创建分析/生成结果，也不等待尚不依赖的 B2 Runner 能力。
+- B1 实现已通过 #312 进入 `batch/mvp-b1-document-delivery`，尚未交付 main：独立 MVP01 模块与 `document_delivery` schema、专用 Core `/api/mvp/v1`、BFF `/bff/mvp/v1`、真实项目/资料页面与 `tools/mvp-environment`。隔离 PostgreSQL/文件 store/HTTP/构建浏览器自动化已运行；收口工作已执行独立本机初始化、Keycloak 登录及保留卷/文件的合成资料停启读回，并修复初始化信任配置、项目列表和批次隔离缺陷。真实 DOCX 试走包已准备但未上传，MD/XLSX 待补，私有内容与人工业务验收仍为 `NOT RUN`。B1 不创建分析/生成结果，也不等待尚不依赖的 B2 Runner 能力。
 - Core 只管理交付过程和接入；正式 Runner 为用户维护的独立目录，规则、Skills、工具与模板不在本轮修改。目录存在不证明真实 Harness 或三格式读取已通过。
 - 不按旧七模块路线扩展新 MVP，不清理旧环境、不迁移旧业务数据。现有工程事实和历史约束保留。
 
-## Next — B1 实施，再按 B2–B5 接通真实闭环
+## Next — 完成 B1 交付，再按 B2–B5 接通真实闭环
 
-B1 设计进入主干并回读后，核对最新 main 与依赖，按已有发布授权创建一个 NOW + READY implementation Issue；身份、协议、存储、UI 与恢复共同交付可用结果。
+B1 实现候选修订完成后，先完成独立实现审查、精确 head CI、真实隔离实例初始化与人工试走；这些证据通过后才把 B1 计入交付，再按交付计划准备 B2。
 
 随后按交付计划依次闭合 B2 分析与范围、B3 质量手册、B4 第二阶段联动与记录表单、B5 精确交付的设计和真实能力。下一批需要的 Runner/Harness/模板与输入核验按其依赖完成，不一次性冻结所有后端契约。
 

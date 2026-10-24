@@ -4,7 +4,7 @@
 
 分类：`T2 / NEW APPLICATION DATA AND SECURITY BOUNDARY`
 
-状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。
+状态：`DESIGN APPROVED 2026-10-22 / IMPLEMENTATION CANDIDATE / REAL INSTANCE AND USER ACCEPTANCE NOT RUN`。
 
 本设计承接用户“完成前置设计任务”的授权，只闭合 [交付计划 B1](delivery-plan.md#5-第三阶段逐段接通真实业务能力)；不实施业务、迁移数据库或更改运行中的环境。主干基线为 `ed876d8614878a94a261062853859709f7b4a926`。字段、状态及失败场景分别进入 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)，本文拥有设计取舍与批准范围，不复制操作字段。
 
