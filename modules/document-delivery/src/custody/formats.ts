@@ -74,10 +74,12 @@ function byPath(entries: readonly ZipEntry[]): Map<string, ZipEntry> {
 
 interface ContentTypes {
   readonly overrides: ReadonlyMap<string, string>;
+  readonly defaults: ReadonlyMap<string, string>;
 }
 
 function parseContentTypes(bytes: Buffer, budget: ScanBudget): ContentTypes | undefined {
   const overrides = new Map<string, string>();
+  const defaults = new Map<string, string>();
   let duplicate = false;
   try {
     scanXml(
@@ -85,7 +87,16 @@ function parseContentTypes(bytes: Buffer, budget: ScanBudget): ContentTypes | un
       budget,
       { roots: [{ local: 'Types', namespaces: [CONTENT_TYPES_NAMESPACE] }] },
       (tag) => {
-        if (tag.depth !== 1 || tag.local !== 'Override') return;
+        if (tag.depth !== 1 || tag.uri !== CONTENT_TYPES_NAMESPACE) return;
+        if (tag.local === 'Default') {
+          const extension = qualified(tag, 'Extension')?.toLowerCase();
+          const type = qualified(tag, 'ContentType');
+          if (extension === undefined || type === undefined) return;
+          if (defaults.has(extension)) duplicate = true;
+          defaults.set(extension, type);
+          return;
+        }
+        if (tag.local !== 'Override') return;
         const part = qualified(tag, 'PartName');
         const type = qualified(tag, 'ContentType');
         if (part === undefined || type === undefined) return;
@@ -99,7 +110,7 @@ function parseContentTypes(bytes: Buffer, budget: ScanBudget): ContentTypes | un
   }
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the flag is set from the parser callback.
   if (duplicate) return undefined;
-  return { overrides };
+  return { overrides, defaults };
 }
 
 interface Relationship {
@@ -198,7 +209,7 @@ function hasActiveContent(
 ): boolean {
   if (entries.some((entry) => ACTIVE_PATH.test(entry.normalizedPath))) return true;
   if (contentTypes === undefined) return false;
-  for (const type of contentTypes.overrides.values())
+  for (const type of [...contentTypes.overrides.values(), ...contentTypes.defaults.values()])
     if (ACTIVE_CONTENT_TYPE.test(type)) return true;
   return false;
 }
@@ -350,12 +361,42 @@ function xlsx(entries: readonly ZipEntry[], budget: ScanBudget): ClassifiedEntry
       return corruptFormat('INVALID_XLSX');
   }
   for (const optional of [
-    { path: `${workbookDirectory}/styles.xml`, root: 'styleSheet' },
-    { path: `${workbookDirectory}/sharedStrings.xml`, root: 'sst' },
+    { kind: 'styles', root: 'styleSheet' },
+    { kind: 'sharedStrings', root: 'sst' },
   ]) {
-    const entry = names.get(optional.path);
-    if (entry === undefined) continue;
-    if (!validateSpreadsheetPart(entry, budget, optional.root))
+    const referenced = relationships.relationships.filter((relationship) =>
+      RELATIONSHIP_NAMESPACES.some(
+        (namespace) => relationship.type === `${namespace}/${optional.kind}`,
+      ),
+    );
+    if (referenced.length > 1) return corruptFormat('INVALID_XLSX');
+    const validated = new Set<string>();
+    for (const relationship of referenced) {
+      // External references are classified below without accessing their targets.
+      if (relationship.external) continue;
+      const target = resolvePartTarget(workbookDirectory, relationship.target);
+      if (target === undefined) return corruptFormat('INVALID_XLSX');
+      const entry = names.get(target);
+      const extension = target.split('.').at(-1)?.toLowerCase() ?? '';
+      const mediaType =
+        contentTypes.overrides.get(`/${target}`) ?? contentTypes.defaults.get(extension);
+      if (
+        entry === undefined ||
+        mediaType !==
+          `application/vnd.openxmlformats-officedocument.spreadsheetml.${optional.kind}+xml` ||
+        !validateSpreadsheetPart(entry, budget, optional.root)
+      )
+        return corruptFormat('INVALID_XLSX');
+      validated.add(target);
+    }
+    // Preserve existing safety checks for conventional parts even if unreferenced.
+    const conventionalPath = `${workbookDirectory}/${optional.kind}.xml`;
+    const conventionalEntry = names.get(conventionalPath);
+    if (
+      conventionalEntry !== undefined &&
+      !validated.has(conventionalPath) &&
+      !validateSpreadsheetPart(conventionalEntry, budget, optional.root)
+    )
       return corruptFormat('INVALID_XLSX');
   }
   const allRelationships = scanAllRelationships(entries, budget);

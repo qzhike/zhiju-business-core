@@ -34,6 +34,7 @@ import {
   type CustodyEntry,
   type CustodyEntryPage,
   type CustodyProject,
+  type CustodyProjectSummary,
   type CustodySession,
   type PendingIntent,
   type RecoveryAction,
@@ -189,7 +190,7 @@ function IntentPanel({
 export function CustodyProjectsPage({ csrfToken, onSessionFailure }: CustodyPageProps) {
   const navigate = useNavigate();
   const { session, error: sessionError } = useSession(onSessionFailure);
-  const [projects, setProjects] = useState<readonly CustodyProject[]>([]);
+  const [projects, setProjects] = useState<readonly CustodyProjectSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -353,7 +354,11 @@ export function CustodyProjectsPage({ csrfToken, onSessionFailure }: CustodyPage
                 required
               />
             </label>
-            <button className="button primary" type="submit" disabled={submitting}>
+            <button
+              className="button primary"
+              type="submit"
+              disabled={submitting || session === null}
+            >
               {submitting ? '正在创建…' : '创建项目'}
             </button>
             <p className="muted">不需要旧模板、预设或七模块前置条件。</p>
@@ -373,7 +378,7 @@ export function CustodyProjectsPage({ csrfToken, onSessionFailure }: CustodyPage
                     <strong>{project.title}</strong>
                   </Link>
                   <span className="muted">
-                    {project.customerName} · 批次 {project.lastBatchNo} · 版本 {project.version}
+                    {project.customerName} · 版本 {project.version}
                   </span>
                 </li>
               ))}

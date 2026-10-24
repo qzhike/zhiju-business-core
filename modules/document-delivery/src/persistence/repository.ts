@@ -197,7 +197,7 @@ export class MvpRepository {
     endpoint: string,
     ownerId: string,
     authEpoch: number,
-    extra: { projectId?: string; manifestId?: string } = {},
+    extra: { projectId?: string; batchId?: string; manifestId?: string } = {},
   ): CursorScope {
     return { endpoint, ownerId, authEpoch, ...extra };
   }
@@ -357,8 +357,9 @@ export class MvpRepository {
       const rows = (
         await client.query(
           `SELECT ${BATCH_COLUMNS} FROM document_delivery.input_batches
-           WHERE batch_no > $1 AND batch_no <= $2 ORDER BY batch_no ASC LIMIT $3`,
-          [last, upper, limit + 1],
+           WHERE owner_id = $1 AND project_id = $2
+             AND batch_no > $3 AND batch_no <= $4 ORDER BY batch_no ASC LIMIT $5`,
+          [ownerId, projectId, last, upper, limit + 1],
         )
       ).rows;
       const page = rows.slice(0, limit).map(batchRecord);
@@ -420,7 +421,7 @@ export class MvpRepository {
       ).rows[0];
       if (batchRow === undefined) fail('RESOURCE_NOT_FOUND');
       const batch = batchRecord(batchRow);
-      const scope = this.#scope('attempts', ownerId, authEpoch, { projectId });
+      const scope = this.#scope('attempts', ownerId, authEpoch, { projectId, batchId });
       const position =
         attemptCursor === undefined ? undefined : this.#cursors.decode(attemptCursor, scope);
       const upper =
@@ -1570,8 +1571,10 @@ export class MvpRepository {
     authEpoch: number,
     intent: WriteIntent,
     input: RecoveryInput,
+    guard: (state: BatchState) => Promise<() => Promise<void>>,
   ): Promise<WriteOutcome<{ batch: BatchView; recoveryRequestId: string }>> {
-    return this.#db.transaction(ownerId, input.projectId, async (client) => {
+    let release: (() => Promise<void>) | undefined;
+    const transaction = this.#db.transaction(ownerId, input.projectId, async (client) => {
       const existing = await this.#findRequest(client, ownerId, intent.requestId);
       if (existing !== undefined) {
         this.#assertReplay(existing, intent);
@@ -1590,6 +1593,14 @@ export class MvpRepository {
       if (project.activeBatchId !== undefined && project.activeBatchId !== input.batchId)
         fail('PROJECT_BUSY');
       const attempts = await this.#allAttempts(client, ownerId, input.projectId, input.batchId);
+      if (
+        input.action === 'ABANDON' &&
+        ['UNKNOWN', 'RECEIVING', 'EXTRACTING'].includes(batch.status)
+      )
+        fail('RECOVERY_NOT_ALLOWED');
+      if (input.action !== 'RECONCILE') {
+        release = await guard({ batch, attempts });
+      }
       const at = this.#now().toISOString();
       let nextBatch: BatchRecord = batch;
       let nextAttempt: AttemptRecord | undefined = attempts.at(-1);
@@ -1751,6 +1762,10 @@ export class MvpRepository {
         at,
       });
       return { data, receipt, replayed: false };
+    });
+    return transaction.finally(async () => {
+      // Keep the old writers excluded through the transaction's commit/rollback.
+      await release?.();
     });
   }
 }

@@ -23,12 +23,15 @@ export interface CustodySession {
   readonly instanceId: string;
 }
 
-export interface CustodyProject {
+export interface CustodyProjectSummary {
   readonly projectId: string;
   readonly customerName: string;
   readonly title: string;
   readonly createdAt: string;
   readonly version: number;
+}
+
+export interface CustodyProject extends CustodyProjectSummary {
   readonly lastBatchNo: number;
   readonly activeBatchId: string | null;
 }
@@ -168,7 +171,7 @@ export function parseSession(value: unknown): CustodySession | null {
   return { ownerId, displayName, authEpoch, instanceId };
 }
 
-export function parseProject(value: unknown): CustodyProject | null {
+export function parseProjectSummary(value: unknown): CustodyProjectSummary | null {
   const item = asRecord(value);
   if (item === null) return null;
   const projectId = asNonEmptyString(item.projectId);
@@ -176,16 +179,12 @@ export function parseProject(value: unknown): CustodyProject | null {
   const title = asNonEmptyString(item.title);
   const createdAt = asNonEmptyString(item.createdAt);
   const version = asNumber(item.version);
-  const lastBatchNo = asNumber(item.lastBatchNo);
-  const activeBatchId = optionalString(item, 'activeBatchId');
   if (
     projectId === null ||
     customerName === null ||
     title === null ||
     createdAt === null ||
-    version === null ||
-    lastBatchNo === null ||
-    activeBatchId === null
+    version === null
   )
     return null;
   return {
@@ -194,9 +193,17 @@ export function parseProject(value: unknown): CustodyProject | null {
     title,
     createdAt,
     version,
-    lastBatchNo,
-    activeBatchId: activeBatchId ?? null,
   };
+}
+
+export function parseProject(value: unknown): CustodyProject | null {
+  const summary = parseProjectSummary(value);
+  const item = asRecord(value);
+  if (summary === null || item === null) return null;
+  const lastBatchNo = asNumber(item.lastBatchNo);
+  const activeBatchId = optionalString(item, 'activeBatchId');
+  if (lastBatchNo === null || activeBatchId === null) return null;
+  return { ...summary, lastBatchNo, activeBatchId: activeBatchId ?? null };
 }
 
 function parseAttempt(value: unknown): CustodyAttempt | null {
@@ -395,12 +402,12 @@ export function parseBatchDetail(value: unknown): CustodyBatchDetail | null {
   };
 }
 
-export function parseProjectList(value: unknown): CustodyPage<CustodyProject> | null {
+export function parseProjectList(value: unknown): CustodyPage<CustodyProjectSummary> | null {
   const item = asRecord(value);
   const items = item === null ? null : asArray(item.items);
   const next = item === null ? null : optionalString(item, 'nextCursor');
   if (item === null || items === null || next === null) return null;
-  const projects = items.map(parseProject);
+  const projects = items.map(parseProjectSummary);
   if (projects.some((project) => project === null)) return null;
   return {
     items: projects.filter((project) => project !== null),
