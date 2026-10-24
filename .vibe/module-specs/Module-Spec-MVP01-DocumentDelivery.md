@@ -95,7 +95,7 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 
 `ABANDON` 用于用户不再提交已声明文件、或改用新内容的有界退出。只在无manifest、独占原attempt锁且inspect已确定原写者结束时允许；Batch CAS使旧fence失效并保存ABANDONED事件/receipt后释放项目占用。UNKNOWN/活跃流/未结束提取时禁用；客户端点击不能成为结束证明。已接纳批次不能放弃或隐藏。新内容随后以新batch进入，原batch及隔离原件不删除。
 
-进程互斥由每实例启动锁及每 attempt 的操作系统文件锁保障。崩溃后锁由内核释放；重启恢复必须实际取得旧 attempt 排他锁并 inspect，DB lease 超时本身不证明旧写者已结束。运行中的原写者通过 Abort + join 确认终止后释放锁；未成功收敛则 UNKNOWN。从未启动的 PREPARED attempt 只有在取得对应排他锁、inspect 无活跃写者/副作用、CAS 固定旧 generation 后，才可在恢复事务中记为 ABANDONED 并安排新 attempt；不把 PREPARED 直接视作已经结束。文件锁使用真实本机文件系统（不支持 NFS/共享网络目录），锁获取失败不得偷锁。generation/fencing 同时保护 DB 提交；晚到旧 finish 只能记隔离观察，不改变当前结果。后续 S3/多进程模型须另审，不能用本机锁推定远端安全。
+进程互斥由每实例启动锁及每 attempt 的操作系统文件锁保障。崩溃后锁由内核释放；重启恢复必须实际取得旧 attempt 排他锁并 inspect，DB lease 超时本身不证明旧写者已结束。运行中的原写者通过 Abort + join 确认终止后释放锁；未成功收敛则 UNKNOWN。从未启动的 PREPARED attempt 只有在取得对应排他锁、inspect 无活跃写者/副作用、CAS 固定旧 generation 后，才可在恢复事务中记为 ABANDONED 并安排新 attempt；不把 PREPARED 直接视作已经结束。文件锁使用真实本机文件系统（不支持 NFS/共享网络目录），锁获取失败不得偷锁。实现以固定 inode 上的非阻塞 `flock` 覆盖完整持有期，在其保护下检查和恢复旧 Unix socket；锁文件不得在释放或恢复时删除。文件根经身份校验后统一为 canonical realpath，父目录别名不能产生第二套实例或 attempt 锁。Core 在启动恢复之前取得实例锁，停止入口并等待工作结束后才释放；恢复写在 Batch CAS 下取得旧 attempts 的锁并 inspect，持有到事务提交或回滚后。未知锁或文件 I/O 错误不能视为写者已结束。generation/fencing 同时保护 DB 提交；晚到旧 finish 只能记隔离观察，不改变当前结果。后续 S3/多进程模型须另审，不能用本机锁推定远端安全。
 
 ### 4.2 文件与数据库一致性
 

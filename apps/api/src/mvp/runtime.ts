@@ -11,6 +11,8 @@ import {
   MvpDatabase as Database,
   MvpError,
   MvpService as Service,
+  acquireExclusiveLock,
+  instanceLockPath,
   openMvpFileStore,
   type MvpDatabase,
   type MvpFileStore,
@@ -56,6 +58,7 @@ export async function createMvpCoreRuntime(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<MvpCoreRuntime> {
   const config = loadMvpCoreConfig(env);
+  const verifier = createAccessTokenVerifier({ trustConfig: config.trust });
   const store = await openMvpFileStore({
     root: config.storeRoot,
     expected: {
@@ -64,6 +67,8 @@ export async function createMvpCoreRuntime(
       storeIdentity: config.storeIdentity,
     },
   });
+  const instanceLock = await acquireExclusiveLock(instanceLockPath(store.root, config.instanceId));
+  if (instanceLock === null) throw new Error('MVP_INSTANCE_IN_USE');
   const database = new Database({ connectionString: config.databaseUrl });
   const service = new Service({
     database,
@@ -76,9 +81,10 @@ export async function createMvpCoreRuntime(
     await service.resumePendingExtractions();
   } catch (error) {
     await database.close();
+    await instanceLock.release();
     throw error;
   }
-  const verifier = createAccessTokenVerifier({ trustConfig: config.trust });
+  let closing: Promise<void> | undefined;
   const isTrustedPeer = (remoteAddress: string | undefined): boolean =>
     remoteAddress !== undefined && peerAllowed(config.trust, normalizeRemoteAddress(remoteAddress));
   return {
@@ -117,8 +123,15 @@ export async function createMvpCoreRuntime(
         authEpoch: bindingRecord.authEpoch,
       };
     },
-    async close() {
-      await database.close();
+    close() {
+      // The transport closes its entry point before calling runtime.close().
+      // Keep ownership until all scheduled writers and database work finish.
+      closing ??= (async () => {
+        await service.whenIdle();
+        await database.close();
+        await instanceLock.release();
+      })();
+      return closing;
     },
   };
 }

@@ -409,6 +409,8 @@ pnpm mvp:stop
 
 默认入口为 `http://127.0.0.1:3300/custody`，其余默认端口为 BFF 3301、Core 3302、Keycloak 3380、PostgreSQL 55433；全部只监听 loopback。凭据只读本工作树 `.local/mvp/login.txt`，不贴入公共记录。`RUNNING` 是进程/容器状态，验收还须实际登录并读回业务数据。实例数据绑定工作树中的真实文件根；保留 `.local/mvp/` 的工作树不能作为普通临时检出删除或移动。
 
+本机锁依赖固定版本 `fs-ext` 的原生构建；安装需要 Python 及 C/C++ 构建工具（macOS Command Line Tools，Linux 对应工具链）。不跳过构建来启动缺失互斥保障的 Core。升级锁实现时必须先正常停止该 B1 实例，再安装、构建和启动新修订；不支持同一实例的新旧 Core 并行运行。锁目录中的 `.lock` 文件是稳定 inode，不因看似闲置而删除；崩溃后的内核锁释放及 socket 恢复由实现处理。
+
 初始化器生成 BFF 接受的 UUIDv7 服务标识。旧失败初始化若保存了 UUIDv4 服务标识，会明确报 `MVP_SECRETS_INVALID`；不要删除 `secrets.json` 重建。须由获授权的管理操作先备份，再仅修复不承担业务授权的 `boardServiceId`，保留其他秘密、操作者绑定及 store/instance 身份，随后重新验证登录。正常重复 init 不自动轮换它们。
 
 真实试走按以下顺序进行：

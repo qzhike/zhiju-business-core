@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open, lstat, mkdir, readFile, readdir, unlink, link } from 'node:fs/promises';
+import { open, lstat, mkdir, readFile, readdir, unlink, link, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { errorCodeOf, fail } from '../domain/errors.js';
@@ -35,6 +35,7 @@ export interface MvpFileStore {
   publishStaged(stagedKey: string, finalKey: string): Promise<void>;
   readVerified(key: string, expected: StoredObject): Promise<Buffer>;
   inspect(key: string): Promise<StoredObject | null>;
+  inspectStaged(key: string): Promise<StoredObject | null>;
   remove(key: string): Promise<void>;
 }
 
@@ -207,7 +208,18 @@ export async function openMvpFileStore(input: {
     fail('STORAGE_INTEGRITY_ERROR');
 
   const identity: StoreIdentity = { ...input.expected, storeIdentity: expectedIdentity };
-  const root = input.root;
+  // Parent aliases must not create distinct lock identities for the same store.
+  const root = await realpath(input.root);
+
+  async function inspect(key: string, staged: boolean): Promise<StoredObject | null> {
+    safeKey(key, staged);
+    try {
+      return receiptOf(await readObject(objectPath(root, key)));
+    } catch (error) {
+      if (errorCodeOf(error) === 'ENOENT') return null;
+      throw error;
+    }
+  }
 
   async function putImmutable(key: string, bytes: Buffer): Promise<StoredObject> {
     safeKey(key, false);
@@ -285,8 +297,12 @@ export async function openMvpFileStore(input: {
         const [left, right] = await Promise.all([readObject(source), readObject(target)]);
         if (!left.equals(right)) throw new StoreIntegrityError();
       }
-      await unlink(source).catch(() => undefined);
+      // Make the fixed target durable before removing the last staged name.
       await syncDirectory(join(target, '..'));
+      await unlink(source).catch((error: unknown) => {
+        if (errorCodeOf(error) !== 'ENOENT') throw error;
+      });
+      await syncDirectory(join(source, '..'));
     },
     async readVerified(key, expected) {
       safeKey(key, false);
@@ -301,17 +317,8 @@ export async function openMvpFileStore(input: {
         throw new StoreIntegrityError();
       return bytes;
     },
-    async inspect(key) {
-      safeKey(key, false);
-      try {
-        const bytes = await readObject(objectPath(root, key));
-        return receiptOf(bytes);
-      } catch (error) {
-        if (errorCodeOf(error) === 'ENOENT') return null;
-        if (error instanceof StoreIntegrityError) throw error;
-        throw error;
-      }
-    },
+    inspect: async (key) => inspect(key, false),
+    inspectStaged: async (key) => inspect(key, true),
     async remove(key) {
       safeKey(key, true);
       await unlink(objectPath(root, key)).catch((error: unknown) => {

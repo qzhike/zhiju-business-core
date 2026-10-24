@@ -8,10 +8,13 @@ import {
   MvpService,
   errorCodeOf,
   type SessionIdentity,
+  acquireExclusiveLock,
+  attemptLockPath,
 } from '../../modules/document-delivery/src/index.js';
 import {
   entryObjectKey,
   originalObjectKey,
+  stagingObjectKey,
 } from '../../modules/document-delivery/src/custody/keys.js';
 import {
   applyMvpMigration,
@@ -462,6 +465,95 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(replay.replayed).toBe(true);
   });
 
+  it('rejects ABANDON during a real live upload without changing its intent or history', async () => {
+    const projectId = await createProject('活跃上传');
+    const bytes = zipBytes([{ name: 'live.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, bytes);
+    const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    const attempt = before.batch.currentAttempt;
+    if (attempt === undefined) throw new Error('attempt missing');
+    const entered = Promise.withResolvers<undefined>();
+    const resume = Promise.withResolvers<undefined>();
+    const uploading = service.upload(identity, {
+      projectId,
+      batchId,
+      attemptId: attempt.attemptId,
+      generation: attempt.generation,
+      contentLength: bytes.length,
+      chunks: (async function* () {
+        yield bytes.subarray(0, 1);
+        entered.resolve(undefined);
+        await resume.promise;
+        yield bytes.subarray(1);
+      })(),
+    });
+    try {
+      await entered.promise;
+      const live = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      const project = await service.getProject(identity, projectId);
+      expect(live.batch.status).toBe('RECEIVING');
+      const requestId = newUuidV7();
+      await expect(
+        service.recover(identity, {
+          requestId,
+          projectId,
+          batchId,
+          payload: { expectedBatchVersion: live.batch.version, action: 'ABANDON' },
+        }),
+      ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+      expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(live);
+      expect(await service.getProject(identity, projectId)).toEqual(project);
+      await expect(service.getRequest(identity, requestId)).rejects.toMatchObject({
+        code: 'RESOURCE_NOT_FOUND',
+      });
+    } finally {
+      resume.resolve(undefined);
+      await uploading;
+      await service.whenIdle();
+    }
+    const completed = await waitForTerminal(projectId, batchId);
+    expect(completed.batch.status).toBe('RECEIVED');
+    expect(completed.attempts.find((item) => item.attemptId === attempt.attemptId)?.status).toBe(
+      'SUCCEEDED',
+    );
+  });
+
+  it.each(['ABANDON', 'RETRY_UPLOAD'] as const)(
+    'requires the old upload lock for %s',
+    async (action) => {
+      const projectId = await createProject('恢复互斥');
+      const bytes = zipBytes([{ name: 'lock.md', bytes: markdownBytes() }]);
+      const { batchId } = await createBatch(projectId, bytes);
+      const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      const attempt = before.batch.currentAttempt;
+      if (attempt === undefined) throw new Error('attempt missing');
+      const path = attemptLockPath(fixture.store.root, attempt.attemptId);
+      const lock = await acquireExclusiveLock(path);
+      expect(lock).not.toBeNull();
+      const requestId = newUuidV7();
+      const input = {
+        requestId,
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: before.batch.version, action },
+      };
+      try {
+        await expect(service.recover(identity, input)).rejects.toMatchObject({
+          code: 'RECOVERY_NOT_ALLOWED',
+        });
+        expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(before);
+        await expect(service.getRequest(identity, requestId)).rejects.toMatchObject({
+          code: 'RESOURCE_NOT_FOUND',
+        });
+      } finally {
+        await lock?.release();
+      }
+      const recovered = await service.recover(identity, input);
+      expect(recovered.replayed).toBe(false);
+      expect((await service.recover(identity, input)).replayed).toBe(true);
+    },
+  );
+
   it('rejects cross-owner reads, cursor reuse and forged scope combinations', async () => {
     const projectId = await createProject('隔离客户');
     const other: SessionIdentity = {
@@ -626,10 +718,58 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   });
 
-  it('converges a terminated incomplete upload to an explicit retry', async () => {
-    const projectId = await createProject('中断客户');
-    const bytes = zipBytes([{ name: 'retry.md', bytes: markdownBytes() }]);
-    const { batchId } = await createBatch(projectId, bytes);
+  it.each(['missing', 'truncated'])(
+    'converges a terminated incomplete upload to an explicit retry: %s',
+    async (staging) => {
+      const projectId = await createProject('中断客户');
+      const bytes = zipBytes([{ name: 'retry.md', bytes: markdownBytes() }]);
+      const { batchId } = await createBatch(projectId, bytes);
+      const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      const attempt = before.batch.currentAttempt;
+      if (attempt === undefined) throw new Error('attempt missing');
+      await service.repository.claimUpload(
+        identity.ownerId,
+        identity.authEpoch,
+        projectId,
+        batchId,
+        attempt.attemptId,
+        attempt.generation,
+      );
+      const claimed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      if (staging === 'truncated')
+        await fixture.store.writeStaged(
+          stagingObjectKey(attempt.attemptId),
+          singleChunk(bytes.subarray(0, 1)),
+          bytes.length,
+        );
+      expect(claimed.batch.status).toBe('RECEIVING');
+      const reconciled = await service.recover(identity, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: claimed.batch.version, action: 'RECONCILE' },
+      });
+      expect(reconciled.data.batch.status).toBe('FAILED');
+      const after = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      expect(after.permittedActions).toContain('RETRY_UPLOAD');
+      expect(after.permittedActions).not.toContain('RECONCILE');
+      const retry = await service.recover(identity, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: after.batch.version, action: 'RETRY_UPLOAD' },
+      });
+      expect(retry.data.batch.status).toBe('AWAITING_UPLOAD');
+      await upload(projectId, batchId, bytes);
+      const completed = await waitForTerminal(projectId, batchId);
+      expect(completed.batch.status).toBe('RECEIVED');
+    },
+  );
+
+  it('reuses complete staging before publish only after its old writer has stopped', async () => {
+    const projectId = await createProject('暂存窗口');
+    const original = zipBytes([{ name: 'staged.md', bytes: markdownBytes() }]);
+    const { batchId } = await createBatch(projectId, original);
     const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
     const attempt = before.batch.currentAttempt;
     if (attempt === undefined) throw new Error('attempt missing');
@@ -641,29 +781,120 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
       attempt.attemptId,
       attempt.generation,
     );
-    const claimed = await service.getBatch(identity, projectId, batchId, 20, undefined);
-    expect(claimed.batch.status).toBe('RECEIVING');
-    const reconciled = await service.recover(identity, {
+    const stagedKey = stagingObjectKey(attempt.attemptId);
+    const fixedKey = originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId);
+    const receipt = await fixture.store.writeStaged(
+      stagedKey,
+      singleChunk(original),
+      original.length,
+    );
+    expect(await fixture.store.inspect(fixedKey)).toBeNull();
+    const oldWriter = await acquireExclusiveLock(
+      attemptLockPath(fixture.store.root, attempt.attemptId),
+    );
+    expect(oldWriter).not.toBeNull();
+    const receiving = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    try {
+      const observed = await service.recover(identity, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: receiving.batch.version, action: 'RECONCILE' },
+      });
+      expect(observed.data.batch.status).toBe('RECEIVING');
+      expect(await fixture.store.inspect(fixedKey)).toBeNull();
+      expect(await fixture.store.inspectStaged(stagedKey)).toEqual(receipt);
+    } finally {
+      await oldWriter?.release();
+    }
+    await service.recover(identity, {
       requestId: newUuidV7(),
       projectId,
       batchId,
-      payload: { expectedBatchVersion: claimed.batch.version, action: 'RECONCILE' },
+      payload: { expectedBatchVersion: receiving.batch.version, action: 'RECONCILE' },
     });
-    expect(reconciled.data.batch.status).toBe('FAILED');
-    const after = await service.getBatch(identity, projectId, batchId, 20, undefined);
-    expect(after.permittedActions).toContain('RETRY_UPLOAD');
-    expect(after.permittedActions).not.toContain('RECONCILE');
-    const retry = await service.recover(identity, {
+    const staged = await service.getBatch(identity, projectId, batchId, 20, undefined);
+    expect(staged.batch.status).toBe('STAGED');
+    expect(staged.attempts).toHaveLength(1);
+    expect(staged.attempts[0]?.attemptId).toBe(attempt.attemptId);
+    expect(staged.manifest).toBeUndefined();
+    expect(await fixture.store.inspectStaged(stagedKey)).toBeNull();
+    expect((await fixture.store.readVerified(fixedKey, receipt)).equals(original)).toBe(true);
+    await expect(
+      service.recover(identity, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: staged.batch.version, action: 'RETRY_UPLOAD' },
+      }),
+    ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+    await service.recover(identity, {
       requestId: newUuidV7(),
       projectId,
       batchId,
-      payload: { expectedBatchVersion: after.batch.version, action: 'RETRY_UPLOAD' },
+      payload: { expectedBatchVersion: staged.batch.version, action: 'CONTINUE_EXTRACTION' },
     });
-    expect(retry.data.batch.status).toBe('AWAITING_UPLOAD');
-    await upload(projectId, batchId, bytes);
-    const completed = await waitForTerminal(projectId, batchId);
-    expect(completed.batch.status).toBe('RECEIVED');
+    expect((await waitForTerminal(projectId, batchId)).batch.status).toBe('RECEIVED');
   });
+
+  it.each(['complete', 'truncated'])(
+    'checks retained staging before RETRY on a failed observation: %s',
+    async (contents) => {
+      const projectId = await createProject('暂存重试保护');
+      const original = zipBytes([{ name: 'retained.md', bytes: markdownBytes() }]);
+      const { batchId } = await createBatch(projectId, original);
+      const before = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      const attempt = before.batch.currentAttempt;
+      if (attempt === undefined) throw new Error('attempt missing');
+      await service.repository.claimUpload(
+        identity.ownerId,
+        identity.authEpoch,
+        projectId,
+        batchId,
+        attempt.attemptId,
+        attempt.generation,
+      );
+      const stagedKey = stagingObjectKey(attempt.attemptId);
+      await fixture.store.writeStaged(
+        stagedKey,
+        singleChunk(contents === 'complete' ? original : original.subarray(0, 1)),
+        original.length,
+      );
+      // A prior failure observation cannot override the actual durable bytes.
+      await service.repository.failUpload(identity.ownerId, projectId, batchId, attempt.attemptId, [
+        'UPLOAD_INCOMPLETE',
+      ]);
+      const failed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      expect(failed.permittedActions).toContain('RETRY_UPLOAD');
+      expect(
+        await fixture.store.inspect(
+          originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId),
+        ),
+      ).toBeNull();
+      const requestId = newUuidV7();
+      const recovery = service.recover(identity, {
+        requestId,
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: failed.batch.version, action: 'RETRY_UPLOAD' },
+      });
+      if (contents === 'complete') {
+        await expect(recovery).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+        expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(failed);
+        await expect(service.getRequest(identity, requestId)).rejects.toMatchObject({
+          code: 'RESOURCE_NOT_FOUND',
+        });
+      } else {
+        expect((await recovery).replayed).toBe(false);
+        expect(
+          (await service.getBatch(identity, projectId, batchId, 20, undefined)).attempts,
+        ).toHaveLength(2);
+      }
+      expect((await fixture.store.inspectStaged(stagedKey))?.byteLength).toBe(
+        contents === 'complete' ? original.length : 1,
+      );
+    },
+  );
 
   it('recovers a durable original before the first EXTRACT arrangement commits', async () => {
     const projectId = await createProject('提取前客户');
@@ -782,6 +1013,31 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
       });
     }
 
+    const oldExtract = failed.batch.currentAttempt;
+    if (oldExtract === undefined) throw new Error('extract missing');
+    const heldExtract = await acquireExclusiveLock(
+      attemptLockPath(fixture.store.root, oldExtract.attemptId),
+    );
+    expect(heldExtract).not.toBeNull();
+    try {
+      for (const action of ['CONTINUE_EXTRACTION', 'ABANDON'] as const) {
+        const requestId = newUuidV7();
+        await expect(
+          service.recover(identity, {
+            requestId,
+            projectId,
+            batchId,
+            payload: { expectedBatchVersion: failed.batch.version, action },
+          }),
+        ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+        expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(failed);
+        await expect(service.getRequest(identity, requestId)).rejects.toMatchObject({
+          code: 'RESOURCE_NOT_FOUND',
+        });
+      }
+    } finally {
+      await heldExtract?.release();
+    }
     await service.recover(identity, {
       requestId: newUuidV7(),
       projectId,
@@ -1007,53 +1263,67 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(retried.batch.currentAttempt?.attemptId).toBe(current.attemptId);
   });
 
-  it('reconciles a durable first-upload gap across an epoch change and continues at the current epoch', async () => {
-    const epoch = await currentEpoch();
-    const current: SessionIdentity = { ...identity, authEpoch: epoch };
-    const projectId = await createProject('跨代恢复客户', current);
-    const original = zipBytes([{ name: 'cross-epoch.md', bytes: markdownBytes() }]);
-    const { batchId } = await createBatch(projectId, original, undefined, current);
-    const before = await service.getBatch(current, projectId, batchId, 20, undefined);
-    const attempt = before.batch.currentAttempt;
-    if (attempt === undefined) throw new Error('attempt missing');
-    await service.repository.claimUpload(
-      current.ownerId,
-      current.authEpoch,
-      projectId,
-      batchId,
-      attempt.attemptId,
-      attempt.generation,
-    );
-    await fixture.store.putImmutable(
-      originalObjectKey(current.ownerId, projectId, batchId, attempt.attemptId),
-      original,
-      'application/zip',
-    );
-    const next = await advanceEpoch();
-    expect(await currentEpoch()).toBe(next);
-    await restartService('vitest-reconcile-epoch');
-    const fresh: SessionIdentity = { ...identity, authEpoch: next };
-    const reopened = await service.getBatch(fresh, projectId, batchId, 20, undefined);
-    expect(reopened.batch.status).toBe('RECEIVING');
-    const reconciled = await service.recover(fresh, {
-      requestId: newUuidV7(),
-      projectId,
-      batchId,
-      payload: { expectedBatchVersion: reopened.batch.version, action: 'RECONCILE' },
-    });
-    expect(reconciled.data.batch.status).toBe('STAGED');
-    const staged = await service.getBatch(fresh, projectId, batchId, 20, undefined);
-    expect(staged.batch.manifestId).toBeUndefined();
-    expect(staged.permittedActions).toContain('CONTINUE_EXTRACTION');
-    await service.recover(fresh, {
-      requestId: newUuidV7(),
-      projectId,
-      batchId,
-      payload: { expectedBatchVersion: staged.batch.version, action: 'CONTINUE_EXTRACTION' },
-    });
-    const completed = await waitForTerminal(projectId, batchId, fresh);
-    expect(completed.batch.status).toBe('RECEIVED');
-  });
+  it.each(['published', 'staged'])(
+    'reconciles a durable first-upload gap across an epoch change and continues at the current epoch: %s',
+    async (location) => {
+      const epoch = await currentEpoch();
+      const current: SessionIdentity = { ...identity, authEpoch: epoch };
+      const projectId = await createProject('跨代恢复客户', current);
+      const original = zipBytes([{ name: 'cross-epoch.md', bytes: markdownBytes() }]);
+      const { batchId } = await createBatch(projectId, original, undefined, current);
+      const before = await service.getBatch(current, projectId, batchId, 20, undefined);
+      const attempt = before.batch.currentAttempt;
+      if (attempt === undefined) throw new Error('attempt missing');
+      await service.repository.claimUpload(
+        current.ownerId,
+        current.authEpoch,
+        projectId,
+        batchId,
+        attempt.attemptId,
+        attempt.generation,
+      );
+      if (location === 'staged')
+        await fixture.store.writeStaged(
+          stagingObjectKey(attempt.attemptId),
+          singleChunk(original),
+          original.length,
+        );
+      else
+        await fixture.store.putImmutable(
+          originalObjectKey(current.ownerId, projectId, batchId, attempt.attemptId),
+          original,
+          'application/zip',
+        );
+      const next = await advanceEpoch();
+      expect(await currentEpoch()).toBe(next);
+      await restartService('vitest-reconcile-epoch');
+      const fresh: SessionIdentity = { ...identity, authEpoch: next };
+      const reopened = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+      expect(reopened.batch.status).toBe('RECEIVING');
+      const reconciled = await service.recover(fresh, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: reopened.batch.version, action: 'RECONCILE' },
+      });
+      expect(reconciled.data.batch.status).toBe('STAGED');
+      const staged = await service.getBatch(fresh, projectId, batchId, 20, undefined);
+      expect(staged.batch.manifestId).toBeUndefined();
+      const state = await service.repository.readBatchState(fresh.ownerId, projectId, batchId);
+      expect(state.attempts).toHaveLength(1);
+      expect(state.attempts[0]?.authorizedAuthEpoch).toBe(epoch);
+      expect(state.attempts[0]?.attemptId).toBe(attempt.attemptId);
+      expect(staged.permittedActions).toContain('CONTINUE_EXTRACTION');
+      await service.recover(fresh, {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: { expectedBatchVersion: staged.batch.version, action: 'CONTINUE_EXTRACTION' },
+      });
+      const completed = await waitForTerminal(projectId, batchId, fresh);
+      expect(completed.batch.status).toBe('RECEIVED');
+    },
+  );
 
   it('refuses to advance execution under a changed authorization epoch', async () => {
     const epoch = await currentEpoch();
