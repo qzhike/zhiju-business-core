@@ -552,7 +552,7 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 ## 缩编 MVP：B1 真实项目与资料托管接线（已批准设计）
 
-状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。复用已确认 U1 项目/资料旅程及既有安全 Web/BFF 外壳；新 wire/state 权威由 [MVP01 Spec](Module-Spec-MVP01-DocumentDelivery.md)拥有，页面展示类型不得反过来注册协议。
+状态：`IMPLEMENTED 2026-10-22 / BROWSER AUTOMATION PARTIAL / LOCAL PERSISTENT JOURNEY VERIFIED / MANUAL ACCEPTANCE NOT RUN`。复用已确认 U1 项目/资料旅程及既有安全 Web/BFF 外壳；新 wire/state 权威由 [MVP01 Spec](Module-Spec-MVP01-DocumentDelivery.md)拥有，页面展示类型不得反过来注册协议。实现页面位于 `apps/workspace-web/src/custody`，路由 `/custody` 与 `/custody/projects/:projectId`；生产构建不加载 Environment A fixture。
 
 - 新真实 composition 使用 `/bff/mvp/v1` 的有限 adapter、当前会话与服务能力；项目创建/批次/条目/历史来自服务器。Environment A 保留隔离，现有旧真实入口按原契约回归，生产新入口无 fixture fallback。
 - 创建项目显示客户名称与项目标题，提交前固定 requestId/targetId/原始 payload；批次提交先固定包名、长度、SHA 与说明，不能把开始接收显示成接纳。补充批次追加原清单旁，不把新文件自动加入旧分析依据。

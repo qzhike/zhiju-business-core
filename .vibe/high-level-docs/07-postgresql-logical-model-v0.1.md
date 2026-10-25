@@ -22,7 +22,7 @@
 
 ### B1 独立数据库与逻辑表（已批准设计）
 
-状态：`DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。新MVP使用专用database（逻辑标识 `zhiju_mvp`，实例化名称由独立配置固定）和 `document_delivery` schema，唯一Owner为MVP01。不在旧七schema创建新MVP表，不共享旧migration history，不借旧主键/RLS函数/跨schema外键。现有数据库、migration和历史记录不改。新迁移目录拟为 `modules/document-delivery/migrations`，从独立空库初始化；只批准逻辑结构，此文不执行DDL。
+状态：`IMPLEMENTED 2026-10-22 / REAL INSTANCE INITIALIZATION NOT RUN`。新MVP使用专用database（逻辑标识 `zhiju_mvp`，实例化名称由独立配置固定）和 `document_delivery` schema，唯一Owner为MVP01。不在旧七schema创建新MVP表，不共享旧migration history，不借旧主键/RLS函数/跨schema外键。现有数据库、migration和历史记录不改。实现迁移位于 `modules/document-delivery/migrations/V0001__document_delivery_schema.sql`，由 `tools/mvp-environment` 在独立空库执行；旧 Flyway 位置与 history 未注册该目录。自动化持久化证据使用隔离临时数据库，未执行真实本机初始化。
 
 | 表 | 最小字段/约束 |
 |---|---|

@@ -1,8 +1,8 @@
 # Module-Spec-MVP01-DocumentDelivery
 
-日期：2026-10-22
+日期：2026-10-23
 
-状态：`B1 DESIGN APPROVED 2026-10-22 / NOT IMPLEMENTED`。
+状态：`IMPLEMENTED 2026-10-22 / AUTOMATED EVIDENCE PARTIAL / LOCAL PERSISTENT JOURNEY VERIFIED / USER ACCEPTANCE NOT RUN`。实现位于 `modules/document-delivery`（独立迁移 `migrations/V0001__document_delivery_schema.sql`）、`apps/api/src/mvp*`、`apps/workspace-bff/src/{routes,app,body}.ts` 的 `/bff/mvp/v1` 适配、`apps/workspace-web/src/custody` 与 `tools/mvp-environment`。自动化覆盖见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)；隔离本机初始化、真实 Keycloak 登录及保留卷/文件的停启读回已执行；正式来源人工试走和内容验收仍未运行。
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
@@ -86,7 +86,7 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 | ABANDONED | 用户显式放弃尚未接纳且已证明无活跃写者的批次；保留原意图/错误与隔离对象，解除活动占用；不是取消运行中进程或删除历史 |
 | UNKNOWN | 存储、数据库提交或原进程结果未定；锁定项目活动占用，只能 RECONCILE；时间/网络断开不能转成 FAILED |
 
-`RECONCILE` 只核对原 request、attempt、文件 receipt 与 DB 事实，不执行另一份上传/分析；命令以独立 recovery request 留意图及核对观察，不创建替代原尝试的执行。完整原包已存在则核验后恢复 STAGED；续提取必须另有符合资格的 CONTINUE_EXTRACTION 意图；manifest 已提交则返回同一结果。无可靠证据保持 UNKNOWN，并显示需检查依赖/原尝试；无盲目“标为结束”按钮。
+`RECONCILE` 只核对原 request、attempt、文件 receipt 与 DB 事实，不执行另一份上传/分析；命令以独立 recovery request 留意图及核对观察，不创建替代原尝试的执行。完整原包已存在则核验后恢复 STAGED；该收敛只记录旧 writer 的已证实观察，可由当前授权的恢复 Request 在 epoch 变化后执行，但不改变 attempt 原授权；续提取必须另有符合资格的 CONTINUE_EXTRACTION 意图；manifest 已提交则返回同一结果。无可靠证据保持 UNKNOWN，并显示需检查依赖/原尝试；无盲目“标为结束”按钮。
 
 `RETRY_UPLOAD` 仅在已知 FAILED/AWAITING_UPLOAD 的原 attempt 已结束、无完整匹配 staged 原包且未有 manifest，且没有活跃旧写者时许可。在 Batch CAS 下废止旧 generation，追加新 UPLOAD attempt，重传同一声明 sha/length 的原包；不允许从重试改名称/note/内容。`CONTINUE_EXTRACTION` 在原完整包经 inspect 证明可用、无 manifest，且没有活跃写者时允许：既包括从未建立 EXTRACT attempt，也包括已有 EXTRACT attempt 全部已证实结束。持有原 attempt/实例互斥锁并校验 Batch CAS 后，一个事务保存恢复 Request/当前 authorization/receipt、原尝试的已证实结束观察、新 PREPARED EXTRACT attempt（稳定输入/目标、引用该 recoveryRequestId）、递增 generation/fence 与 batch.currentAttempt/STAGED。提交后才执行提取；同 recovery key 重放只返回原 receipt，不再分配 attempt 或 generation。成功条目对象按稳定目标幂等复用，最终只提交一个 manifest。
 
@@ -95,7 +95,7 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 
 `ABANDON` 用于用户不再提交已声明文件、或改用新内容的有界退出。只在无manifest、独占原attempt锁且inspect已确定原写者结束时允许；Batch CAS使旧fence失效并保存ABANDONED事件/receipt后释放项目占用。UNKNOWN/活跃流/未结束提取时禁用；客户端点击不能成为结束证明。已接纳批次不能放弃或隐藏。新内容随后以新batch进入，原batch及隔离原件不删除。
 
-进程互斥由每实例启动锁及每 attempt 的操作系统文件锁保障。崩溃后锁由内核释放；重启恢复必须实际取得旧 attempt 排他锁并 inspect，DB lease 超时本身不证明旧写者已结束。运行中的原写者通过 Abort + join 确认终止后释放锁；未成功收敛则 UNKNOWN。从未启动的 PREPARED attempt 只有在取得对应排他锁、inspect 无活跃写者/副作用、CAS 固定旧 generation 后，才可在恢复事务中记为 ABANDONED 并安排新 attempt；不把 PREPARED 直接视作已经结束。文件锁使用真实本机文件系统（不支持 NFS/共享网络目录），锁获取失败不得偷锁。generation/fencing 同时保护 DB 提交；晚到旧 finish 只能记隔离观察，不改变当前结果。后续 S3/多进程模型须另审，不能用本机锁推定远端安全。
+进程互斥由每实例启动锁及每 attempt 的操作系统文件锁保障。崩溃后锁由内核释放；重启恢复必须实际取得旧 attempt 排他锁并 inspect，DB lease 超时本身不证明旧写者已结束。运行中的原写者通过 Abort + join 确认终止后释放锁；未成功收敛则 UNKNOWN。从未启动的 PREPARED attempt 只有在取得对应排他锁、inspect 无活跃写者/副作用、CAS 固定旧 generation 后，才可在恢复事务中记为 ABANDONED 并安排新 attempt；不把 PREPARED 直接视作已经结束。文件锁使用真实本机文件系统（不支持 NFS/共享网络目录），锁获取失败不得偷锁。实现以固定 inode 上的非阻塞 `flock` 覆盖完整持有期，在其保护下检查和恢复旧 Unix socket；锁文件不得在释放或恢复时删除。文件根经身份校验后统一为 canonical realpath，父目录别名不能产生第二套实例或 attempt 锁。Core 在启动恢复之前取得实例锁，停止入口并等待工作结束后才释放；恢复写在 Batch CAS 下取得旧 attempts 的锁并 inspect，持有到事务提交或回滚后。未知锁或文件 I/O 错误不能视为写者已结束。generation/fencing 同时保护 DB 提交；晚到旧 finish 只能记隔离观察，不改变当前结果。后续 S3/多进程模型须另审，不能用本机锁推定远端安全。
 
 ### 4.2 文件与数据库一致性
 
@@ -129,4 +129,4 @@ MVP policy 标识 `mvp.zip-input@1`，固定于批次创建时；后续 policy �
 
 ## 7. 设计与验收出口
 
-验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已获人类技术批准，但本轮只交付设计；新初始化、真实接口注册及现有 DB/store 变更仍需对应实施/环境授权。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。
+验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已按获批设计实现并进入 `batch/mvp-b1-document-delivery`；当前收口包含独立本机实例验收及缺陷修复，尚未完成 main 交付。初始化按实例取得环境授权；既有 A/B 的 DB/store 未迁移。正式来源人工验收、批次最终审查/full、main 合入授权及合入后 main full 分别保留门禁。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。

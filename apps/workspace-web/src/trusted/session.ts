@@ -35,7 +35,7 @@ export interface SessionProbe {
 export const WORKBENCH_ROUTE = '/workbench';
 
 const RETURN_ROUTE =
-  /^\/(?:workbench(?:\?[A-Za-z0-9_=&.-]{0,120})?|projects\/new|projects\/[A-Za-z0-9_-]{1,64}\/(?:intake|(?:analysis|startup|executions)\/[A-Za-z0-9_-]{1,64}))$/u;
+  /^\/(?:workbench(?:\?[A-Za-z0-9_=&.-]{0,120})?|custody|custody\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|projects\/new|projects\/[A-Za-z0-9_-]{1,64}\/(?:intake|(?:analysis|startup|executions)\/[A-Za-z0-9_-]{1,64}))$/u;
 
 const CALLBACK_PARAMETERS = [
   'error',

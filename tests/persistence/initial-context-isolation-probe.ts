@@ -1,6 +1,5 @@
 // Executed only by the lifecycle regression subprocess, never as a business case.
-import { type afterAll, describe, vi } from 'vitest';
-import type * as Vitest from 'vitest';
+import { afterAll, describe, vi } from 'vitest';
 import type * as Timers from 'node:timers/promises';
 import { writeFileSync } from 'node:fs';
 
@@ -9,25 +8,8 @@ const state = vi.hoisted(() => ({
   events: [] as string[],
   nextId: 0,
   openResources: new Map<string, number>(),
-  realAfterAll: undefined as typeof afterAll | undefined,
 }));
 
-vi.mock('vitest', async (importOriginal) => {
-  const actual = await importOriginal<typeof Vitest>();
-  state.realAfterAll = actual.afterAll;
-  return {
-    ...actual,
-    beforeAll: (fn: Parameters<typeof actual.beforeAll>[0], timeout: number) => {
-      actual.beforeAll(fn, state.mode === 'setup-hook' ? 20 : timeout / 1000);
-    },
-    afterEach: (fn: Parameters<typeof actual.afterEach>[0], timeout: number) => {
-      actual.afterEach(fn, state.mode === 'drain-hook' ? 10 : timeout / 1000);
-    },
-    afterAll: (fn: Parameters<typeof actual.afterAll>[0], timeout: number) => {
-      actual.afterAll(fn, timeout / 1000);
-    },
-  };
-});
 vi.mock('node:timers/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof Timers>();
   return {
@@ -182,6 +164,11 @@ describe('isolated environment lifecycle probe', () => {
       },
     ],
     {
+      hookTimeouts: {
+        setup: state.mode === 'setup-hook' ? 20 : 300,
+        cleanup: 120,
+        afterCase: state.mode === 'drain-hook' ? 10 : 120,
+      },
       databasePerCase: [
         'body-fresh',
         'dispose-hang',
@@ -193,8 +180,7 @@ describe('isolated environment lifecycle probe', () => {
   );
 });
 
-if (!state.realAfterAll) throw new Error('missing probe observer');
-state.realAfterAll(async () => {
+afterAll(async () => {
   await new Promise((resolve) => setTimeout(resolve, 350));
   const output = process.env.ZJU_ISOLATION_PROBE_OUTPUT;
   if (!output) throw new Error('missing probe output');

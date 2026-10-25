@@ -429,7 +429,7 @@ PR #309 独立审查 R1–R4 的回归已并入上述矩阵：未决最终确认
 
 ## 缩编 MVP：B1 真实托管 UI 验收索引（已批准设计）
 
-对应 [B1 UI 接线](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpb1-真实项目与资料托管接线已批准设计)。共享用户出口及故障矩阵由 [MVP01 Test](Module-Test-MVP01-DocumentDelivery.md)拥有；以下不复制另一份业务测试集合。全部新运行场景 `NOT RUN`。
+对应 [B1 UI 接线](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpb1-真实项目与资料托管接线已批准设计)。共享用户出口及故障矩阵由 [MVP01 Test](Module-Test-MVP01-DocumentDelivery.md)拥有；以下不复制另一份业务测试集合。展示模型自动化见 `apps/workspace-web/src/custody/model.test.ts`；真实浏览器登录、上传、刷新和停启已有受控自动化及隔离本机技术证据，具体覆盖与剩余边界以 MVP01 Test 为准；正式来源人工内容验收仍为 `NOT RUN`。
 
 | UI 观察 | Owning 场景 | 通过条件 |
 |---|---|---|

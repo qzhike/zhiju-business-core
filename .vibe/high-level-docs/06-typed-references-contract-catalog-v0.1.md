@@ -10,7 +10,7 @@
 
 ### MVP B1 独立目录（已批准设计）
 
-状态：`DESIGN APPROVED 2026-10-22 / NOT REGISTERED / NOT IMPLEMENTED`。下列 `mvp.*` 属于独立 MVP v1 HTTP composition，唯一 Owner 为 `DocumentDelivery (MVP01)`；不是旧 Registry 的增量，也不改变历史200项兼容基线。实现须建立有限闭集 schema/route 声明及其一致性检查，未实现的操作不得通过通用dispatcher开放。传输/错误见共享 API 的 MVP v1 增量，字段/HTTP路径唯一见 [MVP01 §3](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#3-有限-api-与返回形状)。
+状态：`IMPLEMENTED 2026-10-22 / NOT REGISTERED IN LEGACY REGISTRY`。下列 `mvp.*` 属于独立 MVP v1 HTTP composition，唯一 Owner 为 `DocumentDelivery (MVP01)`；不是旧 Registry 的增量，也不改变历史200项兼容基线。实现位于 `modules/document-delivery` 与 `apps/api/src/mvp` 的有限闭集路由，BFF 仅转发固定 `/bff/mvp/v1` 路径；没有通用 dispatcher 或任意上游 URL。旧兼容基线未变化。传输/错误见共享 API 的 MVP v1 增量，字段/HTTP路径唯一见 [MVP01 §3](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#3-有限-api-与返回形状)。
 
 | Operation | 类别 | 版本 |
 |---|---|---|

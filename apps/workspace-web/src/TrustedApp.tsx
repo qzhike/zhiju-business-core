@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { CustodyProjectPage, CustodyProjectsPage } from './custody/Page.js';
 import { DeliveryPage } from './delivery/Page.js';
 import { ExecutionNavigation, ExecutionPage } from './execution/Page.js';
 import { ContentBoundary, Missing } from './shell.js';
@@ -182,6 +183,12 @@ export function TrustedApp() {
             我的工作台
           </Link>
           <Link
+            aria-current={location.pathname.startsWith('/custody') ? 'page' : undefined}
+            to="/custody"
+          >
+            项目与资料
+          </Link>
+          <Link
             aria-current={location.pathname === '/projects/new' ? 'page' : undefined}
             to="/projects/new"
           >
@@ -220,6 +227,30 @@ export function TrustedApp() {
                       }
                     />
                     <Route path="/" element={<Navigate to="/workbench" replace />} />
+                    <Route
+                      path="/custody"
+                      element={
+                        <CustodyProjectsPage
+                          key={`${sessionGeneration}:custody`}
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/custody/projects/:projectId"
+                      element={
+                        <CustodyProjectPage
+                          key={`${sessionGeneration}:${location.pathname}`}
+                          sessionGeneration={sessionGeneration}
+                          principalId={principalId ?? ''}
+                          csrfToken={csrfToken}
+                          onSessionFailure={onSessionFailure}
+                        />
+                      }
+                    />
                     <Route
                       path="/workbench"
                       element={
