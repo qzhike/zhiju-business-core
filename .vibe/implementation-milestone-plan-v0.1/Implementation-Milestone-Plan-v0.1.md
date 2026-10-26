@@ -6,7 +6,7 @@
 
 文档职责：只维护阶段范围、依赖、决策 Gate 与退出标准；当前工作选择由 roadmap 维护，执行结果由 GitHub Issue/PR 维护。历史快照暂不搬迁，不再追加逐轮进度。
 
-2026-10-20：新版 MVP 的目标与验收见 [可用闭环](../mvp/usable-loop.md)，缩编实施策略见 [Core 重构提案](../mvp/core-refactoring-plan.md)。本文旧 IM-07 Feishu → IM-08 CLI 等产品次序不再作为新 MVP 前置；已实现能力、历史证据和适用的技术审查/验证要求保留，不因新规划自动宣称完成或关闭。
+2026-10-26：新版 MVP 的目标与验收见 [可用闭环](../mvp/usable-loop.md)，当前交付次序见 [mvp-v1-release](../mvp/mvp-v1-release.md)，[旧 Core 重构提案](../archive/mvp-pre-v1-release/core-refactoring-plan.md)仅保留历史设计约束。本文旧 IM-07 Feishu → IM-08 CLI 等产品次序不再作为新 MVP 前置；已实现能力、历史证据和适用的技术审查/验证要求保留，不因新规划自动宣称完成或关闭。
 
 文档角色：把已冻结的高层、API、Module、PostgreSQL、Feishu Channel 与 Runtime Adapter 基准转换为可执行实施顺序、依赖和退出 Gate。本文不重新定义业务语义，也不以里程碑计划替代 owning Contract、Module Spec、Logical Model 或专项测试。
 
@@ -219,7 +219,7 @@ GitHub 任务基线：Parent Exit Gate [#120](https://github.com/qzhike/zhiju-bu
 
 ### IM-06 TaskExecution Human-operated Core
 
-验收状态：`SCOPED ENGINEERING ACCEPTANCE COMPLETE / USER CONFIRMED 2026-10-07`。已批准有限支持集通过原工程退出 Gate，用户已确认 IM-06 完成验收；复核依据与边界见 [roadmap](../product/roadmap.md#completed--im-06-taskexecution-human-operated-core)。外部/公开 HTTP/UI/生产/性能/独立人工验收及既有 PARTIAL/NOT RUN、真实 Grant PolicySnapshot lifecycle 延后保持原边界。
+验收状态：`SCOPED ENGINEERING ACCEPTANCE COMPLETE / USER CONFIRMED 2026-10-07`。已批准有限支持集通过原工程退出 Gate，用户已确认 IM-06 完成验收；复核依据与边界见 [roadmap](../archive/mvp-pre-v1-release/roadmap-before-v1.md#completed--im-06-taskexecution-human-operated-core)。外部/公开 HTTP/UI/生产/性能/独立人工验收及既有 PARTIAL/NOT RUN、真实 Grant PolicySnapshot lifecycle 延后保持原边界。
 
 产出：Task、WorkOrder、ContextSnapshot、Run、AgentResult、InformationRequest、Usage/Provenance 的 Human-operated 流程。阶段启动基线的 TaskExecution 范围为 19 Command、7 Query、11 Event，当时全仓 Catalog 为 201 项；原 200 项兼容基线保持不变，验收基线的全仓 Catalog/Registry 为 239 项，实时模块范围见 owning Module Spec 与 roadmap。IM-06 不自动批准 Runtime 专项的 6 个新增 Command；任何必要 API Delta 必须先经正式设计决定。
 

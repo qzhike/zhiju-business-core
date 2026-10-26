@@ -4,7 +4,7 @@
 日期：2026-09-07
 状态：`CURRENT DESIGN BASELINE`；当前推进方向见 [roadmap](../product/roadmap.md)，执行与验收事实以最新 GitHub Issue/PR 为准。
 
-2026-10-20 范围校正：当前 MVP 产品范围以 [可用闭环](../mvp/usable-loop.md)为准；[Core 缩编重构方案](../mvp/core-refactoring-plan.md)是待审查的技术提案。用户已确认产品边界并授权规划落盘，未授权业务实现。既有七模块、接口和数据库仍按原实现解释；不能将新范围写成已交付，也不能把下文旧 MVP 的飞书、长期企业平台或通用执行链重新作为新闭环前置。
+2026-10-26 范围校正：当前 MVP 产品范围以 [可用闭环](../mvp/usable-loop.md)为准；推进顺序与共用 checklist 统一见 [mvp-v1-release](../mvp/mvp-v1-release.md)。用户已授权 UI 优先的发布规划与文档整理，完整 bopu 输入是本版验收基线；[旧重构提案](../archive/mvp-pre-v1-release/core-refactoring-plan.md)保留历史技术约束，不作为整套重构的开工指令。既有七模块、接口和数据库仍按原实现解释；不能将新范围写成已交付，也不能把下文旧 MVP 的飞书、长期企业平台或通用执行链重新作为新闭环前置。
 
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是本项目的产品与工程冻结基准。Agent 从根目录 `AGENTS.md` 进入，按角色与任务读取本文相关章节；本文负责说明产品目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
@@ -126,7 +126,7 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 | 主题 | 权威定位 |
 |---|---|
 | 产品与范围 | 本文第 4–6 节、01 客户约束、02 架构中受影响部分 |
-| 缩编 MVP 可用闭环与重构 | [产品基准](../mvp/usable-loop.md)、[技术提案](../mvp/core-refactoring-plan.md)、roadmap 当前方向；旧模块维护仍读取对应 Spec/Test |
+| MVP 发布与可用闭环 | [release 计划](../mvp/mvp-v1-release.md)、[产品基准](../mvp/usable-loop.md)、roadmap 当前方向；既有模块维护仍读取对应 Spec/Test，旧提案按需追溯 |
 | 领域与状态机 | 对应 Module Spec、04 中对应 Aggregate；跨模块时追加 05 |
 | API 与字段 | 对应 Module Spec/Test、共享 API Contract；03 的被引用 Core 类型、06 的 Reference/Envelope/操作条目 |
 | 数据库与事务 | 07 对应 Schema、Migration/事务约束；对应模块及 05 相关一致性规则 |
@@ -143,9 +143,9 @@ Runtime Adapter v0.1 的专项协议固定维护在 `.vibe/runtime-adapter-contr
 
 ### 4.1 当前 MVP：文档修订与交付闭环
 
-当前目标是员工通过 Web 完成 ZIP 上传、安全解包、整体分析、范围确认、三个阶段的修订定稿及交付包下载。客户现有制度是理解起点，正式模板用于查缺补漏；三个阶段为质量手册、控制程序与管理制度联动修订、记录表单与交付。完整业务要求和验收唯一见 [MVP 可用闭环](../mvp/usable-loop.md)。
+当前目标是员工通过 Web 完成 ZIP 上传、安全解包、整体分析、范围确认、三个阶段的修订定稿及交付包下载。客户现有制度是理解起点，正式模板用于查缺补漏；三个阶段按更新后的 PRD 为质量手册、控制程序、管理制度及记录表单；原有模拟 UI 的旧顺序属于待订正实现，不冒充新要求已完成。完整业务要求和验收唯一见 [MVP 可用闭环](../mvp/usable-loop.md)。
 
-`zhiju-runner` 由用户独立维护，可脱离 Core 经 CLI/TUI 使用；Core 只负责接入。正式模板随 Runner 打包，所有验证必须基于正式模板。多用户/多租户、MCP、飞书等渠道和 Word/Excel 输出不在本次范围。版本、人工确认、必要访问保护和恢复能力保留。
+`zhiju-runner` 由用户独立维护，可脱离 Core 经 CLI/TUI 使用；Core 只负责接入。正式模板随 Runner 打包，真实业务验收必须基于正式模板；M1 可用明确标注的 mock data 定稿 UI。多用户/多租户、MCP、飞书等渠道和 Word/Excel 输出不在本次范围。版本、人工确认、必要访问保护和恢复能力保留。
 
 ### 4.2 旧产品目标与校正历史
 
@@ -171,7 +171,7 @@ Zhiju Business Core 是制巨质量管理体系服务的业务内核。它要把
 
 ## 5. 已冻结的产品与架构规则
 
-适用范围：本节记录旧七模块设计并继续约束旧实现维护。新版已确认产品范围由 §4.1 和产品基准覆盖冲突项；新应用服务、接口与持久化边界按 [缩编方案 §6](../mvp/core-refactoring-plan.md#6-spec-delta-与权威衔接)先形成必要设计增量，不能仅凭产品收缩直接取消运行时检查。历史不可变、人工决定、精确版本、幂等及安全原则继续保留。
+适用范围：本节记录旧七模块设计并继续约束旧实现维护。新版已确认产品范围由 §4.1 和产品基准覆盖冲突项；新应用服务、接口与持久化边界按 [缩编方案 §6](../archive/mvp-pre-v1-release/core-refactoring-plan.md#6-spec-delta-与权威衔接)先形成必要设计增量，不能仅凭产品收缩直接取消运行时检查。历史不可变、人工决定、精确版本、幂等及安全原则继续保留。
 
 ### 5.1 产品边界
 
@@ -249,7 +249,7 @@ Zhiju Business Core 是制巨质量管理体系服务的业务内核。它要把
 
 ## 6. 逻辑模块全景
 
-下图为现有实现及旧设计的模块边界，不是新版 MVP 必须逐模块完成的实施顺序。目标职责及退出新主链的能力见 [缩编方案](../mvp/core-refactoring-plan.md#2-目标结构与职责)；具体新所有权尚未实施。
+下图为现有实现及旧设计的模块边界，不是新版 MVP 必须逐模块完成的实施顺序。目标职责及退出新主链的能力见 [缩编方案](../archive/mvp-pre-v1-release/core-refactoring-plan.md#2-目标结构与职责)；具体新所有权尚未实施。
 
 ```text
 BusinessCore

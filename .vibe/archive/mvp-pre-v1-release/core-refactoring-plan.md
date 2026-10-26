@@ -1,3 +1,5 @@
+> 历史资料：保存自 `cfc721fbb908f0d89dba4e2cc27d94579d45af9d`。以下日期、状态、目录和命令只描述当时情况；当前推进请读 [mvp-v1-release](../../mvp/mvp-v1-release.md)。旧阶段顺序与 300+ 验收已由该计划及产品基准更新；独有技术约束与历史证据仍须按 owning 规格核对。
+
 # Core 缩编重构方案
 
 日期：2026-10-20
@@ -6,11 +8,11 @@
 
 状态：`PRODUCT SCOPE CONFIRMED / TECHNICAL PLAN PROPOSED / NOT IMPLEMENTED`
 
-业务范围与验收唯一见 [MVP 可用闭环](usable-loop.md)。本文承担缩编的设计取舍、代码处置、Spec Delta 和实施策略；[roadmap](../product/roadmap.md)承担 Current/Next/Later。用户已确认 [详细交付计划](delivery-plan.md)；该确认不替代后端技术设计批准，也不授权业务实现、Runner 修改、Issue/PR 发布或旧模块删除。
+业务范围与验收唯一见 [MVP 可用闭环](../../mvp/usable-loop.md)。本文承担缩编的设计取舍、代码处置、Spec Delta 和实施策略；[roadmap](roadmap-before-v1.md)承担 Current/Next/Later。用户已确认 [详细交付计划](delivery-plan.md)；该确认不替代后端技术设计批准，也不授权业务实现、Runner 修改、Issue/PR 发布或旧模块删除。
 
 ## 1. 结论与当前起点
 
-2026-10-22 的下一具体设计为 [B1 项目与资料托管](b1-design.md)。它将本文的职责划分收敛为新 `DocumentDelivery` Owner、独立数据/运行边界、最小身份保护及资料接纳/恢复契约，已于 2026-10-22 获人类技术批准。该局部设计不追认本文件的 B2–B5、Runner 或生产部署方案；下表历史代码观察保留原基线。
+2026-10-22 的下一具体设计为 [B1 项目与资料托管](../../mvp/b1-design.md)。它将本文的职责划分收敛为新 `DocumentDelivery` Owner、独立数据/运行边界、最小身份保护及资料接纳/恢复契约，已于 2026-10-22 获人类技术批准。该局部设计不追认本文件的 B2–B5、Runner 或生产部署方案；下表历史代码观察保留原基线。
 
 建议在当前仓库保留现有技术栈和可用工具，建立精简的 Core 业务主链及独立初始化入口。新的流程不再依赖完整七模块业务前置；旧实现先保留，按替代能力逐项退出新主链。无真实业务数据和外部消费者需要迁移，不为旧接口兼容重新引入旧模型。
 
@@ -18,12 +20,12 @@
 
 | 代码证据 | 当前限制与重构含义 |
 |---|---|
-| [TrustedApp](../../apps/workspace-web/src/TrustedApp.tsx)、[公开操作清单](../../apps/workspace-bff/src/operations.ts) | 分析、范围确认、执行和项目交付仍有未接入状态；公开写操作主要是准备项目及 ZIP 接收，不能只更换页面文案完成闭环 |
-| [MarkdownReview](../../apps/workspace-web/src/MarkdownReview.tsx) | 已有精确版本预览入口；正式意见提交、持久化及修改循环尚未接通 |
-| [受控 Runtime](../../modules/integration-gateway/src/runtime/controlled-runtime-dispatch.ts) | 已有 synthetic Driver 和恢复经验，不等于真实 CLI Runner 已接通 |
-| [Revision 服务](../../modules/artifact/src/business/revision-service.ts)、[Markdown 审阅服务](../../modules/artifact/src/business/markdown-review-service.ts) | 依赖结构化文档、原 Artifact 与授权契约，无法直接当作原始 Markdown 版本服务 |
-| [ZIP 检查](../../modules/integration-gateway/src/customer-zip/zip-safety.ts) | 当前入口主要识别 MD/DOCX；XLSX 接收需扩展。外层 ZIP 与 DOCX 内部条目共用数量预算，须按实际资料校准 |
-| [交付校验](../../modules/release-publication/src/project-delivery-validation.ts) | 已有类型、摘要和一致性检查，不等于具备项目打包与下载业务服务 |
+| [TrustedApp](../../../apps/workspace-web/src/TrustedApp.tsx)、[公开操作清单](../../../apps/workspace-bff/src/operations.ts) | 分析、范围确认、执行和项目交付仍有未接入状态；公开写操作主要是准备项目及 ZIP 接收，不能只更换页面文案完成闭环 |
+| [MarkdownReview](../../../apps/workspace-web/src/MarkdownReview.tsx) | 已有精确版本预览入口；正式意见提交、持久化及修改循环尚未接通 |
+| [受控 Runtime](../../../modules/integration-gateway/src/runtime/controlled-runtime-dispatch.ts) | 已有 synthetic Driver 和恢复经验，不等于真实 CLI Runner 已接通 |
+| [Revision 服务](../../../modules/artifact/src/business/revision-service.ts)、[Markdown 审阅服务](../../../modules/artifact/src/business/markdown-review-service.ts) | 依赖结构化文档、原 Artifact 与授权契约，无法直接当作原始 Markdown 版本服务 |
+| [ZIP 检查](../../../modules/integration-gateway/src/customer-zip/zip-safety.ts) | 当前入口主要识别 MD/DOCX；XLSX 接收需扩展。外层 ZIP 与 DOCX 内部条目共用数量预算，须按实际资料校准 |
+| [交付校验](../../../modules/release-publication/src/project-delivery-validation.ts) | 已有类型、摘要和一致性检查，不等于具备项目打包与下载业务服务 |
 
 ## 2. 目标结构与职责
 
@@ -96,9 +98,9 @@ Core 只约定集成所必需的输入输出，不要求独立 CLI/TUI 使用依
 
 | 分类 | 位置/能力 | 处理方式 |
 |---|---|---|
-| 复用 | [shared-kernel](../../packages/shared-kernel/src/)、[上传流控制](../../apps/workspace-bff/src/zip-body.ts) | 保留通用标识、摘要、流大小/超时/取消；不携带无关旧业务对象 |
-| 复用 | Web 工程、样式、[安全 Markdown](../../apps/workspace-web/src/App.tsx) | 保留展示与内容安全组件，实际接线按新模型修改 |
-| 改造 | [ZIP 接收](../../modules/integration-gateway/src/customer-zip/) | 提取安全解包，增加 XLSX 格式接收与补充批次，解除旧准备链前置；按正式资料校准嵌套包预算 |
+| 复用 | [shared-kernel](../../../packages/shared-kernel/src)、[上传流控制](../../../apps/workspace-bff/src/zip-body.ts) | 保留通用标识、摘要、流大小/超时/取消；不携带无关旧业务对象 |
+| 复用 | Web 工程、样式、[安全 Markdown](../../../apps/workspace-web/src/App.tsx) | 保留展示与内容安全组件，实际接线按新模型修改 |
+| 改造 | [ZIP 接收](../../../modules/integration-gateway/src/customer-zip) | 提取安全解包，增加 XLSX 格式接收与补充批次，解除旧准备链前置；按正式资料校准嵌套包预算 |
 | 改造 | 本地/S3 文件存储 | 保留安全路径、摘要和原子写入机制；覆盖原包、候选和交付包；现有 macOS 手测存储不直接视为生产实现 |
 | 改造 | 分析、启动、执行、审阅与交付页面 | 保留可用组件；接通真实报告、范围、意见、阶段、版本及包，不用 fixture 状态冒充业务 |
 | 重写 | EnterpriseProject 准备与项目主链 | 改为精简项目、材料、报告、计划；移除长期事实库与公司规范发布等新链路前置 |
@@ -135,7 +137,7 @@ Core 只约定集成所必需的输入输出，不要求独立 CLI/TUI 使用依
 
 ## 8. 验证、证据与剩余依赖
 
-遵守 [08 验证基准](../high-level-docs/08-verification-baseline.md#29-缩编-mvp-正式模板与闭环验收)。所有 MVP 验证以正式 Runner 模板为基准，故障注入使用可追溯派生材料，原包保持只读。静态文档检查只说明文本完整性，不能替代正式模板下的运行或人工内容验收。
+遵守 [08 验证基准](../../high-level-docs/08-verification-baseline.md#29-缩编-mvp-正式模板与闭环验收)。所有 MVP 验证以正式 Runner 模板为基准，故障注入使用可追溯派生材料，原包保持只读。静态文档检查只说明文本完整性，不能替代正式模板下的运行或人工内容验收。
 
 此文档变更使用现有 `docs` 目标；后续 Core、协议、持久化和验证路由实现使用适用的 `full` 目标，新或变化容器环境先按既有规则执行 `environment`。不在本次规划修改验证脚本、降低现有门禁或以历史合成结果证明新闭环。
 

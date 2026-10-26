@@ -1,5 +1,7 @@
 # Module-Spec-UI01-WorkspaceUI
 
+> 2026-10-26 发布规划：当前目标见 [mvp-v1-release](../mvp/mvp-v1-release.md)及[产品基准](../mvp/usable-loop.md)。下文 U1–U3 的旧阶段顺序和测试结果保留为原实现事实；新 PRD 的“手册 → 控制程序 → 管理制度及记录表单”及本版 UI 定稿尚未实施/验收。M1 实施时同步 owning 增量和相应场景，不把旧结果计为新计划通过。
+
 版本：v0.1
 日期：2026-10-08
 状态：`CURRENT EXPERIENCE MODULE BASELINE / IM-UI-01 MILESTONE USER APPROVED / DESIGN VERIFIED / ENGINEERING SHELL IMPLEMENTED / REAL INTEGRATION NOT RUN`
@@ -449,7 +451,7 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 状态：`IMPLEMENTED PRESENTATION DELTA / FIXTURE BROWSER PASS / REAL SERVICES NOT RUN`。用户已反馈 U1 手动验证通过；修订、反馈及证据边界见 [Issue #302](https://github.com/qzhike/zhiju-business-core/issues/302#issuecomment-6308788799) / [PR #303](https://github.com/qzhike/zhiju-business-core/pull/303#issuecomment-6308789929)。
 
-产品依据为已确认的 [交付计划 §3](../mvp/delivery-plan.md#3-第一阶段ui-订正与流程确认)及 [可用闭环](../mvp/usable-loop.md)。本增量落实 U1 的页面、导航、分析澄清及范围确认演练，不定义新 API、Core 状态、数据库或 Runner 协议。旧章节继续说明已交付页面与生产能力；新产品范围覆盖冲突的未来 UI 表达，不追溯改写旧证据。
+产品依据为已确认的 [交付计划 §3](../archive/mvp-pre-v1-release/delivery-plan.md#3-第一阶段ui-订正与流程确认)及 [可用闭环](../mvp/usable-loop.md)。本增量落实 U1 的页面、导航、分析澄清及范围确认演练，不定义新 API、Core 状态、数据库或 Runner 协议。旧章节继续说明已交付页面与生产能力；新产品范围覆盖冲突的未来 UI 表达，不追溯改写旧证据。
 
 ### 交付结果与场景来源
 
@@ -481,7 +483,7 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 状态：`IMPLEMENTED PRESENTATION DELTA / AUTOMATED ACCEPTANCE PASS / USER U2 WALKTHROUGH NOT RUN`。
 
-本增量承接已确认的 [交付计划 U2](../mvp/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段)和 U1 的同项目范围确认。仅定义环境 A 中共享审阅页面、展示模型及隔离 adapter 的下一批行为；不注册 API、数据库对象或 Runner 协议，不使生产能力可用。与旧 #259/#286 的逐文件批准表达冲突时，新 MVP 旅程按本节展示阶段定稿；原生产阅读、授权、下载与历史验收仍按原契约解释。
+本增量承接已确认的 [交付计划 U2](../archive/mvp-pre-v1-release/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段)和 U1 的同项目范围确认。仅定义环境 A 中共享审阅页面、展示模型及隔离 adapter 的下一批行为；不注册 API、数据库对象或 Runner 协议，不使生产能力可用。与旧 #259/#286 的逐文件批准表达冲突时，新 MVP 旅程按本节展示阶段定稿；原生产阅读、授权、下载与历史验收仍按原契约解释。
 
 ### 连续结果与内容依据
 
@@ -510,7 +512,7 @@ BFF 仅为真实报告新增精确 `project.get_preparation_analysis_report@1.0`
 
 状态：`IMPLEMENTED PRESENTATION DELTA / AUTOMATED ACCEPTANCE PASS / SIMULATED UI FLOW USER CONFIRMED`。用户确认来源见 [PR #309 正式 Review](../reviews/pr-309/Review.md)；不扩大为私有原文或真实服务验收。
 
-本增量承接已确认的 [交付计划 U3](../mvp/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段) 和 U1/U2 同一项目旅程。它只定义环境 A 中的共享页面、展示模型与隔离 adapter，不注册 API、数据库对象或 Runner 协议，不使真实保存、执行、定稿、打包或下载能力可用。U3/UI-01–08 整体模拟流程已有用户明确确认，未逐项声明的反例、私有正文及平台覆盖仍不推定通过。
+本增量承接已确认的 [交付计划 U3](../archive/mvp-pre-v1-release/delivery-plan.md#33-ui-实施顺序)、[可用闭环 §3–6](../mvp/usable-loop.md#3-三个业务阶段) 和 U1/U2 同一项目旅程。它只定义环境 A 中的共享页面、展示模型与隔离 adapter，不注册 API、数据库对象或 Runner 协议，不使真实保存、执行、定稿、打包或下载能力可用。U3/UI-01–08 整体模拟流程已有用户明确确认，未逐项声明的反例、私有正文及平台覆盖仍不推定通过。
 
 ### 连续结果与依据
 

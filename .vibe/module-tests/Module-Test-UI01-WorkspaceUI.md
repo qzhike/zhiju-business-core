@@ -1,5 +1,7 @@
 # Module-Test-UI01-WorkspaceUI
 
+> 2026-10-26 发布规划：当前目标见 [mvp-v1-release](../mvp/mvp-v1-release.md)及[产品基准](../mvp/usable-loop.md)。下文 U1–U3 的旧阶段顺序和测试结果保留为原实现事实；新 PRD 的“手册 → 控制程序 → 管理制度及记录表单”及本版 UI 定稿尚未实施/验收。M1 实施时同步 owning 增量和相应场景，不把旧结果计为新计划通过。
+
 版本：v0.1
 日期：2026-10-08
 状态：`EXPERIENCE TEST BASELINE / DESIGN VERIFIED / ENGINEERING SHELL IMPLEMENTED / FIXTURE AUTOMATION / REAL INTEGRATION AND MANUAL NOT RUN`
@@ -360,7 +362,7 @@ ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理�
 
 ## 缩编 MVP：U1 资料到范围验收（2026-10-20）
 
-对应 [UI Spec 的 U1 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu1-从资料到确认范围2026-10-20)和已确认 [交付计划 §3](../mvp/delivery-plan.md#3-第一阶段ui-订正与流程确认)。本组覆盖 UI-01–03 的 U1 页面演练及通用恢复，不替代真实业务能力或第一阶段整体确认。
+对应 [UI Spec 的 U1 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu1-从资料到确认范围2026-10-20)和已确认 [交付计划 §3](../archive/mvp-pre-v1-release/delivery-plan.md#3-第一阶段ui-订正与流程确认)。本组覆盖 UI-01–03 的 U1 页面演练及通用恢复，不替代真实业务能力或第一阶段整体确认。
 
 | ID | 输入/操作 | 可观察通过条件 | 当前结果 |
 |---|---|---|---|
@@ -385,7 +387,7 @@ ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理�
 
 ## 缩编 MVP：U2 三阶段审阅与定稿验收（2026-10-21）
 
-对应 [U2 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu2-三阶段审阅与定稿2026-10-21)及 [交付计划 UI-04/05](../mvp/delivery-plan.md#34-ui-流程确认场景)。以下为已实现并自动化的确定性场景；U1 已通过不使本组自动通过。U2-008 的布局/无障碍自动化已通过，用户实际试走仍为 `NOT RUN`。
+对应 [U2 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu2-三阶段审阅与定稿2026-10-21)及 [交付计划 UI-04/05](../archive/mvp-pre-v1-release/delivery-plan.md#34-ui-流程确认场景)。以下为已实现并自动化的确定性场景；U1 已通过不使本组自动通过。U2-008 的布局/无障碍自动化已通过，用户实际试走仍为 `NOT RUN`。
 
 | ID | 输入/操作 | 可观察通过条件 | 当前结果 |
 |---|---|---|---|
@@ -406,7 +408,7 @@ ZIP 代理的受控真实 HTTP 用例覆盖上传正文结束后 owning 处理�
 
 ## 缩编 MVP：U3 返工、恢复与交付验收（2026-10-21）
 
-对应 [U3 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu3-返工恢复与交付2026-10-21)及 [交付计划 UI-06–08](../mvp/delivery-plan.md#34-ui-流程确认场景)。以下场景由隔离开发 adapter 与受控 Chromium 自动化；不替代真实 Runner、持久化、跨设备或用户完整试走。
+对应 [U3 展示增量](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpu3-返工恢复与交付2026-10-21)及 [交付计划 UI-06–08](../archive/mvp-pre-v1-release/delivery-plan.md#34-ui-流程确认场景)。以下场景由隔离开发 adapter 与受控 Chromium 自动化；不替代真实 Runner、持久化、跨设备或用户完整试走。
 
 | ID | 输入/操作 | 可观察通过条件 | 当前结果 |
 |---|---|---|---|

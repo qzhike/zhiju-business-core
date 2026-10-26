@@ -1,3 +1,5 @@
+> 历史资料：保存自 `cfc721fbb908f0d89dba4e2cc27d94579d45af9d`。以下日期、状态、目录和命令只描述当时情况；当前推进请读 [mvp-v1-release](../../mvp/mvp-v1-release.md)。旧阶段顺序与 300+ 验收已由该计划及产品基准更新；独有技术约束与历史证据仍须按 owning 规格核对。
+
 # MVP 交付计划：先订正 UI，再补齐业务闭环
 
 日期：2026-10-20
@@ -6,9 +8,9 @@
 
 用户已于 2026-10-20 确认本交付计划：优先订正 UI，确认完整操作流程后，再补齐后端业务能力。本文细化这一顺序、交付结果、依赖和验收；计划确认不表示 UI 流程已经验收、业务已经实施或字段级技术设计已经批准。
 
-后续 U3/UI-01–08 模拟流程确认已记录在 [PR #309 正式 Review](../reviews/pr-309/Review.md)，不再沿用收口摘要中相冲突的总体 NOT RUN。确认只覆盖记录声明的 UI 旅程，不推定每个反例/平台或私有正文逐字检查已通过。2026-10-22 用户要求完成下一批前置设计，已批准取舍与精确修订见 [B1 设计](b1-design.md)。
+后续 U3/UI-01–08 模拟流程确认已记录在 [PR #309 正式 Review](../../reviews/pr-309/Review.md)，不再沿用收口摘要中相冲突的总体 NOT RUN。确认只覆盖记录声明的 UI 旅程，不推定每个反例/平台或私有正文逐字检查已通过。2026-10-22 用户要求完成下一批前置设计，已批准取舍与精确修订见 [B1 设计](../../mvp/b1-design.md)。
 
-产品要求唯一见 [MVP 可用闭环](usable-loop.md)，架构取舍及代码处置见 [Core 缩编重构方案](core-refactoring-plan.md)，Current/Next/Later 唯一由 [roadmap](../product/roadmap.md)维护。本文不维护任务状态、Issue 正文或逐轮执行日志，也不改变既有契约、数据库及验证门禁。
+产品要求唯一见 [MVP 可用闭环](../../mvp/usable-loop.md)，架构取舍及代码处置见 [Core 缩编重构方案](core-refactoring-plan.md)，Current/Next/Later 唯一由 [roadmap](roadmap-before-v1.md)维护。本文不维护任务状态、Issue 正文或逐轮执行日志，也不改变既有契约、数据库及验证门禁。
 
 ## 1. 交付路径与完成口径
 
@@ -38,14 +40,14 @@
 
 | 当前证据 | 对下一步的影响 |
 |---|---|
-| [工作台与可信入口](../../apps/workspace-web/src/TrustedApp.tsx)已有项目导航；分析、范围、执行与项目交付仍存在不可用入口 | 复用现有组件与导航经验；先连成隔离开发环境中的完整旅程，生产能力逐项真实接入 |
-| [范围页面](../../apps/workspace-web/src/startup/Page.tsx)和 [UI Spec 的 #284 边界](../module-specs/Module-Spec-UI01-WorkspaceUI.md#284-启动核对与整文件范围页面)以首次启动、整文件选择及后续排除已选文件为中心 | 改为计划范围确认；已确认范围内允许多轮修改，只有扩大范围重新确认，进入下一阶段不重复审批 |
-| [Markdown 审阅工作区](../../apps/workspace-web/src/MarkdownReviewPage.tsx)已有阅读、差异和意见布局；[真实 adapter](../../apps/workspace-web/src/MarkdownReview.tsx)尚未接通服务器草稿、反馈与批准 | 保留阅读体验，补齐项目/阶段/文件讨论定位与三类确认的呈现；本地输入不能标成服务器已保存 |
-| [执行页面模型](../../apps/workspace-web/src/execution/model.ts)按轮次与文件呈现进度 | 增加三阶段和上游依据的视角，保持原尝试、部分失败及待核验状态；候选就绪不能显示为阶段定稿 |
-| [交付页面模型](../../apps/workspace-web/src/delivery/model.ts)已有精确选择、回执和包状态 | 收敛到本次 MVP 的精确清单确认、冻结、打包与下载，不把旧外部发布/回执体系重新作为前置 |
-| [macOS 联调手册](../runbooks/workspace-mvp-e2e-macos.md)区分环境 A、环境 B 与受控自动化 | A 承担页面试走，B 逐步接入真实链；本次不启动环境、不宣称 Runner 或人工验收已通过 |
+| [工作台与可信入口](../../../apps/workspace-web/src/TrustedApp.tsx)已有项目导航；分析、范围、执行与项目交付仍存在不可用入口 | 复用现有组件与导航经验；先连成隔离开发环境中的完整旅程，生产能力逐项真实接入 |
+| [范围页面](../../../apps/workspace-web/src/startup/Page.tsx)和 [UI Spec 的 #284 边界](../../module-specs/Module-Spec-UI01-WorkspaceUI.md#284-启动核对与整文件范围页面)以首次启动、整文件选择及后续排除已选文件为中心 | 改为计划范围确认；已确认范围内允许多轮修改，只有扩大范围重新确认，进入下一阶段不重复审批 |
+| [Markdown 审阅工作区](../../../apps/workspace-web/src/MarkdownReviewPage.tsx)已有阅读、差异和意见布局；[真实 adapter](../../../apps/workspace-web/src/MarkdownReview.tsx)尚未接通服务器草稿、反馈与批准 | 保留阅读体验，补齐项目/阶段/文件讨论定位与三类确认的呈现；本地输入不能标成服务器已保存 |
+| [执行页面模型](../../../apps/workspace-web/src/execution/model.ts)按轮次与文件呈现进度 | 增加三阶段和上游依据的视角，保持原尝试、部分失败及待核验状态；候选就绪不能显示为阶段定稿 |
+| [交付页面模型](../../../apps/workspace-web/src/delivery/model.ts)已有精确选择、回执和包状态 | 收敛到本次 MVP 的精确清单确认、冻结、打包与下载，不把旧外部发布/回执体系重新作为前置 |
+| [macOS 联调手册](../../runbooks/workspace-mvp-e2e-macos.md)区分环境 A、环境 B 与受控自动化 | A 承担页面试走，B 逐步接入真实链；本次不启动环境、不宣称 Runner 或人工验收已通过 |
 
-旧页面与旧 Module Spec 的描述继续作为原实现事实保留。UI 开发前，在 [UI Spec](../module-specs/Module-Spec-UI01-WorkspaceUI.md) 和 [UI Test](../module-tests/Module-Test-UI01-WorkspaceUI.md) 中增加明确标记的新 MVP 适用增量及场景；实现完成后同步对应的当前行为。不能只改文案而继续执行旧的范围或批准语义。
+旧页面与旧 Module Spec 的描述继续作为原实现事实保留。UI 开发前，在 [UI Spec](../../module-specs/Module-Spec-UI01-WorkspaceUI.md) 和 [UI Test](../../module-tests/Module-Test-UI01-WorkspaceUI.md) 中增加明确标记的新 MVP 适用增量及场景；实现完成后同步对应的当前行为。不能只改文案而继续执行旧的范围或批准语义。
 
 ## 3. 第一阶段：UI 订正与流程确认
 
@@ -140,7 +142,7 @@ UI 确认之后才固化新业务 API、状态与持久化模型并开始后端�
 
 同一组设计可按下一交付结果逐步闭合。资料接收的独立结果不必等待所有 Runner 生成能力完成，但不得把缺 Runner 的后续批次标为 READY；跨版本、确认与恢复这些难以补救的基础语义不能留到最后。
 
-B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-已批准的-spec-delta)及 [MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。只有其独立审查、人类技术批准及可访问权威修订齐全，才发布依赖它的可执行 implementation Issue。真实 Runner 核验属于依赖分析能力的 B2 入口；不让 B1 托管伪装成该核验已完成。
+B1 的具体设计出口见 [SD-B1-01–07](../../mvp/b1-design.md#2-已批准的-spec-delta)及 [MVP01 Spec](../../module-specs/Module-Spec-MVP01-DocumentDelivery.md) / [Test](../../module-tests/Module-Test-MVP01-DocumentDelivery.md)。只有其独立审查、人类技术批准及可访问权威修订齐全，才发布依赖它的可执行 implementation Issue。真实 Runner 核验属于依赖分析能力的 B2 入口；不让 B1 托管伪装成该核验已完成。
 
 ## 5. 第三阶段：逐段接通真实业务能力
 
@@ -181,11 +183,11 @@ B1 的具体设计出口见 [SD-B1-01–07](b1-design.md#2-已批准的-spec-del
 | 变更 | 验证安排 |
 |---|---|
 | 本计划及严格文档变更 | `vibe verify docs --json`，另检查引用和计划的一致性 |
-| UI 订正 | 仅完整 PR diff 落在 [现有低风险允许列表](../../tools/verification/select-target.mts)时用 `vibe verify code --json`；新页面、审阅/执行/交付及真实导航接线等允许列表外路径默认 `full`，不因“先做 UI”豁免 |
+| UI 订正 | 仅完整 PR diff 落在 [现有低风险允许列表](../../../tools/verification/select-target.mts)时用 `vibe verify code --json`；新页面、审阅/执行/交付及真实导航接线等允许列表外路径默认 `full`，不因“先做 UI”豁免 |
 | Core/API/持久化/Runner 接入/安全/初始化及依赖变更 | `vibe verify full --json`；新或实质变化的容器环境先执行一次 `vibe verify environment --json`，有效成功结果可复用 |
 | 真实业务与规模验收 | 在适用配置检查之外，使用正式模板、真实 Harness 和实际客户样本执行对应 MVP 场景，独立记录人工判断 |
 
-遵守 [验证基准 §2.1.1](../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)及 [§2.9](../high-level-docs/08-verification-baseline.md#29-缩编-mvp-正式模板与闭环验收)。不把新 UI 路径自行加入低风险列表来缩短检查，也不重复运行已有可信、同修订、同范围的配置验证。
+遵守 [验证基准 §2.1.1](../../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)及 [§2.9](../../high-level-docs/08-verification-baseline.md#29-缩编-mvp-正式模板与闭环验收)。不把新 UI 路径自行加入低风险列表来缩短检查，也不重复运行已有可信、同修订、同范围的配置验证。
 
 ### 7.2 分层证据
 
