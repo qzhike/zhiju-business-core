@@ -26,9 +26,11 @@ export interface ReworkPageProps {
     impact?: StageReworkImpactView | undefined;
     latestSet: readonly { fileId: string; title: string; versionLabel: string }[];
   };
-  records: {
+  rules: {
+    finalizationId?: string | undefined;
+    boundManualId?: string | undefined;
+    boundProcedureId?: string | undefined;
     impact?: StageReworkImpactView | undefined;
-    reviewed: boolean;
     reason: string;
     basisLabel: string;
     files: readonly { fileId: string; title: string; versionLabel: string }[];
@@ -38,12 +40,12 @@ export interface ReworkPageProps {
     announceManualDraft: () => void;
     addDownstreamCandidates: () => void;
     adoptLatestDownstream: () => void;
-    adoptLatestRecords: () => void;
+    adoptLatestRules: () => void;
   };
   links: {
     manual: string;
     procedures: string;
-    records: string;
+    rules: string;
     recovery: string;
     delivery: string;
     scope: string;
@@ -99,7 +101,7 @@ export function ReworkPage({
   reviewStages,
   manual,
   procedures,
-  records,
+  rules,
   deliveryBlockers,
   actions,
   links,
@@ -119,7 +121,7 @@ export function ReworkPage({
           </p>
           <h1 tabIndex={-1}>返工与复核</h1>
           <p className="muted">
-            上游重新定稿保留前任依据，并保守标记下游待复核；记录表单复核只绑定精确版本，不是定稿关卡。
+            上游重新定稿保留前任依据，并保守标记下游待复核；第三阶段整体确认精确版本集合。
           </p>
         </div>
       </div>
@@ -150,7 +152,7 @@ export function ReworkPage({
           <p className="notice" role="status">
             新草稿已到达：
             {manual.draftVersions.map((file) => `${file.title} ${file.versionLabel}`).join('；')}
-            。在显式重新定稿并读回匹配回执之前，第二阶段与最终交付仍以当前定稿为依据。
+            。在显式重新定稿并读回匹配回执之前，控制程序与最终交付仍以当前定稿为依据。
           </p>
         ) : (
           <p className="muted">
@@ -167,14 +169,14 @@ export function ReworkPage({
         </div>
       </section>
 
-      <section className="panel" aria-label="第二阶段复核">
-        <h2>2. 第二阶段：按新手册重新确认完整集合</h2>
+      <section className="panel" aria-label="控制程序复核">
+        <h2>2. 控制程序：按新手册重新确认完整集合</h2>
         {!manual.finalizationId ? (
-          <p className="muted">质量手册定稿后才能核对第二阶段影响。</p>
+          <p className="muted">质量手册定稿后才能核对控制程序影响。</p>
         ) : procedures.impact ? (
           <>
             <p className="notice" role="status">
-              第二阶段标记“依据已变化，待复核”。当前集合仍绑定旧手册{' '}
+              控制程序标记“依据已变化，待复核”。当前集合仍绑定旧手册{' '}
               {procedures.boundManualId ?? '（未记录）'}，不能推进最终交付。
             </p>
             <ImpactTable impact={procedures.impact} />
@@ -183,16 +185,16 @@ export function ReworkPage({
                 模拟新手册依据下的程序候选（第 3 版）
               </button>
               <button onClick={actions.adoptLatestDownstream}>
-                模拟已核对并采用第二阶段全部最新候选
+                模拟已核对并采用控制程序全部最新候选
               </button>
               <Link className="button primary" to={links.procedures}>
-                打开第二阶段审阅并重新定稿
+                打开控制程序审阅并重新定稿
               </Link>
             </div>
           </>
         ) : (
           <p>
-            <strong>当前第二阶段定稿：</strong>
+            <strong>当前控制程序定稿：</strong>
             {procedures.finalizationId ?? '尚未定稿'} · 绑定手册{' '}
             {procedures.boundManualId ?? '尚未记录'}
             {procedures.latestSet.length > 0 && (
@@ -208,25 +210,34 @@ export function ReworkPage({
         )}
       </section>
 
-      <section className="panel" aria-label="记录表单受影响复核">
-        <h2>3. 记录表单：复核精确版本，不增加定稿关卡</h2>
-        {records.impact ? (
+      <section className="panel" aria-label="管理制度及记录表单复核">
+        <h2>3. 管理制度及记录表单：按两项上游依据整体确认</h2>
+        {rules.finalizationId ? (
+          <p>
+            <strong>当前第三阶段定稿：</strong>
+            {rules.finalizationId} · 绑定手册 {rules.boundManualId ?? '未记录'} · 绑定控制程序{' '}
+            {rules.boundProcedureId ?? '未记录'}
+          </p>
+        ) : (
+          <p>尚无管理制度及记录表单模拟定稿；该阶段仍需整体确认完整集合。</p>
+        )}
+        {rules.impact ? (
           <>
             <p className="notice" role="status">
-              {records.reason}
+              {rules.reason}
             </p>
-            <ImpactTable impact={records.impact} />
+            <ImpactTable impact={rules.impact} />
           </>
         ) : (
-          <p>{records.reason}</p>
+          <p>{rules.reason}</p>
         )}
         <p>
-          <strong>当前复核依据：</strong>
-          {records.basisLabel}
+          <strong>当前定稿依据：</strong>
+          {rules.basisLabel}
         </p>
-        {records.files.length > 0 && (
+        {rules.files.length > 0 && (
           <ul>
-            {records.files.map((file) => (
+            {rules.files.map((file) => (
               <li key={`${file.fileId}:${file.versionLabel}`}>
                 {file.title} · {file.versionLabel}
               </li>
@@ -234,9 +245,11 @@ export function ReworkPage({
           </ul>
         )}
         <div className="u3-actions">
-          <button onClick={actions.adoptLatestRecords}>模拟已核对并采用记录表单全部最新候选</button>
-          <Link className="button primary" to={links.records}>
-            打开记录表单审阅并复核
+          <button onClick={actions.adoptLatestRules}>
+            模拟已核对并采用管理制度及记录表单全部最新候选
+          </button>
+          <Link className="button primary" to={links.rules}>
+            打开第三阶段审阅并整体定稿
           </Link>
         </div>
       </section>
@@ -245,7 +258,7 @@ export function ReworkPage({
         <h2>4. 最终交付条件</h2>
         {deliveryBlockers.length === 0 ? (
           <p className="notice" role="status">
-            两项上游依据与记录表单复核均已就绪；最终交付仍须在交付页显式确认精确清单。
+            三项阶段定稿均已就绪；最终交付仍须在交付页显式确认精确清单。
           </p>
         ) : (
           <ul className="u3-blockers">
@@ -262,7 +275,7 @@ export function ReworkPage({
           <Link to={links.scope}>扩大范围？返回 U1 修改范围计划</Link>
         </div>
         <p className="muted">
-          未解决的依据变化、未复核记录表单、待回执修改或新候选都会阻止交付；阅读、复核与候选到达本身不构成交付确认。
+          未解决的依据变化、未完成第三阶段定稿、待回执修改或新候选都会阻止交付；阅读、定稿与候选到达本身不构成交付确认。
         </p>
       </section>
     </div>

@@ -22,6 +22,7 @@ import {
   type StageFinalization,
 } from '../mvp/review-model.js';
 import type { PlanView } from '../plan/model.js';
+import { planInputRefs } from '../plan/model.js';
 import {
   attemptOutcome,
   candidateMarkdown,
@@ -62,7 +63,7 @@ import {
   emptySession,
   manualReworkImpact,
   planStageFiles,
-  recordsReworkState,
+  rulesReworkState,
   sessionKey,
   useU2,
   type StageSession,
@@ -79,7 +80,7 @@ import {
 const projectId = u1Project.id;
 const manualPath = `/projects/${projectId}/stages/manual`;
 const proceduresPath = `/projects/${projectId}/stages/procedures`;
-const recordsPath = `/projects/${projectId}/stages/records`;
+const rulesPath = `/projects/${projectId}/stages/rules`;
 const reworkPath = `/projects/${projectId}/rework`;
 const recoveryPath = `/projects/${projectId}/recovery`;
 const deliveryPath = `/projects/${projectId}/delivery`;
@@ -202,7 +203,7 @@ function syntheticZip(frozen: FrozenDelivery): Uint8Array {
   const entries = [
     {
       name: 'SYNTHETIC-MANIFEST.md',
-      text: `# SYNTHETIC DEVELOPMENT SAMPLE\n\nEnvironment A rehearsal only. Not a controlled export.\nBasis: ${frozen.manualFinalizationId ?? 'none'} / ${frozen.procedureFinalizationId ?? 'none'} / ${frozen.recordsReviewId ?? 'none'}\n\n${frozen.members.map((member) => `${member.fileId}: ${member.versionId} (${member.stage})`).join('\n')}\n`,
+      text: `# SYNTHETIC DEVELOPMENT SAMPLE\n\nEnvironment A rehearsal only. Not a controlled export.\nBasis: ${frozen.manualFinalizationId ?? 'none'} / ${frozen.procedureFinalizationId ?? 'none'} / ${frozen.rulesFinalizationId ?? 'none'}\n\n${frozen.members.map((member) => `${member.fileId}: ${member.versionId} (${member.stage})`).join('\n')}\n`,
     },
     ...frozen.members.map((member, index) => ({
       name: `${String(index + 1).padStart(2, '0')}-${member.fileId}.md`,
@@ -262,15 +263,15 @@ function proposalFor(
   plan: PlanView,
   manual: StageFinalization | undefined,
   procedure: StageFinalization | undefined,
-  records: StageSession,
+  rules: StageFinalization | undefined,
 ): DeliveryProposal {
   const versions = new Map<string, { versionId: string; stage: MvpStageId }>();
   for (const ref of manual?.files ?? [])
     versions.set(ref.fileId, { versionId: ref.versionId, stage: 'MANUAL' });
   for (const ref of procedure?.files ?? [])
     versions.set(ref.fileId, { versionId: ref.versionId, stage: 'PROCEDURES' });
-  for (const ref of records.reworkReview?.files ?? [])
-    versions.set(ref.fileId, { versionId: ref.versionId, stage: 'RECORDS' });
+  for (const ref of rules?.files ?? [])
+    versions.set(ref.fileId, { versionId: ref.versionId, stage: 'RULES' });
   const members = plan.files
     .filter((file) => file.action !== 'RETAIN')
     .flatMap((file) => {
@@ -295,7 +296,7 @@ function proposalFor(
     planVersion: plan.version,
     ...(manual ? { manualFinalizationId: manual.finalizationId } : {}),
     ...(procedure ? { procedureFinalizationId: procedure.finalizationId } : {}),
-    ...(records.reworkReview ? { recordsReviewId: records.reworkReview.reviewId } : {}),
+    ...(rules ? { rulesFinalizationId: rules.finalizationId } : {}),
     members,
   };
 }
@@ -317,25 +318,22 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const procedureSession =
     u2.sessions[sessionKey(plan, 'PROCEDURES')] ??
     emptySession(sessionKey(plan, 'PROCEDURES'), 'PROCEDURES');
-  const recordsSession =
-    u2.sessions[sessionKey(plan, 'RECORDS')] ??
-    emptySession(sessionKey(plan, 'RECORDS'), 'RECORDS');
   const manual = u2.manualFinalization;
   const procedure = u2.procedureFinalization;
+  const rules = u2.rulesFinalization;
   const [execution, setExecution] = useState<ExecutionState>(() =>
     initialExecution(plan.planId, plan.version),
   );
   const [delivery, setDelivery] = useState<DeliveryState>(() => initialDelivery());
   const procedureImpact = manualReworkImpact(plan, manual, procedure);
-  const recordsState = recordsReworkState(plan, manual, procedure, recordsSession);
-  const proposal = proposalFor(plan, manual, procedure, recordsSession);
+  const rulesState = rulesReworkState(plan, manual, procedure, rules);
+  const proposal = proposalFor(plan, manual, procedure, rules);
   const requiredFileIds = plan.files
     .filter((file) => file.action !== 'RETAIN')
     .map((file) => file.id);
   const issues: SelectionIssues = delivery.selection
     ? deliveryBlockersIssues(delivery.selection, proposal, requiredFileIds)
     : { missingRequired: requiredFileIds, stale: [] };
-  const currentRecordLatest = latestSet(plan, 'RECORDS', recordsSession);
   const active = activeSubmission(
     Object.values(u2.sessions).flatMap((session) => session.submissions),
   );
@@ -355,11 +353,10 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     ...(u2.planCheck.reason !== undefined ? { planReason: u2.planCheck.reason } : {}),
     ...(manual ? { manual } : {}),
     ...(procedure ? { procedures: procedure } : {}),
+    ...(rules ? { rules } : {}),
     manualExpectedFiles: planStageFiles(plan, 'MANUAL').map((file) => file.id),
     procedureExpectedFiles: planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
-    ...(recordsSession.reworkReview ? { recordsReview: recordsSession.reworkReview } : {}),
-    recordExpectedFiles: planStageFiles(plan, 'RECORDS').map((file) => file.id),
-    currentRecordLatest,
+    ruleExpectedFiles: planStageFiles(plan, 'RULES').map((file) => file.id),
     ...(active ? { activeSubmission: active.requestId } : {}),
     ...(unresolvedRecovery ? { unresolvedRecovery } : {}),
     selection,
@@ -382,12 +379,12 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         ...addSessionVersion(current, 'F-PROCEDURE', u2VersionsFor('F-PROCEDURE').at(-1) ?? 'V3'),
         message: '已模拟新手册依据下的程序候选到达；请显式切换并核对。',
       }));
-      u2.update('RECORDS', (current) => {
+      u2.update('RULES', (current) => {
         let next = current;
-        for (const file of planStageFiles(plan, 'RECORDS')) {
+        for (const file of planStageFiles(plan, 'RULES')) {
           if (u2VersionsFor(file.id).includes('V2')) next = addSessionVersion(next, file.id, 'V2');
         }
-        return { ...next, message: '已模拟受影响记录表单候选到达；请逐份核对后再复核。' };
+        return { ...next, message: '已模拟第三阶段受影响候选到达；请逐份核对完整集合。' };
       });
     },
     adoptLatestDownstream: () => {
@@ -396,16 +393,16 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
           current,
           planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
         ),
-        message: '已显式采用第二阶段全部最新候选；请核对完整集合并重新定稿。',
+        message: '已显式采用控制程序全部最新候选；请核对完整集合并重新定稿。',
       }));
     },
-    adoptLatestRecords: () => {
-      u2.update('RECORDS', (current) => ({
+    adoptLatestRules: () => {
+      u2.update('RULES', (current) => ({
         ...adoptLatestVersions(
           current,
-          planStageFiles(plan, 'RECORDS').map((file) => file.id),
+          planStageFiles(plan, 'RULES').map((file) => file.id),
         ),
-        message: '已显式采用记录表单全部最新候选；请重新核对受影响表单与精确版本。',
+        message: '已显式采用管理制度及记录表单全部最新候选；请核对完整集合并重新定稿。',
       }));
     },
   };
@@ -479,15 +476,21 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         versionLabel: u2VersionLabel(ref.versionId),
       })),
     },
-    records: {
-      ...(recordsState.active && recordsState.impact
+    rules: {
+      ...(rules ? { finalizationId: rules.finalizationId } : {}),
+      ...(rules?.manualFinalizationId ? { boundManualId: rules.manualFinalizationId } : {}),
+      ...(rules?.procedureFinalizationId
+        ? { boundProcedureId: rules.procedureFinalizationId }
+        : {}),
+      ...(rulesState.active && rulesState.impact
         ? {
             impact: {
-              sourceLabel: '第二阶段完整集合定稿',
-              previousBasisId: recordsState.impact.previousBasisId,
-              newBasisId: recordsState.impact.newBasisId,
-              note: recordsState.impact.note,
-              files: recordsState.impact.files.map((file) => ({
+              sourceLabel:
+                rulesState.impact.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+              previousBasisId: rulesState.impact.previousBasisId,
+              newBasisId: rulesState.impact.newBasisId,
+              note: rulesState.impact.note,
+              files: rulesState.impact.files.map((file) => ({
                 fileId: file.fileId,
                 title: file.title,
                 actionLabel: file.action === 'REVISE' ? '修改' : '保留',
@@ -496,12 +499,15 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
             },
           }
         : {}),
-      reviewed: recordsState.reviewed,
-      reason: recordsState.reason ?? '记录表单精确版本与两项上游依据一致；最终交付前需保持此复核。',
-      basisLabel: recordsSession.reworkReview
-        ? `${recordsSession.reworkReview.manualFinalizationId} · ${recordsSession.reworkReview.procedureFinalizationId}`
-        : '尚未记录复核',
-      files: (recordsSession.reworkReview?.files ?? []).map((ref) => ({
+      reason:
+        rulesState.reason ??
+        (rules
+          ? '第三阶段完整集合与当前手册、控制程序依据一致；后续上游变化会标记待复核。'
+          : '尚无管理制度及记录表单模拟定稿；请进入第三阶段审阅并整体确认。'),
+      basisLabel: rules
+        ? `${rules.manualFinalizationId ?? '无手册定稿'} · ${rules.procedureFinalizationId ?? '无控制程序定稿'}`
+        : '尚无第三阶段定稿',
+      files: (rules?.files ?? []).map((ref) => ({
         fileId: ref.fileId,
         title: titleFor(plan, ref.fileId),
         versionLabel: u2VersionLabel(ref.versionId),
@@ -512,7 +518,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     links: {
       manual: manualPath,
       procedures: proceduresPath,
-      records: recordsPath,
+      rules: rulesPath,
       recovery: recoveryPath,
       delivery: deliveryPath,
       scope: scopePath,
@@ -649,6 +655,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
             planVersion: plan.version,
             ...(manual ? { manualFinalizationId: manual.finalizationId } : {}),
             ...(procedure ? { procedureFinalizationId: procedure.finalizationId } : {}),
+            ...(rules ? { rulesFinalizationId: rules.finalizationId } : {}),
             files: [],
           }),
         }));
@@ -714,7 +721,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     links: {
       manual: manualPath,
       procedures: proceduresPath,
-      records: recordsPath,
+      rules: rulesPath,
       rework: reworkPath,
       delivery: deliveryPath,
     },
@@ -741,10 +748,10 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         : '尚无质量手册模拟定稿',
       procedureLabel: procedure
         ? `${procedure.finalizationId} · ${procedure.files.map((ref) => `${titleFor(plan, ref.fileId)} ${u2VersionLabel(ref.versionId)}`).join('；')}`
-        : '尚无第二阶段完整集合定稿',
-      recordsLabel: recordsSession.reworkReview
-        ? `${recordsSession.reworkReview.reviewId} · ${recordsSession.reworkReview.files.map((ref) => `${titleFor(plan, ref.fileId)} ${u2VersionLabel(ref.versionId)}`).join('；')}`
-        : '记录表单尚未复核',
+        : '尚无控制程序完整集合定稿',
+      rulesLabel: rules
+        ? `${rules.finalizationId} · ${rules.files.map((ref) => `${titleFor(plan, ref.fileId)} ${u2VersionLabel(ref.versionId)}`).join('；')}`
+        : '管理制度及记录表单尚未定稿',
     },
     blockers,
     proposal,
@@ -951,7 +958,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
             simulateRecordRevision();
           }}
         >
-          模拟记录表单后续改稿（第 3 版）
+          模拟管理制度及记录表单后续改稿（第 3 版）
         </button>
         <button
           onClick={() => {
@@ -967,7 +974,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     links: {
       manual: manualPath,
       procedures: proceduresPath,
-      records: recordsPath,
+      rules: rulesPath,
       rework: reworkPath,
       recovery: recoveryPath,
     },
@@ -994,12 +1001,13 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const handoff = buildHandoff({
     reviewStages: u2.reviewStages,
     planCheck: u2.planCheck,
+    planVersion: plan.version,
     unconfirmedNext,
     manual,
     procedure,
+    rules,
     procedureImpact: Boolean(procedureImpact),
-    recordsReviewed: recordsState.reviewed,
-    recordsImpact: recordsState.active,
+    rulesImpact: rulesState.active,
     deliveryFrozen: delivery.frozen !== undefined,
   });
   const api: U3Api = { rework, execution: executionProps, delivery: deliveryProps };
@@ -1282,15 +1290,13 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     });
     if (delivery.confirmScene === 'changed') {
-      u2.update('RECORDS', (current) => ({
-        ...addSessionVersion(current, 'F-FORM-APPLY', u2VersionsFor('F-FORM-APPLY').at(-1) ?? 'V3'),
-        message: '确认前模拟记录表单版本变化；原清单选择保留但已过期，请重新复核。',
-      }));
+      simulateUpstreamRefinalization();
       setDelivery((current) => ({
         ...current,
         confirmStatus: 'FAILED',
         confirmRequest: { intent },
-        confirmNote: '确认前版本/依据已变化；未冻结。请重新复核受影响表单并显式重新核对清单。',
+        confirmNote:
+          '确认前上游依据已变化；未冻结。请按当前手册/控制程序重新确认第三阶段，再显式重新核对当前清单。',
       }));
       return;
     }
@@ -1531,14 +1537,53 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   }
 
   function simulateRecordRevision() {
-    u2.update('RECORDS', (current) => ({
-      ...addSessionVersion(current, 'F-FORM-APPLY', u2VersionsFor('F-FORM-APPLY').at(-1) ?? 'V3'),
-      message: '模拟记录表单后续改稿已到达；既有冻结包不变，本次复核与待交付清单需重新核对。',
-    }));
+    u2.update('RULES', (current) => {
+      let next = current;
+      for (const file of planStageFiles(plan, 'RULES')) {
+        const latest = u2VersionsFor(file.id).at(-1);
+        if (latest) next = addSessionVersion(next, file.id, latest);
+      }
+      return {
+        ...next,
+        message:
+          '模拟管理制度及记录表单后续改稿已到达；既有冻结包不变，需显式核对并重新定稿后才能形成新清单。',
+      };
+    });
     setDelivery((current) => ({
       ...current,
-      note: '记录表单出现后续改稿；历史包不变，新一轮交付需重新复核与确认。',
+      note: '第三阶段出现后续改稿；历史包不变，新一轮交付需重新定稿与确认。',
     }));
+  }
+
+  function simulateUpstreamRefinalization() {
+    const latest = u2VersionsFor('F-MANUAL').at(-1) ?? 'V3';
+    const refinalization: StageFinalization = {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      finalizationId: `U3-UPSTREAM-${crypto.randomUUID().slice(0, 8)}`,
+      projectId,
+      stage: 'MANUAL',
+      planId: plan.planId,
+      planVersion: plan.version,
+      files: [{ fileId: 'F-MANUAL', versionId: latest }],
+      inputRefs: planInputRefs(plan),
+      templateIds: plan.templateBasis,
+      confirmedAt: new Date().toISOString(),
+    };
+    u2.update('MANUAL', (current) => {
+      const next = addSessionVersion(current, 'F-MANUAL', latest);
+      return {
+        ...next,
+        finalizationStatus: 'DONE',
+        finalization: refinalization,
+        finalizationHistory: [
+          ...next.finalizationHistory,
+          ...(next.finalization
+            ? [{ finalization: next.finalization, supersededBy: refinalization.finalizationId }]
+            : []),
+        ],
+        message: '模拟质量手册重新定稿；控制程序与第三阶段依据标记待复核。',
+      };
+    });
   }
 
   function startNewRound() {
@@ -1611,6 +1656,7 @@ function makePackage(frozen: FrozenDelivery, index: number): DeliveryPackage {
 function buildHandoff(input: {
   reviewStages: readonly JourneyReviewStage[];
   planCheck: { ready: boolean; reason?: string | undefined };
+  planVersion: number;
   unconfirmedNext: { label: string; href: string; reason: string };
   manual:
     { finalizationId: string; files: readonly { fileId: string; versionId: string }[] } | undefined;
@@ -1621,9 +1667,16 @@ function buildHandoff(input: {
         files: readonly { fileId: string; versionId: string }[];
       }
     | undefined;
+  rules:
+    | {
+        finalizationId: string;
+        manualFinalizationId?: string | undefined;
+        procedureFinalizationId?: string | undefined;
+        files: readonly { fileId: string; versionId: string }[];
+      }
+    | undefined;
   procedureImpact: boolean;
-  recordsReviewed: boolean;
-  recordsImpact: boolean;
+  rulesImpact: boolean;
   deliveryFrozen: boolean;
 }): MvpHandoff {
   const planReady = input.planCheck.ready;
@@ -1633,8 +1686,14 @@ function buildHandoff(input: {
     input.manual &&
     input.procedure.manualFinalizationId === input.manual.finalizationId,
   );
-  const recordsDone = input.recordsReviewed;
-  const next = !input.planCheck.ready
+  const rulesDone = Boolean(
+    input.rules &&
+    input.manual &&
+    input.procedure &&
+    input.rules.manualFinalizationId === input.manual.finalizationId &&
+    input.rules.procedureFinalizationId === input.procedure.finalizationId,
+  );
+  const next = !planReady
     ? input.unconfirmedNext
     : !manualDone
       ? {
@@ -1644,34 +1703,49 @@ function buildHandoff(input: {
         }
       : !procedureDone
         ? {
-            label: input.procedureImpact ? '复核第二阶段完整集合' : '进入程序与制度审阅',
+            label: input.procedureImpact ? '复核控制程序完整集合' : '进入控制程序审阅',
             href: proceduresPath,
             reason: input.procedureImpact
-              ? '质量手册已重新定稿；第二阶段需按新依据重新确认完整集合。'
-              : '质量手册已有模拟定稿；下一步联动审阅控制程序与管理制度。',
+              ? '质量手册已重新定稿；控制程序需按新依据重新确认完整集合。'
+              : '质量手册已有模拟定稿；下一步整体确认控制程序精确版本集合。',
           }
-        : !recordsDone
+        : !rulesDone
           ? {
-              label: '复核记录表单',
-              href: recordsPath,
-              reason: input.recordsImpact
-                ? '第二阶段依据已变化；记录表单需重新核对受影响精确版本。'
-                : '记录表单最终交付前需完成受影响复核。',
+              label: input.rulesImpact
+                ? '复核管理制度及记录表单完整集合'
+                : '进入管理制度及记录表单审阅',
+              href: rulesPath,
+              reason: input.rulesImpact
+                ? '上游依据已变化；第三阶段需按当前手册与控制程序重新确认完整集合。'
+                : '控制程序完整集合已定稿；下一步整体确认管理制度及记录表单。',
             }
           : !input.deliveryFrozen
             ? {
                 label: '确认最终交付清单',
                 href: deliveryPath,
-                reason: '两项上游依据与记录表单复核已就绪；最终交付仍需一次显式确认。',
+                reason: '三项阶段定稿均已就绪；最终交付仍需一次显式确认。',
               }
             : {
                 label: '查看最终交付包',
                 href: deliveryPath,
                 reason: '清单已冻结；可查看打包、下载与历史包。',
               };
+  const finalizedCount = [manualDone, procedureDone, rulesDone].filter(Boolean).length;
   return {
     reviewStages: input.reviewStages,
     next,
+    projectStatus: !planReady
+      ? '待确认修改范围'
+      : !manualDone
+        ? '待质量手册审阅'
+        : !procedureDone
+          ? '待控制程序审阅'
+          : !rulesDone
+            ? '待管理制度及记录表单审阅'
+            : !input.deliveryFrozen
+              ? '待最终交付确认'
+              : '交付包已生成（模拟）',
+    projectProgress: `计划第 ${input.planVersion} 版 · 阶段定稿 ${finalizedCount}/3${input.deliveryFrozen ? ' · 已冻结交付清单' : ''}`,
     stages: [
       {
         id: 'manual',
@@ -1685,7 +1759,7 @@ function buildHandoff(input: {
       },
       {
         id: 'procedures',
-        label: '控制程序与管理制度',
+        label: '控制程序',
         state: !planReady
           ? '未开始'
           : procedureDone
@@ -1701,23 +1775,27 @@ function buildHandoff(input: {
             ? `模拟定稿 ${input.procedure?.finalizationId ?? ''} 已绑定当前手册依据。`
             : input.procedureImpact
               ? '质量手册重新定稿；本阶段旧集合保留但需重新确认完整版本集合。'
-              : '以质量手册的精确模拟定稿为依据，两类文件同轮审阅并整体确认。',
+              : '以质量手册的精确模拟定稿为依据，整体确认控制程序完整版本集合。',
       },
       {
-        id: 'records',
-        label: '记录表单与交付',
+        id: 'rules',
+        label: '管理制度及记录表单',
         state: !planReady
           ? '未开始'
-          : recordsDone
-            ? '已复核（模拟）'
-            : procedureDone
-              ? '待复核（演示）'
-              : '等待第二阶段定稿',
+          : rulesDone
+            ? '已定稿（模拟）'
+            : input.rulesImpact
+              ? '依据已变化，待复核'
+              : procedureDone
+                ? '待审阅（演示）'
+                : '等待控制程序定稿',
         detail: !planReady
-          ? '确认范围并完成前两阶段后进入记录表单复核。'
-          : recordsDone
-            ? '记录表单已复核到精确版本；最终交付清单仍需一次显式确认。'
-            : '记录表单复核只绑定精确版本，不是定稿关卡；最终交付属于 U3。',
+          ? '确认范围并完成前两阶段后进入第三阶段。'
+          : rulesDone
+            ? `模拟定稿 ${input.rules?.finalizationId ?? ''} 已绑定两项上游依据。`
+            : input.rulesImpact
+              ? '上游依据已变化；管理制度及记录表单需重新确认完整集合。'
+              : '以质量手册和控制程序定稿为依据，整体确认管理制度及记录表单。',
       },
     ],
     u3Stages: [

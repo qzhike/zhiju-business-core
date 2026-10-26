@@ -421,13 +421,13 @@ export function FixtureU1Overview() {
           },
           {
             id: 'procedures',
-            label: '控制程序与管理制度',
+            label: '控制程序',
             state: '未开始',
             detail: '以质量手册的精确模拟定稿为依据。',
           },
           {
-            id: 'records',
-            label: '记录表单与交付',
+            id: 'rules',
+            label: '管理制度及记录表单',
             state: '未开始',
             detail: '以前两阶段精确版本为依据；最终交付属于 U3。',
           },

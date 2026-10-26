@@ -161,6 +161,7 @@ test('production workbench excludes its development adapter and registers exact 
     for (const marker of [
       'WB-ENTERPRISE-01',
       'DEVELOPMENT_WORKBENCH_ADAPTER_MISSING',
+      'M1 连续演练',
       '延迟返回一份候选',
     ])
       expect(source.includes(marker), `Production bundle must exclude ${marker}`).toBe(false);

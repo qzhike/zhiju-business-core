@@ -8,6 +8,8 @@ import {
   type ProjectView,
   type WorkCard,
 } from '../workbench/model.js';
+import { MvpHandoffContext } from './handoff.js';
+import { useU1 } from './u1.js';
 
 const projects: readonly [ProjectView, ProjectView, ProjectView] = [
   {
@@ -49,20 +51,6 @@ const second = projects[1];
 const u1 = projects[2];
 const reportId = 'DEMO-STARTUP-REPORT-01';
 const fixtureCards: readonly WorkCard[] = [
-  {
-    id: 'wb-u1',
-    projectKey: u1.key,
-    title: 'U1 演练 · 从资料到确认范围',
-    group: 'attention',
-    status: '待试走',
-    reason:
-      '在隔离开发适配器中核对资料批次、澄清答复、精确修改范围与模拟回执；不调用 Core 或 Runner。',
-    context: 'U1-REPORT-01 / U1-REPORT-02 · 计划第 1 版',
-    action: {
-      label: '查看项目概览',
-      destination: { kind: 'overview', projectId: u1.projectId },
-    },
-  },
   {
     id: 'wb-analysis',
     projectKey: first.key,
@@ -236,21 +224,47 @@ export function FixtureWorkbenchProvider({ children }: { children: ReactNode }) 
 export function FixtureWorkbench() {
   const state = useContext(BoardContext);
   if (!state) throw new Error('DEVELOPMENT_WORKBENCH_ADAPTER_MISSING');
+  const u1State = useU1();
+  const handoff = useContext(MvpHandoffContext);
   const navigate = useNavigate();
   const location = useLocation();
   const selectedKey = selectedProjectKey(location.search);
   const mode = state.mode;
   const unavailable = mode === 'denied' || mode === 'expired' || mode === 'error';
   const loading = mode === 'loading';
+  const projectViews: readonly ProjectView[] = projects.map((project) =>
+    project.projectId === u1.projectId
+      ? {
+          ...project,
+          status: handoff?.projectStatus ?? project.status,
+          progress: handoff?.projectProgress ?? project.progress,
+        }
+      : project,
+  );
+  const mvpNext = handoff?.next;
+  const mvpCard: WorkCard = {
+    id: 'wb-u1',
+    projectKey: u1.key,
+    title: 'M1 连续演练 · 当前下一步',
+    group: 'attention',
+    status: handoff?.projectStatus ?? '待处理 · 演练',
+    reason: mvpNext?.reason ?? '从项目概览继续同一项目的连续演练；页面状态保留在当前会话内存。',
+    context: `${u1State.viewedReportId} · ${handoff?.projectProgress ?? '计划第 1 版'}`,
+    action: {
+      label: '查看项目概览',
+      destination: { kind: 'overview', projectId: u1.projectId },
+    },
+  };
+  const cards = [mvpCard, ...state.cards];
   return (
     <Workbench
       key={selectedKey ?? 'all'}
       selectedKey={selectedKey}
       onSelect={(key) => {
-        void navigate(workbenchPath(projects.find((project) => project.key === key) ?? null));
+        void navigate(workbenchPath(projectViews.find((project) => project.key === key) ?? null));
       }}
-      projects={unavailable || loading || mode === 'empty' ? [] : projects}
-      cards={unavailable || loading || mode === 'empty' ? [] : state.cards}
+      projects={unavailable || loading || mode === 'empty' ? [] : projectViews}
+      cards={unavailable || loading || mode === 'empty' ? [] : cards}
       directory={{
         id: 'directory',
         title:
@@ -272,7 +286,7 @@ export function FixtureWorkbench() {
             ? '正在等待读取 · 演示'
             : mode === 'empty'
               ? '完整空结果 · 演示'
-              : '已显示 2 个项目 · 完整合成场景',
+              : '已显示 3 个项目 · 完整合成场景',
         ...(unavailable || loading
           ? {
               action: {

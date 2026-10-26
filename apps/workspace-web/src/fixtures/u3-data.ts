@@ -20,35 +20,35 @@ export const u3ManualImpactFiles: readonly ReworkFileImpact[] = [
   {
     fileId: 'F-EXTERNAL-RULE',
     title: '外来文件管理规定',
-    stage: 'PROCEDURES',
+    stage: 'RULES',
     action: 'RETAIN',
     reason: '外来文件识别、评审与分发职责未受手册返工影响；保留已确认版本，不重新生成。',
   },
   {
     fileId: 'F-FORM-APPLY',
     title: '变更申请单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '申请单需引用返工后的手册版本，并保留分流判定栏与客户现有签批位置。',
   },
   {
     fileId: 'F-FORM-REVIEW',
     title: '变更评审记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '评审记录需同步新的手册依据与风险触发说明；不新增审批层级。',
   },
   {
     fileId: 'F-FORM-IMPLEMENT',
     title: '变更实施记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '实施记录的关联编号与手册/程序引用需随返工依据更新。',
   },
   {
     fileId: 'F-FORM-NOTICE',
     title: '变更通知单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'RETAIN',
     reason: '通知字段与本次手册返工无直接依赖；保留现有版本并说明保留理由。',
   },
@@ -59,30 +59,69 @@ export const u3ProcedureImpactFiles: readonly ReworkFileImpact[] = [
   {
     fileId: 'F-FORM-APPLY',
     title: '变更申请单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '程序返工更新了分流判定依据；申请单需同步引用并在复核时核对判定栏。',
   },
   {
     fileId: 'F-FORM-REVIEW',
     title: '变更评审记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '程序返工更新了风险触发与手册依据；评审记录需同步字段说明。',
   },
   {
     fileId: 'F-FORM-IMPLEMENT',
     title: '变更实施记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'REVISE',
     reason: '实施记录需同步新的程序版本引用与关联编号。',
   },
   {
     fileId: 'F-FORM-NOTICE',
     title: '变更通知单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     action: 'RETAIN',
     reason: '通知字段与本次程序返工无直接依赖；保留现有版本并说明保留理由。',
+  },
+];
+
+/** Reasons supplied after an upstream re-finalization reaches the third stage. */
+export const u3RulesImpactFiles: readonly ReworkFileImpact[] = [
+  {
+    fileId: 'F-EXTERNAL-RULE',
+    title: '外来文件管理规定',
+    stage: 'RULES',
+    action: 'REVISE',
+    reason: '管理制度需同步返工后的手册/程序引用，并保留外来文件原发布机关效力。',
+  },
+  {
+    fileId: 'F-FORM-APPLY',
+    title: '变更申请单',
+    stage: 'RULES',
+    action: 'REVISE',
+    reason: '申请单需同步上游依据，并保留分流判定栏与客户现有签批位置。',
+  },
+  {
+    fileId: 'F-FORM-REVIEW',
+    title: '变更评审记录',
+    stage: 'RULES',
+    action: 'REVISE',
+    reason: '评审记录需同步上游依据与风险触发说明；不新增审批层级。',
+  },
+  {
+    fileId: 'F-FORM-IMPLEMENT',
+    title: '变更实施记录',
+    stage: 'RULES',
+    action: 'REVISE',
+    reason: '实施记录的关联编号与上游引用需随返工依据更新。',
+  },
+  {
+    fileId: 'F-FORM-NOTICE',
+    title: '变更通知单',
+    stage: 'RULES',
+    action: 'RETAIN',
+    reason: '通知字段与本次上游返工无直接依赖；保留现有版本并说明保留理由。',
   },
 ];
 
@@ -164,7 +203,7 @@ export const u3ExecutionSeedFiles: readonly ExecutionSeedFile[] = [
   {
     fileId: 'F-EXTERNAL-RULE',
     title: '外来文件管理规定',
-    stage: 'PROCEDURES',
+    stage: 'RULES',
     state: 'SUCCEEDED',
     versionId: 'V2',
     provenance: '既有已定稿依据 · F-EXTERNAL-RULE@V2',
@@ -172,7 +211,7 @@ export const u3ExecutionSeedFiles: readonly ExecutionSeedFile[] = [
   {
     fileId: 'F-FORM-APPLY',
     title: '变更申请单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     state: 'FAILED',
     error: '合成场景：读取上游依据超时；未生成候选，原成功文件不受影响。',
     provenance: '本轮修改批次 · 失败尝试 A1',
@@ -180,7 +219,7 @@ export const u3ExecutionSeedFiles: readonly ExecutionSeedFile[] = [
   {
     fileId: 'F-FORM-REVIEW',
     title: '变更评审记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     state: 'FAILED',
     error: '合成场景：关联编号映射冲突；需要人工核对后仅重试本文件。',
     provenance: '本轮修改批次 · 失败尝试 A1',
@@ -188,7 +227,7 @@ export const u3ExecutionSeedFiles: readonly ExecutionSeedFile[] = [
   {
     fileId: 'F-FORM-IMPLEMENT',
     title: '变更实施记录',
-    stage: 'RECORDS',
+    stage: 'RULES',
     state: 'REVIEWABLE',
     versionId: 'V2',
     provenance: '本轮修改批次 · 可审阅结果 A1',
@@ -200,7 +239,7 @@ export const u3ExecutionSeedFiles: readonly ExecutionSeedFile[] = [
   {
     fileId: 'F-FORM-NOTICE',
     title: '变更通知单',
-    stage: 'RECORDS',
+    stage: 'RULES',
     state: 'WAITING',
     provenance: '本轮修改批次 · 等待安排',
   },

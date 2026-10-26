@@ -89,6 +89,7 @@ function UnderstandingPanel({ report }: { report: AnalysisReport }) {
                 </span>
                 <p>{template.explanation}</p>
                 <small>客户来源：{template.sourceIds.join('、') || '无'}</small>
+                <small>正式模板只读快照；模板条款不作为客户事实。</small>
               </li>
             ))}
           </ul>
@@ -97,6 +98,172 @@ function UnderstandingPanel({ report }: { report: AnalysisReport }) {
     </section>
   );
 }
+function GovernancePanel({
+  report,
+  state,
+  update,
+}: {
+  report: AnalysisReport;
+  state: AnalysisState;
+  update: (change: (state: AnalysisState) => AnalysisState) => void;
+}) {
+  const protectedContent = report.protectedContent ?? [];
+  const conflicts = report.templateConflicts ?? [];
+  if (protectedContent.length === 0 && conflicts.length === 0) return null;
+  const decisionFor = (kind: 'PROTECTED_FACT' | 'TEMPLATE_CONFLICT', id: string) =>
+    state.decisions[`${kind}:${id}`];
+  const decide = (
+    kind: 'PROTECTED_FACT' | 'TEMPLATE_CONFLICT',
+    id: string,
+    option: { id: string; label: string },
+  ) => {
+    update((current) => ({
+      ...current,
+      decisions: {
+        ...current.decisions,
+        [`${kind}:${id}`]: {
+          decisionId: `U1-DECISION-${crypto.randomUUID().slice(0, 8)}`,
+          targetKind: kind,
+          targetId: id,
+          reportId: report.reportId,
+          reportVersion: report.version,
+          optionId: option.id,
+          optionLabel: option.label,
+          decidedAt: new Date().toISOString(),
+        },
+      },
+    }));
+  };
+  return (
+    <section className="analysis-governance" aria-label="受保护内容与模板冲突">
+      <div className="analysis-understanding-head">
+        <div>
+          <h2>受保护客户内容与模板冲突</h2>
+          <p className="muted">
+            客户原件与正式模板只读；普通意见不会替换受保护内容。变更必须记录绑定当前报告版本的模拟决定。
+          </p>
+        </div>
+      </div>
+      {protectedContent.length > 0 && (
+        <div className="governance-grid">
+          {protectedContent.map((fact) => {
+            const decision = decisionFor('PROTECTED_FACT', fact.id);
+            const proposal = state.protectedProposals[fact.id];
+            return (
+              <article className="governance-card" key={fact.id}>
+                <h3>{fact.category}</h3>
+                <p>{fact.statement}</p>
+                <small>
+                  只读 · 来源 {fact.sourceIds.join('、') || '无'} · 模板{' '}
+                  {fact.templateIds.join('、') || '无'}
+                </small>
+                {decision ? (
+                  <p className="notice" role="status">
+                    已记录模拟决定：{decision.optionLabel} · 绑定报告第 {decision.reportVersion} 版
+                    · {decision.decisionId}
+                  </p>
+                ) : proposal ? (
+                  <>
+                    <p className="notice" role="status">
+                      已登记受保护内容变更提议（模拟）；须记录明确决定后才能视为授权，当前仍按只读客户内容展示。
+                    </p>
+                    <div className="governance-actions">
+                      {fact.options.map((option) => (
+                        <button
+                          key={option.id}
+                          title={option.note}
+                          onClick={() => {
+                            decide('PROTECTED_FACT', fact.id, option);
+                          }}
+                        >
+                          记录版本绑定决定：{option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      update((current) => ({
+                        ...current,
+                        protectedProposals: {
+                          ...current.protectedProposals,
+                          [fact.id]: {
+                            reportId: report.reportId,
+                            version: report.version,
+                            at: new Date().toISOString(),
+                          },
+                        },
+                      }));
+                    }}
+                  >
+                    提议变更受保护内容（模拟）
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+      {conflicts.length > 0 && (
+        <div className="governance-conflicts">
+          <h3>模板冲突与人工处理</h3>
+          {conflicts.map((conflict) => {
+            const decision = decisionFor('TEMPLATE_CONFLICT', conflict.id);
+            return (
+              <article className="governance-card" key={conflict.id}>
+                <h4>{conflict.title}</h4>
+                <div className="governance-sources">
+                  <div>
+                    <strong>客户现有依据</strong>
+                    <ul>
+                      {conflict.customerSources.map((source) => (
+                        <li key={source.sourceId}>
+                          {source.sourceId} · {source.statement}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <strong>正式模板依据（只读）</strong>
+                    <ul>
+                      {conflict.templateSources.map((source) => (
+                        <li key={source.templateId}>
+                          {source.templateId} · {source.statement}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                {decision ? (
+                  <p className="notice" role="status">
+                    已记录模拟人工处理决定：{decision.optionLabel} · 绑定报告第{' '}
+                    {decision.reportVersion} 版
+                  </p>
+                ) : (
+                  <div className="governance-actions">
+                    {conflict.options.map((option) => (
+                      <button
+                        key={option.id}
+                        title={option.note}
+                        onClick={() => {
+                          decide('TEMPLATE_CONFLICT', conflict.id, option);
+                        }}
+                      >
+                        记录模拟决定：{option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface Props {
   report: AnalysisReport;
   contextReport?: AnalysisReport | undefined;
@@ -376,6 +543,7 @@ export function AnalysisPage({
         {!activeArea ? (
           <>
             <UnderstandingPanel report={report} />
+            <GovernancePanel report={report} state={state} update={update} />
             <div className="analysis-overview">
               {(Object.keys(areas) as Area[]).map((key, index) => (
                 <section className="analysis-card" key={key}>
@@ -651,6 +819,9 @@ export function AnalysisPage({
               {historical ? '查看项目意见草稿' : '针对整个项目提意见'}
             </button>
             <p className="muted">未提交输入仅本次页面会话保留，未保存到服务器。</p>
+            <p className="muted">
+              普通意见不会改变受保护客户内容；如需变更，必须在“受保护客户内容与模板冲突”区记录显式、版本绑定的模拟决定。
+            </p>
           </div>
           {stale && (
             <div className="error" role="alert">

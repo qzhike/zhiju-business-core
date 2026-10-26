@@ -35,8 +35,10 @@ test('continuous journey keeps one project, explicit versions and return paths',
   page,
 }) => {
   await page.goto('/workbench?enterprise=U1-ENTERPRISE&project=MVP-U1-PROJECT');
-  const card = page.getByRole('article', { name: 'U1 演练 · 从资料到确认范围', exact: true });
-  await expect(card).toContainText('U1-REPORT-01 / U1-REPORT-02');
+  const card = page.getByRole('article', { name: 'M1 连续演练 · 当前下一步', exact: true });
+  await expect(card).toContainText('U1-REPORT-01');
+  await expect(card).toContainText('待确认修改范围');
+  await expect(card).toContainText('阶段定稿 0/3');
   await card.getByRole('link', { name: '查看项目概览' }).click();
   await expect(page).toHaveURL(overview);
   await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
@@ -55,7 +57,9 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.locator('.intake-batch').nth(1)).toContainText('补充批次');
   await page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click();
   await expect(page.locator('.batch-entries tr[data-state="UNSUPPORTED"]')).toContainText('PDF');
-  await expect(page.locator('.batch-entries tr[data-state="FAILED"]')).toContainText('XLS');
+  await expect(
+    page.locator('.batch-entries tr[data-state="FAILED"]', { hasText: 'XLS' }),
+  ).toContainText('XLS');
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await expect(page).toHaveURL(reportOne);
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
@@ -87,7 +91,11 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
   await expect(page.locator('.format-rules')).toContainText('旧 XLS 需员工先转换为 XLSX');
   await expect(page.locator('.format-rules')).toContainText('PDF');
   await expect(page.locator('.format-rules')).toContainText('暂不支持');
-  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(7);
+  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(12);
+  await expect(page.locator('.batch-entries')).toContainText('嵌套 RAR');
+  await expect(page.locator('.batch-entries')).toContainText('Markdown');
+  await expect(page.locator('.batch-entries tr[data-state="FAILED"]')).toContainText('损坏');
+  await expect(page.locator('.format-rules')).toContainText('RAR');
   await expect(page.locator('.batch-questions')).toContainText('U1-Q1');
   await expect(page.locator('.batch-questions')).toContainText('读取受限');
   for (const [value, label] of [
@@ -103,7 +111,7 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
   await expect(page.getByRole('button', { name: '提交并分析' })).toBeDisabled();
   await expect(page.locator('main')).toContainText('不通过真实上传');
   await page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click();
-  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(9);
+  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(14);
   await expect(page.locator('main')).not.toContainText('分析报告已就绪');
 });
 
@@ -370,7 +378,9 @@ test('production build excludes the U1 adapter and rehearsal content', async ({ 
       'MVP-U1-PROJECT',
       'U1-REPORT-01',
       'U1-PLAN-01',
-      'U1 演练',
+      'M1 连续演练',
+      'PF-POLICY',
+      'TC-STRUCT',
     ])
       expect(source.includes(marker), `Production bundle must exclude ${marker}`).toBe(false);
   }

@@ -8,7 +8,7 @@ const reportOne = `${base}/analysis/U1-REPORT-01`;
 const plan = `${base}/startup/U1-REPORT-02`;
 const manual = `${base}/stages/manual`;
 const procedures = `${base}/stages/procedures`;
-const records = `${base}/stages/records`;
+const rules = `${base}/stages/rules`;
 
 async function openAnalysisControls(page: Page) {
   const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
@@ -59,7 +59,7 @@ async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: 
   await page.getByLabel('定稿回执场景').selectOption('matched');
   await page
     .getByRole('button', {
-      name: stage === 'quality' ? '确认质量手册定稿（模拟）' : '确认第二阶段完整集合（模拟）',
+      name: stage === 'quality' ? '确认质量手册定稿（模拟）' : '确认控制程序完整集合（模拟）',
     })
     .click();
   const dialog = page.getByRole('alertdialog');
@@ -83,8 +83,8 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
 }) => {
   console.log(`U2 controlled Chromium ${browser.version()}; user U2 walkthrough still NOT RUN`);
   await reachManual(page);
-  await expect(page.locator('.journey-nav')).toContainText('程序与制度审阅 · 待前置');
-  await expect(page.locator('.journey-nav')).toContainText('记录表单审阅 · 待前置');
+  await expect(page.locator('.journey-nav')).toContainText('控制程序审阅 · 待前置');
+  await expect(page.locator('.journey-nav')).toContainText('管理制度及记录表单审阅 · 待前置');
   await expect(page.getByRole('button', { name: '检查完成并批准' })).toHaveCount(0);
   await expect(page.getByText('尚未生成本阶段候选；请先生成并核对候选。')).toBeVisible();
 
@@ -139,18 +139,18 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
   await page.getByLabel('查看当前文件版本').selectOption('V1');
   await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
-  await expect(page.getByRole('link', { name: '进入控制程序与管理制度审阅' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '进入控制程序审阅' })).toBeVisible();
 });
 
-test('procedure and rule finalize as one complete set against the finalized manual', async ({
+test('control procedure finalizes as its own complete set against the finalized manual', async ({
   page,
 }) => {
   await reachManual(page);
   await generate(page);
   await finalizeStage(page, 'quality', '质量手册 · 第 1 版候选');
-  await page.getByRole('link', { name: '进入控制程序与管理制度审阅' }).click();
+  await page.getByRole('link', { name: '进入控制程序审阅' }).click();
   await expect(page).toHaveURL(procedures);
-  await expect(page.getByRole('heading', { name: '控制程序与管理制度审阅' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '控制程序审阅' })).toBeVisible();
   await expect(page.locator('.stage-upstream')).toContainText('质量手册定稿');
   await expect(page.locator('.stage-upstream')).toContainText('U2-STAGE-');
 
@@ -158,79 +158,78 @@ test('procedure and rule finalize as one complete set against the finalized manu
   await expect(
     page.getByRole('heading', { name: '变更控制程序 · 第 1 版候选' }).first(),
   ).toBeVisible();
-  await expect(page.locator('.stage-set')).toContainText('外来文件管理规定');
-  await submitOpinion(page, '本轮联动：统一编号引用与通知职责', '阶段 控制程序与管理制度');
+  await expect(page.locator('.stage-set')).not.toContainText('外来文件管理规定');
+  await submitOpinion(page, '本轮联动：统一编号引用与通知职责', '阶段 控制程序');
   await expect(page.locator('.markdown-history')).toContainText('本轮联动：统一编号引用与通知职责');
 
   await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
   await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
   await switchFileVersion(page, '变更控制程序');
-  await switchFileVersion(page, '外来文件管理规定');
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
 
   await page.getByRole('button', { name: '模拟缺少一份文件' }).click();
-  await expect(page.locator('.stage-finalize')).toContainText('缺少文件或版本');
-  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
-  await expect(page.getByText('当前阶段缺少文件或版本')).toBeVisible();
+  await expect(page.locator('.stage-finalize')).toContainText('尚未生成本阶段候选');
+  await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeDisabled();
+  await expect(page.locator('.markdown-review')).toHaveCount(0);
+  await expect(page.locator('.stage-set')).toContainText('缺失');
   await page.getByRole('button', { name: '恢复缺失文件（演示）' }).click();
-  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
   await page.getByLabel('定稿回执场景').selectOption('mismatch');
-  await page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' }).click();
+  await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByText('回执与原定稿请求或依据不匹配').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
-  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeDisabled();
   await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
-  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
   await page.getByLabel('定稿回执场景').selectOption('changed');
-  await page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' }).click();
+  await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByText('确认期间文件版本集合已变化').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
   await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
   await page.getByLabel('查看当前文件版本').selectOption('V2');
-  await expect(page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
   await page.getByLabel('定稿回执场景').selectOption('matched');
-  await page.getByRole('button', { name: '确认第二阶段完整集合（模拟）' }).click();
+  await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('变更控制程序 · 第 2 版候选');
-  await expect(dialog).toContainText('外来文件管理规定 · 第 2 版候选');
   await expect(dialog).toContainText('质量手册定稿');
   await dialog.getByRole('button', { name: '确认并生成模拟回执' }).click();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
   await expect(page.locator('.stage-finalization-result')).toContainText(
     '变更控制程序 · 第 2 版候选',
   );
-  await expect(page.locator('.stage-finalization-result')).toContainText(
-    '外来文件管理规定 · 第 2 版候选',
-  );
-  await page.getByRole('link', { name: '进入记录表单审阅' }).click();
-  await expect(page).toHaveURL(records);
+  await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
+  await expect(page).toHaveURL(rules);
 });
 
-test('records review shows both upstream bases and offers no separate finalization gate', async ({
+test('third stage confirms management rules and record forms against both upstream finalizations', async ({
   page,
 }) => {
   await reachManual(page);
   await generate(page);
   await finalizeStage(page, 'quality', '质量手册 · 第 1 版候选');
-  await page.getByRole('link', { name: '进入控制程序与管理制度审阅' }).click();
+  await page.getByRole('link', { name: '进入控制程序审阅' }).click();
   await generate(page);
   await finalizeStage(page, 'set', '变更控制程序 · 第 1 版候选');
-  await page.getByRole('link', { name: '进入记录表单审阅' }).click();
-  await expect(page).toHaveURL(records);
-  await expect(page.getByRole('heading', { name: '记录表单审阅' })).toBeVisible();
+  await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
+  await expect(page).toHaveURL(rules);
+  await expect(page.getByRole('heading', { name: '管理制度及记录表单审阅' })).toBeVisible();
   await expect(page.locator('.stage-upstream')).toContainText('质量手册定稿');
-  await expect(page.locator('.stage-upstream')).toContainText('第二阶段完整集合');
+  await expect(page.locator('.stage-upstream')).toContainText('控制程序完整集合');
 
   await generate(page);
+  await expect(page.locator('.stage-set')).toContainText('外来文件管理规定');
+  await expect(page.locator('.stage-set')).toContainText('变更申请单');
+  await expect(page.locator('.stage-set')).toContainText('变更评审记录');
+  await expect(page.locator('.stage-set')).toContainText('变更实施记录');
   await page
     .locator('.markdown-files')
     .getByRole('button', { name: /变更申请单/u })
@@ -239,15 +238,44 @@ test('records review shows both upstream bases and offers no separate finalizati
   await expect(page.getByRole('region', { name: '完整表格，可横向滚动' })).toBeVisible();
   await expect(page.locator('.markdown-wide-table table')).toContainText('初步判定');
   await expect(page.locator('.markdown-wide-table table')).toContainText('变更事项');
+  await submitOpinion(page, '第三阶段：保留客户编号映射待核对', '阶段 管理制度及记录表单');
+  await expect(page.locator('.markdown-history')).toContainText('第三阶段：保留客户编号映射待核对');
 
-  await submitOpinion(page, '记录表单：保留客户编号映射待核对', '阶段 记录表单');
   await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
-  await page.getByRole('button', { name: '显式切换并核对引用' }).click();
-  await expect(page.locator('.markdown-opinion')).not.toContainText('检查完成并批准');
-  await expect(page.getByRole('button', { name: /确认.*定稿/u })).toHaveCount(0);
-  await expect(page.locator('.stage-finalize')).toContainText('记录表单不设单独定稿关卡');
-  await expect(page.locator('.stage-finalize')).toContainText('U3');
-  await expect(page.getByRole('link', { name: /ZIP/u })).toHaveCount(0);
+  await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
+  for (const title of ['外来文件管理规定', '变更申请单', '变更评审记录', '变更实施记录']) {
+    await switchFileVersion(page, title);
+  }
+  await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
+
+  await submitOpinion(page, '第三阶段第二轮：补充复核引用', '阶段 管理制度及记录表单');
+  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
+  for (const title of ['外来文件管理规定', '变更申请单', '变更评审记录', '变更实施记录']) {
+    await switchFileVersion(page, title);
+  }
+  await expect(page.locator('.stage-set')).toContainText('第 3 版候选');
+
+  await page.getByRole('button', { name: '模拟缺少一份文件' }).click();
+  await expect(
+    page.getByRole('button', { name: '确认管理制度及记录表单完整集合（模拟）' }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: '恢复缺失文件（演示）' }).click();
+
+  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await page.getByRole('button', { name: '确认管理制度及记录表单完整集合（模拟）' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('外来文件管理规定 · 第 3 版候选');
+  await expect(dialog).toContainText('变更申请单 · 第 3 版候选');
+  await expect(dialog).toContainText('质量手册定稿');
+  await expect(dialog).toContainText('控制程序完整集合');
+  await dialog.getByRole('button', { name: '确认并生成模拟回执' }).click();
+  await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
+  await expect(page.locator('.stage-finalization-result')).toContainText('控制程序依据');
+  await expect(page.locator('.stage-finalization-result')).toContainText(
+    '外来文件管理规定 · 第 3 版候选',
+  );
+  await expect(page.getByRole('link', { name: '进入最终交付确认（模拟）' })).toBeVisible();
 });
 
 test('deep links cannot invent a missing plan or upstream finalization', async ({ page }) => {
@@ -256,15 +284,15 @@ test('deep links cannot invent a missing plan or upstream finalization', async (
   await expect(page.getByRole('link', { name: '返回修改范围' })).toBeVisible();
 
   await reachManual(page);
-  await page.getByRole('link', { name: '演练：直接打开程序与制度审阅' }).click();
+  await page.getByRole('link', { name: '演练：直接打开控制程序审阅' }).click();
   await expect(page).toHaveURL(procedures);
   await expect(page.getByRole('heading', { name: '缺少本阶段前置依据' })).toBeVisible();
   await expect(page.locator('main')).toContainText('尚无与计划匹配的手册定稿');
   await expect(page.getByRole('link', { name: '返回质量手册审阅' })).toBeVisible();
 
   await page.getByRole('link', { name: '返回质量手册审阅' }).click();
-  await page.getByRole('link', { name: '演练：直接打开记录表单审阅' }).click();
-  await expect(page).toHaveURL(records);
+  await page.getByRole('link', { name: '演练：直接打开管理制度及记录表单审阅' }).click();
+  await expect(page).toHaveURL(rules);
   await expect(page.getByRole('heading', { name: '缺少本阶段前置依据' })).toBeVisible();
   await expect(page.locator('main')).toContainText('需要先有质量手册定稿');
   await expect(page.getByRole('link', { name: '返回质量手册审阅' })).toBeVisible();
@@ -272,7 +300,7 @@ test('deep links cannot invent a missing plan or upstream finalization', async (
   await page.getByRole('link', { name: '项目概览' }).click();
   await expect(page).toHaveURL(overview);
   await expect(page.locator('.overview-next')).toContainText('进入质量手册审阅');
-  await expect(page.locator('.journey-nav')).toContainText('程序与制度审阅 · 待前置');
+  await expect(page.locator('.journey-nav')).toContainText('控制程序审阅 · 待前置');
 });
 
 test('save, submission and finalization recovery keep one original request', async ({ page }) => {

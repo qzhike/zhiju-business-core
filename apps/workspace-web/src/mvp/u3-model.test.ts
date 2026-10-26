@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MarkdownReviewData } from '../MarkdownReviewPage.js';
-import type { StageFinalization } from './review-model.js';
+import type { MvpStageId, StageFinalization } from './review-model.js';
 import {
   attemptOutcome,
   candidateMarkdown,
@@ -12,8 +12,6 @@ import {
   deliveryReceiptMatches,
   frozenFromIntent,
   packageMatchesFrozen,
-  recordsReviewMatches,
-  recordsReviewStale,
   retryIntentFor,
   retryReceiptMatches,
   retryableFiles,
@@ -23,15 +21,15 @@ import {
   type DeliveryProposal,
   type DeliverySelection,
   type ExecutionAttempt,
-  type RecordsReviewMarker,
   type RetryReceipt,
 } from './u3-model.js';
 
 const finalization = (
-  stage: 'MANUAL' | 'PROCEDURES',
+  stage: MvpStageId,
   id: string,
   files: readonly { fileId: string; versionId: string }[],
   manualFinalizationId?: string,
+  procedureFinalizationId?: string,
 ): StageFinalization => ({
   classification: 'DEVELOPMENT_FIXTURE_ONLY',
   finalizationId: id,
@@ -41,6 +39,7 @@ const finalization = (
   planVersion: 1,
   files,
   ...(manualFinalizationId ? { manualFinalizationId } : {}),
+  ...(procedureFinalizationId ? { procedureFinalizationId } : {}),
   inputRefs: ['C01'],
   templateIds: ['T01'],
   confirmedAt: '2026-10-21T00:00:00.000Z',
@@ -53,7 +52,7 @@ const member = (
 ): DeliveryMember => ({
   fileId,
   title: fileId,
-  stage: 'RECORDS',
+  stage: 'RULES',
   versionId,
   versionLabel: versionId,
   content,
@@ -65,66 +64,9 @@ const proposal: DeliveryProposal = {
   planVersion: 1,
   manualFinalizationId: 'M1',
   procedureFinalizationId: 'S1',
-  recordsReviewId: 'R1',
+  rulesFinalizationId: 'R1',
   members: [member('A', 'V1'), member('B', 'V1')],
 };
-
-const review: RecordsReviewMarker = {
-  classification: 'DEVELOPMENT_FIXTURE_ONLY',
-  reviewId: 'R1',
-  projectId: 'P',
-  planId: 'PLAN',
-  planVersion: 1,
-  manualFinalizationId: 'M1',
-  procedureFinalizationId: 'S1',
-  files: [
-    { fileId: 'A', versionId: 'V1' },
-    { fileId: 'B', versionId: 'V1' },
-  ],
-  reviewedAt: '2026-10-21T00:00:00.000Z',
-};
-
-describe('records review marker', () => {
-  it('matches only the exact project, plan and both upstream finalizations', () => {
-    expect(
-      recordsReviewMatches(review, {
-        projectId: 'P',
-        planId: 'PLAN',
-        planVersion: 1,
-        manualFinalizationId: 'M1',
-        procedureFinalizationId: 'S1',
-      }),
-    ).toBe(true);
-    expect(
-      recordsReviewMatches(review, {
-        projectId: 'P',
-        planId: 'PLAN',
-        planVersion: 2,
-        manualFinalizationId: 'M1',
-        procedureFinalizationId: 'S1',
-      }),
-    ).toBe(false);
-    expect(
-      recordsReviewMatches(review, {
-        projectId: 'P',
-        planId: 'PLAN',
-        planVersion: 1,
-        manualFinalizationId: 'M2',
-        procedureFinalizationId: 'S1',
-      }),
-    ).toBe(false);
-  });
-
-  it('is stale when a reviewed file has a newer candidate', () => {
-    expect(recordsReviewStale(review, review.files)).toBe(false);
-    expect(
-      recordsReviewStale(review, [
-        { fileId: 'A', versionId: 'V1' },
-        { fileId: 'B', versionId: 'V2' },
-      ]),
-    ).toBe(true);
-  });
-});
 
 describe('delivery selection and blockers', () => {
   it('reports missing required files and stale exact versions', () => {
@@ -146,7 +88,7 @@ describe('delivery selection and blockers', () => {
     });
   });
 
-  it('blocks unresolved basis changes, stale review, active modifications and selection issues', () => {
+  it('blocks unresolved basis changes, missing third-stage set, active modifications and selection issues', () => {
     const base = {
       planReady: true,
       manual: finalization('MANUAL', 'M1', [{ fileId: 'M', versionId: 'V1' }]),
@@ -159,11 +101,19 @@ describe('delivery selection and blockers', () => {
         ],
         'M1',
       ),
+      rules: finalization(
+        'RULES',
+        'R1',
+        [
+          { fileId: 'A', versionId: 'V1' },
+          { fileId: 'B', versionId: 'V1' },
+        ],
+        'M1',
+        'S1',
+      ),
       manualExpectedFiles: ['M'],
       procedureExpectedFiles: ['P1', 'P2'],
-      recordsReview: review,
-      recordExpectedFiles: ['A', 'B'],
-      currentRecordLatest: review.files,
+      ruleExpectedFiles: ['A', 'B'],
       selection: { missingRequired: [], stale: [] },
     };
     expect(deliveryBlockers(base)).toEqual([]);
@@ -180,22 +130,22 @@ describe('delivery selection and blockers', () => {
           'M0',
         ),
       }),
-    ).toContain('第二阶段集合仍以旧质量手册为依据；请先按当前手册重新确认完整集合。');
+    ).toContain('控制程序集合仍以旧质量手册为依据；请先按当前手册重新确认完整集合。');
+    expect(
+      deliveryBlockers({ ...base, rules: { ...base.rules, manualFinalizationId: 'M0' } }),
+    ).toContain('第三阶段定稿依据已变化；请按当前上游定稿重新确认完整集合。');
+    expect(
+      deliveryBlockers({ ...base, rules: { ...base.rules, procedureFinalizationId: 'S0' } }),
+    ).toContain('第三阶段定稿依据已变化；请按当前上游定稿重新确认完整集合。');
     expect(
       deliveryBlockers({
         ...base,
-        recordsReview: { ...review, manualFinalizationId: 'M0' },
+        rules: finalization('RULES', 'R1', [{ fileId: 'A', versionId: 'V1' }], 'M1', 'S1'),
       }),
-    ).toContain('记录表单复核依据已变化；请重新核对受影响表单。');
-    expect(
-      deliveryBlockers({
-        ...base,
-        currentRecordLatest: [
-          { fileId: 'A', versionId: 'V2' },
-          { fileId: 'B', versionId: 'V1' },
-        ],
-      }),
-    ).toContain('记录表单复核后又出现新候选；请重新核对精确版本。');
+    ).toContain('第三阶段定稿缺少文件：B。');
+    expect(deliveryBlockers({ ...base, rules: undefined })).toContain(
+      '尚无管理制度及记录表单完整集合模拟定稿；不能确认最终交付。',
+    );
     expect(deliveryBlockers({ ...base, activeSubmission: 'REQ-1' })).toContain(
       '仍有待回执或待核验的修改请求 REQ-1；不能确认最终交付。',
     );
@@ -278,7 +228,7 @@ describe('execution recovery', () => {
       {
         fileId: 'A',
         title: 'A',
-        stage: 'RECORDS',
+        stage: 'RULES',
         state: 'SUCCEEDED',
         versionId: 'V1',
         provenance: '',
@@ -286,7 +236,7 @@ describe('execution recovery', () => {
       {
         fileId: 'B',
         title: 'B',
-        stage: 'RECORDS',
+        stage: 'RULES',
         state: 'FAILED',
         error: 'timeout',
         provenance: '',
@@ -294,7 +244,7 @@ describe('execution recovery', () => {
       {
         fileId: 'C',
         title: 'C',
-        stage: 'RECORDS',
+        stage: 'RULES',
         state: 'FAILED',
         error: 'conflict',
         provenance: '',

@@ -20,7 +20,7 @@ export interface DeliveryFlowPageProps {
   bases: {
     manualLabel: string;
     procedureLabel: string;
-    recordsLabel: string;
+    rulesLabel: string;
   };
   blockers: readonly string[];
   proposal: DeliveryProposal;
@@ -62,7 +62,7 @@ export interface DeliveryFlowPageProps {
   links: {
     manual: string;
     procedures: string;
-    records: string;
+    rules: string;
     rework: string;
     recovery: string;
   };
@@ -212,12 +212,12 @@ export function DeliveryFlowPage({
             <dd>{bases.manualLabel}</dd>
           </div>
           <div>
-            <dt>第二阶段完整集合</dt>
+            <dt>控制程序完整集合</dt>
             <dd>{bases.procedureLabel}</dd>
           </div>
           <div>
-            <dt>记录表单复核</dt>
-            <dd>{bases.recordsLabel}</dd>
+            <dt>管理制度及记录表单</dt>
+            <dd>{bases.rulesLabel}</dd>
           </div>
         </dl>
         {blockers.length > 0 ? (
@@ -231,14 +231,14 @@ export function DeliveryFlowPage({
             <p>
               可返回
               <Link to={links.rework}>返工与复核</Link>、
-              <Link to={links.records}>记录表单审阅</Link> 或
+              <Link to={links.rules}>管理制度及记录表单审阅</Link> 或
               <Link to={links.recovery}>执行与恢复</Link>
               处理阻断；本页保留当前选择与上下文。
             </p>
           </div>
         ) : (
           <p className="notice" role="status">
-            两项上游依据与记录表单复核均已就绪；确认前请核对下列精确版本。
+            三项阶段定稿均已就绪；确认前请核对下列精确版本。
           </p>
         )}
       </section>
@@ -358,8 +358,8 @@ export function DeliveryFlowPage({
                       ))}
                     </ul>
                     <p className="muted">
-                      手册依据 {bases.manualLabel} · 第二阶段 {bases.procedureLabel} · 记录表单复核{' '}
-                      {bases.recordsLabel}
+                      手册依据 {bases.manualLabel} · 控制程序 {bases.procedureLabel} ·
+                      管理制度及记录表单 {bases.rulesLabel}
                     </p>
                     <div className="dialog-actions">
                       <AlertDialog.Cancel asChild>
@@ -462,8 +462,8 @@ export function DeliveryFlowPage({
         <h2>返回与演练控制</h2>
         <div className="u3-actions">
           <Link to={links.manual}>质量手册审阅</Link>
-          <Link to={links.procedures}>第二阶段审阅</Link>
-          <Link to={links.records}>记录表单审阅</Link>
+          <Link to={links.procedures}>控制程序审阅</Link>
+          <Link to={links.rules}>管理制度及记录表单审阅</Link>
           <Link to={links.rework}>返工与复核</Link>
           <Link to={links.recovery}>执行与恢复</Link>
         </div>

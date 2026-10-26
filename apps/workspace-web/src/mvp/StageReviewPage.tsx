@@ -9,7 +9,7 @@ import type {
   ReviewWorkspaceInput,
 } from '../review/model.js';
 import { JourneyNav, type JourneyReviewStage } from './JourneyNav.js';
-import { mvpStageLabels, type MvpStageId } from './review-model.js';
+import type { MvpStageId } from './review-model.js';
 import './stage-review.css';
 
 export type StageGenerationStatus =
@@ -53,20 +53,9 @@ export interface StageReworkView {
       }
     | undefined;
   impact?: StageReworkImpactView | undefined;
-  review?:
-    | {
-        reviewed: boolean;
-        reason: string;
-        basisLabel: string;
-        files: readonly { title: string; versionLabel: string }[];
-        canReview: boolean;
-        onReview: () => void;
-      }
-    | undefined;
 }
 
 export interface StageReviewFinalizationView {
-  supported: boolean;
   status: 'NONE' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH' | 'DONE';
   reason: string;
   canConfirm: boolean;
@@ -79,6 +68,7 @@ export interface StageReviewFinalizationView {
         finalizationId: string;
         planLabel: string;
         manualLabel?: string | undefined;
+        procedureLabel?: string | undefined;
         files: readonly { fileId: string; title: string; versionLabel: string }[];
       }
     | undefined;
@@ -133,8 +123,8 @@ export interface StageReviewPageProps {
 
 const stageDescriptions: Record<MvpStageId, string> = {
   MANUAL: '审阅质量手册候选，提交意见并用一个匹配的模拟结果定稿精确版本。',
-  PROCEDURES: '以已定稿质量手册为依据，联动审阅控制程序与管理制度，整体确认完整版本集合。',
-  RECORDS: '以质量手册和第二阶段完整集合为依据，审阅 Markdown 记录表单；不设单独定稿关卡。',
+  PROCEDURES: '以已定稿质量手册为依据，整体确认控制程序的精确版本集合。',
+  RULES: '以已定稿质量手册和完整控制程序集合为依据，审阅管理制度及记录表单并整体确认精确版本集合。',
 };
 
 const generationLabels: Record<StageGenerationStatus, string> = {
@@ -165,9 +155,19 @@ export function StageReviewPage({
   controls,
 }: StageReviewPageProps) {
   const [open, setOpen] = useState(false);
-  const stageLabel = mvpStageLabels[stage];
   const missing = files.filter((file) => file.missing);
-  const title = stage === 'MANUAL' ? '质量手册审阅' : `${stageLabel}审阅`;
+  const title =
+    stage === 'MANUAL'
+      ? '质量手册审阅'
+      : stage === 'PROCEDURES'
+        ? '控制程序审阅'
+        : '管理制度及记录表单审阅';
+  const finalizationNoun =
+    stage === 'MANUAL'
+      ? '质量手册定稿'
+      : stage === 'PROCEDURES'
+        ? '控制程序完整集合'
+        : '管理制度及记录表单完整集合';
   return (
     <div className="stage-review-page">
       <JourneyNav
@@ -271,42 +271,6 @@ export function StageReviewPage({
               <p className="muted">{rework.impact.note}</p>
             </section>
           )}
-          {rework?.review && (
-            <section className="panel stage-rework-review" aria-label="记录表单受影响复核">
-              <h2>记录表单受影响复核</h2>
-              <p>{rework.review.reason}</p>
-              <p className="muted">
-                复核只记录已核对到哪些精确版本与上游依据，不是记录表单定稿关卡，也不要求逐文件批准。
-              </p>
-              <p>
-                <strong>当前复核依据：</strong>
-                {rework.review.basisLabel}
-              </p>
-              {rework.review.files.length > 0 && (
-                <ul>
-                  {rework.review.files.map((file) => (
-                    <li key={`${file.title}:${file.versionLabel}`}>
-                      {file.title} · {file.versionLabel}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                className="primary"
-                disabled={!rework.review.canReview}
-                onClick={rework.review.onReview}
-              >
-                {rework.review.reviewed
-                  ? '重新记录受影响表单复核（模拟）'
-                  : '确认已复核受影响表单（模拟）'}
-              </button>
-              <p className="muted" role="status">
-                {rework.review.reviewed
-                  ? '已记录到当前精确版本；如之后出现新候选，该复核会过期。'
-                  : '复核前需逐份核对受影响表单的当前版本；未复核时最终交付不可确认。'}
-              </p>
-            </section>
-          )}
           <section className="panel stage-basis" aria-label="计划与依据">
             <h2>计划与依据</h2>
             <p className="muted">
@@ -383,7 +347,7 @@ export function StageReviewPage({
           <section className="panel stage-set" aria-label="本阶段完整文件版本">
             <h2>本阶段完整文件版本</h2>
             <p className="muted">
-              阶段定稿确认的是下列完整集合，不按逐文件批准拼装；两类文件之间没有审批关卡。
+              阶段定稿确认的是下列完整集合，不按逐文件批准拼装；每个业务阶段整体确认，阶段之间不增加额外审批层。
             </p>
             {finalization.status === 'DONE' && (
               <p className="muted">
@@ -415,164 +379,148 @@ export function StageReviewPage({
           </section>
           <section className="panel stage-finalize" aria-label="阶段定稿">
             <h2>阶段定稿</h2>
-            {!finalization.supported ? (
-              <>
-                <p>
-                  记录表单不设单独定稿关卡，也不要求逐文件批准。最终交付清单确认与打包在 U3
-                  最终交付页完成；本页只记录受影响复核。
-                </p>
+            {finalization.status === 'DONE' && finalization.result && (
+              <div className="stage-finalization-result" role="status">
+                <h3>模拟阶段定稿已完成</h3>
+                <dl>
+                  <div>
+                    <dt>定稿</dt>
+                    <dd>{finalization.result.finalizationId}</dd>
+                  </div>
+                  <div>
+                    <dt>计划</dt>
+                    <dd>{finalization.result.planLabel}</dd>
+                  </div>
+                  {finalization.result.manualLabel && (
+                    <div>
+                      <dt>手册依据</dt>
+                      <dd>{finalization.result.manualLabel}</dd>
+                    </div>
+                  )}
+                  {finalization.result.procedureLabel && (
+                    <div>
+                      <dt>控制程序依据</dt>
+                      <dd>{finalization.result.procedureLabel}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>冻结版本集合</dt>
+                    <dd>
+                      {finalization.result.files
+                        .map((file) => `${file.title} · ${file.versionLabel}`)
+                        .join('；')}
+                    </dd>
+                  </div>
+                </dl>
                 <p className="muted">
-                  本页可阅读、提交反馈并查看修订候选；不显示已交付、ZIP 可用或真实包下载。
+                  本结果绑定上述冻结版本；之后切换阅读版本不会改写本次定稿。仅本页模拟结果，不是服务器保存、业务批准或
+                  Runner 完成；前一版定稿保留在历史中，受影响下游需重新复核。
                 </p>
-              </>
-            ) : (
+              </div>
+            )}
+            {(finalization.status !== 'DONE' || finalization.refinalize) && (
               <>
-                {finalization.status === 'DONE' && finalization.result && (
-                  <div className="stage-finalization-result" role="status">
-                    <h3>模拟阶段定稿已完成</h3>
-                    <dl>
-                      <div>
-                        <dt>定稿</dt>
-                        <dd>{finalization.result.finalizationId}</dd>
-                      </div>
-                      <div>
-                        <dt>计划</dt>
-                        <dd>{finalization.result.planLabel}</dd>
-                      </div>
-                      {finalization.result.manualLabel && (
-                        <div>
-                          <dt>手册依据</dt>
-                          <dd>{finalization.result.manualLabel}</dd>
-                        </div>
-                      )}
-                      <div>
-                        <dt>冻结版本集合</dt>
-                        <dd>
-                          {finalization.result.files
-                            .map((file) => `${file.title} · ${file.versionLabel}`)
-                            .join('；')}
-                        </dd>
-                      </div>
-                    </dl>
-                    <p className="muted">
-                      本结果绑定上述冻结版本；之后切换阅读版本不会改写本次定稿。仅本页模拟结果，不是服务器保存、业务批准或
-                      Runner 完成；前一版定稿保留在历史中，受影响下游需重新复核。
-                    </p>
+                <p>{finalization.reason}</p>
+                {finalization.status === 'FAILED' && (
+                  <div className="error" role="alert">
+                    <strong>定稿失败</strong>
+                    <p>原阅读位置、草稿与依据保留；可显式重新发起一次新请求。</p>
                   </div>
                 )}
-                {(finalization.status !== 'DONE' || finalization.refinalize) && (
-                  <>
-                    <p>{finalization.reason}</p>
-                    {finalization.status === 'FAILED' && (
-                      <div className="error" role="alert">
-                        <strong>定稿失败</strong>
-                        <p>原阅读位置、草稿与依据保留；可显式重新发起一次新请求。</p>
-                      </div>
+                {(finalization.status === 'PENDING' ||
+                  finalization.status === 'UNKNOWN' ||
+                  finalization.status === 'MISMATCH') && (
+                  <div
+                    className={finalization.status === 'MISMATCH' ? 'error' : 'notice'}
+                    role={finalization.status === 'MISMATCH' ? 'alert' : 'status'}
+                  >
+                    <strong>
+                      {finalization.status === 'PENDING'
+                        ? '定稿请求待回执'
+                        : finalization.status === 'UNKNOWN'
+                          ? '定稿结果待核验'
+                          : '定稿回执不匹配'}
+                    </strong>
+                    <p>只查询原请求；重复点击或页面往返不会创建第二个定稿意图。</p>
+                    {finalization.requestLabel && (
+                      <p className="muted">原请求 {finalization.requestLabel}</p>
                     )}
-                    {(finalization.status === 'PENDING' ||
-                      finalization.status === 'UNKNOWN' ||
-                      finalization.status === 'MISMATCH') && (
-                      <div
-                        className={finalization.status === 'MISMATCH' ? 'error' : 'notice'}
-                        role={finalization.status === 'MISMATCH' ? 'alert' : 'status'}
-                      >
-                        <strong>
-                          {finalization.status === 'PENDING'
-                            ? '定稿请求待回执'
-                            : finalization.status === 'UNKNOWN'
-                              ? '定稿结果待核验'
-                              : '定稿回执不匹配'}
-                        </strong>
-                        <p>只查询原请求；重复点击或页面往返不会创建第二个定稿意图。</p>
-                        {finalization.requestLabel && (
-                          <p className="muted">原请求 {finalization.requestLabel}</p>
-                        )}
-                      </div>
-                    )}
-                    <div className="stage-action-row">
-                      <AlertDialog.Root open={open} onOpenChange={setOpen}>
-                        <AlertDialog.Trigger asChild>
-                          <button className="primary" disabled={!finalization.canConfirm}>
-                            {stage === 'MANUAL'
-                              ? finalization.refinalize
-                                ? '重新确认质量手册定稿（模拟）'
-                                : '确认质量手册定稿（模拟）'
-                              : finalization.refinalize
-                                ? '重新确认第二阶段完整集合（模拟）'
-                                : '确认第二阶段完整集合（模拟）'}
-                          </button>
-                        </AlertDialog.Trigger>
-                        <AlertDialog.Portal>
-                          <AlertDialog.Overlay className="dialog-overlay" />
-                          <AlertDialog.Content className="dialog-content">
-                            <AlertDialog.Title>
-                              {finalization.refinalize ? '重新确认' : '确认'}
-                              {stage === 'MANUAL' ? '质量手册' : '第二阶段'}定稿（模拟）
-                            </AlertDialog.Title>
-                            <AlertDialog.Description>
-                              一次确认下列完整文件/版本集合；不按逐文件批准拼装。
-                              {finalization.refinalize
-                                ? '前一版定稿会保留在历史中，本次回执替换当前依据。'
-                                : '只生成页面内模拟回执。'}
-                            </AlertDialog.Description>
-                            <ul>
-                              {finalization.exactSet.map((file) => (
-                                <li key={file.fileId}>
-                                  {file.title} · {file.versionLabel}
-                                </li>
-                              ))}
-                            </ul>
-                            <p className="muted">
-                              计划 {plan.planId} 第 {plan.planVersion} 版 · 上游：
-                              {upstream
-                                .map((item) => `${item.label}（${item.detail}）`)
-                                .join('；') || '无'}
-                            </p>
-                            <div className="dialog-actions">
-                              <AlertDialog.Cancel asChild>
-                                <button>返回核对</button>
-                              </AlertDialog.Cancel>
-                              <button
-                                className="primary"
-                                disabled={!finalization.canConfirm}
-                                onClick={() => {
-                                  finalization.onConfirm();
-                                  setOpen(false);
-                                }}
-                              >
-                                确认并生成模拟回执
-                              </button>
-                            </div>
-                          </AlertDialog.Content>
-                        </AlertDialog.Portal>
-                      </AlertDialog.Root>
-                      {finalization.onReceipt &&
-                        (finalization.status === 'PENDING' ||
-                          finalization.status === 'UNKNOWN') && (
-                          <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
-                        )}
-                      {(finalization.status === 'PENDING' ||
-                        finalization.status === 'UNKNOWN' ||
-                        finalization.status === 'MISMATCH') && (
-                        <button onClick={finalization.onQuery}>重新查询原定稿请求</button>
-                      )}
-                      {finalization.status === 'FAILED' && (
-                        <button onClick={finalization.onRetry}>重新发起定稿（模拟）</button>
-                      )}
-                      {finalization.status === 'MISMATCH' && finalization.onReset && (
-                        <button onClick={finalization.onReset}>重新核对后重试定稿（模拟）</button>
-                      )}
-                    </div>
-                  </>
+                  </div>
                 )}
+                <div className="stage-action-row">
+                  <AlertDialog.Root open={open} onOpenChange={setOpen}>
+                    <AlertDialog.Trigger asChild>
+                      <button className="primary" disabled={!finalization.canConfirm}>
+                        {finalization.refinalize ? '重新确认' : '确认'}
+                        {finalizationNoun}（模拟）
+                      </button>
+                    </AlertDialog.Trigger>
+                    <AlertDialog.Portal>
+                      <AlertDialog.Overlay className="dialog-overlay" />
+                      <AlertDialog.Content className="dialog-content">
+                        <AlertDialog.Title>
+                          {finalization.refinalize ? '重新确认' : '确认'}
+                          {finalizationNoun}（模拟）
+                        </AlertDialog.Title>
+                        <AlertDialog.Description>
+                          一次确认下列完整文件/版本集合；不按逐文件批准拼装。
+                          {finalization.refinalize
+                            ? '前一版定稿会保留在历史中，本次回执替换当前依据。'
+                            : '只生成页面内模拟回执。'}
+                        </AlertDialog.Description>
+                        <ul>
+                          {finalization.exactSet.map((file) => (
+                            <li key={file.fileId}>
+                              {file.title} · {file.versionLabel}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="muted">
+                          计划 {plan.planId} 第 {plan.planVersion} 版 · 上游：
+                          {upstream.map((item) => `${item.label}（${item.detail}）`).join('；') ||
+                            '无'}
+                        </p>
+                        <div className="dialog-actions">
+                          <AlertDialog.Cancel asChild>
+                            <button>返回核对</button>
+                          </AlertDialog.Cancel>
+                          <button
+                            className="primary"
+                            disabled={!finalization.canConfirm}
+                            onClick={() => {
+                              finalization.onConfirm();
+                              setOpen(false);
+                            }}
+                          >
+                            确认并生成模拟回执
+                          </button>
+                        </div>
+                      </AlertDialog.Content>
+                    </AlertDialog.Portal>
+                  </AlertDialog.Root>
+                  {finalization.onReceipt &&
+                    (finalization.status === 'PENDING' || finalization.status === 'UNKNOWN') && (
+                      <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
+                    )}
+                  {(finalization.status === 'PENDING' ||
+                    finalization.status === 'UNKNOWN' ||
+                    finalization.status === 'MISMATCH') && (
+                    <button onClick={finalization.onQuery}>重新查询原定稿请求</button>
+                  )}
+                  {finalization.status === 'FAILED' && (
+                    <button onClick={finalization.onRetry}>重新发起定稿（模拟）</button>
+                  )}
+                  {finalization.status === 'MISMATCH' && finalization.onReset && (
+                    <button onClick={finalization.onReset}>重新核对后重试定稿（模拟）</button>
+                  )}
+                </div>
               </>
             )}
-            {finalization.supported &&
-              (finalization.status !== 'DONE' || finalization.refinalize) && (
-                <p className="muted">
-                  定稿按钮在缺文件、版本变化、新候选未核对或有待回执修改时保持不可用。
-                </p>
-              )}
+            {(finalization.status !== 'DONE' || finalization.refinalize) && (
+              <p className="muted">
+                定稿按钮在缺文件、版本变化、新候选未核对或有待回执修改时保持不可用。
+              </p>
+            )}
           </section>
           {next && (
             <section className="panel stage-next" aria-label="下一业务阶段">

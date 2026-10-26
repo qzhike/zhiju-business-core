@@ -11,7 +11,7 @@ const steps = [
 ] as const;
 
 export interface JourneyReviewStage {
-  id: 'MANUAL' | 'PROCEDURES' | 'RECORDS';
+  id: 'MANUAL' | 'PROCEDURES' | 'RULES';
   label: string;
   href: string;
   ready: boolean;

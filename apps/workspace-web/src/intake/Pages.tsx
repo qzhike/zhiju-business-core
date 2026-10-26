@@ -325,6 +325,10 @@ export function InputBatches({
       <div className="intake-batches-head">
         <h2>资料批次与目录</h2>
         <p className="muted">接收状态不代表读取完成、分析成功或阶段完成。</p>
+        <p className="muted">
+          客户原件与正式模板只读；批次与成员身份保留，补充批次不会覆盖首轮目录。嵌套 RAR
+          成员未解包时明确保留读取限制。
+        </p>
       </div>
       {formatRules && (
         <ul className="format-rules" aria-label="支持的输入格式">
@@ -480,7 +484,7 @@ function ProjectIntake({
           <h2>把客户现有体系文件放进一个 ZIP</h2>
           <p>
             DOCX / Markdown / XLSX 文件请放在 ZIP 内；旧 XLS 请先转换为 XLSX，PDF
-            暂不支持，宏不执行。
+            暂不支持，宏不执行。嵌套 RAR 只列出成员目录时，成员仍保持读取受限。
           </p>
           <label>
             选择 ZIP 文件

@@ -8,7 +8,7 @@ const reportOne = `${base}/analysis/U1-REPORT-01`;
 const plan = `${base}/startup/U1-REPORT-02`;
 const manual = `${base}/stages/manual`;
 const procedures = `${base}/stages/procedures`;
-const records = `${base}/stages/records`;
+const rules = `${base}/stages/rules`;
 const rework = `${base}/rework`;
 const recovery = `${base}/recovery`;
 const delivery = `${base}/delivery`;
@@ -64,11 +64,11 @@ async function generate(page: Page) {
   await expect(page.locator('.markdown-review')).toBeVisible();
 }
 
-async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: string) {
+async function finalizeStage(page: Page, stage: 'quality' | 'procedure', versionText: string) {
   await page.getByLabel('定稿回执场景').selectOption('matched');
   await page
     .getByRole('button', {
-      name: stage === 'quality' ? '确认质量手册定稿（模拟）' : '确认第二阶段完整集合（模拟）',
+      name: stage === 'quality' ? '确认质量手册定稿（模拟）' : '确认控制程序完整集合（模拟）',
     })
     .click();
   const dialog = page.getByRole('alertdialog');
@@ -77,27 +77,39 @@ async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: 
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
 }
 
-async function reachRecordsWithCandidates(page: Page) {
+async function reachRulesWithCandidates(page: Page) {
   await reachManual(page);
   await generate(page);
   await finalizeStage(page, 'quality', '质量手册 · 第 1 版候选');
-  await page.getByRole('link', { name: '进入控制程序与管理制度审阅' }).click();
+  await page.getByRole('link', { name: '进入控制程序审阅' }).click();
   await expect(page).toHaveURL(procedures);
   await generate(page);
-  await finalizeStage(page, 'set', '变更控制程序 · 第 1 版候选');
-  await page.getByRole('link', { name: '进入记录表单审阅' }).click();
-  await expect(page).toHaveURL(records);
+  await finalizeStage(page, 'procedure', '变更控制程序 · 第 1 版候选');
+  await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
+  await expect(page).toHaveURL(rules);
   await generate(page);
 }
 
-async function reviewRecords(page: Page) {
-  await page.getByRole('button', { name: '确认已复核受影响表单（模拟）' }).click();
-  await expect(page.getByRole('link', { name: '进入最终交付确认（模拟）' })).toBeVisible();
+async function finalizeRules(
+  page: Page,
+  versionText = '外来文件管理规定 · 第 1 版候选',
+  refinalize = false,
+) {
+  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await page
+    .getByRole('button', {
+      name: `${refinalize ? '重新确认' : '确认'}管理制度及记录表单完整集合（模拟）`,
+    })
+    .click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText(versionText);
+  await dialog.getByRole('button', { name: '确认并生成模拟回执' }).click();
+  await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
 }
 
 async function reachDeliveryReady(page: Page) {
-  await reachRecordsWithCandidates(page);
-  await reviewRecords(page);
+  await reachRulesWithCandidates(page);
+  await finalizeRules(page);
   await page.getByRole('link', { name: '进入最终交付确认（模拟）' }).click();
   await expect(page).toHaveURL(delivery);
   await expect(page.getByText('最终交付当前不可确认')).toHaveCount(0);
@@ -108,7 +120,7 @@ async function recheckAndConfirm(page: Page) {
   await expect(page.getByText('已选 6 / 6 份')).toBeVisible();
   await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
   const dialog = page.getByRole('alertdialog');
-  await expect(dialog).toContainText('质量手册 · 第 1 版候选');
+  await expect(dialog).toContainText('质量手册 · 第');
   await dialog.getByRole('button', { name: '确认并冻结清单' }).click();
   await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
 }
@@ -123,8 +135,8 @@ async function downloadBytes(page: Page, button: Locator) {
 test('connected journey re-finalizes upstream, re-reviews downstream and prepares an exact delivery list', async ({
   page,
 }) => {
-  await reachRecordsWithCandidates(page);
-  await reviewRecords(page);
+  await reachRulesWithCandidates(page);
+  await finalizeRules(page);
   await page.getByRole('link', { name: '进入最终交付确认（模拟）' }).click();
   await expect(page).toHaveURL(delivery);
   await expect(page.getByText('最终交付当前不可确认')).toHaveCount(0);
@@ -147,38 +159,37 @@ test('connected journey re-finalizes upstream, re-reviews downstream and prepare
   await expect(page.locator('.stage-rework')).toContainText('上一版定稿');
   await expect(page.locator('.stage-rework')).toContainText('已由');
 
-  await page.getByRole('link', { name: '进入控制程序与管理制度审阅' }).click();
+  await page.getByRole('link', { name: '进入控制程序审阅' }).click();
   await expect(page.locator('.stage-rework-impact')).toContainText('质量手册重新定稿');
   await expect(page.locator('.stage-rework-impact')).toContainText('修改');
   await expect(page.locator('.stage-rework-impact')).toContainText('保留');
   await expect(page.locator('.stage-rework-impact')).toContainText('外来文件管理规定');
-  await expect(page.getByRole('button', { name: '重新确认第二阶段完整集合（模拟）' })).toHaveCount(
+  await expect(page.getByRole('button', { name: '重新确认控制程序完整集合（模拟）' })).toHaveCount(
     0,
   );
 
   await journeyLink(page, '返工与复核').click();
   await page.getByRole('button', { name: '模拟新手册依据下的程序候选（第 3 版）' }).click();
-  await page.getByRole('link', { name: '打开第二阶段审阅并重新定稿' }).click();
+  await page.getByRole('link', { name: '打开控制程序审阅并重新定稿' }).click();
   await page.getByRole('button', { name: '模拟已核对并采用本阶段全部最新候选' }).click();
   await expect(
-    page.getByRole('button', { name: '重新确认第二阶段完整集合（模拟）' }),
+    page.getByRole('button', { name: '重新确认控制程序完整集合（模拟）' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: '重新确认第二阶段完整集合（模拟）' }).click();
+  await page.getByRole('button', { name: '重新确认控制程序完整集合（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
   await expect(page.locator('.stage-rework')).toContainText('上一版定稿');
 
-  await page.getByRole('link', { name: '进入记录表单审阅' }).click();
-  await expect(page.locator('.stage-rework-impact')).toContainText('第二阶段完整集合定稿');
+  await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
+  await expect(page.locator('.stage-rework-impact')).toContainText('质量手册重新定稿');
   await page.getByRole('button', { name: '模拟已核对并采用本阶段全部最新候选' }).click();
-  await page.getByRole('button', { name: '确认已复核受影响表单（模拟）' }).click();
-  await expect(page.getByText('已记录到当前精确版本')).toBeVisible();
+  await finalizeRules(page, '外来文件管理规定 · 第 2 版候选', true);
   await journeyLink(page, '返工与复核').click();
-  await expect(page.getByText('两项上游依据与记录表单复核均已就绪')).toBeVisible();
+  await expect(page.getByText('三项阶段定稿均已就绪')).toBeVisible();
   await journeyLink(page, '最终交付').click();
   await expect(page).toHaveURL(delivery);
   await expect(page.getByText('最终交付当前不可确认')).toHaveCount(0);
-  await expect(page.locator('.u3-basis')).toContainText('记录表单复核');
+  await expect(page.locator('.u3-basis')).toContainText('管理制度及记录表单');
   await expect(page.locator('.u3-page')).toContainText('待交付精确清单');
 });
 
@@ -196,13 +207,25 @@ test('delivery preserves the selection when required files are missing or the ba
   await page.getByLabel('确认回执场景').selectOption('changed');
   await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
-  await expect(page.getByText('确认前版本/依据已变化；未冻结')).toBeVisible();
+  await expect(page.getByText('确认前上游依据已变化；未冻结')).toBeVisible();
   await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toHaveCount(0);
-  await expect(page.getByText('记录表单复核后又出现新候选；请重新核对精确版本。')).toBeVisible();
+  await expect(
+    page.getByText('控制程序集合仍以旧质量手册为依据；请先按当前手册重新确认完整集合。'),
+  ).toBeVisible();
+  await expect(
+    page.getByText('第三阶段定稿依据已变化；请按当前上游定稿重新确认完整集合。'),
+  ).toBeVisible();
 
-  await journeyLink(page, '记录表单审阅').click();
+  await journeyLink(page, '返工与复核').click();
+  await page.getByRole('button', { name: '模拟新手册依据下的程序候选（第 3 版）' }).click();
+  await page.getByRole('link', { name: '打开控制程序审阅并重新定稿' }).click();
   await page.getByRole('button', { name: '模拟已核对并采用本阶段全部最新候选' }).click();
-  await page.getByRole('button', { name: '确认已复核受影响表单（模拟）' }).click();
+  await page.getByRole('button', { name: '重新确认控制程序完整集合（模拟）' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
+  await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
+  await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
+  await page.getByRole('button', { name: '模拟已核对并采用本阶段全部最新候选' }).click();
+  await finalizeRules(page, '外来文件管理规定 · 第 2 版候选', true);
   await page.getByRole('link', { name: '进入最终交付确认（模拟）' }).click();
   await page.getByLabel('确认回执场景').selectOption('matched');
   await recheckAndConfirm(page);
@@ -260,7 +283,7 @@ test('failed packaging retries the same frozen list without repeating confirmati
   await expect(page.getByText('浏览器已收到并开始保存响应；不表示客户已收到')).toBeVisible();
 });
 
-test('later record revision starts a new package without changing the historical package', async ({
+test('later third-stage revision starts a new package without changing the historical package', async ({
   page,
 }) => {
   await reachDeliveryReady(page);
@@ -274,11 +297,11 @@ test('later record revision starts a new package without changing the historical
     oldPackage.getByRole('button', { name: '下载这个演练 ZIP' }),
   );
 
-  await page.getByRole('button', { name: '模拟记录表单后续改稿（第 3 版）' }).click();
-  await expect(page.getByText('记录表单出现后续改稿')).toBeVisible();
-  await journeyLink(page, '记录表单审阅').click();
+  await page.getByRole('button', { name: '模拟管理制度及记录表单后续改稿（第 3 版）' }).click();
+  await expect(page.getByText('第三阶段出现后续改稿')).toBeVisible();
+  await journeyLink(page, '管理制度及记录表单审阅').click();
   await page.getByRole('button', { name: '模拟已核对并采用本阶段全部最新候选' }).click();
-  await page.getByRole('button', { name: '确认已复核受影响表单（模拟）' }).click();
+  await finalizeRules(page, '外来文件管理规定 · 第 3 版候选', true);
   await page.getByRole('link', { name: '进入最终交付确认（模拟）' }).click();
 
   await page.getByRole('button', { name: '开始新一轮最终交付确认（保留历史包）' }).click();
@@ -299,7 +322,7 @@ test('later record revision starts a new package without changing the historical
     page,
     current.getByRole('button', { name: '下载这个演练 ZIP' }),
   );
-  expect(currentBytes.includes(Buffer.from('返工后的质量手册'))).toBe(true);
+  expect(currentBytes.includes(Buffer.from('返工后的质量手册与变更控制程序'))).toBe(true);
   expect(currentBytes.equals(oldBytes)).toBe(false);
 
   await page.getByRole('link', { name: '项目概览' }).click();
@@ -471,13 +494,13 @@ test('unresolved recovery request blocks final delivery until reconciled', async
 test('unresolved recovery blocks a second stage modification and releases after convergence', async ({
   page,
 }) => {
-  await reachRecordsWithCandidates(page);
+  await reachRulesWithCandidates(page);
   await journeyLink(page, '执行与恢复').click();
   await page.getByLabel('重试回执场景').selectOption('unknown');
   await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
   const retryId = requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent());
 
-  await journeyLink(page, '记录表单审阅').click();
+  await journeyLink(page, '管理制度及记录表单审阅').click();
   await page.locator('#markdown-note').fill('恢复未收敛时尝试的第二批次');
   await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
   await expect(page.getByText(`本项目已有待回执或待核验的恢复请求 ${retryId}`)).toBeVisible();
@@ -491,7 +514,7 @@ test('unresolved recovery blocks a second stage modification and releases after 
   await expect(page.locator('.u3-page')).toContainText(retryId);
   await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
   await page.getByRole('button', { name: '查询原重试请求' }).click();
-  await journeyLink(page, '记录表单审阅').click();
+  await journeyLink(page, '管理制度及记录表单审阅').click();
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText('U2-REV-');
@@ -500,7 +523,7 @@ test('unresolved recovery blocks a second stage modification and releases after 
 test('unresolved stage modification blocks recovery and releases after convergence', async ({
   page,
 }) => {
-  await reachRecordsWithCandidates(page);
+  await reachRulesWithCandidates(page);
   await page.locator('#markdown-note').fill('先创建的阶段修改批次');
   await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
   await page.getByRole('button', { name: '提交并修改' }).click();
@@ -512,7 +535,7 @@ test('unresolved stage modification blocks recovery and releases after convergen
   await expect(page.getByText(`本项目已有待回执或待核验的修改请求 ${stageId}`)).toBeVisible();
   await expect(page.getByText(/原请求 U3-RETRY-/u)).toHaveCount(0);
 
-  await journeyLink(page, '记录表单审阅').click();
+  await journeyLink(page, '管理制度及记录表单审阅').click();
   await page.getByRole('button', { name: '模拟原修订回执到达' }).click();
   await page.getByRole('button', { name: '重新查询原修订请求' }).click();
   await journeyLink(page, '执行与恢复').click();
@@ -531,7 +554,7 @@ test('deep links and missing prerequisites cannot fabricate the U3 journey', asy
   await expect(page.getByText('最终交付当前不可确认')).toBeVisible();
   const deliveryBasis = page.getByRole('region', { name: '交付依据' });
   await expect(deliveryBasis.getByRole('link', { name: '返工与复核' })).toBeVisible();
-  await expect(deliveryBasis.getByRole('link', { name: '记录表单审阅' })).toBeVisible();
+  await expect(deliveryBasis.getByRole('link', { name: '管理制度及记录表单审阅' })).toBeVisible();
 
   await page.goto('/projects/OTHER/rework');
   await expect(page.getByRole('heading', { name: '无法打开此页面' })).toBeVisible();
@@ -594,6 +617,7 @@ test('production build excludes the U3 adapter, rehearsal data and synthetic exp
       'U3-RETRY-',
       'U3-FINAL-',
       'U3-PKG-',
+      'U3-UPSTREAM-',
       'SYNTHETIC-MANIFEST.md',
       'U3 返工与恢复场景',
       'U3 执行恢复场景控制',

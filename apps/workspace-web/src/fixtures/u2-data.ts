@@ -580,6 +580,55 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
         },
       ],
     },
+    V3: {
+      fileId: 'F-EXTERNAL-RULE',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选',
+      sections: [
+        {
+          title: '1 目的与范围',
+          paragraphs: [
+            '规范外来文件的识别、登记、评审、分发、更新和作废；外来文件原发布机关效力不变。',
+            '本稿按返工后的质量手册核对文件层级引用，不改变外来文件本身效力。',
+          ],
+        },
+        {
+          title: '2 职责与依据',
+          paragraphs: [
+            '质量部负责清单维护和适用性评审组织；使用部门负责提出需求和确认适用范围。',
+            '职责仍按客户现行安排填写；候选不预填客户组织关系。',
+          ],
+        },
+        {
+          title: '3 识别、登记与适用性评审',
+          paragraphs: [
+            '登记来源、版本、发布日期、适用产品、客户或供应商来源和获取渠道。',
+            '评审结论记录适用、不适用或待确认，并保留评审人、日期和依据。',
+            '评审结论变化时形成新记录，不覆盖历史结论。',
+          ],
+        },
+        {
+          title: '4 更新跟踪与作废',
+          paragraphs: [
+            '按发布机关渠道跟踪更新；发现更新后评估影响并触发文件或变更控制。',
+            '作废或替换保留原文件标识和历史记录，不静默删除。',
+            '更新通知的责任部门和编号回填仍待业务核对。',
+          ],
+        },
+        {
+          title: '5 相关记录',
+          table: {
+            caption: '外来文件记录（返工候选）',
+            headers: ['记录', '用途', '编号状态', '保留方式'],
+            rows: [
+              ['外来文件清单', '登记与适用性结论', 'QR-GL-4.3.4.01-01 占位', '保留历史版本'],
+              ['查新与更新处置记录', '更新跟踪与通知', 'QR-GL-4.3.4.01-02 占位', '按年度归档'],
+              ['变更控制凭证', '引用 PD-4.2.4 申请单', '关联编号待核对', '不复制法规原文'],
+            ],
+          },
+        },
+      ],
+    },
   },
   'F-FORM-APPLY': {
     V1: {
@@ -711,6 +760,33 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
         },
       ],
     },
+    V3: {
+      fileId: 'F-FORM-REVIEW',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选',
+      sections: [
+        {
+          title: '评审、风险触发与批准意见',
+          paragraphs: [
+            '本稿按返工后的控制程序核对评审字段与批准意见区。',
+            '客户现有评审项目、会签安排和审批层级保留；不新增审批层级。',
+          ],
+          table: {
+            caption: '变更评审记录（返工候选）',
+            headers: ['字段', '内容', '填写要求', '备注'],
+            rows: [
+              ['变更编号', '关联申请单', '必填', '编号映射待核对'],
+              ['评审项目', '按变更内容列项', '保留现有字段', ''],
+              ['风险触发', '是 / 否 / 待确认', '记录判断依据', '待确认不视为通过'],
+              ['风险记录编号', '关联风险管理记录', '如适用', '不预填'],
+              ['评审结论', '同意 / 有条件同意 / 不同意', '保留现有字段', ''],
+              ['批准意见', '分级批准意见', '并入本记录', '不新增层级'],
+              ['会签', '客户现有岗位', '不新增层级', '按客户现行安排'],
+            ],
+          },
+        },
+      ],
+    },
   },
   'F-FORM-IMPLEMENT': {
     V1: {
@@ -749,6 +825,32 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
           ],
           table: {
             caption: '变更实施记录（候选）',
+            headers: ['字段', '内容', '填写要求', '备注'],
+            rows: [
+              ['变更编号', '关联申请单与评审记录', '必填', '编号映射待核对'],
+              ['实施内容', '实际实施步骤', '按实际填写', ''],
+              ['文件更新', '受影响文件与版本', '逐项列明', '保留旧版本标识'],
+              ['培训', '培训对象、内容与日期', '如适用', '未实施不勾选'],
+              ['效果确认', '确认方法与结论', '未完成保持待确认', '不以计划代替结论'],
+              ['完成日期', '实际完成日期', '不预填', ''],
+            ],
+          },
+        },
+      ],
+    },
+    V3: {
+      fileId: 'F-FORM-IMPLEMENT',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选',
+      sections: [
+        {
+          title: '变更实施记录',
+          paragraphs: [
+            '本稿按返工后的手册与控制程序核对实施记录的关联编号。',
+            'C05 实施方案确认记录继续独立保留；本记录不替代它。',
+          ],
+          table: {
+            caption: '变更实施记录（返工候选）',
             headers: ['字段', '内容', '填写要求', '备注'],
             rows: [
               ['变更编号', '关联申请单与评审记录', '必填', '编号映射待核对'],
@@ -814,6 +916,33 @@ const candidateSeeds: Record<string, Record<string, CandidateSeed>> = {
         },
       ],
     },
+    V3: {
+      fileId: 'F-FORM-NOTICE',
+      versionId: 'V3',
+      versionLabel: '第 3 版候选',
+      sections: [
+        {
+          title: '变更通知单',
+          paragraphs: [
+            '本稿按返工后的控制程序核对通知对象、通知内容与接收确认。',
+            '通知责任部门按客户现行安排填写；未确认前保留空白并标注待核对。',
+          ],
+          table: {
+            caption: '变更通知单（返工候选）',
+            headers: ['字段', '内容', '填写要求', '备注'],
+            rows: [
+              ['变更编号', '关联申请单', '必填', ''],
+              ['通知对象', '内部部门 / 外部相关方', '按实际填写', '不预填客户身份'],
+              ['通知内容', '变更事项与生效安排', '不扩大客户决定', ''],
+              ['通知方式', '现有渠道', '按实际填写', ''],
+              ['通知时间', '实际发出时间', '不预填', ''],
+              ['接收确认', '接收人与日期', '保留记录', ''],
+              ['责任部门', '客户现行安排', '待核对', '不预填真实决定'],
+            ],
+          },
+        },
+      ],
+    },
   },
 };
 
@@ -825,11 +954,11 @@ export function u2VersionLabel(versionId: string): string {
 const revisionIds: Record<string, Record<string, string>> = {
   'F-MANUAL': { V1: 'MANUAL01', V2: 'MANUAL02', V3: 'MANUAL03' },
   'F-PROCEDURE': { V1: 'PROCED01', V2: 'PROCED02', V3: 'PROCED03' },
-  'F-EXTERNAL-RULE': { V1: 'EXTRULE1', V2: 'EXTRULE2' },
+  'F-EXTERNAL-RULE': { V1: 'EXTRULE1', V2: 'EXTRULE2', V3: 'EXTRULE3' },
   'F-FORM-APPLY': { V1: 'FORMAPP1', V2: 'FORMAPP2', V3: 'FORMAPP3' },
-  'F-FORM-REVIEW': { V1: 'FORMREV1', V2: 'FORMREV2' },
-  'F-FORM-IMPLEMENT': { V1: 'FORMIMP1', V2: 'FORMIMP2' },
-  'F-FORM-NOTICE': { V1: 'FORMNOT1', V2: 'FORMNOT2' },
+  'F-FORM-REVIEW': { V1: 'FORMREV1', V2: 'FORMREV2', V3: 'FORMREV3' },
+  'F-FORM-IMPLEMENT': { V1: 'FORMIMP1', V2: 'FORMIMP2', V3: 'FORMIMP3' },
+  'F-FORM-NOTICE': { V1: 'FORMNOT1', V2: 'FORMNOT2', V3: 'FORMNOT3' },
 };
 
 function digest(value: string): string {

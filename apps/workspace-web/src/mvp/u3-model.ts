@@ -21,50 +21,11 @@ export interface ReworkImpact {
   note: string;
 }
 
-export interface RecordsReviewMarker {
-  classification: 'DEVELOPMENT_FIXTURE_ONLY';
-  reviewId: string;
-  projectId: string;
-  planId: string;
-  planVersion: number;
-  manualFinalizationId: string;
-  procedureFinalizationId: string;
-  files: readonly FileVersionRef[];
-  reviewedAt: string;
-}
-
-export function recordsReviewMatches(
-  marker: RecordsReviewMarker,
-  basis: {
-    projectId: string;
-    planId: string;
-    planVersion: number;
-    manualFinalizationId: string;
-    procedureFinalizationId: string;
-  },
-): boolean {
-  return (
-    marker.projectId === basis.projectId &&
-    marker.planId === basis.planId &&
-    marker.planVersion === basis.planVersion &&
-    marker.manualFinalizationId === basis.manualFinalizationId &&
-    marker.procedureFinalizationId === basis.procedureFinalizationId
-  );
-}
-
 function versionRefKey(files: readonly FileVersionRef[]): string {
   return [...files]
     .sort((left, right) => left.fileId.localeCompare(right.fileId))
     .map((file) => `${file.fileId}@${file.versionId}`)
     .join('|');
-}
-
-/** A records review marker is stale when any reviewed file has a newer candidate. */
-export function recordsReviewStale(
-  marker: RecordsReviewMarker,
-  latest: readonly FileVersionRef[],
-): boolean {
-  return versionRefKey(marker.files) !== versionRefKey(latest);
 }
 
 export interface DeliveryMember {
@@ -83,7 +44,7 @@ export interface DeliveryProposal {
   planVersion: number;
   manualFinalizationId?: string | undefined;
   procedureFinalizationId?: string | undefined;
-  recordsReviewId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
   members: readonly DeliveryMember[];
 }
 
@@ -94,7 +55,7 @@ export function deliveryListKey(proposal: DeliveryProposal): string {
     proposal.planVersion,
     proposal.manualFinalizationId ?? '',
     proposal.procedureFinalizationId ?? '',
-    proposal.recordsReviewId ?? '',
+    proposal.rulesFinalizationId ?? '',
     proposal.members.map((member) => [
       member.fileId,
       member.versionId,
@@ -151,11 +112,10 @@ export interface DeliveryBlockerInput {
   planReason?: string | undefined;
   manual?: StageFinalization | undefined;
   procedures?: StageFinalization | undefined;
+  rules?: StageFinalization | undefined;
   manualExpectedFiles: readonly string[];
   procedureExpectedFiles: readonly string[];
-  recordsReview?: RecordsReviewMarker | undefined;
-  recordExpectedFiles: readonly string[];
-  currentRecordLatest: readonly FileVersionRef[];
+  ruleExpectedFiles: readonly string[];
   activeSubmission?: string | undefined;
   unresolvedRecovery?: string | undefined;
   selection: SelectionIssues;
@@ -171,27 +131,24 @@ export function deliveryBlockers(input: DeliveryBlockerInput): string[] {
     const missing = input.manualExpectedFiles.filter((fileId) => !present.has(fileId));
     if (missing.length > 0) blockers.push(`质量手册定稿缺少文件：${missing.join('、')}。`);
   }
-  if (!input.procedures) blockers.push('尚无第二阶段完整集合模拟定稿；不能确认最终交付。');
+  if (!input.procedures) blockers.push('尚无控制程序完整集合模拟定稿；不能确认最终交付。');
   else {
     const present = new Set(input.procedures.files.map((file) => file.fileId));
     const missing = input.procedureExpectedFiles.filter((fileId) => !present.has(fileId));
-    if (missing.length > 0) blockers.push(`第二阶段定稿缺少文件：${missing.join('、')}。`);
+    if (missing.length > 0) blockers.push(`控制程序定稿缺少文件：${missing.join('、')}。`);
     if (input.manual && input.procedures.manualFinalizationId !== input.manual.finalizationId)
-      blockers.push('第二阶段集合仍以旧质量手册为依据；请先按当前手册重新确认完整集合。');
+      blockers.push('控制程序集合仍以旧质量手册为依据；请先按当前手册重新确认完整集合。');
   }
-  if (!input.recordsReview) blockers.push('记录表单尚未完成受影响复核；不能确认最终交付。');
+  if (!input.rules) blockers.push('尚无管理制度及记录表单完整集合模拟定稿；不能确认最终交付。');
   else {
     if (
-      (input.manual && input.recordsReview.manualFinalizationId !== input.manual.finalizationId) ||
-      (input.procedures &&
-        input.recordsReview.procedureFinalizationId !== input.procedures.finalizationId)
+      (input.manual && input.rules.manualFinalizationId !== input.manual.finalizationId) ||
+      (input.procedures && input.rules.procedureFinalizationId !== input.procedures.finalizationId)
     )
-      blockers.push('记录表单复核依据已变化；请重新核对受影响表单。');
-    const reviewed = new Set(input.recordsReview.files.map((file) => file.fileId));
-    const missing = input.recordExpectedFiles.filter((fileId) => !reviewed.has(fileId));
-    if (missing.length > 0) blockers.push(`记录表单复核缺少文件：${missing.join('、')}。`);
-    if (recordsReviewStale(input.recordsReview, input.currentRecordLatest))
-      blockers.push('记录表单复核后又出现新候选；请重新核对精确版本。');
+      blockers.push('第三阶段定稿依据已变化；请按当前上游定稿重新确认完整集合。');
+    const present = new Set(input.rules.files.map((file) => file.fileId));
+    const missing = input.ruleExpectedFiles.filter((fileId) => !present.has(fileId));
+    if (missing.length > 0) blockers.push(`第三阶段定稿缺少文件：${missing.join('、')}。`);
   }
   if (input.activeSubmission)
     blockers.push(`仍有待回执或待核验的修改请求 ${input.activeSubmission}；不能确认最终交付。`);
@@ -213,7 +170,7 @@ export interface DeliveryIntent {
   planVersion: number;
   manualFinalizationId?: string | undefined;
   procedureFinalizationId?: string | undefined;
-  recordsReviewId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
   members: readonly DeliveryMember[];
   createdAt: string;
 }
@@ -234,8 +191,8 @@ export function deliveryIntentFromSelection(
     ...(proposal.procedureFinalizationId !== undefined
       ? { procedureFinalizationId: proposal.procedureFinalizationId }
       : {}),
-    ...(proposal.recordsReviewId !== undefined
-      ? { recordsReviewId: proposal.recordsReviewId }
+    ...(proposal.rulesFinalizationId !== undefined
+      ? { rulesFinalizationId: proposal.rulesFinalizationId }
       : {}),
     members: selection.members.map((member) => ({ ...member })),
     createdAt: input.createdAt,
@@ -262,7 +219,9 @@ export function deliveryIntentKey(intent: DeliveryIntent): string {
     ...(intent.procedureFinalizationId !== undefined
       ? { procedureFinalizationId: intent.procedureFinalizationId }
       : {}),
-    ...(intent.recordsReviewId !== undefined ? { recordsReviewId: intent.recordsReviewId } : {}),
+    ...(intent.rulesFinalizationId !== undefined
+      ? { rulesFinalizationId: intent.rulesFinalizationId }
+      : {}),
     members: intent.members,
   });
 }
@@ -292,7 +251,7 @@ export interface FrozenDelivery {
   planVersion: number;
   manualFinalizationId?: string | undefined;
   procedureFinalizationId?: string | undefined;
-  recordsReviewId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
   members: readonly DeliveryMember[];
   frozenAt: string;
 }
@@ -309,7 +268,9 @@ export function frozenFromIntent(intent: DeliveryIntent): FrozenDelivery {
     ...(intent.procedureFinalizationId !== undefined
       ? { procedureFinalizationId: intent.procedureFinalizationId }
       : {}),
-    ...(intent.recordsReviewId !== undefined ? { recordsReviewId: intent.recordsReviewId } : {}),
+    ...(intent.rulesFinalizationId !== undefined
+      ? { rulesFinalizationId: intent.rulesFinalizationId }
+      : {}),
     members: intent.members.map((member) => ({ ...member })),
     frozenAt: intent.createdAt,
   };

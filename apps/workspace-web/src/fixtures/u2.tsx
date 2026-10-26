@@ -36,6 +36,7 @@ import {
   planReady,
   procedureBasis,
   projectScope,
+  rulesBasis,
   sameVersionSet,
   stageScope,
   viewedVersionSet,
@@ -64,20 +65,15 @@ import {
   adoptLatestVersions,
   u3ImpactNote,
   u3ManualImpactFiles,
-  u3ProcedureImpactFiles,
+  u3RulesImpactFiles,
 } from './u3-data.js';
-import {
-  recordsReviewMatches,
-  recordsReviewStale,
-  type RecordsReviewMarker,
-  type ReworkImpact,
-} from '../mvp/u3-model.js';
+import type { ReworkImpact } from '../mvp/u3-model.js';
 import type { ReviewOpinionScopeOption } from '../review/model.js';
 
 const projectId = u1Project.id;
 const manualPath = `/projects/${projectId}/stages/manual`;
 const proceduresPath = `/projects/${projectId}/stages/procedures`;
-const recordsPath = `/projects/${projectId}/stages/records`;
+const rulesPath = `/projects/${projectId}/stages/rules`;
 const scopePath = `/projects/${projectId}/startup/U1-REPORT-02`;
 const reworkPath = `/projects/${projectId}/rework`;
 const recoveryPath = `/projects/${projectId}/recovery`;
@@ -86,7 +82,7 @@ const deliveryPath = `/projects/${projectId}/delivery`;
 const stageByParam: Record<string, MvpStageId> = {
   manual: 'MANUAL',
   procedures: 'PROCEDURES',
-  records: 'RECORDS',
+  rules: 'RULES',
 };
 export function planStageFiles(plan: PlanView, stage: MvpStageId): PlanFile[] {
   return plan.files.filter(
@@ -95,8 +91,8 @@ export function planStageFiles(plan: PlanView, stage: MvpStageId): PlanFile[] {
       (stage === 'MANUAL'
         ? file.level === 'MANUAL'
         : stage === 'PROCEDURES'
-          ? file.level === 'PROCEDURE' || file.level === 'RULE'
-          : file.level === 'RECORD'),
+          ? file.level === 'PROCEDURE'
+          : file.level === 'RULE' || file.level === 'RECORD'),
   );
 }
 
@@ -161,8 +157,6 @@ export interface StageSession {
   finalization?: StageFinalization | undefined;
   /** Previous exact finalizations retained when a newer set replaces the current basis. */
   finalizationHistory: { finalization: StageFinalization; supersededBy: string }[];
-  /** Records-form review binds exact versions and both upstream finalizations. */
-  reworkReview?: RecordsReviewMarker | undefined;
   candidateScene: 'matched' | 'mismatch';
   message?: string | undefined;
   simulatedAnswer?: boolean | undefined;
@@ -275,17 +269,6 @@ function reportBasis(plan: PlanView): string {
   return `${plan.planId} 第 ${plan.version} 版`;
 }
 
-function stageLatestSet(
-  plan: PlanView,
-  stage: MvpStageId,
-  session: StageSession,
-): FileVersionRef[] {
-  return planStageFiles(plan, stage).flatMap((file) => {
-    const latest = session.files[file.id]?.versions.at(-1);
-    return latest ? [{ fileId: file.id, versionId: latest }] : [];
-  });
-}
-
 /** A manual re-finalization conservatively marks the whole downstream stage. */
 export function manualReworkImpact(
   plan: PlanView,
@@ -300,58 +283,45 @@ export function manualReworkImpact(
     source: 'MANUAL',
     previousBasisId: procedureFinalization.manualFinalizationId ?? '未绑定手册定稿',
     newBasisId: manualFinalization.finalizationId,
-    stages: ['PROCEDURES', 'RECORDS'],
+    stages: ['PROCEDURES', 'RULES'],
     files: u3ManualImpactFiles.filter((file) => planned.has(file.fileId)),
     note: u3ImpactNote,
   };
 }
 
-/** Records need review until exact versions and both upstream bases are recorded. */
-export function recordsReworkState(
+/** The third stage is stale until its exact set and both upstream bases match. */
+export function rulesReworkState(
   plan: PlanView,
   manualFinalization: StageFinalization | undefined,
   procedureFinalization: StageFinalization | undefined,
-  session: StageSession,
+  rulesFinalization: StageFinalization | undefined,
 ): {
   active: boolean;
   impact?: ReworkImpact | undefined;
-  reviewed: boolean;
-  latest: readonly FileVersionRef[];
   reason?: string | undefined;
 } {
-  const latest = stageLatestSet(plan, 'RECORDS', session);
-  if (!manualFinalization || !procedureFinalization)
-    return { active: false, reviewed: false, latest };
-  const marker = session.reworkReview;
+  if (!manualFinalization || !procedureFinalization || !rulesFinalization) return { active: false };
   const planned = new Set(plan.files.map((file) => file.id));
-  const impact: ReworkImpact = {
-    source: 'PROCEDURES',
-    previousBasisId: marker?.procedureFinalizationId ?? '尚未复核记录表单',
-    newBasisId: procedureFinalization.finalizationId,
-    stages: ['RECORDS'],
-    files: u3ProcedureImpactFiles.filter((file) => planned.has(file.fileId)),
-    note: u3ImpactNote,
+  const manualChanged =
+    rulesFinalization.manualFinalizationId !== manualFinalization.finalizationId;
+  const procedureChanged =
+    rulesFinalization.procedureFinalizationId !== procedureFinalization.finalizationId;
+  if (!manualChanged && !procedureChanged) return { active: false };
+  return {
+    active: true,
+    impact: {
+      source: manualChanged ? 'MANUAL' : 'PROCEDURES',
+      previousBasisId:
+        rulesFinalization.procedureFinalizationId ?? rulesFinalization.manualFinalizationId ?? '无',
+      newBasisId: procedureFinalization.finalizationId,
+      stages: ['RULES'],
+      files: u3RulesImpactFiles.filter((file) => planned.has(file.fileId)),
+      note: u3ImpactNote,
+    },
+    reason: manualChanged
+      ? '质量手册重新定稿；管理制度及记录表单需按当前手册与控制程序重新核对完整集合。'
+      : '控制程序重新定稿；管理制度及记录表单需按当前控制程序重新核对完整集合。',
   };
-  if (!marker) return { active: true, impact, reviewed: false, latest, reason: '复核标记缺失。' };
-  if (
-    !recordsReviewMatches(marker, {
-      projectId,
-      planId: plan.planId,
-      planVersion: plan.version,
-      manualFinalizationId: manualFinalization.finalizationId,
-      procedureFinalizationId: procedureFinalization.finalizationId,
-    })
-  )
-    return { active: true, impact, reviewed: false, latest, reason: '复核依据已变化。' };
-  if (recordsReviewStale(marker, latest))
-    return {
-      active: true,
-      impact,
-      reviewed: false,
-      latest,
-      reason: '复核后出现新候选或精确版本变化。',
-    };
-  return { active: false, reviewed: true, latest };
 }
 
 function withFinalization(session: StageSession, receipt: FinalizationReceipt): StageSession {
@@ -376,7 +346,8 @@ function basisText(basis: OpinionBasis): string {
     `${basis.planId} 第 ${basis.planVersion} 版`,
     basis.files.map((file) => `${file.fileId}@${file.versionId}`).join('、') || '无文件',
     basis.manualFinalizationId ? `手册定稿 ${basis.manualFinalizationId}` : '',
-    basis.procedureFinalizationId ? `第二阶段定稿 ${basis.procedureFinalizationId}` : '',
+    basis.procedureFinalizationId ? `控制程序定稿 ${basis.procedureFinalizationId}` : '',
+    basis.rulesFinalizationId ? `第三阶段定稿 ${basis.rulesFinalizationId}` : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -397,6 +368,7 @@ export interface U2Api {
   sessions: Record<string, StageSession>;
   manualFinalization?: StageFinalization | undefined;
   procedureFinalization?: StageFinalization | undefined;
+  rulesFinalization?: StageFinalization | undefined;
   update: (stage: MvpStageId, change: (session: StageSession) => StageSession) => void;
   updateAny: (change: (session: StageSession) => StageSession) => void;
 }
@@ -410,14 +382,18 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
   const planCheck = planReady(planBinding(plan));
   const manualKey = sessionKey(plan, 'MANUAL');
   const procedureKey = sessionKey(plan, 'PROCEDURES');
+  const rulesKey = sessionKey(plan, 'RULES');
   const manualSession = sessions[manualKey] ?? emptySession(manualKey, 'MANUAL');
   const procedureSession = sessions[procedureKey] ?? emptySession(procedureKey, 'PROCEDURES');
+  const rulesSession = sessions[rulesKey] ?? emptySession(rulesKey, 'RULES');
   const manualFinalization =
     manualSession.finalization?.stage === 'MANUAL' ? manualSession.finalization : undefined;
   const procedureFinalization =
     procedureSession.finalization?.stage === 'PROCEDURES'
       ? procedureSession.finalization
       : undefined;
+  const rulesFinalization =
+    rulesSession.finalization?.stage === 'RULES' ? rulesSession.finalization : undefined;
   const manualReady = manualBasis(manualFinalization, {
     projectId,
     planId: plan.planId,
@@ -435,10 +411,20 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     manualFinalizationId: manualFinalization?.finalizationId,
     procedureFileIds: planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
   });
+  const rulesReady = rulesBasis(rulesFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFinalizationId: manualFinalization?.finalizationId,
+    procedureFinalizationId: procedureFinalization?.finalizationId,
+    ruleFileIds: planStageFiles(plan, 'RULES').map((file) => file.id),
+  });
   const stageReady: Record<MvpStageId, { ready: boolean; reason?: string | undefined }> = {
     MANUAL: planCheck,
     PROCEDURES: planCheck.ready ? { ready: manualReady.ok, reason: manualReady.reason } : planCheck,
-    RECORDS: !planCheck.ready
+    RULES: !planCheck.ready
       ? planCheck
       : !manualReady.ok
         ? { ready: false, reason: manualReady.reason }
@@ -454,21 +440,22 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     },
     {
       id: 'PROCEDURES',
-      label: '程序与制度审阅',
+      label: '控制程序审阅',
       href: proceduresPath,
       ready: stageReady.PROCEDURES.ready,
       reason: stageReady.PROCEDURES.reason,
     },
     {
-      id: 'RECORDS',
-      label: '记录表单审阅',
-      href: recordsPath,
-      ready: stageReady.RECORDS.ready,
-      reason: stageReady.RECORDS.reason,
+      id: 'RULES',
+      label: '管理制度及记录表单审阅',
+      href: rulesPath,
+      ready: stageReady.RULES.ready,
+      reason: stageReady.RULES.reason,
     },
   ];
   const manualDone = manualReady.ok;
   const procedureDone = procedureReady.ok;
+  const rulesDone = rulesReady.ok;
   const handoff: MvpHandoff = {
     reviewStages,
     ...(planCheck.ready
@@ -484,7 +471,7 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
             },
             {
               id: 'procedures',
-              label: '控制程序与管理制度',
+              label: '控制程序',
               state: procedureDone
                 ? '已定稿（模拟）'
                 : manualDone
@@ -493,16 +480,22 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
               detail: procedureDone
                 ? `模拟定稿 ${procedureFinalization?.finalizationId ?? ''} 已绑定完整版本集合。`
                 : manualDone
-                  ? '以已定稿质量手册为依据，两类文件同轮审阅并整体确认。'
-                  : '第二阶段以质量手册的精确模拟定稿为依据。',
+                  ? '以已定稿质量手册为依据，整体确认控制程序的精确版本集合。'
+                  : '控制程序以质量手册的精确模拟定稿为依据。',
             },
             {
-              id: 'records',
-              label: '记录表单与交付',
-              state: procedureDone ? '待审阅（演示）' : '等待第二阶段定稿',
-              detail: procedureDone
-                ? '以前两阶段精确版本为依据；最终交付确认与打包属于 U3。'
-                : '前两阶段模拟定稿齐全后可进入 Markdown 记录表单审阅。',
+              id: 'rules',
+              label: '管理制度及记录表单',
+              state: rulesDone
+                ? '已定稿（模拟）'
+                : procedureDone
+                  ? '待审阅（演示）'
+                  : '等待控制程序定稿',
+              detail: rulesDone
+                ? `模拟定稿 ${rulesFinalization?.finalizationId ?? ''} 已绑定管理制度与记录表单完整集合。`
+                : procedureDone
+                  ? '以质量手册和已定稿控制程序为依据，整体确认管理制度及记录表单。'
+                  : '第三阶段以质量手册与控制程序的精确模拟定稿为依据。',
             },
           ],
           next: !manualDone
@@ -513,15 +506,21 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
               }
             : !procedureDone
               ? {
-                  label: '进入程序与制度审阅',
+                  label: '进入控制程序审阅',
                   href: proceduresPath,
-                  reason: '质量手册已有模拟定稿；下一步联动审阅控制程序与管理制度。',
+                  reason: '质量手册已有模拟定稿；下一步整体确认控制程序精确版本集合。',
                 }
-              : {
-                  label: '进入记录表单审阅',
-                  href: recordsPath,
-                  reason: '第二阶段完整集合已定稿；下一步核对记录表单依据。',
-                },
+              : !rulesDone
+                ? {
+                    label: '进入管理制度及记录表单审阅',
+                    href: rulesPath,
+                    reason: '控制程序完整集合已定稿；下一步整体确认管理制度及记录表单。',
+                  }
+                : {
+                    label: '进入最终交付确认（模拟）',
+                    href: deliveryPath,
+                    reason: '三个阶段均已有模拟定稿；下一步核对并冻结最终交付清单。',
+                  },
         }
       : {}),
   };
@@ -553,6 +552,7 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     sessions,
     manualFinalization,
     procedureFinalization,
+    rulesFinalization,
     update,
     updateAny,
   };
@@ -578,7 +578,14 @@ export function FixtureU2Stage() {
 }
 
 function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
-  const { plan, planCheck, sessions, manualFinalization, procedureFinalization } = api;
+  const {
+    plan,
+    planCheck,
+    sessions,
+    manualFinalization,
+    procedureFinalization,
+    rulesFinalization,
+  } = api;
   const key = sessionKey(plan, stage);
   const session = sessions[key] ?? emptySession(key, stage);
   const files = planStageFiles(plan, stage);
@@ -642,6 +649,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     planVersion: plan.version,
     ...(manualId ? { manualFinalizationId: manualId } : {}),
     ...(procedureId ? { procedureFinalizationId: procedureId } : {}),
+    ...(stage === 'RULES' && rulesFinalization
+      ? { rulesFinalizationId: rulesFinalization.finalizationId }
+      : {}),
     files: currentSet ?? [],
   };
   const stageEvidence: StageReviewBasisItem[] = [
@@ -682,7 +692,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             ...(procedureFinalization
               ? [
                   {
-                    label: '第二阶段完整集合',
+                    label: '控制程序完整集合',
                     detail: `${procedureFinalization.finalizationId} · ${procedureFinalization.files
                       .map((file) => `${file.fileId}@${file.versionId}`)
                       .join('、')}`,
@@ -704,7 +714,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             ? { ready: true }
             : {
                 ready: false,
-                reason: '第二阶段以质量手册的精确模拟定稿为依据；当前尚无与计划匹配的手册定稿。',
+                reason: '控制程序以质量手册的精确模拟定稿为依据；当前尚无与计划匹配的手册定稿。',
                 returnHref: manualPath,
                 returnLabel: '返回质量手册审阅',
               }
@@ -721,13 +731,13 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               : {
                   ready: false,
                   reason:
-                    '记录表单以第二阶段完整版本集合为依据；当前尚无与手册定稿匹配的第二阶段定稿。',
+                    '管理制度及记录表单以控制程序完整版本集合为依据；当前尚无与手册定稿匹配的控制程序定稿。',
                   returnHref: proceduresPath,
-                  returnLabel: '返回程序与制度审阅',
+                  returnLabel: '返回控制程序审阅',
                 }
             : {
                 ready: false,
-                reason: '记录表单需要先有质量手册定稿，再接续第二阶段完整集合定稿。',
+                reason: '第三阶段需要先有质量手册定稿，再接续控制程序完整集合定稿。',
                 returnHref: manualPath,
                 returnLabel: '返回质量手册审阅',
               }
@@ -750,10 +760,32 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const refinalizing = Boolean(
     session.finalization && currentSet && !sameVersionSet(currentSet, session.finalization.files),
   );
+  const manualBasisCheck = manualBasis(manualFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFileIds: planStageFiles(plan, 'MANUAL').map((file) => file.id),
+  });
+  const procedureBasisCheck = procedureBasis(procedureFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFinalizationId: manualFinalization?.finalizationId,
+    procedureFileIds: planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
+  });
+  const upstreamCheck =
+    stage === 'MANUAL'
+      ? { ok: true }
+      : stage === 'PROCEDURES'
+        ? manualBasisCheck
+        : procedureBasisCheck;
   const blocker = finalizationBlocker({
-    supported: stage !== 'RECORDS',
     plan: planCheck,
-    upstream: { ok: true },
+    upstream: upstreamCheck,
     files: availabilities,
     active: Boolean(active),
     finalized: Boolean(session.finalization),
@@ -779,45 +811,12 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     stage === 'PROCEDURES'
       ? manualReworkImpact(plan, manualFinalization, procedureFinalization)
       : undefined;
-  const recordsState =
-    stage === 'RECORDS'
-      ? recordsReworkState(plan, manualFinalization, procedureFinalization, session)
+  const rulesState =
+    stage === 'RULES'
+      ? rulesReworkState(plan, manualFinalization, procedureFinalization, rulesFinalization)
       : undefined;
-  const reviewRecords = () => {
-    if (!currentSet || !manualFinalization || !procedureFinalization) return;
-    update((current) => ({
-      ...current,
-      reworkReview: {
-        classification: 'DEVELOPMENT_FIXTURE_ONLY',
-        reviewId: `U3-REVIEW-${crypto.randomUUID().slice(0, 8)}`,
-        projectId,
-        planId: plan.planId,
-        planVersion: plan.version,
-        manualFinalizationId: manualFinalization.finalizationId,
-        procedureFinalizationId: procedureFinalization.finalizationId,
-        files: currentSet,
-        reviewedAt: new Date().toISOString(),
-      },
-      message:
-        '已记录记录表单受影响复核到当前精确版本；这不是定稿关卡，也不表示逐文件批准或最终交付。',
-    }));
-  };
-  const reviewFiles =
-    recordsState && session.reworkReview && !recordsState.active
-      ? session.reworkReview.files.map((ref) => {
-          const file = files.find((entry) => entry.id === ref.fileId);
-          return {
-            title: file?.title ?? ref.fileId,
-            versionLabel: u2VersionLabel(ref.versionId),
-          };
-        })
-      : (currentSet ?? []).map((ref) => {
-          const file = files.find((entry) => entry.id === ref.fileId);
-          return {
-            title: file?.title ?? ref.fileId,
-            versionLabel: u2VersionLabel(ref.versionId),
-          };
-        });
+  const rulesNotice = rulesState?.active ? rulesState.reason : undefined;
+  const rulesImpact = rulesState?.active ? rulesState.impact : undefined;
   const reworkView =
     stage === 'MANUAL'
       ? {
@@ -882,16 +881,34 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
                 }
               : {}),
           }
-        : recordsState
+        : rulesFinalization
           ? {
-              ...(recordsState.impact && recordsState.active
+              ...(rulesNotice ? { notice: rulesNotice } : {}),
+              ...(previousFinalization
+                ? {
+                    previous: {
+                      finalizationId: previousFinalization.finalization.finalizationId,
+                      supersededBy: previousFinalization.supersededBy,
+                      files: previousFinalization.finalization.files.map((ref) => {
+                        const file = files.find((entry) => entry.id === ref.fileId);
+                        return {
+                          fileId: ref.fileId,
+                          title: file?.title ?? ref.fileId,
+                          versionLabel: u2VersionLabel(ref.versionId),
+                        };
+                      }),
+                    },
+                  }
+                : {}),
+              ...(rulesImpact
                 ? {
                     impact: {
-                      sourceLabel: '第二阶段完整集合定稿',
-                      previousBasisId: recordsState.impact.previousBasisId,
-                      newBasisId: recordsState.impact.newBasisId,
-                      note: recordsState.impact.note,
-                      files: recordsState.impact.files.map((file) => ({
+                      sourceLabel:
+                        rulesImpact.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+                      previousBasisId: rulesImpact.previousBasisId,
+                      newBasisId: rulesImpact.newBasisId,
+                      note: rulesImpact.note,
+                      files: rulesImpact.files.map((file) => ({
                         fileId: file.fileId,
                         title: file.title,
                         actionLabel: file.action === 'REVISE' ? '修改' : '保留',
@@ -900,18 +917,6 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
                     },
                   }
                 : {}),
-              review: {
-                reviewed: recordsState.reviewed,
-                reason:
-                  recordsState.reason ??
-                  '记录表单精确版本与质量手册、第二阶段完整集合一致；最终交付前需保留此复核。',
-                basisLabel: procedureFinalization
-                  ? `${manualFinalization?.finalizationId ?? '无手册定稿'} · ${procedureFinalization.finalizationId}`
-                  : '尚无第二阶段定稿',
-                files: reviewFiles,
-                canReview: readiness.ready && currentSet !== undefined,
-                onReview: reviewRecords,
-              },
             }
           : undefined;
   const canConfirm =
@@ -1278,6 +1283,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         receipt.basis.planVersion === intent.basis.planVersion &&
         receipt.basis.manualFinalizationId === intent.basis.manualFinalizationId &&
         receipt.basis.procedureFinalizationId === intent.basis.procedureFinalizationId &&
+        receipt.basis.rulesFinalizationId === intent.basis.rulesFinalizationId &&
         sameVersionSet(receipt.basis.files, intent.basis.files);
       return {
         ...current,
@@ -1407,19 +1413,20 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const requestFinalization = () => {
-    if (stage === 'RECORDS' || !currentSet || !canFinalizeSet) return;
+    if (!currentSet || !canFinalizeSet) return;
     update((current) => {
       const scene = current.finalizationScene;
       const intent: FinalizationIntent = {
         requestId: `U2-FINAL-${crypto.randomUUID().slice(0, 8)}`,
         projectId,
-        stage: stage === 'PROCEDURES' ? 'PROCEDURES' : 'MANUAL',
+        stage,
         planId: plan.planId,
         planVersion: plan.version,
         files: currentSet,
         inputRefs: planInputRefs(plan),
         templateIds: plan.templateBasis,
-        ...(stage === 'PROCEDURES' && manualId ? { manualFinalizationId: manualId } : {}),
+        ...(stage !== 'MANUAL' && manualId ? { manualFinalizationId: manualId } : {}),
+        ...(stage === 'RULES' && procedureId ? { procedureFinalizationId: procedureId } : {}),
       };
       if (scene === 'failed')
         return {
@@ -1536,7 +1543,10 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         intent: request.intent,
         receipt: request.receipt,
         currentFiles: filesNow ?? [],
-        ...(stage === 'PROCEDURES' && manualId ? { currentManualFinalizationId: manualId } : {}),
+        ...(stage !== 'MANUAL' && manualId ? { currentManualFinalizationId: manualId } : {}),
+        ...(stage === 'RULES' && procedureId
+          ? { currentProcedureFinalizationId: procedureId }
+          : {}),
       });
       if (!evaluation.ok)
         return {
@@ -1767,7 +1777,6 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const finalization = {
-    supported: stage !== 'RECORDS',
     status: session.finalizationStatus,
     reason: blocker ?? '完整集合已就绪；一次确认精确文件/版本与上游依据，只生成页面内模拟回执。',
     canConfirm,
@@ -1783,6 +1792,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             planLabel: reportBasis(plan),
             ...(session.finalization.manualFinalizationId
               ? { manualLabel: session.finalization.manualFinalizationId }
+              : {}),
+            ...(session.finalization.procedureFinalizationId
+              ? { procedureLabel: session.finalization.procedureFinalizationId }
               : {}),
             files: session.finalization.files.map((ref) => {
               const planFile = files.find((file) => file.id === ref.fileId);
@@ -1805,22 +1817,22 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const next =
     stage === 'MANUAL' && session.finalization
       ? {
-          label: '进入控制程序与管理制度审阅',
+          label: '进入控制程序审阅',
           href: proceduresPath,
-          reason: `质量手册模拟定稿 ${session.finalization.finalizationId} 已作为第二阶段依据；进入下一阶段不重复范围确认。`,
+          reason: `质量手册模拟定稿 ${session.finalization.finalizationId} 已作为控制程序依据；进入下一阶段不重复范围确认。`,
         }
       : stage === 'PROCEDURES' && session.finalization
         ? {
-            label: '进入记录表单审阅',
-            href: recordsPath,
-            reason: `第二阶段完整集合模拟定稿 ${session.finalization.finalizationId} 已作为记录表单依据；最终交付确认属于 U3。`,
+            label: '进入管理制度及记录表单审阅',
+            href: rulesPath,
+            reason: `控制程序完整集合模拟定稿 ${session.finalization.finalizationId} 已作为第三阶段依据；进入下一阶段不重复范围确认。`,
           }
-        : stage === 'RECORDS' && recordsState?.reviewed
+        : stage === 'RULES' && session.finalization
           ? {
               label: '进入最终交付确认（模拟）',
               href: `/projects/${projectId}/delivery`,
               reason:
-                '记录表单已复核到精确版本；最终交付清单仍需一次显式确认，阅读或复核本身不构成交付。',
+                '管理制度及记录表单完整集合已定稿；最终交付清单仍需一次显式确认，阅读或定稿本身不构成交付。',
             }
           : undefined;
 
@@ -1837,15 +1849,13 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       };
     });
   };
-  const addRecordsCandidateVersion = (versionId: 'V2' | 'V3') => {
+  const addRulesCandidateVersion = (versionId: 'V2' | 'V3') => {
     update((current) => {
       let next = current;
       for (const file of files) {
         const candidate =
           versionId === 'V3'
-            ? file.id === 'F-FORM-APPLY'
-              ? (u2VersionsFor(file.id).at(-1) ?? 'V3')
-              : u2VersionsFor(file.id).at(-1)
+            ? u2VersionsFor(file.id).at(-1)
             : u2VersionsFor(file.id).includes('V2')
               ? 'V2'
               : undefined;
@@ -1855,8 +1865,8 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         ...next,
         message:
           versionId === 'V3'
-            ? '已模拟记录表单后续改稿到达；本次复核将过期，需重新核对精确版本。'
-            : '已模拟受影响记录表单候选到达；当前阅读与复核标记保持不变，请显式切换并核对。',
+            ? '已模拟第三阶段后续改稿到达；既有定稿仍是当前依据，需显式切换核对后重新定稿。'
+            : '已模拟第三阶段受影响候选到达；当前阅读与定稿保持不变，请显式切换并核对。',
       };
     });
   };
@@ -1998,28 +2008,26 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           恢复缺失文件（演示）
         </button>
       </fieldset>
-      {stage !== 'RECORDS' && (
-        <fieldset>
-          <legend>阶段定稿</legend>
-          <label>
-            定稿回执场景
-            <select
-              value={session.finalizationScene}
-              onChange={(event) => {
-                const value = event.target.value as StageSession['finalizationScene'];
-                update((current) => ({ ...current, finalizationScene: value }));
-              }}
-            >
-              <option value="matched">匹配回执</option>
-              <option value="pending">待回执</option>
-              <option value="unknown">UNKNOWN</option>
-              <option value="failed">失败</option>
-              <option value="mismatch">版本集合错绑</option>
-              <option value="changed">确认期间版本变化</option>
-            </select>
-          </label>
-        </fieldset>
-      )}
+      <fieldset>
+        <legend>阶段定稿</legend>
+        <label>
+          定稿回执场景
+          <select
+            value={session.finalizationScene}
+            onChange={(event) => {
+              const value = event.target.value as StageSession['finalizationScene'];
+              update((current) => ({ ...current, finalizationScene: value }));
+            }}
+          >
+            <option value="matched">匹配回执</option>
+            <option value="pending">待回执</option>
+            <option value="unknown">UNKNOWN</option>
+            <option value="failed">失败</option>
+            <option value="mismatch">版本集合错绑</option>
+            <option value="changed">确认期间版本变化</option>
+          </select>
+        </label>
+      </fieldset>
       <fieldset>
         <legend>U3 返工与恢复（同一旅程）</legend>
         {stage === 'MANUAL' && session.finalization && (
@@ -2028,21 +2036,21 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         {stage === 'PROCEDURES' && procedureImpact && (
           <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
         )}
-        {stage === 'RECORDS' && (
+        {stage === 'RULES' && (
           <>
             <button
               onClick={() => {
-                addRecordsCandidateVersion('V2');
+                addRulesCandidateVersion('V2');
               }}
             >
-              模拟受影响记录表单候选到达（第 2 版）
+              模拟第三阶段受影响候选到达（第 2 版）
             </button>
             <button
               onClick={() => {
-                addRecordsCandidateVersion('V3');
+                addRulesCandidateVersion('V3');
               }}
             >
-              模拟后续记录表单改稿（第 3 版）
+              模拟第三阶段后续改稿（第 3 版）
             </button>
           </>
         )}
@@ -2070,8 +2078,8 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       )}
       <p>
         <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}
-        <Link to={proceduresPath}>演练：直接打开程序与制度审阅</Link> ·{' '}
-        <Link to={recordsPath}>演练：直接打开记录表单审阅</Link>
+        <Link to={proceduresPath}>演练：直接打开控制程序审阅</Link> ·{' '}
+        <Link to={rulesPath}>演练：直接打开管理制度及记录表单审阅</Link>
       </p>
       <p>
         <Link to={scopePath}>扩大范围？返回 U1 修改范围计划</Link>
