@@ -74,6 +74,8 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await expect(afterManual).toContainText('待控制程序审阅');
   await expect(afterManual).toContainText('阶段定稿 1/3');
   await afterManual.getByRole('link', { name: '查看项目概览' }).click();
+  await expect(page.locator('.overview-steps li[aria-current="step"]')).toContainText('控制程序');
+  await expect(page.locator('.overview-progress')).toContainText('第 2 步');
   await page.getByRole('link', { name: '进入控制程序审阅' }).click();
   await generate(page);
   await finalize(page, '确认控制程序完整集合（模拟）', '变更控制程序 · 第 1 版候选');
@@ -82,6 +84,10 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await expect(afterProcedure).toContainText('待管理制度及记录表单审阅');
   await expect(afterProcedure).toContainText('阶段定稿 2/3');
   await afterProcedure.getByRole('link', { name: '查看项目概览' }).click();
+  await expect(page.locator('.overview-steps li[aria-current="step"]')).toContainText(
+    '管理制度及记录表单',
+  );
+  await expect(page.locator('.overview-progress')).toContainText('第 3 步');
   await page.getByRole('link', { name: '进入管理制度及记录表单审阅' }).click();
   await generate(page);
   await finalize(page, '确认管理制度及记录表单完整集合（模拟）', '外来文件管理规定 · 第 1 版候选');
@@ -90,6 +96,11 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await expect(afterRules).toContainText('待最终交付确认');
   await expect(afterRules).toContainText('阶段定稿 3/3');
   await afterRules.getByRole('link', { name: '查看项目概览' }).click();
+  await expect(page.locator('.overview-steps li[aria-current="step"]')).toHaveAttribute(
+    'data-state',
+    'COMPLETE',
+  );
+  await expect(page.locator('.overview-progress')).toContainText('第 3 步');
   await page.getByRole('link', { name: '确认最终交付清单' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
   await expect(page.getByText('最终交付当前不可确认')).toHaveCount(0);

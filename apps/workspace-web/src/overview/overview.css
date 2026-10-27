@@ -17,12 +17,87 @@
 }
 .overview-grid .panel {
   padding: 14px 16px;
+  min-width: 0;
 }
 .overview-grid h2 {
   margin: 0 0 4px;
   font-size: 17px;
 }
-.overview-stages,
+.overview-steps {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.overview-steps li {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  border-top: 3px solid var(--line);
+  padding-top: 10px;
+}
+.overview-steps li[data-state='COMPLETE'] {
+  border-top-color: var(--green);
+}
+.overview-steps li[data-state='CURRENT'] {
+  border-top-color: var(--purple);
+}
+.overview-steps li[data-state='ATTENTION'] {
+  border-top-color: var(--amber);
+}
+.overview-steps li[data-state='UPCOMING'] {
+  border-top-color: var(--line);
+  color: var(--muted);
+}
+.overview-step-number {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--purple);
+  font-size: 12px;
+  font-weight: 700;
+}
+.overview-steps li[data-state='COMPLETE'] .overview-step-number {
+  background: var(--green);
+  color: #fff;
+}
+.overview-steps li[data-state='ATTENTION'] .overview-step-number {
+  background: var(--amber);
+  color: #fff;
+}
+.overview-steps li[data-state='UPCOMING'] .overview-step-number {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.overview-step-body {
+  min-width: 0;
+}
+.overview-step-body strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.overview-step-body .status-tag {
+  margin-top: 3px;
+  max-width: 100%;
+}
+.overview-step-body p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.overview-progress {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
 .overview-levels {
   list-style: none;
   padding: 0;
@@ -30,16 +105,13 @@
   display: grid;
   gap: 10px;
 }
-.overview-stages li,
 .overview-levels li {
   border-top: 1px solid var(--line);
   padding-top: 8px;
 }
-.overview-stages li strong,
 .overview-levels li strong {
   margin-right: 8px;
 }
-.overview-stages p,
 .overview-levels p {
   margin: 4px 0 0;
   font-size: 13px;
@@ -49,12 +121,28 @@
   font-size: 13px;
   color: var(--muted);
 }
-@media (max-width: 760px) {
+@media (max-width: 640px) {
   .overview-page {
     max-height: none;
     overflow: visible;
   }
   .overview-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .overview-steps {
+    gap: 6px;
+  }
+  .overview-steps li {
+    gap: 5px;
+  }
+  .overview-step-body strong {
+    font-size: 12px;
+  }
+  .overview-step-body .status-tag {
+    font-size: 11px;
+    padding: 2px 5px;
+  }
+  .overview-step-body p {
+    display: none;
   }
 }

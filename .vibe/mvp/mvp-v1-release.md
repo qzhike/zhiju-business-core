@@ -33,7 +33,7 @@
 
 - [x] **M1-1 连续主流程。** 首页包含任务看板、项目列表和待我处理；项目页显示阶段与下一任务；上传、分析澄清、范围确认、git diff 风格审阅、反馈、新版本、三阶段定稿和模拟包下载在同一项目连续工作。证据：Environment A 隔离 mock 已实现并通过 `vibe verify code`（含 built-browser）；首页到 ZIP 与看板 0/3→1/3→2/3→3/3 读回见 `tests/workspace/m1-journey.spec.ts`，三阶段定稿与交付见 `u2-journey.spec.ts`/`u3-journey.spec.ts`。执行证据归 Issue #321/PR，人工试走仍未执行。
 - [x] **M1-2 关键分支。** 用有状态 mock 演练原件/模板只读、六类客户既有内容保留、模板冲突处理、嵌套资料读取限制、失败与未知执行、上游返工、旧反馈/旧审批隔离、打包重试。按钮必须产生一致的后续状态；页面和下载包持续标明模拟。证据：`m1-journey.spec.ts`（六类受保护内容、冲突决定、RAR/损坏/读取限制）、`u3-journey.spec.ts`（上游返工、部分失败、UNKNOWN、迟到结果、同清单打包重试与历史包）、`u1-journey.spec.ts`（批次/报告/范围/旧版本保留）；`vibe verify code` PASS。人工试走仍未执行。
-- [ ] **M1-3 人工流程定稿。** 用户完整试走并确认主要页面、操作顺序、确认对象及失败后下一步。用现有 Runner 的脱敏输出核对差异与反馈能否展示；mock 交互确认不代表真实内容验收或后端协议已冻结。
+- [ ] **M1-3 人工流程定稿。** 进行中：用户已反馈工作台首页初步验收通过；项目概览要求两个面板横向并排、三阶段改用横向 Step 控件，已按反馈修订，待用户复验。用户完整试走并确认主要页面、操作顺序、确认对象及失败后下一步。用现有 Runner 的脱敏输出核对差异与反馈能否展示；mock 交互确认不代表真实内容验收或后端协议已冻结。
 
 证据：M1-1/M1-2 的 Environment A 隔离 mock 与 built-browser 已实现，`vibe verify code` PASS（2026-10-26 本地）；详细执行证据归 Issue #321/PR。M1-3 的人工完整试走、Runner 脱敏输出展示核对及真实内容/后端验收仍未执行。涉及现有入口：`apps/workspace-web/src` 的工作台、`mvp/`、`MarkdownReviewPage.tsx`、`fixtures/` 及 `tests/workspace`。
 

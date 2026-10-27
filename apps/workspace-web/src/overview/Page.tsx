@@ -25,6 +25,15 @@ interface Props {
   reviewStages?: readonly JourneyReviewStage[] | undefined;
   next: { label: string; href: string; reason: string };
 }
+type StepState = 'COMPLETE' | 'CURRENT' | 'ATTENTION' | 'UPCOMING';
+
+function stageStepState(state: string): StepState {
+  if (state.includes('依据已变化') || state.includes('待复核')) return 'ATTENTION';
+  if (state.includes('已定稿') || state.includes('已复核')) return 'COMPLETE';
+  if (state.includes('未开始') || state.startsWith('等待')) return 'UPCOMING';
+  return 'CURRENT';
+}
+
 export function ProjectOverviewPage({
   project,
   stages,
@@ -35,6 +44,17 @@ export function ProjectOverviewPage({
   reviewStages,
   next,
 }: Props) {
+  const currentStageIndex = (() => {
+    const active = stages.findIndex((stage) => {
+      const state = stageStepState(stage.state);
+      return state === 'CURRENT' || state === 'ATTENTION';
+    });
+    if (active >= 0) return active;
+    return stages.length > 0 && stages.every((stage) => stageStepState(stage.state) === 'COMPLETE')
+      ? stages.length - 1
+      : -1;
+  })();
+  const currentStage = currentStageIndex >= 0 ? stages[currentStageIndex] : undefined;
   return (
     <div className="overview-page">
       <JourneyNav
@@ -66,15 +86,32 @@ export function ProjectOverviewPage({
         <section className="panel" aria-label="三个业务阶段">
           <h2>三个业务阶段</h2>
           <p className="muted">页面访问、等待时间或候选数量都不代表阶段完成。</p>
-          <ol className="overview-stages">
-            {stages.map((stage) => (
-              <li key={stage.id}>
-                <strong>{stage.label}</strong>
-                <span className="status-tag">{stage.state}</span>
-                <p>{stage.detail}</p>
-              </li>
-            ))}
+          <ol className="overview-steps" aria-label="三个业务阶段当前进度">
+            {stages.map((stage, index) => {
+              const state = stageStepState(stage.state);
+              return (
+                <li
+                  key={stage.id}
+                  data-state={state}
+                  aria-current={index === currentStageIndex ? 'step' : undefined}
+                >
+                  <span className="overview-step-number" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <div className="overview-step-body">
+                    <strong>{stage.label}</strong>
+                    <span className="status-tag">{stage.state}</span>
+                    <p>{stage.detail}</p>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
+          <p className="overview-progress" role="status">
+            {currentStage
+              ? `当前进度：第 ${currentStageIndex + 1} 步 · ${currentStage.label} · ${currentStage.state}`
+              : '当前进度：尚未开始'}
+          </p>
         </section>
         <section className="panel" aria-label="四个文件层级">
           <h2>四个文件层级</h2>
