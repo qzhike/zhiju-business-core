@@ -457,9 +457,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       ...(procedureImpact
         ? {
             impact: {
-              sourceLabel: '质量手册重新定稿',
-              previousBasisId: procedureImpact.previousBasisId,
-              newBasisId: procedureImpact.newBasisId,
+              changes: procedureImpact.changes.map((change) => ({
+                sourceLabel: change.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+                previousBasisId: change.previousBasisId,
+                newBasisId: change.newBasisId,
+              })),
               note: procedureImpact.note,
               files: procedureImpact.files.map((file) => ({
                 fileId: file.fileId,
@@ -485,10 +487,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       ...(rulesState.active && rulesState.impact
         ? {
             impact: {
-              sourceLabel:
-                rulesState.impact.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
-              previousBasisId: rulesState.impact.previousBasisId,
-              newBasisId: rulesState.impact.newBasisId,
+              changes: rulesState.impact.changes.map((change) => ({
+                sourceLabel: change.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+                previousBasisId: change.previousBasisId,
+                newBasisId: change.newBasisId,
+              })),
               note: rulesState.impact.note,
               files: rulesState.impact.files.map((file) => ({
                 fileId: file.fileId,
@@ -998,6 +1001,15 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
             href: `/projects/${projectId}/intake`,
             reason: '先核对资料批次和读取限制，再进入分析与澄清。',
           };
+  const currentPackage = delivery.packages.find(
+    (pkg) => pkg.id === delivery.packagingRequest?.packageId,
+  );
+  const packageAvailable = Boolean(
+    delivery.frozen &&
+    delivery.packagingStatus === 'AVAILABLE' &&
+    currentPackage?.availability === 'AVAILABLE' &&
+    currentPackage.frozen.frozenKey === delivery.frozen.frozenKey,
+  );
   const handoff = buildHandoff({
     reviewStages: u2.reviewStages,
     planCheck: u2.planCheck,
@@ -1009,6 +1021,8 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     procedureImpact: Boolean(procedureImpact),
     rulesImpact: rulesState.active,
     deliveryFrozen: delivery.frozen !== undefined,
+    packagingStatus: delivery.packagingStatus,
+    packageAvailable,
   });
   const api: U3Api = { rework, execution: executionProps, delivery: deliveryProps };
   return (
@@ -1678,6 +1692,8 @@ function buildHandoff(input: {
   procedureImpact: boolean;
   rulesImpact: boolean;
   deliveryFrozen: boolean;
+  packagingStatus: PackagingStatus;
+  packageAvailable: boolean;
 }): MvpHandoff {
   const planReady = input.planCheck.ready;
   const manualDone = Boolean(input.manual);
@@ -1725,11 +1741,41 @@ function buildHandoff(input: {
                 href: deliveryPath,
                 reason: '三项阶段定稿均已就绪；最终交付仍需一次显式确认。',
               }
-            : {
-                label: '查看最终交付包',
-                href: deliveryPath,
-                reason: '清单已冻结；可查看打包、下载与历史包。',
-              };
+            : input.packageAvailable
+              ? {
+                  label: '查看最终交付包',
+                  href: deliveryPath,
+                  reason: '当前冻结清单对应的演练包已可用；可查看、下载与历史包。',
+                }
+              : input.packagingStatus === 'UNKNOWN'
+                ? {
+                    label: '核对原打包请求',
+                    href: deliveryPath,
+                    reason: '打包结果待核验；先核对原打包请求，未核对前不开始第二次。',
+                  }
+                : input.packagingStatus === 'FAILED'
+                  ? {
+                      label: '重试同一冻结清单',
+                      href: deliveryPath,
+                      reason: '打包失败；冻结清单与确认未改变，可只重试同一清单。',
+                    }
+                  : input.packagingStatus === 'MISMATCH'
+                    ? {
+                        label: '核对打包回执',
+                        href: deliveryPath,
+                        reason: '打包回执与冻结清单不匹配；未生成包，可对同一清单重试。',
+                      }
+                    : input.packagingStatus === 'PENDING'
+                      ? {
+                          label: '查看打包进度',
+                          href: deliveryPath,
+                          reason: '冻结清单正在打包；不重复确认或重新生成文档。',
+                        }
+                      : {
+                          label: '开始打包冻结清单',
+                          href: deliveryPath,
+                          reason: '清单已冻结但尚未打包；可对同一冻结清单开始打包。',
+                        };
   const finalizedCount = [manualDone, procedureDone, rulesDone].filter(Boolean).length;
   return {
     reviewStages: input.reviewStages,
@@ -1744,8 +1790,28 @@ function buildHandoff(input: {
             ? '待管理制度及记录表单审阅'
             : !input.deliveryFrozen
               ? '待最终交付确认'
-              : '交付包已生成（模拟）',
-    projectProgress: `计划第 ${input.planVersion} 版 · 阶段定稿 ${finalizedCount}/3${input.deliveryFrozen ? ' · 已冻结交付清单' : ''}`,
+              : input.packageAvailable
+                ? '交付包已生成（模拟）'
+                : input.packagingStatus === 'UNKNOWN'
+                  ? '打包结果待核验'
+                  : input.packagingStatus === 'FAILED'
+                    ? '打包失败，待重试'
+                    : input.packagingStatus === 'MISMATCH'
+                      ? '打包回执待核对'
+                      : input.packagingStatus === 'PENDING'
+                        ? '正在打包'
+                        : '清单已冻结，待打包',
+    projectProgress: `计划第 ${input.planVersion} 版 · 阶段定稿 ${finalizedCount}/3${
+      input.deliveryFrozen
+        ? input.packageAvailable
+          ? ' · 交付包可用'
+          : input.packagingStatus === 'FAILED'
+            ? ' · 打包失败'
+            : input.packagingStatus === 'UNKNOWN'
+              ? ' · 打包结果待核验'
+              : ' · 待打包'
+        : ''
+    }`,
     stages: [
       {
         id: 'manual',

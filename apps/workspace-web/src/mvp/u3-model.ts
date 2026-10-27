@@ -12,10 +12,14 @@ export interface ReworkFileImpact {
   reason: string;
 }
 
-export interface ReworkImpact {
+export interface ReworkBasisChange {
   source: 'MANUAL' | 'PROCEDURES';
   previousBasisId: string;
   newBasisId: string;
+}
+
+export interface ReworkImpact {
+  changes: readonly ReworkBasisChange[];
   stages: readonly MvpStageId[];
   files: readonly ReworkFileImpact[];
   note: string;

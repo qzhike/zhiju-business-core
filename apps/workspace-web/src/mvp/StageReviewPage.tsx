@@ -31,9 +31,11 @@ export interface StageReviewFileView {
 }
 
 export interface StageReworkImpactView {
-  sourceLabel: string;
-  previousBasisId: string;
-  newBasisId: string;
+  changes: readonly {
+    sourceLabel: string;
+    previousBasisId: string;
+    newBasisId: string;
+  }[];
   note: string;
   files: readonly {
     fileId: string;
@@ -233,20 +235,27 @@ export function StageReviewPage({
           {rework?.impact && (
             <section className="panel stage-rework-impact" aria-label="上游依据变化与下游影响">
               <h2>上游依据变化与下游影响</h2>
-              <dl>
-                <div>
-                  <dt>变化来源</dt>
-                  <dd>{rework.impact.sourceLabel}</dd>
-                </div>
-                <div>
-                  <dt>旧依据</dt>
-                  <dd>{rework.impact.previousBasisId}</dd>
-                </div>
-                <div>
-                  <dt>新依据</dt>
-                  <dd>{rework.impact.newBasisId}</dd>
-                </div>
-              </dl>
+              <table>
+                <caption>本次变化的上游依据</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">变化来源</th>
+                    <th scope="col">旧依据</th>
+                    <th scope="col">新依据</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rework.impact.changes.map((change) => (
+                    <tr
+                      key={`${change.sourceLabel}:${change.previousBasisId}:${change.newBasisId}`}
+                    >
+                      <th scope="row">{change.sourceLabel}</th>
+                      <td>{change.previousBasisId}</td>
+                      <td>{change.newBasisId}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               <p className="notice" role="status">
                 本阶段标记“依据已变化，待复核”。影响按阶段保守覆盖，未复核前最终交付保持阻断。
               </p>

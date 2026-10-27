@@ -103,8 +103,41 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await dialog.getByRole('button', { name: '确认并冻结清单' }).click();
   await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
 
+  const afterFreeze = await homeCard(page);
+  await expect(afterFreeze).toContainText('清单已冻结，待打包');
+  await expect(afterFreeze).toContainText('待打包');
+  await expect(afterFreeze).not.toContainText('交付包已生成');
+  await afterFreeze.getByRole('link', { name: '查看项目概览' }).click();
+  await page.getByRole('link', { name: '开始打包冻结清单' }).click();
+  await expect(page).toHaveURL(`${base}/delivery`);
+
+  await page.getByLabel('打包回执场景').selectOption('FAILED');
   await page.getByRole('button', { name: '开始打包（模拟）' }).click();
+  await expect(page.getByText('打包失败；冻结清单与确认未改变')).toBeVisible();
+  const afterFailure = await homeCard(page);
+  await expect(afterFailure).toContainText('打包失败，待重试');
+  await expect(afterFailure).toContainText('打包失败');
+  await afterFailure.getByRole('link', { name: '查看项目概览' }).click();
+  await page.getByRole('link', { name: '重试同一冻结清单' }).click();
+  await expect(page).toHaveURL(`${base}/delivery`);
+
+  await page.getByLabel('打包回执场景').selectOption('UNKNOWN');
+  await page.getByRole('button', { name: '再次打包同一冻结清单（模拟）' }).click();
+  await expect(page.getByText('打包结果待核验；只查询原打包请求。')).toBeVisible();
+  const afterUnknown = await homeCard(page);
+  await expect(afterUnknown).toContainText('打包结果待核验');
+  await afterUnknown.getByRole('link', { name: '查看项目概览' }).click();
+  await page.getByRole('link', { name: '核对原打包请求' }).click();
+  await expect(page).toHaveURL(`${base}/delivery`);
+  await page.getByRole('button', { name: '查询原打包请求' }).click();
   await expect(page.getByRole('heading', { name: '演练交付包 1' })).toBeVisible();
+
+  const afterPackage = await homeCard(page);
+  await expect(afterPackage).toContainText('交付包已生成（模拟）');
+  await expect(afterPackage).toContainText('交付包可用');
+  await afterPackage.getByRole('link', { name: '查看项目概览' }).click();
+  await page.getByRole('link', { name: '查看最终交付包' }).click();
+  await expect(page).toHaveURL(`${base}/delivery`);
   await expect(page.getByText('包可用（模拟）').first()).toBeVisible();
   const bytes = await downloadBytes(
     page,
@@ -117,10 +150,6 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   expect(bytes.includes(Buffer.from('03-F-EXTERNAL-RULE.md'))).toBe(true);
   expect(bytes.includes(Buffer.from('分别表达文件层级'))).toBe(true);
   await expect(page.getByText('下载不表示客户已收到')).toBeVisible();
-
-  const afterPackage = await homeCard(page);
-  await expect(afterPackage).toContainText('交付包已生成（模拟）');
-  await expect(afterPackage).toContainText('已冻结交付清单');
 });
 
 test('protected content, template conflicts and reading limits require explicit version-bound simulated decisions', async ({

@@ -55,20 +55,26 @@ export interface ReworkPageProps {
 function ImpactTable({ impact }: { impact: StageReworkImpactView }) {
   return (
     <>
-      <dl className="u3-basis">
-        <div>
-          <dt>旧依据</dt>
-          <dd>{impact.previousBasisId}</dd>
-        </div>
-        <div>
-          <dt>新依据</dt>
-          <dd>{impact.newBasisId}</dd>
-        </div>
-        <div>
-          <dt>变化来源</dt>
-          <dd>{impact.sourceLabel}</dd>
-        </div>
-      </dl>
+      <div className="u3-table" role="region" aria-label="上游依据变化" tabIndex={0}>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">变化来源</th>
+              <th scope="col">旧依据</th>
+              <th scope="col">新依据</th>
+            </tr>
+          </thead>
+          <tbody>
+            {impact.changes.map((change) => (
+              <tr key={`${change.sourceLabel}:${change.previousBasisId}:${change.newBasisId}`}>
+                <th scope="row">{change.sourceLabel}</th>
+                <td>{change.previousBasisId}</td>
+                <td>{change.newBasisId}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <div className="u3-table" role="region" aria-label="受影响文件与理由" tabIndex={0}>
         <table>
           <thead>

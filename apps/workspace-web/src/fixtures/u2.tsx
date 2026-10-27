@@ -16,6 +16,7 @@ import {
   StageReviewPage,
   type StageReviewBasisItem,
   type StageReviewFileView,
+  type StageReworkImpactView,
   type StageGenerationStatus,
 } from '../mvp/StageReviewPage.js';
 import {
@@ -67,7 +68,7 @@ import {
   u3ManualImpactFiles,
   u3RulesImpactFiles,
 } from './u3-data.js';
-import type { ReworkImpact } from '../mvp/u3-model.js';
+import type { ReworkBasisChange, ReworkImpact } from '../mvp/u3-model.js';
 import type { ReviewOpinionScopeOption } from '../review/model.js';
 
 const projectId = u1Project.id;
@@ -280,9 +281,13 @@ export function manualReworkImpact(
     return undefined;
   const planned = new Set(plan.files.map((file) => file.id));
   return {
-    source: 'MANUAL',
-    previousBasisId: procedureFinalization.manualFinalizationId ?? '未绑定手册定稿',
-    newBasisId: manualFinalization.finalizationId,
+    changes: [
+      {
+        source: 'MANUAL',
+        previousBasisId: procedureFinalization.manualFinalizationId ?? '未绑定手册定稿',
+        newBasisId: manualFinalization.finalizationId,
+      },
+    ],
     stages: ['PROCEDURES', 'RULES'],
     files: u3ManualImpactFiles.filter((file) => planned.has(file.fileId)),
     note: u3ImpactNote,
@@ -307,20 +312,50 @@ export function rulesReworkState(
   const procedureChanged =
     rulesFinalization.procedureFinalizationId !== procedureFinalization.finalizationId;
   if (!manualChanged && !procedureChanged) return { active: false };
+  const changes: ReworkBasisChange[] = [];
+  if (manualChanged)
+    changes.push({
+      source: 'MANUAL',
+      previousBasisId: rulesFinalization.manualFinalizationId ?? '未绑定手册定稿',
+      newBasisId: manualFinalization.finalizationId,
+    });
+  if (procedureChanged)
+    changes.push({
+      source: 'PROCEDURES',
+      previousBasisId: rulesFinalization.procedureFinalizationId ?? '未绑定控制程序定稿',
+      newBasisId: procedureFinalization.finalizationId,
+    });
   return {
     active: true,
     impact: {
-      source: manualChanged ? 'MANUAL' : 'PROCEDURES',
-      previousBasisId:
-        rulesFinalization.procedureFinalizationId ?? rulesFinalization.manualFinalizationId ?? '无',
-      newBasisId: procedureFinalization.finalizationId,
+      changes,
       stages: ['RULES'],
       files: u3RulesImpactFiles.filter((file) => planned.has(file.fileId)),
       note: u3ImpactNote,
     },
-    reason: manualChanged
-      ? '质量手册重新定稿；管理制度及记录表单需按当前手册与控制程序重新核对完整集合。'
-      : '控制程序重新定稿；管理制度及记录表单需按当前控制程序重新核对完整集合。',
+    reason:
+      manualChanged && procedureChanged
+        ? '质量手册与控制程序均已重新定稿；管理制度及记录表单需按两项当前依据重新核对完整集合。'
+        : manualChanged
+          ? '质量手册重新定稿；管理制度及记录表单需按当前手册与控制程序重新核对完整集合。'
+          : '控制程序重新定稿；管理制度及记录表单需按当前控制程序重新核对完整集合。',
+  };
+}
+
+function impactView(impact: ReworkImpact): StageReworkImpactView {
+  return {
+    changes: impact.changes.map((change) => ({
+      sourceLabel: change.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+      previousBasisId: change.previousBasisId,
+      newBasisId: change.newBasisId,
+    })),
+    note: impact.note,
+    files: impact.files.map((file) => ({
+      fileId: file.fileId,
+      title: file.title,
+      actionLabel: file.action === 'REVISE' ? '修改' : '保留',
+      reason: file.reason,
+    })),
   };
 }
 
@@ -757,8 +792,17 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     const state = session.files[file.id];
     return (u2VersionsFor(file.id).at(-1) ?? '') !== (state?.versions.at(-1) ?? '');
   });
+  const upstreamBasisChanged =
+    stage === 'PROCEDURES'
+      ? session.finalization?.manualFinalizationId !== manualId
+      : stage === 'RULES'
+        ? session.finalization?.manualFinalizationId !== manualId ||
+          session.finalization?.procedureFinalizationId !== procedureId
+        : false;
   const refinalizing = Boolean(
-    session.finalization && currentSet && !sameVersionSet(currentSet, session.finalization.files),
+    session.finalization &&
+    (upstreamBasisChanged ||
+      (currentSet && !sameVersionSet(currentSet, session.finalization.files))),
   );
   const manualBasisCheck = manualBasis(manualFinalization, {
     projectId,
@@ -866,18 +910,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               : {}),
             ...(procedureImpact
               ? {
-                  impact: {
-                    sourceLabel: '质量手册重新定稿',
-                    previousBasisId: procedureImpact.previousBasisId,
-                    newBasisId: procedureImpact.newBasisId,
-                    note: procedureImpact.note,
-                    files: procedureImpact.files.map((file) => ({
-                      fileId: file.fileId,
-                      title: file.title,
-                      actionLabel: file.action === 'REVISE' ? '修改' : '保留',
-                      reason: file.reason,
-                    })),
-                  },
+                  impact: impactView(procedureImpact),
                 }
               : {}),
           }
@@ -902,19 +935,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
                 : {}),
               ...(rulesImpact
                 ? {
-                    impact: {
-                      sourceLabel:
-                        rulesImpact.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
-                      previousBasisId: rulesImpact.previousBasisId,
-                      newBasisId: rulesImpact.newBasisId,
-                      note: rulesImpact.note,
-                      files: rulesImpact.files.map((file) => ({
-                        fileId: file.fileId,
-                        title: file.title,
-                        actionLabel: file.action === 'REVISE' ? '修改' : '保留',
-                        reason: file.reason,
-                      })),
-                    },
+                    impact: impactView(rulesImpact),
                   }
                 : {}),
             }
