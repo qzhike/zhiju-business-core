@@ -22,9 +22,12 @@ async function rehearsalLink(page: Page, name: string) {
     element.setAttribute('open', '');
   });
   const link = details.locator('a', { hasText: name }).first();
-  await link.evaluate((element) => {
-    (element as HTMLAnchorElement).click();
-  });
+  const href = await link.getAttribute('href');
+  if (!href) throw new Error(`Missing href for ${name}`);
+  await page.evaluate((path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, href);
 }
 
 async function confirmPlan(page: Page, scenario = 'received') {

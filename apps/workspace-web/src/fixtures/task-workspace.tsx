@@ -175,6 +175,7 @@ export type TaskKey =
   | 'REVIEW'
   | 'SUBMIT'
   | 'REFINALIZE'
+  | 'RECOVERY'
   | 'DELIVERY_CONFIRM'
   | 'DELIVERY_RECONCILE'
   | 'PACKAGING'
@@ -248,8 +249,9 @@ function useProjectModel() {
     (info) => info.finalization && !info.upstreamChanged && !info.newerThanFinal,
   );
   const delivery = u3.deliveryApi;
-  const task = deriveTask(u1, u2, plan, infos, allFinal, delivery);
-  return { u1, u2, u3, results, plan, infos, active, allFinal, delivery, task };
+  const recovery = u3.recovery;
+  const task = deriveTask(u1, u2, plan, infos, allFinal, delivery, recovery);
+  return { u1, u2, u3, results, plan, infos, active, allFinal, delivery, recovery, task };
 }
 
 function deriveTask(
@@ -259,6 +261,7 @@ function deriveTask(
   infos: readonly StageInfo[],
   allFinal: boolean,
   delivery: U3DeliveryApi,
+  recovery: ReturnType<typeof useU3>['recovery'],
 ): TaskState {
   if (!u1.analysisStarted)
     return {
@@ -292,6 +295,12 @@ function deriveTask(
       key: 'SCOPE',
       title: '确认修改范围',
       reason: '核对拟修订、新增与保留文件，以及输入依据和影响；确认后再生成质量手册初稿。',
+    };
+  if (recovery.active)
+    return {
+      key: 'RECOVERY',
+      title: recovery.canQuery ? '核对原重试请求' : '重试已知失败文件',
+      reason: recovery.note,
     };
   for (const info of infos) {
     const label = mvpStageLabel(info.stage);
@@ -488,6 +497,7 @@ function PrimaryAction({ task, onRun }: { task: TaskState; onRun: () => void }) 
     REVIEW: '继续审阅本轮文件',
     SUBMIT: '核对并提交本轮意见',
     REFINALIZE: '核对并重新定稿',
+    RECOVERY: '核对或重试恢复请求',
     DELIVERY_CONFIRM: '确认交付清单并生成文档包',
     DELIVERY_RECONCILE: '核对原最终确认请求',
     PACKAGING: '打包已冻结清单',
@@ -902,6 +912,7 @@ function RecoveryPanel({
 }) {
   if (!enabled) return null;
   const execution = model.u3.execution;
+  const recovery = model.recovery;
   return (
     <section className="panel task-recovery" aria-label="当前工作中的恢复">
       <h2>执行与恢复</h2>
@@ -915,20 +926,12 @@ function RecoveryPanel({
             </li>
           ))}
       </ul>
-      <p role="status">{execution.retry.status}</p>
+      <p role="status">{recovery.note}</p>
       <div className="task-actions">
-        <button
-          className="button primary"
-          disabled={!execution.retry.canRetry}
-          onClick={execution.retry.onRetry}
-        >
+        <button className="button primary" disabled={!recovery.canRetry} onClick={recovery.retry}>
           仅重试已知失败文件
         </button>
-        <button
-          className="button"
-          disabled={!execution.retry.canQuery}
-          onClick={execution.retry.onQuery}
-        >
+        <button className="button" disabled={!recovery.canQuery} onClick={recovery.query}>
           核对原重试请求
         </button>
         {execution.retry.onReceipt && (
@@ -1055,6 +1058,11 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
                 核对原最终确认请求
               </button>
             )}
+            {delivery.state.confirmStatus === 'MISMATCH' && (
+              <button className="button" onClick={delivery.actions.endConfirmation}>
+                结束原确认请求并重新核对
+              </button>
+            )}
           </>
         )}
         {delivery.state.frozen && !delivery.state.packageAvailable && (
@@ -1126,15 +1134,7 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
   );
 }
 
-function DevControls({
-  model,
-  showRecovery,
-  setShowRecovery,
-}: {
-  model: ReturnType<typeof useProjectModel>;
-  showRecovery: boolean;
-  setShowRecovery: (value: boolean) => void;
-}) {
+function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
   const { u1, u2, u3, plan } = model;
   const stage = model.task.stage ?? 'MANUAL';
   const session = stageSession(u2, plan, stage);
@@ -1230,9 +1230,9 @@ function DevControls({
       <label>
         <input
           type="checkbox"
-          checked={showRecovery}
+          checked={u3.recovery.visible}
           onChange={(event) => {
-            setShowRecovery(event.target.checked);
+            u3.recovery.setVisible(event.target.checked);
           }}
         />
         显示执行恢复区（合成失败批次）
@@ -1264,7 +1264,6 @@ export function FixtureCurrentWork() {
   const [feedback, setFeedback] = useState('');
   const [pendingInitialGeneration, setPendingInitialGeneration] = useState(false);
   const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({});
-  const [showRecovery, setShowRecovery] = useState(false);
   if (params.projectId !== projectId) return <Missing />;
   const task = model.task;
   useEffect(() => {
@@ -1372,6 +1371,10 @@ export function FixtureCurrentWork() {
       case 'REFINALIZE':
         if (task.stage) finalize(task.stage);
         break;
+      case 'RECOVERY':
+        if (model.recovery.canQuery) model.recovery.query();
+        else model.recovery.retry();
+        break;
       case 'DELIVERY_CONFIRM':
         model.delivery.actions.confirmAndPackage();
         break;
@@ -1452,9 +1455,9 @@ export function FixtureCurrentWork() {
         onSubmit={submitStage}
         onFinalize={finalize}
       />
-      <RecoveryPanel model={model} enabled={showRecovery} />
+      <RecoveryPanel model={model} enabled={model.recovery.visible} />
       <DeliveryPanel model={model} />
-      <DevControls model={model} showRecovery={showRecovery} setShowRecovery={setShowRecovery} />
+      <DevControls model={model} />
     </div>
   );
 }

@@ -1,8 +1,8 @@
 # M1 用户流程与界面草图
 
-版本：v2.0；用户确认：2026-10-28。状态：**DESIGN APPROVED / IMPLEMENTATION PENDING / HUMAN WALKTHROUGH NOT RUN**。
+版本：v2.0；用户确认：2026-10-28。状态：**IMPLEMENTED / AUTOMATED V2 VERIFIED / HUMAN WALKTHROUGH NOT RUN**。
 
-本次用户已确认“围绕当前任务连续工作”的流程订正，用于 Issue #321 / PR #322 的 M1 mock 交互。当前实现基线为 164332d1c83a978e7ac60fca3ad4d426c957bb65，实施子 PR 目标仍为 batch/mvp-v1-ui。本稿约束用户操作与页面关系，不定义新的真实 Runner、API、持久化或授权协议。文字、文件、数量均为合成示例，具体组件和 URL 由实施者在既有 Web 中选择，不建立另一套原型。
+本次用户已确认“围绕当前任务连续工作”的流程订正，用于 Issue #321 / PR #322 的 M1 mock 交互。设计批准时的 v1 实现基线为 164332d1c83a978e7ac60fca3ad4d426c957bb65；v2 实施与自动化证据见 PR #322 和 UI01 Spec/Test，实施子 PR 目标仍为 batch/mvp-v1-ui。本稿约束用户操作与页面关系，不定义新的真实 Runner、API、持久化或授权协议。文字、文件、数量均为合成示例，具体组件和 URL 由实施者在既有 Web 中选择，不建立另一套原型。
 
 本稿取代 [v1.0 草图](https://github.com/qzhike/zhiju-business-core/blob/164332d1c83a978e7ac60fca3ad4d426c957bb65/.vibe/mvp/m1-ui-mockups.md) 的冲突交互要求；v1 实现与测试通过事实保留为历史，不覆盖 v2。业务约束见 [可用闭环](usable-loop.md)，设计归属见 [UI Spec](../module-specs/Module-Spec-UI01-WorkspaceUI.md#已批准任务驱动流程2026-10-28)，新验收见 [UI Test](../module-tests/Module-Test-UI01-WorkspaceUI.md#任务驱动流程-v2-验收2026-10-28)，里程碑见 [release](mvp-v1-release.md)。
 

@@ -35,7 +35,7 @@ async function finalizeStage(page: Page, nextTitle: string) {
   await expect(page.locator('.task-next h2')).toHaveText(nextTitle);
 }
 
-async function completeToDelivery(page: Page) {
+async function completeToDelivery(page: Page, rulesRounds: 1 | 2 = 2) {
   await startProject(page);
   await confirmScope(page);
 
@@ -84,13 +84,15 @@ async function completeToDelivery(page: Page) {
     '管理制度及记录表单有新稿可查看',
   );
   await viewNew(page, '第 2 版候选');
-  await submitRound(
-    page,
-    '变更申请单',
-    '第三阶段第二轮意见：补充风险触发判断。',
-    '管理制度及记录表单有新稿可查看',
-  );
-  await viewNew(page, '第 3 版候选');
+  if (rulesRounds === 2) {
+    await submitRound(
+      page,
+      '变更申请单',
+      '第三阶段第二轮意见：补充风险触发判断。',
+      '管理制度及记录表单有新稿可查看',
+    );
+    await viewNew(page, '第 3 版候选');
+  }
   await finalizeStage(page, '核对最终交付清单');
 }
 
@@ -216,19 +218,95 @@ test('upstream re-finalization marks downstream stages for review in current wor
   await expect(page.locator('.task-delivery')).not.toContainText('最终交付当前不可确认');
 });
 
-test('current work exposes partial execution recovery in place', async ({ page }) => {
+test('current work keeps partial execution recovery across navigation', async ({ page }) => {
   await completeToDelivery(page);
   await page.locator('details.task-dev summary').click();
   await page.getByLabel('显示执行恢复区（合成失败批次）').check();
   await expect(page.locator('.task-recovery')).toContainText('变更申请单');
   await expect(page.locator('.task-recovery')).toContainText('变更评审记录');
   await expect(page.locator('.task-recovery')).toContainText('已知失败');
+  await expect(page.locator('.task-next h2')).toHaveText('重试已知失败文件');
   await page.getByRole('button', { name: '仅重试已知失败文件' }).click();
-  await expect(page.locator('.task-recovery')).toContainText('重试请求待回执');
-  await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
-  await page.getByRole('button', { name: '核对原重试请求' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原重试请求');
+
+  const projectNav = page.getByRole('navigation', { name: '项目导航' });
+  await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
+  await projectNav.getByRole('link', { name: '当前工作', exact: true }).click();
+  await expect(page.locator('.task-recovery')).toBeVisible();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原重试请求');
+
+  await page.getByRole('button', { name: '核对或重试恢复请求' }).click();
   await expect(page.locator('.task-recovery')).toContainText('原重试回执已核验');
   await expect(page.locator('.task-recovery')).toContainText('成功文件保持不变');
+  await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
+});
+
+test('mismatched confirmation stays blocked after the scene changes', async ({ page }) => {
+  await completeToDelivery(page);
+  await page.locator('details.task-dev summary').click();
+  await page.getByLabel('确认回执').selectOption('mismatch');
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+  await page.locator('.task-delivery').getByRole('button', { name: '核对原最终确认请求' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+
+  await page.getByLabel('确认回执').selectOption('matched');
+  await page.locator('.task-delivery').getByRole('button', { name: '核对原最终确认请求' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+  await expect(page.getByRole('button', { name: '下载 Markdown ZIP（合成）' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '结束原确认请求并重新核对' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
+});
+
+test('later finalization requires a new delivery confirmation and keeps the old package', async ({
+  page,
+}) => {
+  await completeToDelivery(page, 1);
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
+  await expect(page.locator('.task-delivery')).toContainText('U3-PKG-01');
+
+  const projectNav = page.getByRole('navigation', { name: '项目导航' });
+  await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
+  await page.getByRole('link', { name: /管理制度及记录表单 · 第 2 版候选/u }).click();
+  await page
+    .locator('.results-table tr[data-kind="NEW"]', { hasText: '外来文件管理规定' })
+    .getByRole('link', { name: '查看' })
+    .click();
+  await page.getByRole('button', { name: '打开意见与处理' }).click();
+  await page.locator('#markdown-note').fill('第三阶段后续意见：核对更新跟踪。');
+  await page.getByRole('button', { name: '核对并提交本轮意见并生成下一稿' }).click();
+  await expect(page.getByText(/已提交本轮意见并登记模拟修改请求/u)).toBeVisible();
+  await page.getByRole('link', { name: '返回当前工作核对定稿' }).click();
+
+  await expect(page.locator('.task-next h2')).toHaveText('管理制度及记录表单有新稿可查看');
+  await page.getByRole('button', { name: '查看新稿', exact: true }).click();
+  await expect(page.locator('.task-next h2')).toHaveText(
+    '管理制度及记录表单有后续改稿，需重新核对定稿',
+  );
+  await page.getByRole('button', { name: '核对并重新定稿' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
+  await expect(page.getByRole('button', { name: '下载 Markdown ZIP（合成）' })).toHaveCount(0);
+
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
+  await expect(page.locator('.task-delivery')).toContainText('U3-PKG-02');
+  await expect(page.locator('.task-delivery')).toContainText('U3-PKG-01');
 });
 
 test('delivery unknown stops packaging and failure retries the same frozen list', async ({
