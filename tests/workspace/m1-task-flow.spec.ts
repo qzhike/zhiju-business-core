@@ -260,6 +260,47 @@ test('mismatched confirmation stays blocked after the scene changes', async ({ p
 
   await page.getByRole('button', { name: '结束原确认请求并重新核对' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
+  await page.getByLabel('确认回执').selectOption('matched');
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
+});
+
+test('basis change during unknown confirmation keeps the original intent blocked', async ({
+  page,
+}) => {
+  await completeToDelivery(page);
+  await page.locator('details.task-dev summary').click();
+  await page.getByLabel('确认回执').selectOption('unknown');
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '确认交付清单并生成文档包' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+
+  await page
+    .getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('控制程序依据已变化，需复核');
+  await page.getByRole('button', { name: '核对并重新定稿' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText(
+    '管理制度及记录表单依据已变化，需复核',
+  );
+  await page.getByRole('button', { name: '核对并重新定稿' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+
+  await page
+    .locator('.task-delivery')
+    .getByRole('button', { name: '核对原最终确认请求' })
+    .click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
+  await expect(page.getByRole('button', { name: '下载 Markdown ZIP（合成）' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '结束原确认请求并重新核对' }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
+  await page.getByLabel('确认回执').selectOption('matched');
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
