@@ -134,6 +134,15 @@ interface GenerationReceipt {
   versions: FileVersionRef[];
 }
 
+export interface GenerationAttempt {
+  requestId: string;
+  status: 'PENDING' | 'UNKNOWN' | 'FAILED' | 'RECEIVED' | 'MISMATCH';
+  message: string;
+  createdAt: string;
+  unresolvedHistory: boolean;
+  versions: readonly FileVersionRef[];
+}
+
 export interface StageSession {
   planKey: string;
   stage: MvpStageId;
@@ -141,6 +150,7 @@ export interface StageSession {
   generationScene: 'matched' | 'missing' | 'pending' | 'unknown' | 'failed' | 'mismatch';
   generationRequest?:
     { intent: GenerationIntent; receipt?: GenerationReceipt | undefined } | undefined;
+  generationAttempts: GenerationAttempt[];
   files: Record<string, SessionFileState>;
   removed: Record<string, string[]>;
   activeFileId?: string | undefined;
@@ -173,6 +183,7 @@ export function emptySession(key: string, stage: MvpStageId): StageSession {
     stage,
     generationStatus: 'NONE',
     generationScene: 'matched',
+    generationAttempts: [],
     files: {},
     removed: {},
     drafts: {},
@@ -185,6 +196,21 @@ export function emptySession(key: string, stage: MvpStageId): StageSession {
     finalizationStatus: 'NONE',
     finalizationHistory: [],
     candidateScene: 'matched',
+  };
+}
+
+function generationAttempt(
+  intent: GenerationIntent,
+  status: GenerationAttempt['status'],
+  message: string,
+): GenerationAttempt {
+  return {
+    requestId: intent.requestId,
+    status,
+    message,
+    createdAt: new Date().toISOString(),
+    unresolvedHistory: status !== 'RECEIVED',
+    versions: intent.versions,
   };
 }
 
@@ -1084,23 +1110,35 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         planVersion: plan.version,
         versions,
       };
-      if (scene === 'failed')
+      if (scene === 'failed') {
+        const message = '模拟生成失败；原计划与输入保留，可显式重新请求。';
         return {
           ...current,
           generationStatus: 'FAILED',
           generationRequest: { intent },
-          message: '模拟生成失败；原计划与输入保留，可显式重新请求。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, 'FAILED', message),
+          ],
+          message,
         };
-      if (scene === 'pending' || scene === 'unknown')
+      }
+      if (scene === 'pending' || scene === 'unknown') {
+        const message =
+          scene === 'pending'
+            ? '生成请求待回执；重复点击不会创建第二个意图。'
+            : '生成结果未知；只能查询原请求。';
         return {
           ...current,
           generationStatus: scene === 'pending' ? 'PENDING' : 'UNKNOWN',
           generationRequest: { intent },
-          message:
-            scene === 'pending'
-              ? '生成请求待回执；重复点击不会创建第二个意图。'
-              : '生成结果未知；只能查询原请求。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, scene === 'pending' ? 'PENDING' : 'UNKNOWN', message),
+          ],
+          message,
         };
+      }
       if (scene === 'mismatch') {
         const receipt: GenerationReceipt = {
           classification: 'DEVELOPMENT_FIXTURE_ONLY',
@@ -1111,23 +1149,32 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           planVersion: plan.version + 1,
           versions,
         };
+        const message = '模拟回执上下文不匹配；请重新查询原请求核对。';
         return {
           ...current,
           generationStatus: 'PENDING',
           generationRequest: { intent, receipt },
-          message: '模拟回执上下文不匹配；请重新查询原请求核对。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, 'MISMATCH', message),
+          ],
+          message,
         };
       }
+      const message =
+        scene === 'missing'
+          ? '生成回执已到达，但模拟缺少一份文件；缺失项显示为不可定稿，需返回核对。'
+          : '生成回执已到达；请核对本轮候选。';
       const withVersions = applyVersions(current, versions);
       return {
         ...withVersions,
         generationStatus: 'RECEIVED',
         generationRequest: { intent },
-        ...(scene === 'missing'
-          ? {
-              message: '生成回执已到达，但模拟缺少一份文件；缺失项显示为不可定稿，需返回核对。',
-            }
-          : {}),
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'RECEIVED', message),
+        ],
+        ...(scene === 'missing' ? { message } : {}),
       };
     });
   };
@@ -1164,6 +1211,16 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         return {
           ...current,
           generationStatus: 'MISMATCH',
+          generationAttempts: current.generationAttempts.map((attempt) =>
+            attempt.requestId === request.intent.requestId
+              ? {
+                  ...attempt,
+                  status: 'MISMATCH',
+                  message: '原生成回执与项目、阶段或版本不匹配，未应用任何候选。',
+                  unresolvedHistory: true,
+                }
+              : attempt,
+          ),
           message: '原生成回执与项目、阶段或版本不匹配，未应用任何候选。',
         };
       }
@@ -1171,6 +1228,16 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       return {
         ...withVersions,
         generationStatus: 'RECEIVED',
+        generationAttempts: current.generationAttempts.map((attempt) =>
+          attempt.requestId === request.intent.requestId
+            ? {
+                ...attempt,
+                status: 'RECEIVED',
+                message: '已查询到原生成回执；未创建第二个意图。',
+                unresolvedHistory: attempt.unresolvedHistory,
+              }
+            : attempt,
+        ),
         message: '已查询到原生成回执；未创建第二个意图。',
       };
     });

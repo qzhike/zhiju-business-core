@@ -60,7 +60,7 @@ interface ResultRound {
   session?: StageSession | undefined;
   versionId?: string | undefined;
   reportId?: string | undefined;
-  requestStatus?: 'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH' | undefined;
+  requestStatus?: 'PENDING' | 'UNKNOWN' | 'FAILED' | 'RECEIVED' | 'MISMATCH' | undefined;
   requestId?: string | undefined;
   blockers: readonly string[];
   next: { label: string; href: string; reason: string };
@@ -219,17 +219,25 @@ function firstDefined(...values: (string | undefined)[]): string {
   return '';
 }
 
-const requestStatusLabels: Record<'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH', string> = {
+const requestStatusLabels: Record<
+  'PENDING' | 'UNKNOWN' | 'FAILED' | 'RECEIVED' | 'MISMATCH',
+  string
+> = {
   PENDING: '生成请求待回执',
   UNKNOWN: '生成结果待核验',
   FAILED: '生成失败',
+  RECEIVED: '生成回执已到达',
   MISMATCH: '生成回执不匹配',
 };
 
-const requestNextLabels: Record<'PENDING' | 'UNKNOWN' | 'FAILED' | 'MISMATCH', string> = {
+const requestNextLabels: Record<
+  'PENDING' | 'UNKNOWN' | 'FAILED' | 'RECEIVED' | 'MISMATCH',
+  string
+> = {
   PENDING: '查看待回执请求',
   UNKNOWN: '核对原生成请求',
   FAILED: '回到阶段审阅处理失败',
+  RECEIVED: '查看本轮结果',
   MISMATCH: '核对不匹配回执',
 };
 
@@ -303,77 +311,75 @@ function useResultsData(requestedRoundId?: string) {
       ].sort();
       const review = u2.reviewStages.find((entry) => entry.id === stage);
       const isCurrentPlan = plan.planId === u2.plan.planId && plan.version === u2.plan.version;
-      const requestStatus = (['FAILED', 'UNKNOWN', 'PENDING', 'MISMATCH'] as const).find(
-        (status) => session.generationStatus === status,
-      );
-      const requestId = session.generationRequest?.intent.requestId;
-      if (versions.length === 0 && requestStatus && requestId) {
-        return [
-          {
-            id: `${stage}-REQ-${requestId}@${plan.planId}-v${plan.version}`,
-            stage,
-            label: `${mvpStageLabels[stage]} · ${requestStatusLabels[requestStatus]} · ${plan.planId} 第 ${plan.version} 版`,
-            summary: `${mvpStageLabels[stage]} · ${requestStatusLabels[requestStatus]}；计划 ${plan.planId} 第 ${plan.version} 版，本轮没有候选版本。`,
-            plan,
-            planKey,
-            session,
-            requestStatus,
-            requestId,
-            blockers: [
-              session.message ??
-                `${requestStatusLabels[requestStatus]}；请回到阶段审阅核对原请求，不重复提交。`,
-            ],
-            next: isCurrentPlan
-              ? {
-                  label: requestNextLabels[requestStatus],
-                  href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
-                  reason: '本轮没有候选；请在阶段审阅核对原生成请求、失败原因或待回执状态。',
-                }
-              : {
-                  label: '查看当前处理结果',
-                  href: resultsPath,
-                  reason: '该请求属于历史计划；查看不改变当前项目进度。',
-                },
-          } satisfies ResultRound,
-        ];
-      }
-      return versions.map((versionId) => {
-        const missing = files.filter(
-          (file) => !session.files[file.id]?.versions.includes(versionId),
-        );
-        const finalization = session.finalization;
-        return {
-          id: stageRoundId(plan, stage, versionId),
+      const requestStatuses = new Set(['FAILED', 'UNKNOWN', 'PENDING', 'MISMATCH', 'RECEIVED']);
+      const requestRounds: ResultRound[] = session.generationAttempts
+        .filter((attempt) => attempt.unresolvedHistory)
+        .map((attempt) => ({
+          id: `${stage}-REQ-${attempt.requestId}@${plan.planId}-v${plan.version}`,
           stage,
-          versionId,
-          label: stageRoundLabel(plan, stage, versionId),
-          summary: `${mvpStageLabels[stage]} · ${u2VersionLabel(versionId)}；计划 ${plan.planId} 第 ${plan.version} 版，本阶段 ${files.length} 份文件。`,
+          label: `${mvpStageLabels[stage]} · ${requestStatusLabels[attempt.status]} · ${attempt.requestId} · ${plan.planId} 第 ${plan.version} 版`,
+          summary: `${mvpStageLabels[stage]} · ${requestStatusLabels[attempt.status]}；计划 ${plan.planId} 第 ${plan.version} 版，请求 ${attempt.requestId}。`,
           plan,
           planKey,
           session,
+          requestStatus: requestStatuses.has(attempt.status) ? attempt.status : 'FAILED',
+          requestId: attempt.requestId,
           blockers: [
-            ...(missing.length > 0
-              ? [`本轮缺少文件：${missing.map((file) => file.title).join('、')}。`]
-              : []),
-            ...(finalization?.files.every((ref) => ref.versionId === versionId)
-              ? []
-              : ['本轮尚未成为阶段定稿。']),
+            attempt.message ||
+              `${requestStatusLabels[attempt.status]}；请回到阶段审阅核对原请求，不重复提交。`,
           ],
           next: isCurrentPlan
             ? {
-                label: finalization ? '查看阶段审阅' : '确认本阶段版本',
+                label: requestNextLabels[attempt.status],
                 href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
-                reason: finalization
-                  ? '本阶段已有模拟定稿；可查看完整集合与历史。'
-                  : '在阶段审阅中核对完整文件版本集合后确认。',
+                reason: '请在阶段审阅核对原生成请求、失败原因或待回执状态。',
               }
             : {
                 label: '查看当前处理结果',
                 href: resultsPath,
-                reason: '该轮次属于历史计划或输入依据；查看不改变当前项目进度。',
+                reason: '该请求属于历史计划；查看不改变当前项目进度。',
               },
-        } satisfies ResultRound;
-      });
+        }));
+      return [
+        ...requestRounds,
+        ...versions.map((versionId) => {
+          const missing = files.filter(
+            (file) => !session.files[file.id]?.versions.includes(versionId),
+          );
+          const finalization = session.finalization;
+          return {
+            id: stageRoundId(plan, stage, versionId),
+            stage,
+            versionId,
+            label: stageRoundLabel(plan, stage, versionId),
+            summary: `${mvpStageLabels[stage]} · ${u2VersionLabel(versionId)}；计划 ${plan.planId} 第 ${plan.version} 版，本阶段 ${files.length} 份文件。`,
+            plan,
+            planKey,
+            session,
+            blockers: [
+              ...(missing.length > 0
+                ? [`本轮缺少文件：${missing.map((file) => file.title).join('、')}。`]
+                : []),
+              ...(finalization?.files.every((ref) => ref.versionId === versionId)
+                ? []
+                : ['本轮尚未成为阶段定稿。']),
+            ],
+            next: isCurrentPlan
+              ? {
+                  label: finalization ? '查看阶段审阅' : '确认本阶段版本',
+                  href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
+                  reason: finalization
+                    ? '本阶段已有模拟定稿；可查看完整集合与历史。'
+                    : '在阶段审阅中核对完整文件版本集合后确认。',
+                }
+              : {
+                  label: '查看当前处理结果',
+                  href: resultsPath,
+                  reason: '该轮次属于历史计划或输入依据；查看不改变当前项目进度。',
+                },
+          } satisfies ResultRound;
+        }),
+      ];
     }),
   );
   const rounds = [...analysisRounds, ...stageRounds];
@@ -493,9 +499,11 @@ function useResultsData(requestedRoundId?: string) {
                     ? '本轮请求待回执'
                     : round.requestStatus === 'MISMATCH'
                       ? '本轮回执不匹配'
-                      : candidate
-                        ? '已生成候选'
-                        : '本轮未返回结果',
+                      : round.requestStatus === 'RECEIVED'
+                        ? '生成回执已到达'
+                        : candidate
+                          ? '已生成候选'
+                          : '本轮未返回结果',
       ...(candidate ? { candidate: u2VersionLabel(candidate) } : {}),
       finalization: finalizedVersion ? u2VersionLabel(finalizedVersion) : '未定稿',
       issues,
@@ -1042,9 +1050,11 @@ export function FixtureResultsDetail() {
                   ? '原生成请求待回执；请回阶段审阅核对原请求，不重复提交。'
                   : row.outcome === '本轮回执不匹配'
                     ? '生成回执与当前请求不匹配；请回阶段审阅核对原请求。'
-                    : row.outcome === '本阶段未处理'
-                      ? '该文件不属于所选阶段；本轮没有可比较的候选。'
-                      : '该文件没有所选轮次的实际候选；请查看来源或阶段审阅中的候选状态。'}
+                    : row.outcome === '生成回执已到达'
+                      ? '该历史请求的回执已到达；请查看对应候选轮次。'
+                      : row.outcome === '本阶段未处理'
+                        ? '该文件不属于所选阶段；本轮没有可比较的候选。'
+                        : '该文件没有所选轮次的实际候选；请查看来源或阶段审阅中的候选状态。'}
           </p>
           <p>尚无候选内容；不根据其他轮次或文件补齐。</p>
           <Link className="button" to={back}>

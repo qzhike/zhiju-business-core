@@ -159,6 +159,45 @@ test('unknown first-generation requests remain inspectable in results', async ({
   await expectCandidateLessRequest(page, 'unknown');
 });
 
+test('failed generation attempts remain selectable after retry and success', async ({ page }) => {
+  await reachManual(page, 'failed');
+  await page.getByRole('link', { name: '处理结果' }).click();
+  const roundSelect = page.getByLabel('轮次', { exact: true });
+  await expect(roundSelect.locator('option')).toHaveCount(1);
+  const firstAttempt = await roundSelect.locator('option').first().getAttribute('value');
+  expect(firstAttempt).toMatch(/MANUAL-REQ-U2-GEN-/u);
+  if (!firstAttempt) throw new Error('First generation attempt has no route identity');
+  const manualRow = page
+    .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
+    .first();
+  await manualRow.getByRole('link', { name: '查看' }).click();
+  await expect(page.locator('.results-unavailable')).toContainText('本轮候选生成失败');
+  await page.getByRole('link', { name: '← 返回结果总览' }).click();
+  await page.getByRole('link', { name: '回到阶段审阅处理失败' }).click();
+  await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
+  await page.getByRole('link', { name: '处理结果' }).click();
+  await expect(roundSelect.locator('option')).toHaveCount(2);
+  await expect(roundSelect).toHaveValue(firstAttempt);
+  const secondAttempt = await roundSelect.locator('option').nth(1).getAttribute('value');
+  expect(secondAttempt).toMatch(/MANUAL-REQ-U2-GEN-/u);
+  expect(secondAttempt).not.toBe(firstAttempt);
+  if (!secondAttempt) throw new Error('Second generation attempt has no route identity');
+  await page.getByRole('link', { name: '回到阶段审阅处理失败' }).click();
+  await page.getByLabel('生成回执场景').selectOption('matched');
+  await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
+  await page.getByRole('link', { name: '处理结果' }).click();
+  await expect(roundSelect.locator('option')).toHaveCount(3);
+  await expect(roundSelect).toHaveValue(firstAttempt);
+  const attemptValues = await roundSelect
+    .locator('option')
+    .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+  expect(attemptValues).toContain(firstAttempt);
+  expect(attemptValues).toContain(secondAttempt);
+  await manualRow.getByRole('link', { name: '查看' }).click();
+  await expect(page.locator('.results-unavailable')).toContainText('本轮候选生成失败');
+  await expect(page.getByText('无法打开此页面')).toHaveCount(0);
+});
+
 test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ page }) => {
   await reachManual(page);
   await page.getByRole('link', { name: '处理结果' }).click();
