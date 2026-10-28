@@ -1,5 +1,5 @@
 // DEVELOPMENT_RESULTS_ADAPTER_ONLY: isolated M1 results workspace. It reads the
-// same in-memory U1/U2/U3 rehearsal state and never calls Core or Runner.
+// same in-memory U1/U2 rehearsal state and never calls Core or Runner.
 import {
   createContext,
   useContext,
@@ -12,6 +12,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { MarkdownReviewPage } from '../MarkdownReviewPage.js';
+import { activeSubmission, sameVersionSet, type FileVersionRef } from '../mvp/review-model.js';
 import type {
   ReviewFileEntry,
   ReviewOpinionHistoryEntry,
@@ -25,7 +26,15 @@ import { JourneyNav } from '../mvp/JourneyNav.js';
 import { Missing } from '../shell.js';
 import { u1Project, u1ReportOne, u1ReportTwo } from './u1-data.js';
 import { useU1 } from './u1.js';
-import { emptySession, planStageFiles, sessionKey, useU2, type StageSession } from './u2.js';
+import { useMvpActivity } from './activity.js';
+import {
+  emptySession,
+  planStageFiles,
+  sessionKey,
+  useU2,
+  type RoundOpinionInput,
+  type StageSession,
+} from './u2.js';
 import {
   u2CandidateComparison,
   u2FileMetas,
@@ -33,7 +42,6 @@ import {
   u2VersionLabel,
   u2VersionsFor,
 } from './u2-data.js';
-import { useU3 } from './u3.js';
 import './results.css';
 
 const projectId = u1Project.id;
@@ -47,6 +55,9 @@ interface ResultRound {
   stage: ResultStage;
   label: string;
   summary: string;
+  plan: PlanView;
+  planKey?: string | undefined;
+  session?: StageSession | undefined;
   versionId?: string | undefined;
   reportId?: string | undefined;
   blockers: readonly string[];
@@ -60,7 +71,7 @@ interface InventoryRow {
   title: string;
   source: string;
   depth: number;
-  kind: 'UPLOADED' | 'CONTAINER' | 'MEMBER' | 'EXPECTED' | 'NEW';
+  kind: 'UPLOADED' | 'CONTAINER' | 'MEMBER' | 'EXPECTED' | 'NEW' | 'RETAINED';
   levelLabel: string;
   stage?: MvpStageId | undefined;
   reading: string;
@@ -88,12 +99,14 @@ interface ResultsContextValue {
   setFilter: (filter: ResultFilter) => void;
   changeDraft: (key: string, text: string) => void;
   saveDraft: (key: string, label: string) => void;
-  submitRound: (roundId: string) => void;
+  submitRound: (input: RoundOpinionInput) => void;
 }
 
 const ResultsContext = createContext<ResultsContextValue | null>(null);
 
 export function FixtureResultsProvider({ children }: { children: ReactNode }) {
+  const u2 = useU2();
+  const activity = useMvpActivity();
   const [stage, setStageState] = useState<ResultStage>('ANALYSIS');
   const [roundId, setRoundId] = useState('');
   const [filter, setFilter] = useState<ResultFilter>('ALL');
@@ -142,13 +155,16 @@ export function FixtureResultsProvider({ children }: { children: ReactNode }) {
       setSaved((current) => ({ ...current, [key]: { text, label } }));
       setReceipt(`已保存 ${count} 条文件意见到本轮（模拟）。`);
     },
-    submitRound: (roundId) => {
-      const roundPrefix = `${roundId}:`;
-      const count = Object.keys(saved).filter((key) => key.startsWith(roundPrefix)).length;
+    submitRound: (input) => {
+      if (activity.recovery) {
+        setReceipt(`已有待处理恢复请求 ${activity.recovery.requestId}；请先核对原恢复请求。`);
+        return;
+      }
+      const result = u2.submitRoundOpinions(input);
       setReceipt(
-        count === 0
-          ? '本轮还没有已保存的文件意见；请先在文件详情保存意见。'
-          : `已提交 ${count} 条文件意见，登记为模拟下一稿请求；未调用 Runner，未生成候选。`,
+        result.ok
+          ? `已登记模拟修改请求 ${result.requestId}；未调用 Runner，未生成候选。`
+          : result.reason,
       );
     },
   };
@@ -188,6 +204,24 @@ function roundLabel(stage: ResultStage, versionId?: string): string {
   return `${mvpStageLabels[stage]} · ${versionId ? u2VersionLabel(versionId) : '当前轮次'}`;
 }
 
+function stageRoundId(plan: PlanView, stage: MvpStageId, versionId: string): string {
+  return `${stage}-${versionId}@${plan.planId}-v${plan.version}`;
+}
+
+function stageRoundLabel(plan: PlanView, stage: MvpStageId, versionId: string): string {
+  return `${roundLabel(stage, versionId)} · ${plan.planId} 第 ${plan.version} 版`;
+}
+
+function roundVersionSet(round: ResultRound): FileVersionRef[] {
+  if (!round.session || !round.versionId || round.stage === 'ANALYSIS') return [];
+  return planStageFiles(round.plan, round.stage).flatMap((file) => {
+    const versions = round.session?.files[file.id]?.versions ?? [];
+    return versions.includes(round.versionId ?? '')
+      ? [{ fileId: file.id, versionId: round.versionId ?? '' }]
+      : [];
+  });
+}
+
 function detailHref(roundId: string, fileId: string): string {
   return `${resultsPath}/${encodeURIComponent(roundId)}/${encodeURIComponent(fileId)}`;
 }
@@ -195,14 +229,15 @@ function detailHref(roundId: string, fileId: string): string {
 function useResultsData(requestedRoundId?: string) {
   const u1 = useU1();
   const u2 = useU2();
-  const u3 = useU3();
   const results = useResults();
+  const plans = u1.plans.length > 0 ? u1.plans : [u2.plan];
   const analysisRounds: ResultRound[] = [
     {
       id: 'ANALYSIS-1',
       stage: 'ANALYSIS',
       label: roundLabel('ANALYSIS', '1'),
       summary: u1ReportOne.summary,
+      plan: u2.plan,
       reportId: u1ReportOne.reportId,
       blockers: u1ReportOne.attentionItems.slice(0, 3).map((item) => item.title),
       next: u1.reportTwoAvailable
@@ -224,6 +259,7 @@ function useResultsData(requestedRoundId?: string) {
             stage: 'ANALYSIS' as const,
             label: roundLabel('ANALYSIS', '2'),
             summary: u1ReportTwo.summary,
+            plan: u2.plan,
             reportId: u1ReportTwo.reportId,
             blockers: u1ReportTwo.attentionItems.slice(0, 3).map((item) => item.title),
             next: {
@@ -235,25 +271,30 @@ function useResultsData(requestedRoundId?: string) {
         ]
       : []),
   ];
-  const stageRounds: ResultRound[] = (['MANUAL', 'PROCEDURES', 'RULES'] as const).flatMap(
-    (stage) => {
-      const files = planStageFiles(u2.plan, stage);
-      const session = sessionFor(u2.plan, stage, u2.sessions);
+  const stageRounds: ResultRound[] = plans.flatMap((plan) =>
+    (['MANUAL', 'PROCEDURES', 'RULES'] as const).flatMap((stage) => {
+      const files = planStageFiles(plan, stage);
+      const planKey = sessionKey(plan, stage);
+      const session = sessionFor(plan, stage, u2.sessions);
       const versions = [
         ...new Set(files.flatMap((file) => session.files[file.id]?.versions ?? [])),
       ].sort();
-      const finalization = u2.sessions[sessionKey(u2.plan, stage)]?.finalization;
       const review = u2.reviewStages.find((entry) => entry.id === stage);
+      const isCurrentPlan = plan.planId === u2.plan.planId && plan.version === u2.plan.version;
       return versions.map((versionId) => {
         const missing = files.filter(
           (file) => !session.files[file.id]?.versions.includes(versionId),
         );
+        const finalization = session.finalization;
         return {
-          id: `${stage}-${versionId}`,
+          id: stageRoundId(plan, stage, versionId),
           stage,
           versionId,
-          label: roundLabel(stage, versionId),
-          summary: `${mvpStageLabels[stage]} · ${u2VersionLabel(versionId)}；本阶段 ${files.length} 份文件，展示该精确版本的候选与过程。`,
+          label: stageRoundLabel(plan, stage, versionId),
+          summary: `${mvpStageLabels[stage]} · ${u2VersionLabel(versionId)}；计划 ${plan.planId} 第 ${plan.version} 版，本阶段 ${files.length} 份文件。`,
+          plan,
+          planKey,
+          session,
           blockers: [
             ...(missing.length > 0
               ? [`本轮缺少文件：${missing.map((file) => file.title).join('、')}。`]
@@ -262,28 +303,36 @@ function useResultsData(requestedRoundId?: string) {
               ? []
               : ['本轮尚未成为阶段定稿。']),
           ],
-          next: {
-            label: finalization ? '查看阶段审阅' : '确认本阶段版本',
-            href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
-            reason: finalization
-              ? '本阶段已有模拟定稿；可查看完整集合与历史。'
-              : '在阶段审阅中核对完整文件版本集合后确认。',
-          },
+          next: isCurrentPlan
+            ? {
+                label: finalization ? '查看阶段审阅' : '确认本阶段版本',
+                href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
+                reason: finalization
+                  ? '本阶段已有模拟定稿；可查看完整集合与历史。'
+                  : '在阶段审阅中核对完整文件版本集合后确认。',
+              }
+            : {
+                label: '查看当前处理结果',
+                href: resultsPath,
+                reason: '该轮次属于历史计划或输入依据；查看不改变当前项目进度。',
+              },
         } satisfies ResultRound;
       });
-    },
+    }),
   );
   const rounds = [...analysisRounds, ...stageRounds];
   const requestedRound = requestedRoundId
     ? rounds.find((entry) => entry.id === requestedRoundId)
     : undefined;
-  const fallbackStage: ResultStage = stageRounds.some((round) => round.stage === 'RULES')
-    ? 'RULES'
-    : stageRounds.some((round) => round.stage === 'PROCEDURES')
-      ? 'PROCEDURES'
-      : stageRounds.some((round) => round.stage === 'MANUAL')
-        ? 'MANUAL'
-        : 'ANALYSIS';
+  const latestPlan = plans.at(-1) ?? u2.plan;
+  const latestPlanRounds = stageRounds.filter(
+    (round) => round.plan.planId === latestPlan.planId && round.plan.version === latestPlan.version,
+  );
+  const stageOrder: readonly MvpStageId[] = ['RULES', 'PROCEDURES', 'MANUAL'];
+  const fallbackStage: ResultStage =
+    stageOrder.find((stage) => latestPlanRounds.some((round) => round.stage === stage)) ??
+    stageOrder.find((stage) => stageRounds.some((round) => round.stage === stage)) ??
+    'ANALYSIS';
   const requestedStage = requestedRound
     ? requestedRound.stage
     : results.pinned
@@ -296,14 +345,17 @@ function useResultsData(requestedRoundId?: string) {
       : fallbackStage;
   const stageOptions = [...new Set(rounds.map((round) => round.stage))];
   const stageRoundsForStage = rounds.filter((round) => round.stage === stage);
+  const currentPlanRounds = stageRoundsForStage.filter(
+    (entry) => entry.plan.planId === u2.plan.planId && entry.plan.version === u2.plan.version,
+  );
   const round =
     requestedRound ??
     stageRoundsForStage.find((entry) => entry.id === results.roundId) ??
+    currentPlanRounds.at(-1) ??
     stageRoundsForStage.at(-1) ??
     rounds[0];
   if (!round) return undefined;
   const selectedStage = round.stage === 'ANALYSIS' ? undefined : round.stage;
-  const execution = new Map(u3.execution.files.map((file) => [file.fileId, file]));
   const uploaded: InventoryRow[] = [];
   for (const batch of u1.batches) {
     for (const entry of batch.entries) {
@@ -341,61 +393,55 @@ function useResultsData(requestedRoundId?: string) {
       });
     }
   }
-  const planned: InventoryRow[] = u2.plan.files
-    .filter((file) => file.action !== 'RETAIN')
-    .map((file) => {
-      const stage = stageOfLevel(file.level);
-      const versionId = round.stage === stage ? round.versionId : undefined;
-      const session = sessionFor(u2.plan, stage, u2.sessions);
-      const candidate =
-        versionId && session.files[file.id]?.versions.includes(versionId) ? versionId : undefined;
-      const observation = execution.get(file.id);
-      const stageSession = sessionFor(u2.plan, stage, u2.sessions);
-      const finalizedVersion = stageSession.finalization?.files.find(
-        (ref) => ref.fileId === file.id,
-      )?.versionId;
-      const issues = (u1.reportTwoAvailable ? u1ReportTwo : u1ReportOne).attentionItems.filter(
-        (item) => item.affectedPlannedFileIds.includes(file.id),
-      ).length;
-      return {
-        id: `PLAN:${file.id}`,
-        fileId: file.id,
-        versionId: versionId ?? 'PLAN',
-        title: file.title,
-        source: '已确认修改范围',
-        depth: 0,
-        kind: file.action === 'CREATE' ? 'NEW' : 'EXPECTED',
-        levelLabel: planLevelLabels[file.level],
-        stage,
-        reading:
-          file.action === 'CREATE'
-            ? '无客户原件'
-            : observation?.stateLabel === '已知失败'
-              ? '客户原件已上传'
-              : '客户原件已上传',
-        outcome:
-          round.stage === 'ANALYSIS'
-            ? '拟议处理'
-            : round.stage === stage
-              ? candidate
-                ? observation?.stateLabel === '已知失败'
+  const planned: InventoryRow[] = round.plan.files.map((file) => {
+    const stage = stageOfLevel(file.level);
+    const retained = file.action === 'RETAIN';
+    const versionId = !retained && round.stage === stage ? round.versionId : undefined;
+    const stageSession = sessionFor(round.plan, stage, u2.sessions);
+    const candidate =
+      versionId && stageSession.files[file.id]?.versions.includes(versionId)
+        ? versionId
+        : undefined;
+    const finalizedVersion = stageSession.finalization?.files.find(
+      (ref) => ref.fileId === file.id,
+    )?.versionId;
+    const issues = (u1.reportTwoAvailable ? u1ReportTwo : u1ReportOne).attentionItems.filter(
+      (item) => item.affectedPlannedFileIds.includes(file.id),
+    ).length;
+    const currentStageRound = round.stage === stage;
+    return {
+      id: `PLAN:${file.id}`,
+      fileId: file.id,
+      versionId: versionId ?? 'PLAN',
+      title: file.title,
+      source: '已确认修改范围',
+      depth: 0,
+      kind: retained ? 'RETAINED' : file.action === 'CREATE' ? 'NEW' : 'EXPECTED',
+      levelLabel: planLevelLabels[file.level],
+      stage,
+      reading: file.action === 'CREATE' ? '无客户原件' : '客户原件已上传',
+      outcome:
+        round.stage === 'ANALYSIS'
+          ? retained
+            ? '沿用现有文件'
+            : '拟议处理'
+          : !currentStageRound
+            ? '本阶段未处理'
+            : retained
+              ? '沿用以确认版本'
+              : candidate
+                ? '已生成候选'
+                : stageSession.generationStatus === 'FAILED'
                   ? '本轮失败'
-                  : '已生成候选'
-                : '本轮未返回结果'
-              : '本阶段未处理',
-        ...(candidate && observation?.stateLabel !== '已知失败'
-          ? { candidate: u2VersionLabel(candidate) }
-          : {}),
-        finalization: finalizedVersion ? u2VersionLabel(finalizedVersion) : '未定稿',
-        issues,
-        pending:
-          issues > 0 ||
-          (round.stage === stage && !candidate) ||
-          observation?.stateLabel === '已知失败',
-        involved: round.stage === 'ANALYSIS' || round.stage === stage,
-        detailHref: detailHref(round.id, file.id),
-      } satisfies InventoryRow;
-    });
+                  : '本轮未返回结果',
+      ...(candidate ? { candidate: u2VersionLabel(candidate) } : {}),
+      finalization: finalizedVersion ? u2VersionLabel(finalizedVersion) : '未定稿',
+      issues,
+      pending: !retained && (issues > 0 || (currentStageRound && !candidate)),
+      involved: round.stage === 'ANALYSIS' || currentStageRound,
+      detailHref: detailHref(round.id, file.id),
+    } satisfies InventoryRow;
+  });
   const rows = [...uploaded, ...planned];
   const filtered = rows.filter((row) => {
     if (results.filter === 'ALL') return true;
@@ -404,9 +450,18 @@ function useResultsData(requestedRoundId?: string) {
     return row.pending;
   });
   const uploadedFiles = uploaded.filter((row) => row.kind === 'UPLOADED' || row.kind === 'MEMBER');
+  const roundFiles = roundVersionSet(round);
+  const roundFileCount =
+    round.stage === 'ANALYSIS' ? 0 : planStageFiles(round.plan, round.stage).length;
+  const roundComplete = roundFileCount > 0 && roundFiles.length === roundFileCount;
+  const roundSubmitted = Boolean(
+    round.session?.submissions.some(
+      (submission) =>
+        submission.status === 'RECEIVED' && sameVersionSet(submission.basis.files, roundFiles),
+    ),
+  );
   return {
     u2,
-    u3,
     results,
     rounds,
     stageOptions,
@@ -419,15 +474,23 @@ function useResultsData(requestedRoundId?: string) {
       containers: uploaded.filter((row) => row.kind === 'CONTAINER').length,
       expected: planned.filter((row) => row.kind === 'EXPECTED').length,
       newFiles: planned.filter((row) => row.kind === 'NEW').length,
+      retained: planned.filter((row) => row.kind === 'RETAINED').length,
       pending: rows.filter((row) => row.pending).length,
       involved: rows.filter((row) => row.involved).length,
     },
+    roundFiles,
+    roundComplete,
+    roundSubmitted,
+    activeRequestId: activeSubmission(
+      Object.values(u2.sessions).flatMap((session) => session.submissions),
+    )?.requestId,
     savedCount: Object.keys(results.saved).filter((key) => key.startsWith(`${round.id}:`)).length,
   };
 }
 
 export function FixtureResultsOverview() {
   const params = useParams();
+  const activity = useMvpActivity();
   const data = useResultsData();
   const restored = useRef(false);
   useLayoutEffect(() => {
@@ -439,6 +502,37 @@ export function FixtureResultsOverview() {
   if (params.projectId !== projectId) return <Missing />;
   if (!data) return <Missing />;
   const { results, round, stageOptions, counts, savedCount } = data;
+  const roundSaved = Object.entries(results.saved).filter(([key]) =>
+    key.startsWith(`${round.id}:`),
+  );
+  const canSubmit =
+    round.stage !== 'ANALYSIS' &&
+    savedCount > 0 &&
+    data.roundComplete &&
+    !data.roundSubmitted &&
+    !data.activeRequestId &&
+    !activity.recovery;
+  const submitRound = () => {
+    if (!canSubmit || round.stage === 'ANALYSIS' || !round.planKey) return;
+    const manualFinalizationId = sessionFor(round.plan, 'MANUAL', data.u2.sessions).finalization
+      ?.finalizationId;
+    const procedureFinalizationId = sessionFor(round.plan, 'PROCEDURES', data.u2.sessions)
+      .finalization?.finalizationId;
+    const rulesFinalizationId = sessionFor(round.plan, 'RULES', data.u2.sessions).finalization
+      ?.finalizationId;
+    results.submitRound({
+      planKey: round.planKey,
+      planId: round.plan.planId,
+      planVersion: round.plan.version,
+      projectId,
+      stage: round.stage,
+      text: roundSaved.map(([, entry]) => `${entry.label}：${entry.text}`).join('\n'),
+      files: data.roundFiles,
+      ...(manualFinalizationId ? { manualFinalizationId } : {}),
+      ...(procedureFinalizationId ? { procedureFinalizationId } : {}),
+      ...(round.stage === 'RULES' && rulesFinalizationId ? { rulesFinalizationId } : {}),
+    });
+  };
   return (
     <div className="results-page">
       <JourneyNav
@@ -532,16 +626,16 @@ export function FixtureResultsOverview() {
           <Link className="button primary" to={round.next.href}>
             {round.next.label}
           </Link>
-          <button
-            className="button"
-            onClick={() => {
-              results.submitRound(round.id);
-            }}
-          >
-            提交本轮意见并生成下一稿（模拟）
+          <button className="button" disabled={!canSubmit} onClick={submitRound}>
+            {data.roundSubmitted ? '本轮意见已提交' : '提交本轮意见并生成下一稿（模拟）'}
           </button>
           <span className="muted" role="status">
-            {results.receipt || `已保存 ${savedCount} 条文件意见`}
+            {results.receipt ||
+              (data.roundSubmitted
+                ? '本轮意见已登记；返回阶段审阅可显式演练下一轮候选。'
+                : data.activeRequestId
+                  ? `已有待处理修改请求 ${data.activeRequestId}；请先核对原请求。`
+                  : `已保存 ${savedCount} 条文件意见`)}
           </span>
         </div>
       </section>
@@ -551,8 +645,8 @@ export function FixtureResultsOverview() {
             <h2>完整文件清单</h2>
             <p className="muted">
               项目上传文件 {counts.uploaded} · 容器 {counts.containers} · 预期/计划{' '}
-              {counts.expected} · 计划新增 {counts.newFiles} · 本轮涉及 {counts.involved} · 待处理{' '}
-              {counts.pending}
+              {counts.expected} · 计划新增 {counts.newFiles} · 保留 {counts.retained} · 本轮涉及{' '}
+              {counts.involved} · 待处理 {counts.pending}
             </p>
           </div>
           <nav className="results-filters" aria-label="文件筛选">
@@ -683,7 +777,7 @@ export function FixtureResultsDetail() {
   const data = useResultsData(params.roundId);
   if (params.projectId !== projectId || !params.roundId || !params.fileId) return <Missing />;
   if (data?.round.id !== params.roundId) return <Missing />;
-  const { results, round, u2, u3 } = data;
+  const { results, round, u2 } = data;
   const row = data.allRows.find((entry) => entry.fileId === params.fileId);
   if (!row) return <Missing />;
   const back = resultsPath;
@@ -691,19 +785,20 @@ export function FixtureResultsDetail() {
   const draftText = results.drafts[key] ?? '';
   const saved = results.saved[key];
   const meta = u2FileMetas[row.fileId];
-  const planFile = u2.plan.files.find((file) => file.id === row.fileId);
+  const planFile = round.plan.files.find((file) => file.id === row.fileId);
   const analysisReport =
     round.stage === 'ANALYSIS'
       ? round.reportId === u1ReportTwo.reportId
         ? u1ReportTwo
         : u1ReportOne
       : undefined;
-  const observation = u3.execution.files.find((file) => file.fileId === row.fileId);
   const dataForReview =
     planFile &&
     round.versionId &&
     round.stage !== 'ANALYSIS' &&
-    observation?.stateLabel !== '已知失败'
+    round.stage === stageOfLevel(planFile.level) &&
+    row.versionId === round.versionId &&
+    row.candidate !== undefined
       ? u2CandidateComparison(
           row.fileId,
           mode === 'ROUND' ? previousVersion(row.fileId, round.versionId) : null,
@@ -775,14 +870,7 @@ export function FixtureResultsDetail() {
                 { label: '轮次', detail: round.label },
                 { label: '精确版本', detail: row.versionId },
                 { label: '比较方式', detail: mode === 'ROUND' ? '本轮变化' : '累计变化' },
-                ...(observation
-                  ? [
-                      {
-                        label: '执行观察',
-                        detail: `${observation.stateLabel} · ${observation.provenance}`,
-                      },
-                    ]
-                  : []),
+                { label: '本轮结果', detail: row.outcome },
               ],
               note: u2Summary(row.fileId)?.note,
             }
@@ -835,12 +923,7 @@ export function FixtureResultsDetail() {
                 : '初始底稿'}{' '}
               → {row.versionId}
             </span>
-            <span>
-              执行观察：
-              {observation
-                ? `${observation.stateLabel} · ${observation.provenance}`
-                : '尚无本轮候选'}
-            </span>
+            <span>本轮结果：{row.outcome}</span>
           </div>
           <details>
             <summary>查看来源、限制与精确引用</summary>
@@ -879,11 +962,13 @@ export function FixtureResultsDetail() {
         <section className="panel results-unavailable" role="status">
           <h2>本轮没有可比较的候选版本</h2>
           <p>
-            {observation?.stateLabel === '已知失败'
-              ? '本轮候选生成失败；保留失败原因，不用旧稿冒充本轮产物。'
-              : '该文件没有所选轮次候选；请查看来源或阶段审阅中的候选状态。'}
+            {row.outcome === '本轮失败'
+              ? '本轮候选生成失败；不用旧稿冒充本轮产物。'
+              : row.outcome === '本阶段未处理'
+                ? '该文件不属于所选阶段；本轮没有可比较的候选。'
+                : '该文件没有所选轮次的实际候选；请查看来源或阶段审阅中的候选状态。'}
           </p>
-          <p>{observation?.error ?? '尚无候选内容。'}</p>
+          <p>尚无候选内容；不根据其他轮次或文件补齐。</p>
           <Link className="button" to={back}>
             返回结果总览
           </Link>

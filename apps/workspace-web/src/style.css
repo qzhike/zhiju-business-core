@@ -281,6 +281,22 @@
   background: var(--soft);
   color: var(--purple);
 }
+.markdown-comparison {
+  display: contents;
+}
+.markdown-missing-side {
+  border-style: dashed;
+  color: var(--muted);
+}
+.markdown-missing-side p {
+  margin: 0;
+}
+.markdown-comparison-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
 .markdown-before,
 .markdown-after {
   padding: 16px;
@@ -553,6 +569,9 @@
   }
   .markdown-review-layout.focus-reading,
   .markdown-review-layout.focus-reading.show-opinion {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .markdown-comparison-split {
     grid-template-columns: minmax(0, 1fr);
   }
   .markdown-mobile-tabs {

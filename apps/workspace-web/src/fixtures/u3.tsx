@@ -1890,7 +1890,7 @@ function buildHandoff(input: {
   };
 }
 
-export function useU3(): U3Api {
+function useU3(): U3Api {
   const value = useContext(U3Context);
   if (!value) throw new Error('DEVELOPMENT_U3_ADAPTER_ONLY');
   return value;

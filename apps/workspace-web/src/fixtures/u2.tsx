@@ -395,6 +395,21 @@ const submissionLabels: Record<MvpSubmission['status'], string> = {
   FAILED: '失败（模拟）',
 };
 
+export interface RoundOpinionInput {
+  planKey: string;
+  planId: string;
+  planVersion: number;
+  projectId: string;
+  stage: MvpStageId;
+  text: string;
+  files: readonly FileVersionRef[];
+  manualFinalizationId?: string | undefined;
+  procedureFinalizationId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
+}
+
+export type RoundOpinionResult = { ok: true; requestId: string } | { ok: false; reason: string };
+
 export interface U2Api {
   plan: PlanView;
   planCheck: { ready: boolean; reason?: string | undefined };
@@ -406,6 +421,7 @@ export interface U2Api {
   rulesFinalization?: StageFinalization | undefined;
   update: (stage: MvpStageId, change: (session: StageSession) => StageSession) => void;
   updateAny: (change: (session: StageSession) => StageSession) => void;
+  submitRoundOpinions: (input: RoundOpinionInput) => RoundOpinionResult;
 }
 
 const U2Context = createContext<U2Api | null>(null);
@@ -579,6 +595,82 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
       return changed ? next : previous;
     });
   };
+  const submitRoundOpinions = (input: RoundOpinionInput): RoundOpinionResult => {
+    if (input.files.length === 0) return { ok: false, reason: '本轮没有可提交的文件意见。' };
+    const activeNow = activeSubmission(
+      Object.values(sessions).flatMap((candidate) => candidate.submissions),
+    );
+    if (activeNow)
+      return {
+        ok: false,
+        reason: `本项目已有待回执或待核验的修改请求 ${activeNow.requestId}；请先核对原请求。`,
+      };
+    const current = sessions[input.planKey] ?? emptySession(input.planKey, input.stage);
+    const basis: OpinionBasis = {
+      planId: input.planId,
+      planVersion: input.planVersion,
+      ...(input.manualFinalizationId ? { manualFinalizationId: input.manualFinalizationId } : {}),
+      ...(input.procedureFinalizationId
+        ? { procedureFinalizationId: input.procedureFinalizationId }
+        : {}),
+      ...(input.rulesFinalizationId ? { rulesFinalizationId: input.rulesFinalizationId } : {}),
+      files: input.files.map((file) => ({ ...file })),
+    };
+    const scope = stageScope(input.stage);
+    const already = current.submissions.find(
+      (submission) =>
+        submission.status === 'RECEIVED' &&
+        submission.scope.id === scope.id &&
+        submission.basis.planId === basis.planId &&
+        submission.basis.planVersion === basis.planVersion &&
+        sameVersionSet(submission.basis.files, basis.files),
+    );
+    if (already)
+      return {
+        ok: false,
+        reason: `本轮意见已登记为 ${already.requestId}；请等待新候选后再提交。`,
+      };
+    const requestId = `U2-REV-${crypto.randomUUID().slice(0, 8)}`;
+    const submission: MvpSubmission = {
+      submissionId: `U2-SUB-${crypto.randomUUID().slice(0, 8)}`,
+      requestId,
+      scope,
+      text: input.text,
+      basis,
+      status: 'RECEIVED',
+      note: '结果总览已提交本轮文件意见（模拟）；未生成新候选，等待显式演练下一轮候选。',
+      submittedAt: new Date().toISOString(),
+    };
+    const receipt: RevisionReceipt = {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      requestId,
+      projectId: input.projectId,
+      stage: input.stage,
+      scope,
+      basis,
+    };
+    setSessions((previous) => ({
+      ...previous,
+      [input.planKey]: {
+        ...current,
+        revisionIntents: {
+          ...current.revisionIntents,
+          [requestId]: {
+            requestId,
+            projectId: input.projectId,
+            stage: input.stage,
+            scope,
+            text: input.text,
+            basis,
+          },
+        },
+        revisionReceipts: { ...current.revisionReceipts, [requestId]: receipt },
+        submissions: [...current.submissions, submission],
+        message: `结果总览已登记模拟修改请求 ${requestId}；未调用 Runner。`,
+      },
+    }));
+    return { ok: true, requestId };
+  };
   const api: U2Api = {
     plan,
     planCheck,
@@ -590,6 +682,7 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     rulesFinalization,
     update,
     updateAny,
+    submitRoundOpinions,
   };
   return (
     <U2Context.Provider value={api}>
@@ -630,9 +723,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     Object.values(sessions).flatMap((candidate) => candidate.submissions),
   );
   const recoveryActivity = useMvpActivity().recovery;
-  const allSubmissions = Object.values(sessions)
-    .flatMap((candidate) => candidate.submissions)
-    .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+  const allSubmissions = [...session.submissions].sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
   const myActive =
     active && session.submissions.some((submission) => submission.requestId === active.requestId)
       ? active
