@@ -301,10 +301,43 @@ function proposalFor(
   };
 }
 
+export interface U3DeliveryApi {
+  proposal: DeliveryProposal;
+  blockers: readonly string[];
+  bases: DeliveryFlowPageProps['bases'];
+  state: {
+    confirmStatus: DeliveryState['confirmStatus'];
+    confirmScene: DeliveryState['confirmScene'];
+    confirmNote: string;
+    confirmRequestLabel?: string | undefined;
+    packagingStatus: PackagingStatus;
+    packagingScene: DeliveryState['packagingScene'];
+    packagingNote: string;
+    packagingRequestLabel?: string | undefined;
+    packages: readonly DeliveryPackage[];
+    frozen?: FrozenDelivery | undefined;
+    currentPackage?: DeliveryPackage | undefined;
+    packageAvailable: boolean;
+  };
+  actions: {
+    confirmAndPackage: () => void;
+    reconcileConfirmation: () => void;
+    retryPackaging: () => void;
+    queryPackaging: () => void;
+    download: (pkg: DeliveryPackage) => void;
+    configure: (scene: {
+      confirmScene?: DeliveryState['confirmScene'];
+      packagingScene?: DeliveryState['packagingScene'];
+      downloadScene?: DeliveryState['downloadScene'];
+    }) => void;
+  };
+}
+
 interface U3Api {
   rework: ReworkPageProps;
   execution: RecoveryPageProps;
   delivery: DeliveryFlowPageProps;
+  deliveryApi: U3DeliveryApi;
 }
 
 const U3Context = createContext<U3Api | null>(null);
@@ -756,7 +789,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
         ? `${rules.finalizationId} · ${rules.files.map((ref) => `${titleFor(plan, ref.fileId)} ${u2VersionLabel(ref.versionId)}`).join('；')}`
         : '管理制度及记录表单尚未定稿',
     },
-    blockers,
+    blockers: delivery.selection ? blockers : blockersWithoutSelection,
     proposal,
     selection: {
       selectedIds: delivery.selection?.members.map((member) => member.fileId) ?? [],
@@ -983,24 +1016,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     },
   };
 
-  const unconfirmedNext =
-    u1.acknowledgedReportVersion === 2
-      ? {
-          label: '核对修改范围',
-          href: scopePath,
-          reason: '第 2 版分析已核对；下一步确认精确文件范围与输入依据。',
-        }
-      : u1.reportTwoAvailable
-        ? {
-            label: '查看第 2 版分析',
-            href: `/projects/${projectId}/analysis/U1-REPORT-02`,
-            reason: '第 2 版分析已到达，需主动查看并核对本轮变化。',
-          }
-        : {
-            label: '查看资料批次',
-            href: `/projects/${projectId}/intake`,
-            reason: '先核对资料批次和读取限制，再进入分析与澄清。',
-          };
+  const unconfirmedNext = {
+    label: '确认修改范围',
+    href: `/projects/${projectId}/work`,
+    reason: '分析已就绪；下一步在当前工作确认精确文件范围与输入依据。',
+  };
   const currentPackage = delivery.packages.find(
     (pkg) => pkg.id === delivery.packagingRequest?.packageId,
   );
@@ -1012,6 +1032,8 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   );
   const handoff = buildHandoff({
     reviewStages: u2.reviewStages,
+    analysisStarted: u1.analysisStarted,
+    analysisReady: u1.analysisReady,
     planCheck: u2.planCheck,
     planVersion: plan.version,
     unconfirmedNext,
@@ -1024,7 +1046,49 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     packagingStatus: delivery.packagingStatus,
     packageAvailable,
   });
-  const api: U3Api = { rework, execution: executionProps, delivery: deliveryProps };
+  const api: U3Api = {
+    rework,
+    execution: executionProps,
+    delivery: deliveryProps,
+    deliveryApi: {
+      proposal,
+      blockers: blockersWithoutSelection,
+      bases: deliveryProps.bases,
+      state: {
+        confirmStatus: delivery.confirmStatus,
+        confirmScene: delivery.confirmScene,
+        confirmNote: delivery.confirmNote,
+        ...(delivery.confirmRequest
+          ? { confirmRequestLabel: delivery.confirmRequest.intent.requestId }
+          : {}),
+        packagingStatus: delivery.packagingStatus,
+        packagingScene: delivery.packagingScene,
+        packagingNote: delivery.packagingNote,
+        ...(delivery.packagingRequest
+          ? { packagingRequestLabel: delivery.packagingRequest.requestId }
+          : {}),
+        packages: delivery.packages,
+        ...(delivery.frozen ? { frozen: delivery.frozen } : {}),
+        ...(currentPackage ? { currentPackage } : {}),
+        packageAvailable,
+      },
+      actions: {
+        confirmAndPackage,
+        reconcileConfirmation: reconcileDeliveryConfirmation,
+        retryPackaging: retryDeliveryPackaging,
+        queryPackaging,
+        download: downloadPackage,
+        configure: (scene) => {
+          setDelivery((current) => ({
+            ...current,
+            ...(scene.confirmScene ? { confirmScene: scene.confirmScene } : {}),
+            ...(scene.packagingScene ? { packagingScene: scene.packagingScene } : {}),
+            ...(scene.downloadScene ? { downloadScene: scene.downloadScene } : {}),
+          }));
+        },
+      },
+    },
+  };
   return (
     <U3Context.Provider value={api}>
       <MvpActivityContext.Provider value={recoveryActivity ? { recovery: recoveryActivity } : {}}>
@@ -1032,6 +1096,218 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       </MvpActivityContext.Provider>
     </U3Context.Provider>
   );
+
+  function confirmAndPackage() {
+    if (
+      delivery.confirmStatus === 'PENDING' ||
+      delivery.confirmStatus === 'UNKNOWN' ||
+      delivery.confirmStatus === 'MISMATCH'
+    ) {
+      setDelivery((current) => ({
+        ...current,
+        confirmNote: '原最终确认请求仍未收敛；请先核对原请求，不能创建第二个确认意图。',
+      }));
+      return;
+    }
+    if (blockersWithoutSelection.length > 0) {
+      setDelivery((current) => ({
+        ...current,
+        confirmNote: `仍有未解决事项：${blockersWithoutSelection.join(' ')}`,
+      }));
+      return;
+    }
+    if (proposal.members.length === 0) {
+      setDelivery((current) => ({
+        ...current,
+        confirmNote: '当前尚无可用精确版本；请先完成三阶段定稿。',
+      }));
+      return;
+    }
+    if (delivery.frozen) {
+      startPackaging();
+      return;
+    }
+    const selection: DeliverySelection = {
+      proposalKey: deliveryListKey(proposal),
+      members: proposal.members.map((member) => ({ ...member })),
+    };
+    const intent = deliveryIntentFromSelection(proposal, selection, {
+      requestId: `U3-FINAL-${crypto.randomUUID().slice(0, 8)}`,
+      createdAt: new Date().toISOString(),
+    });
+    if (delivery.confirmScene === 'changed') {
+      simulateUpstreamRefinalization();
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'FAILED',
+        confirmRequest: { intent },
+        confirmNote:
+          '确认前上游依据已变化；未冻结。请按当前上游重新确认第三阶段，再重新核对交付清单。',
+      }));
+      return;
+    }
+    if (delivery.confirmScene === 'failed') {
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'FAILED',
+        confirmRequest: { intent },
+        confirmNote: '模拟最终确认失败；原清单与上下文保留，可重新核对后再次确认。',
+      }));
+      return;
+    }
+    if (delivery.confirmScene === 'pending' || delivery.confirmScene === 'unknown') {
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: delivery.confirmScene === 'pending' ? 'PENDING' : 'UNKNOWN',
+        confirmRequest: { intent },
+        confirmNote:
+          delivery.confirmScene === 'pending'
+            ? '最终确认请求待回执；未开始打包，重复操作不会创建第二个意图。'
+            : '最终确认结果未知；未开始打包，只能核对原请求。',
+      }));
+      return;
+    }
+    if (delivery.confirmScene === 'mismatch') {
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'PENDING',
+        confirmRequest: { intent, receipt: wrongReceipt(intent) },
+        confirmNote: '模拟最终确认回执与清单或依据不匹配；未开始打包，请核对原请求。',
+      }));
+      return;
+    }
+    const receipt = exactReceipt(intent);
+    const frozen = frozenFromIntent(intent);
+    if (delivery.packagingScene === 'FAILED') {
+      const attempt: PackagingAttempt = {
+        requestId: `U3-PACK-${crypto.randomUUID().slice(0, 8)}`,
+        frozenKey: frozen.frozenKey,
+        projectId,
+        status: 'FAILED',
+        note: '模拟打包失败；未重新生成业务文档，可对同一冻结清单重试。',
+        createdAt: new Date().toISOString(),
+      };
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'DONE',
+        confirmRequest: { intent, receipt },
+        frozen,
+        confirmNote: '清单已由一次匹配的最终确认冻结。',
+        packagingStatus: 'FAILED',
+        packagingRequest: attempt,
+        packagingNote: '打包失败；冻结清单与确认未改变，可重试同一清单。',
+      }));
+      return;
+    }
+    if (delivery.packagingScene === 'UNKNOWN') {
+      const attempt: PackagingAttempt = {
+        requestId: `U3-PACK-${crypto.randomUUID().slice(0, 8)}`,
+        frozenKey: frozen.frozenKey,
+        projectId,
+        status: 'UNKNOWN',
+        note: '模拟打包结果未知；先核对原打包请求，未核对前不开始第二次。',
+        createdAt: new Date().toISOString(),
+      };
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'DONE',
+        confirmRequest: { intent, receipt },
+        frozen,
+        confirmNote: '清单已由一次匹配的最终确认冻结。',
+        packagingStatus: 'UNKNOWN',
+        packagingRequest: attempt,
+        packagingNote: '打包结果待核对；未创建第二个打包意图。',
+      }));
+      return;
+    }
+    if (delivery.packagingScene === 'MISMATCH') {
+      const attempt: PackagingAttempt = {
+        requestId: `U3-PACK-${crypto.randomUUID().slice(0, 8)}`,
+        frozenKey: `${frozen.frozenKey}-OTHER`,
+        projectId,
+        status: 'MISMATCH',
+        note: '模拟回执属于其他冻结清单；未生成包。',
+        createdAt: new Date().toISOString(),
+      };
+      setDelivery((current) => ({
+        ...current,
+        selection,
+        confirmStatus: 'DONE',
+        confirmRequest: { intent, receipt },
+        frozen,
+        confirmNote: '清单已由一次匹配的最终确认冻结。',
+        packagingStatus: 'MISMATCH',
+        packagingRequest: attempt,
+        packagingNote: '打包回执与冻结清单不匹配；未生成包，可对同一清单重试。',
+      }));
+      return;
+    }
+    const pkg = makePackage(frozen, delivery.packages.length + 1);
+    setDelivery((current) => ({
+      ...current,
+      selection,
+      confirmStatus: 'DONE',
+      confirmRequest: { intent, receipt },
+      frozen,
+      confirmNote: '清单已由一次匹配的最终确认冻结；确认成功后才开始打包。',
+      packagingStatus: 'AVAILABLE',
+      packagingRequest: {
+        requestId: `U3-PACK-${crypto.randomUUID().slice(0, 8)}`,
+        frozenKey: frozen.frozenKey,
+        projectId,
+        status: 'AVAILABLE',
+        note: '包可用；成员对应冻结精确版本。',
+        createdAt: new Date().toISOString(),
+        packageId: pkg.id,
+      },
+      packagingNote: '文档包已生成（模拟）；成员与版本对应冻结清单。',
+      packages: [...current.packages, pkg],
+    }));
+  }
+
+  function reconcileDeliveryConfirmation() {
+    const request = delivery.confirmRequest;
+    if (!request) {
+      setDelivery((current) => ({
+        ...current,
+        confirmNote: '没有可核对的最终确认请求。',
+      }));
+      return;
+    }
+    if (delivery.confirmScene === 'mismatch') {
+      setDelivery((current) => ({
+        ...current,
+        confirmStatus: 'MISMATCH',
+        confirmNote: '原确认回执与当前清单或依据不匹配；未冻结，请重新核对清单。',
+      }));
+      return;
+    }
+    const receipt = request.receipt ?? exactReceipt(request.intent);
+    const frozen = frozenFromIntent(request.intent);
+    setDelivery((current) => ({
+      ...current,
+      confirmStatus: 'DONE',
+      confirmRequest: { ...request, receipt },
+      frozen,
+      confirmNote: '已核对原最终确认请求；未创建第二个确认意图。',
+      packagingStatus: 'NONE',
+      packagingNote: '清单已冻结，可对同一清单打包。',
+    }));
+  }
+
+  function retryDeliveryPackaging() {
+    if (delivery.packagingStatus === 'UNKNOWN' || delivery.packagingStatus === 'MISMATCH') {
+      queryPackaging();
+      return;
+    }
+    startPackaging();
+  }
 
   function requestRetry() {
     if (active) return;
@@ -1669,6 +1945,8 @@ function makePackage(frozen: FrozenDelivery, index: number): DeliveryPackage {
 
 function buildHandoff(input: {
   reviewStages: readonly JourneyReviewStage[];
+  analysisStarted: boolean;
+  analysisReady: boolean;
   planCheck: { ready: boolean; reason?: string | undefined };
   planVersion: number;
   unconfirmedNext: { label: string; href: string; reason: string };
@@ -1710,7 +1988,19 @@ function buildHandoff(input: {
     input.rules.procedureFinalizationId === input.procedure.finalizationId,
   );
   const next = !planReady
-    ? input.unconfirmedNext
+    ? !input.analysisStarted
+      ? {
+          label: '开始分析资料',
+          href: `/projects/${projectId}/work`,
+          reason: '资料包已接收；进入当前工作开始整体分析。',
+        }
+      : !input.analysisReady
+        ? {
+            label: '回答资料问题',
+            href: `/projects/${projectId}/work`,
+            reason: '分析发现需要客户确认的信息问题；答复后继续分析。',
+          }
+        : input.unconfirmedNext
     : !manualDone
       ? {
           label: '进入质量手册审阅',
@@ -1781,7 +2071,11 @@ function buildHandoff(input: {
     reviewStages: input.reviewStages,
     next,
     projectStatus: !planReady
-      ? '待确认修改范围'
+      ? !input.analysisStarted
+        ? '待开始分析'
+        : !input.analysisReady
+          ? '待回答资料问题'
+          : '待确认修改范围'
       : !manualDone
         ? '待质量手册审阅'
         : !procedureDone
@@ -1801,17 +2095,21 @@ function buildHandoff(input: {
                       : input.packagingStatus === 'PENDING'
                         ? '正在打包'
                         : '清单已冻结，待打包',
-    projectProgress: `计划第 ${input.planVersion} 版 · 阶段定稿 ${finalizedCount}/3${
-      input.deliveryFrozen
-        ? input.packageAvailable
-          ? ' · 交付包可用'
-          : input.packagingStatus === 'FAILED'
-            ? ' · 打包失败'
-            : input.packagingStatus === 'UNKNOWN'
-              ? ' · 打包结果待核验'
-              : ' · 待打包'
-        : ''
-    }`,
+    projectProgress: !planReady
+      ? !input.analysisReady
+        ? '资料 1 批 · 分析准备中'
+        : `计划第 ${input.planVersion} 版 · 待确认范围`
+      : `计划第 ${input.planVersion} 版 · 阶段定稿 ${finalizedCount}/3${
+          input.deliveryFrozen
+            ? input.packageAvailable
+              ? ' · 交付包可用'
+              : input.packagingStatus === 'FAILED'
+                ? ' · 打包失败'
+                : input.packagingStatus === 'UNKNOWN'
+                  ? ' · 打包结果待核验'
+                  : ' · 待打包'
+            : ''
+        }`,
     stages: [
       {
         id: 'manual',
@@ -1890,7 +2188,7 @@ function buildHandoff(input: {
   };
 }
 
-function useU3(): U3Api {
+export function useU3(): U3Api {
   const value = useContext(U3Context);
   if (!value) throw new Error('DEVELOPMENT_U3_ADAPTER_ONLY');
   return value;

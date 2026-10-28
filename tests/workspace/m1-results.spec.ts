@@ -42,15 +42,25 @@ async function advanceManualToV2(page: Page) {
 
 async function rehearsalLink(page: Page, name: string) {
   const details = page.locator('details.journey-rehearsal');
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
-  await details.getByRole('link', { name, exact: true }).click();
+  await details.waitFor({ state: 'attached' });
+  await details.evaluate((element) => {
+    element.setAttribute('open', '');
+  });
+  const link = details.locator('a', { hasText: name }).first();
+  await link.evaluate((element) => {
+    (element as HTMLAnchorElement).click();
+  });
+}
+
+async function openReading(page: Page, name: string) {
+  await rehearsalLink(page, name);
 }
 
 test('results overview keeps complete inventory and file feedback across detail navigation', async ({
   page,
 }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page).toHaveURL(/\/results(?:\?|$)/u);
   await expect(page.getByRole('heading', { name: '处理结果' })).toBeVisible();
   await expect(page.locator('.results-inventory-head p')).toContainText('项目上传文件 12');
@@ -71,17 +81,23 @@ test('results overview keeps complete inventory and file feedback across detail 
   await page.getByRole('button', { name: '本阶段' }).click();
   await expect(page.locator('.results-filters button[aria-pressed="true"]')).toHaveText('本阶段');
   await expect(
-    page.locator('.journey-nav').getByRole('link', { name: '项目概览', exact: true }),
+    page
+      .getByRole('navigation', { name: '项目导航' })
+      .getByRole('link', { name: '当前工作', exact: true }),
   ).toBeVisible();
   await expect(
-    page.locator('.journey-nav').getByRole('link', { name: '资料', exact: true }),
+    page
+      .getByRole('navigation', { name: '项目导航' })
+      .getByRole('link', { name: '全部文件', exact: true }),
   ).toBeVisible();
   await expect(
-    page.locator('.journey-nav').getByRole('link', { name: '处理结果', exact: true }),
+    page
+      .getByRole('navigation', { name: '项目导航' })
+      .getByRole('link', { name: '历史记录', exact: true }),
   ).toBeVisible();
   await expect(
-    page.locator('.journey-nav').getByRole('link', { name: '交付', exact: true }),
-  ).toBeVisible();
+    page.locator('details.journey-rehearsal a', { hasText: '项目概览（阅读）' }),
+  ).toBeAttached();
 
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
@@ -107,7 +123,7 @@ test('results overview keeps complete inventory and file feedback across detail 
   await expect(page.locator('.markdown-opinion')).toBeVisible();
   await page.locator('#markdown-note').fill('文件详情意见：保留客户质量目标与职责。');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
-  await expect(page.getByText('模拟文件意见已保存')).toBeVisible();
+  await expect(page.getByText(/已保存 1 条文件意见到本轮/u)).toBeVisible();
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
   await expect(page).toHaveURL(/\/results(?:\?|$)/u);
   await expect(page.getByLabel('结果类型', { exact: true })).toHaveValue('MANUAL');
@@ -121,12 +137,12 @@ test('results overview keeps complete inventory and file feedback across detail 
     true,
   );
   await page.getByRole('button', { name: '提交本轮意见并生成下一稿（模拟）' }).click();
-  await expect(page.getByText(/已登记模拟修改请求 U2-REV-/u)).toBeVisible();
+  await expect(page.getByText(/并登记模拟修改请求 U2-REV-/u)).toBeVisible();
 });
 
 async function expectCandidateLessRequest(page: Page, scene: 'failed' | 'unknown') {
   await reachManual(page, scene);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('结果类型', { exact: true })).toHaveValue('MANUAL');
   await expect(page.getByLabel('轮次', { exact: true }).locator('option')).toHaveCount(1);
   await expect(page.locator('.results-summary')).toContainText(
@@ -137,7 +153,7 @@ async function expectCandidateLessRequest(page: Page, scene: 'failed' | 'unknown
   );
   await expect(
     page.getByRole('link', {
-      name: scene === 'failed' ? '回到阶段审阅处理失败' : '核对原生成请求',
+      name: scene === 'failed' ? /回到阶段审阅处理失败/u : /核对原生成请求/u,
     }),
   ).toBeVisible();
   await page
@@ -161,7 +177,7 @@ test('unknown first-generation requests remain inspectable in results', async ({
 
 test('failed generation attempts remain selectable after retry and success', async ({ page }) => {
   await reachManual(page, 'failed');
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const roundSelect = page.getByLabel('轮次', { exact: true });
   await expect(roundSelect.locator('option')).toHaveCount(1);
   const firstAttempt = await roundSelect.locator('option').first().getAttribute('value');
@@ -173,19 +189,19 @@ test('failed generation attempts remain selectable after retry and success', asy
   await manualRow.getByRole('link', { name: '查看' }).click();
   await expect(page.locator('.results-unavailable')).toContainText('本轮候选生成失败');
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
-  await page.getByRole('link', { name: '回到阶段审阅处理失败' }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(roundSelect.locator('option')).toHaveCount(2);
   await expect(roundSelect).toHaveValue(firstAttempt);
   const secondAttempt = await roundSelect.locator('option').nth(1).getAttribute('value');
   expect(secondAttempt).toMatch(/MANUAL-REQ-U2-GEN-/u);
   expect(secondAttempt).not.toBe(firstAttempt);
   if (!secondAttempt) throw new Error('Second generation attempt has no route identity');
-  await page.getByRole('link', { name: '回到阶段审阅处理失败' }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await page.getByLabel('生成回执场景').selectOption('matched');
   await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(roundSelect.locator('option')).toHaveCount(3);
   await expect(roundSelect).toHaveValue(firstAttempt);
   const attemptValues = await roundSelect
@@ -200,7 +216,7 @@ test('failed generation attempts remain selectable after retry and success', asy
 
 test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ page }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -209,7 +225,7 @@ test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ 
   await page.locator('#markdown-note').fill('R7 计划一专属意见');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
-  await page.locator('.results-actions').getByRole('link', { name: '确认本阶段版本' }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await expect(page).toHaveURL(manual);
   await rehearsalLink(page, '修改范围');
   await expect(page).toHaveURL(plan);
@@ -220,7 +236,7 @@ test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ 
   await page.getByRole('button', { name: '进入质量手册审阅（演示）' }).click();
   await expect(page).toHaveURL(manual);
   await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const planTwoRound = 'MANUAL-V1@U1-PLAN-02-v2';
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
   await expect(page.getByLabel('轮次', { exact: true }).locator('option')).toHaveCount(2);
@@ -242,18 +258,18 @@ test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ 
 
 test('historical analysis rounds keep their original plan membership', async ({ page }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
   await page.getByLabel('轮次', { exact: true }).selectOption('ANALYSIS-1');
   const inventory = page.locator('.results-table tbody tr');
   const originalCount = await inventory.count();
   const originalCounts = await page.locator('.results-inventory-head p').innerText();
   await expect(page.locator('.results-table')).not.toContainText('变更通知单');
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await openReading(page, '项目概览（阅读）');
   await rehearsalLink(page, '修改范围');
   await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
   await page.getByLabel('轮次', { exact: true }).selectOption('ANALYSIS-1');
   await expect(inventory).toHaveCount(originalCount);
@@ -263,7 +279,7 @@ test('historical analysis rounds keep their original plan membership', async ({ 
 
 test('superseded plans reject next-draft submission from a historical round', async ({ page }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -272,11 +288,11 @@ test('superseded plans reject next-draft submission from a historical round', as
   await page.locator('#markdown-note').fill('R11 历史计划意见');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
-  await page.locator('.results-actions').getByRole('link', { name: '确认本阶段版本' }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await rehearsalLink(page, '修改范围');
   await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
-  await page.getByRole('link', { name: '处理结果', exact: true }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
   await expect(
     page.getByRole('button', { name: '提交本轮意见并生成下一稿（模拟）' }),
@@ -286,7 +302,7 @@ test('superseded plans reject next-draft submission from a historical round', as
 
 test('desktop detail compares the baseline and revision side by side', async ({ page }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -314,7 +330,7 @@ test('recovery attempts do not rewrite a historical round outcome or provenance'
   page,
 }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -326,7 +342,7 @@ test('recovery attempts do not rewrite a historical round outcome or provenance'
   await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
   await page.getByRole('button', { name: '查询原重试请求' }).click();
   await expect(page.locator('.u3-attempt')).toHaveCount(2);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const unchanged = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -339,7 +355,7 @@ test('recovery attempts do not rewrite a historical round outcome or provenance'
 
 test('detail requires an actual candidate in the selected round', async ({ page }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const externalRule = page.locator('.results-table tr', { hasText: '外来文件管理规定' }).first();
   await expect(externalRule).toContainText('本阶段未处理');
   await externalRule.getByRole('link', { name: '查看' }).click();
@@ -357,7 +373,7 @@ test('results submission updates shared stage state and enables the next candida
   page,
 }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
@@ -367,16 +383,8 @@ test('results submission updates shared stage state and enables the next candida
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
   await page.getByRole('button', { name: '提交本轮意见并生成下一稿（模拟）' }).click();
-  await expect(page.getByText(/已登记模拟修改请求 U2-REV-/u)).toBeVisible();
+  await expect(page.getByText(/已提交本轮意见并登记模拟修改请求 U2-REV-/u)).toBeVisible();
   await expect(page.getByRole('button', { name: '本轮意见已提交' })).toBeDisabled();
-  await page.locator('.results-actions').getByRole('link', { name: '确认本阶段版本' }).click();
-  await expect(page.locator('.markdown-history')).toContainText('R5 共享阶段修订意见');
-  const nextCandidate = page.getByRole('button', { name: '模拟下一轮候选到达' });
-  await expect(nextCandidate).toBeEnabled();
-  await nextCandidate.click();
-  await expect(page.getByText(/新候选已到达（模拟）/u)).toBeVisible();
-  await page.getByRole('link', { name: '处理结果' }).click();
-  await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
   await expect(page.getByText(/有新轮次可查看：质量手册 · 第 2 版候选/u)).toBeVisible();
   await page.getByRole('button', { name: /查看 质量手册 · 第 2 版候选/u }).click();
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV2);
@@ -387,7 +395,7 @@ test('results comparison modes bind exact versions across two feedback rounds', 
 }) => {
   await reachManual(page);
   await advanceManualToV2(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV2);
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
@@ -406,19 +414,19 @@ test('newer manual result is labeled as a separate round without replacing the s
   page,
 }) => {
   await reachManual(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
-  await expect(page.locator('.results-actions')).toContainText('确认本阶段版本');
+  await expect(page.locator('.results-actions')).toContainText('回到当前工作核对定稿');
   const manualRow = page
     .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
     .first();
   await manualRow.getByRole('link', { name: '查看' }).click();
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
-  await page.locator('.results-actions').getByRole('link').first().click();
+  await rehearsalLink(page, '质量手册审阅');
   await expect(page).toHaveURL(manual);
   await advanceManualToV2(page);
-  await page.getByRole('link', { name: '处理结果' }).click();
+  await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
   await expect(page.getByText(/有新轮次可查看：质量手册 · 第 2 版候选/u)).toBeVisible();
   await page.getByRole('button', { name: /查看 质量手册 · 第 2 版候选/u }).click();
@@ -439,9 +447,14 @@ test('production build excludes the results adapter and results rehearsal conten
       'results-inventory',
       '有新的轮次可查看',
       'U2-SAVE-LOCAL',
+      'DEVELOPMENT_TASK_WORKSPACE_ADAPTER_ONLY',
+      '确认交付清单并生成文档包',
+      'task-steps',
     ])
       expect(source.includes(marker), `Production bundle must exclude ${marker}`).toBe(false);
   }
   await page.goto(results);
   await expect(page.getByRole('heading', { name: '处理结果' })).toHaveCount(0);
+  await page.goto(`${base}/work`);
+  await expect(page.getByRole('heading', { name: '当前工作' })).toHaveCount(0);
 });

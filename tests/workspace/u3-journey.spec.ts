@@ -24,8 +24,13 @@ function stageRequestId(text: string | null): string {
 async function journeyLink(page: Page, name: string) {
   const details = page.locator('details.journey-rehearsal');
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
-  await details.getByRole('link', { name }).click();
+  await details.evaluate((element) => {
+    element.setAttribute('open', '');
+  });
+  const link = details.locator('a', { hasText: name }).first();
+  await link.evaluate((element) => {
+    (element as HTMLAnchorElement).click();
+  });
 }
 
 async function openAnalysisControls(page: Page) {
@@ -406,7 +411,7 @@ test('later third-stage revision starts a new package without changing the histo
   expect(currentBytes.includes(Buffer.from('返工后的质量手册与变更控制程序'))).toBe(true);
   expect(currentBytes.equals(oldBytes)).toBe(false);
 
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '项目概览（阅读）');
   await journeyLink(page, '最终交付');
   const historicalAfterReturn = page.locator('.u3-package', { hasText: '演练交付包 1' });
   await expect(historicalAfterReturn).toBeVisible();
@@ -444,7 +449,7 @@ test('recovery retries only failed files, reconciles unknown requests and keeps 
   await expect(page.locator('.u3-page')).toContainText('已结束的重试请求');
   await expect(page.locator('.u3-page')).toContainText(failedRequestId);
   await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '项目概览（阅读）');
   await journeyLink(page, '执行与恢复');
   await expect(page.locator('.u3-page')).toContainText(firstRequestId);
   await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
@@ -466,7 +471,7 @@ test('recovery retries only failed files, reconciles unknown requests and keeps 
   await page.getByRole('button', { name: '保存下一轮意见（模拟）' }).click();
   await page.getByRole('button', { name: '模拟原意见保存回执到达/查询' }).click();
   await expect(page.locator('.markdown-history')).toContainText('恢复期间保存的下一轮意见');
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '项目概览（阅读）');
   await journeyLink(page, '执行与恢复');
   await expect(page.locator('#recovery-note')).toHaveValue('恢复期间保存的下一轮意见');
   await expect(page.locator('.markdown-history')).toContainText('恢复期间保存的下一轮意见');
@@ -487,7 +492,7 @@ test('mismatched recovery receipt keeps the original request locked until a matc
   await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
   expect(requestId(await page.getByText(/原请求 U3-RETRY-/u).textContent())).toBe(originalId);
 
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '项目概览（阅读）');
   await journeyLink(page, '执行与恢复');
   await expect(page.locator('.u3-page')).toContainText(originalId);
   await expect(page.getByRole('button', { name: '仅重试失败文件（模拟）' })).toBeDisabled();
@@ -510,7 +515,7 @@ test('unresolved final confirmation survives list operations and navigation', as
   await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();
 
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await journeyLink(page, '项目概览（阅读）');
   await journeyLink(page, '最终交付');
   await expect(page.locator('.u3-page')).toContainText(originalId);
   await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();

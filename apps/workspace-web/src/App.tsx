@@ -151,6 +151,27 @@ const FixtureResultsDetail = lazy(() => {
     }));
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
+const FixtureCurrentWork = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/task-workspace.js').then((module) => ({
+      default: module.FixtureCurrentWork,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureAllFiles = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/task-workspace.js').then((module) => ({
+      default: module.FixtureAllFiles,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureHistory = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/task-workspace.js').then((module) => ({
+      default: module.FixtureHistory,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
 const FixtureU3Rework = lazy(() => {
   if (__DEV_FIXTURE__)
     return import('./fixtures/u3.js').then((module) => ({ default: module.FixtureU3Rework }));
@@ -360,7 +381,23 @@ function FixtureApp() {
                                             element={<FixtureU3Recovery />}
                                           />
                                           <Route
+                                            path="/projects/:projectId/work"
+                                            element={<FixtureCurrentWork />}
+                                          />
+                                          <Route
+                                            path="/projects/:projectId/files"
+                                            element={<FixtureAllFiles />}
+                                          />
+                                          <Route
+                                            path="/projects/:projectId/history"
+                                            element={<FixtureHistory />}
+                                          />
+                                          <Route
                                             path="/projects/:projectId/results"
+                                            element={<FixtureResultsOverview />}
+                                          />
+                                          <Route
+                                            path="/projects/:projectId/results/:roundId"
                                             element={<FixtureResultsOverview />}
                                           />
                                           <Route

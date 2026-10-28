@@ -9,7 +9,6 @@ import {
   type WorkCard,
 } from '../workbench/model.js';
 import { MvpHandoffContext } from './handoff.js';
-import { useU1 } from './u1.js';
 
 const projects: readonly [ProjectView, ProjectView, ProjectView] = [
   {
@@ -224,7 +223,6 @@ export function FixtureWorkbenchProvider({ children }: { children: ReactNode }) 
 export function FixtureWorkbench() {
   const state = useContext(BoardContext);
   if (!state) throw new Error('DEVELOPMENT_WORKBENCH_ADAPTER_MISSING');
-  const u1State = useU1();
   const handoff = useContext(MvpHandoffContext);
   const navigate = useNavigate();
   const location = useLocation();
@@ -245,14 +243,14 @@ export function FixtureWorkbench() {
   const mvpCard: WorkCard = {
     id: 'wb-u1',
     projectKey: u1.key,
-    title: 'M1 连续演练 · 当前下一步',
-    group: 'attention',
+    title: 'M1 连续演练 · 当前任务',
+    group: handoff?.projectStatus === '正在打包' ? 'running' : 'attention',
     status: handoff?.projectStatus ?? '待处理 · 演练',
-    reason: mvpNext?.reason ?? '从项目概览继续同一项目的连续演练；页面状态保留在当前会话内存。',
-    context: `${u1State.viewedReportId} · ${handoff?.projectProgress ?? '计划第 1 版'}`,
+    reason: mvpNext?.reason ?? '进入当前工作继续同一项目；页面状态保留在当前会话内存。',
+    context: handoff?.projectProgress ?? '资料 1 批 · 分析准备中',
     action: {
-      label: '查看项目概览',
-      destination: { kind: 'overview', projectId: u1.projectId },
+      label: '进入当前工作',
+      destination: { kind: 'work', projectId: u1.projectId },
     },
   };
   const cards = [mvpCard, ...state.cards];

@@ -95,6 +95,9 @@ async function checkProductionBundle() {
       '有新的轮次可查看',
       '返工与复核',
       '执行与恢复',
+      'DEVELOPMENT_TASK_WORKSPACE_ADAPTER_ONLY',
+      '确认交付清单并生成文档包',
+      'task-steps',
     ]) {
       assert(!text.includes(forbidden), `production bundle contains ${forbidden}`);
     }

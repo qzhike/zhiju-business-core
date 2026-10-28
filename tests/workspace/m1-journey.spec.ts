@@ -34,9 +34,27 @@ async function finalize(page: Page, button: string, versionText: string) {
 async function homeCard(page: Page) {
   await page.getByRole('link', { name: '我的工作台' }).click();
   await expect(page).toHaveURL(/\/workbench/u);
-  const card = page.getByRole('article', { name: 'M1 连续演练 · 当前下一步', exact: true });
+  const card = page.getByRole('article', { name: 'M1 连续演练 · 当前任务', exact: true });
   await expect(card).toBeVisible();
   return card;
+}
+
+async function rehearsalLink(page: Page, name: string) {
+  const details = page.locator('details.journey-rehearsal');
+  await details.waitFor({ state: 'attached' });
+  await details.evaluate((element) => {
+    element.setAttribute('open', '');
+  });
+  const link = details.locator('a', { hasText: name }).first();
+  await link.evaluate((element) => {
+    (element as HTMLAnchorElement).click();
+  });
+}
+
+async function openOverviewFromHome(page: Page, card: Locator) {
+  await card.getByRole('link', { name: '进入当前工作' }).click();
+  await expect(page).toHaveURL(`${base}/work`);
+  await rehearsalLink(page, '项目概览（阅读）');
 }
 
 async function downloadBytes(page: Page, button: Locator) {
@@ -52,10 +70,9 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
 }) => {
   console.log(`M1 controlled Chromium ${browser.version()}; human walkthrough still NOT RUN`);
   await page.goto('/workbench?enterprise=U1-ENTERPRISE&project=MVP-U1-PROJECT');
-  const initial = page.getByRole('article', { name: 'M1 连续演练 · 当前下一步', exact: true });
-  await expect(initial).toContainText('待确认修改范围');
-  await expect(initial).toContainText('阶段定稿 0/3');
-  await expect(initial).toContainText('U1-REPORT-01');
+  const initial = page.getByRole('article', { name: 'M1 连续演练 · 当前任务', exact: true });
+  await expect(initial).toContainText('待开始分析');
+  await expect(initial).toContainText('资料 1 批');
 
   await page.goto(reportOne);
   await openAnalysisControls(page);
@@ -73,7 +90,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   const afterManual = await homeCard(page);
   await expect(afterManual).toContainText('待控制程序审阅');
   await expect(afterManual).toContainText('阶段定稿 1/3');
-  await afterManual.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterManual);
   await expect(page.locator('.overview-steps li[aria-current="step"]')).toContainText('控制程序');
   await expect(page.locator('.overview-progress')).toContainText('第 2 步');
   await page.getByRole('link', { name: '进入控制程序审阅' }).click();
@@ -83,7 +100,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   const afterProcedure = await homeCard(page);
   await expect(afterProcedure).toContainText('待管理制度及记录表单审阅');
   await expect(afterProcedure).toContainText('阶段定稿 2/3');
-  await afterProcedure.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterProcedure);
   await expect(page.locator('.overview-steps li[aria-current="step"]')).toContainText(
     '管理制度及记录表单',
   );
@@ -95,7 +112,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   const afterRules = await homeCard(page);
   await expect(afterRules).toContainText('待最终交付确认');
   await expect(afterRules).toContainText('阶段定稿 3/3');
-  await afterRules.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterRules);
   await expect(page.locator('.overview-steps li[aria-current="step"]')).toHaveAttribute(
     'data-state',
     'COMPLETE',
@@ -118,7 +135,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await expect(afterFreeze).toContainText('清单已冻结，待打包');
   await expect(afterFreeze).toContainText('待打包');
   await expect(afterFreeze).not.toContainText('交付包已生成');
-  await afterFreeze.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterFreeze);
   await page.getByRole('link', { name: '开始打包冻结清单' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
 
@@ -128,7 +145,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   const afterFailure = await homeCard(page);
   await expect(afterFailure).toContainText('打包失败，待重试');
   await expect(afterFailure).toContainText('打包失败');
-  await afterFailure.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterFailure);
   await page.getByRole('link', { name: '重试同一冻结清单' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
 
@@ -137,7 +154,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await expect(page.getByText('打包结果待核验；只查询原打包请求。')).toBeVisible();
   const afterUnknown = await homeCard(page);
   await expect(afterUnknown).toContainText('打包结果待核验');
-  await afterUnknown.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterUnknown);
   await page.getByRole('link', { name: '核对原打包请求' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
   await page.getByRole('button', { name: '查询原打包请求' }).click();
@@ -146,7 +163,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   const afterPackage = await homeCard(page);
   await expect(afterPackage).toContainText('交付包已生成（模拟）');
   await expect(afterPackage).toContainText('交付包可用');
-  await afterPackage.getByRole('link', { name: '查看项目概览' }).click();
+  await openOverviewFromHome(page, afterPackage);
   await page.getByRole('link', { name: '查看最终交付包' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
   await expect(page.getByText('包可用（模拟）').first()).toBeVisible();
@@ -194,7 +211,7 @@ test('protected content, template conflicts and reading limits require explicit 
   await expect(structure).toContainText('已记录模拟人工处理决定');
   await expect(structure).toContainText('绑定报告第 1 版');
 
-  await page.getByRole('link', { name: '资料', exact: true }).click();
+  await rehearsalLink(page, '资料（阅读）');
   await expect(page.locator('.intake-batch')).toContainText('嵌套 RAR');
   await expect(page.locator('.batch-entries tr[data-state="FAILED"]')).toContainText('损坏');
   await expect(page.locator('.batch-limitations')).toContainText('RAR 成员未解包');

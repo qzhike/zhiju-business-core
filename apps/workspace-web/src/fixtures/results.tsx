@@ -33,6 +33,7 @@ import {
   sessionKey,
   useU2,
   type RoundOpinionInput,
+  type RoundOpinionResult,
   type StageSession,
 } from './u2.js';
 import {
@@ -101,7 +102,9 @@ interface ResultsContextValue {
   setFilter: (filter: ResultFilter) => void;
   changeDraft: (key: string, text: string) => void;
   saveDraft: (key: string, label: string) => void;
-  submitRound: (input: RoundOpinionInput) => void;
+  setOpinion: (key: string, label: string, text: string) => void;
+  clearReceipt: () => void;
+  submitRound: (input: RoundOpinionInput) => RoundOpinionResult;
 }
 
 const ResultsContext = createContext<ResultsContextValue | null>(null);
@@ -157,23 +160,38 @@ export function FixtureResultsProvider({ children }: { children: ReactNode }) {
       setSaved((current) => ({ ...current, [key]: { text, label } }));
       setReceipt(`已保存 ${count} 条文件意见到本轮（模拟）。`);
     },
+    clearReceipt: () => {
+      setReceipt('');
+    },
+    setOpinion: (key, label, text) => {
+      const trimmed = text.trim();
+      setDrafts((current) => ({ ...current, [key]: text }));
+      setSaved((current) => {
+        if (trimmed) return { ...current, [key]: { text: trimmed, label } };
+        return Object.fromEntries(Object.entries(current).filter(([entry]) => entry !== key));
+      });
+      setReceipt(trimmed ? '本轮意见已保留在本次会话内存（模拟）。' : '已清除此文件的会话内意见。');
+    },
     submitRound: (input) => {
       if (activity.recovery) {
-        setReceipt(`已有待处理恢复请求 ${activity.recovery.requestId}；请先核对原恢复请求。`);
-        return;
+        const reason = `已有待处理恢复请求 ${activity.recovery.requestId}；请先核对原恢复请求。`;
+        setReceipt(reason);
+        return { ok: false, reason };
       }
       const result = u2.submitRoundOpinions(input);
-      setReceipt(
-        result.ok
-          ? `已登记模拟修改请求 ${result.requestId}；未调用 Runner，未生成候选。`
-          : result.reason,
-      );
+      if (result.ok) {
+        u2.addNextCandidate(input.stage);
+        setReceipt(`已提交本轮意见并登记模拟修改请求 ${result.requestId}；新稿到达后需显式查看。`);
+      } else {
+        setReceipt(result.reason);
+      }
+      return result;
     },
   };
   return <ResultsContext.Provider value={value}>{children}</ResultsContext.Provider>;
 }
 
-function useResults() {
+export function useResults() {
   const value = useContext(ResultsContext);
   if (!value) throw new Error('DEVELOPMENT_RESULTS_ADAPTER_ONLY');
   return value;
@@ -270,17 +288,11 @@ function useResultsData(requestedRoundId?: string) {
       plan: analysisPlan,
       reportId: u1ReportOne.reportId,
       blockers: u1ReportOne.attentionItems.slice(0, 3).map((item) => item.title),
-      next: u1.reportTwoAvailable
-        ? {
-            label: '查看第 2 版分析',
-            href: `/projects/${projectId}/analysis/${u1ReportTwo.reportId}`,
-            reason: '第 2 版分析已到达，需主动查看并核对本轮变化。',
-          }
-        : {
-            label: '答复与补充资料',
-            href: `/projects/${projectId}/analysis/${u1ReportOne.reportId}`,
-            reason: '先答复澄清问题或补充资料，再形成下一版分析。',
-          },
+      next: {
+        label: '回到当前工作处理资料与分析',
+        href: `/projects/${projectId}/work`,
+        reason: '答复、补充资料与范围确认在当前工作连续完成。',
+      },
     },
     ...(u1.reportTwoAvailable
       ? [
@@ -293,9 +305,9 @@ function useResultsData(requestedRoundId?: string) {
             reportId: u1ReportTwo.reportId,
             blockers: u1ReportTwo.attentionItems.slice(0, 3).map((item) => item.title),
             next: {
-              label: '核对信息与文件范围',
-              href: `/projects/${projectId}/startup/U1-REPORT-02`,
-              reason: '分析已核对；下一步确认精确文件范围与输入依据。',
+              label: '回到当前工作确认修改范围',
+              href: `/projects/${projectId}/work`,
+              reason: '分析已就绪；下一步在当前工作确认精确文件范围与输入依据。',
             },
           },
         ]
@@ -309,7 +321,6 @@ function useResultsData(requestedRoundId?: string) {
       const versions = [
         ...new Set(files.flatMap((file) => session.files[file.id]?.versions ?? [])),
       ].sort();
-      const review = u2.reviewStages.find((entry) => entry.id === stage);
       const isCurrentPlan = plan.planId === u2.plan.planId && plan.version === u2.plan.version;
       const requestStatuses = new Set(['FAILED', 'UNKNOWN', 'PENDING', 'MISMATCH', 'RECEIVED']);
       const requestRounds: ResultRound[] = session.generationAttempts
@@ -330,9 +341,9 @@ function useResultsData(requestedRoundId?: string) {
           ],
           next: isCurrentPlan
             ? {
-                label: requestNextLabels[attempt.status],
-                href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
-                reason: '请在阶段审阅核对原生成请求、失败原因或待回执状态。',
+                label: `${requestNextLabels[attempt.status]}（当前工作）`,
+                href: `/projects/${projectId}/work`,
+                reason: '请在当前工作核对原生成请求、失败原因或待回执状态。',
               }
             : {
                 label: '查看当前处理结果',
@@ -366,11 +377,11 @@ function useResultsData(requestedRoundId?: string) {
             ],
             next: isCurrentPlan
               ? {
-                  label: finalization ? '查看阶段审阅' : '确认本阶段版本',
-                  href: review?.href ?? `/projects/${projectId}/stages/${stage.toLowerCase()}`,
+                  label: finalization ? '回到当前工作查看定稿' : '回到当前工作核对定稿',
+                  href: `/projects/${projectId}/work`,
                   reason: finalization
-                    ? '本阶段已有模拟定稿；可查看完整集合与历史。'
-                    : '在阶段审阅中核对完整文件版本集合后确认。',
+                    ? '本阶段已有模拟定稿；完整集合与历史在当前工作与历史记录中查看。'
+                    : '在当前工作核对完整文件版本集合后确认。',
                 }
               : {
                   label: '查看当前处理结果',
@@ -561,7 +572,7 @@ function useResultsData(requestedRoundId?: string) {
 export function FixtureResultsOverview() {
   const params = useParams();
   const activity = useMvpActivity();
-  const data = useResultsData();
+  const data = useResultsData(params.roundId);
   const restored = useRef(false);
   useLayoutEffect(() => {
     if (!restored.current) {
@@ -597,6 +608,7 @@ export function FixtureResultsOverview() {
       .finalization?.finalizationId;
     const rulesFinalizationId = sessionFor(round.plan, 'RULES', data.u2.sessions).finalization
       ?.finalizationId;
+    results.setRound(round.id);
     results.submitRound({
       planKey: round.planKey,
       planId: round.plan.planId,
@@ -864,6 +876,10 @@ export function FixtureResultsDetail() {
   const key = `${round.id}:${row.fileId}:${row.versionId}`;
   const draftText = results.drafts[key] ?? '';
   const saved = results.saved[key];
+  const roundSaved = Object.entries(results.saved).filter(([savedKey]) =>
+    savedKey.startsWith(`${round.id}:`),
+  );
+  const planEligible = round.plan.state === 'CONFIRMED' && !round.plan.supersededBy;
   const meta = u2FileMetas[row.fileId];
   const planFile = round.plan.files.find((file) => file.id === row.fileId);
   const analysisReport =
@@ -891,7 +907,7 @@ export function FixtureResultsDetail() {
       text: draftText,
       state: saved ? 'SAVED' : draftText ? 'UNSAVED' : 'EMPTY',
       note: saved
-        ? '模拟文件意见已保存；回到结果总览汇总提交。'
+        ? '已保留在本次会话内存；可在本页或当前工作核对提交。'
         : '只保留在当前页面内存；刷新重置。',
     },
     history: saved
@@ -1085,7 +1101,7 @@ export function FixtureResultsDetail() {
             focusReading
             opinionActions={{
               onDraftChange: (text) => {
-                results.changeDraft(key, text);
+                results.setOpinion(key, `${row.title} · ${round.label}`, text);
               },
               onSaveDraft: () => {
                 results.saveDraft(key, `${row.title} · ${round.label}`);
@@ -1093,16 +1109,70 @@ export function FixtureResultsDetail() {
             }}
             workspace={workspace ?? {}}
           />
-          <section className="panel results-detail-next" aria-label="阶段确认">
+          <section className="panel results-detail-next" aria-label="本轮意见与定稿">
+            <h2>本轮意见与定稿</h2>
             <p className="muted">
-              文件意见只保存到当前文件/轮次/版本；阶段定稿仍按完整精确集合确认。
+              意见编辑即保留在本次会话内存并绑定 {round.label} · {row.versionId}
+              ；提交与定稿仍是不同动作。
             </p>
-            <Link
-              className="button primary"
-              to={u2.reviewStages.find((stage) => stage.id === round.stage)?.href ?? back}
-            >
-              前往阶段审阅确认完整集合
-            </Link>
+            {roundSaved.length === 0 ? (
+              <p role="status">本轮尚未保留意见。</p>
+            ) : (
+              <ul>
+                {roundSaved.map(([savedKey, entry]) => (
+                  <li key={savedKey}>
+                    {entry.label} · {entry.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="results-actions">
+              <button
+                className="button primary"
+                disabled={
+                  round.stage === 'ANALYSIS' ||
+                  !planEligible ||
+                  roundSaved.length === 0 ||
+                  !data.roundComplete ||
+                  data.roundSubmitted ||
+                  Boolean(data.activeRequestId)
+                }
+                onClick={() => {
+                  if (round.stage === 'ANALYSIS' || !round.planKey) return;
+                  const manualFinalizationId = sessionFor(round.plan, 'MANUAL', u2.sessions)
+                    .finalization?.finalizationId;
+                  const procedureFinalizationId = sessionFor(round.plan, 'PROCEDURES', u2.sessions)
+                    .finalization?.finalizationId;
+                  const rulesFinalizationId = sessionFor(round.plan, 'RULES', u2.sessions)
+                    .finalization?.finalizationId;
+                  results.submitRound({
+                    planKey: round.planKey,
+                    planId: round.plan.planId,
+                    planVersion: round.plan.version,
+                    projectId,
+                    stage: round.stage,
+                    text: roundSaved.map(([, entry]) => `${entry.label}：${entry.text}`).join('\n'),
+                    files: data.roundFiles,
+                    ...(manualFinalizationId ? { manualFinalizationId } : {}),
+                    ...(procedureFinalizationId ? { procedureFinalizationId } : {}),
+                    ...(round.stage === 'RULES' && rulesFinalizationId
+                      ? { rulesFinalizationId }
+                      : {}),
+                  });
+                }}
+              >
+                {data.roundSubmitted ? '本轮意见已提交' : '核对并提交本轮意见并生成下一稿'}
+              </button>
+              <Link className="button" to={`/projects/${projectId}/work`}>
+                返回当前工作核对定稿
+              </Link>
+            </div>
+            <p className="muted" role="status">
+              {results.receipt ||
+                (data.roundSubmitted
+                  ? '本轮意见已登记；新稿到达后需显式查看。'
+                  : '提交不会直接定稿，也不会替代完整集合确认。')}
+            </p>
           </section>
         </>
       )}

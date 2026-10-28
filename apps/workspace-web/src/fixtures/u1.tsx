@@ -88,6 +88,12 @@ interface U1State {
   problemEntries: boolean;
   showProblemEntries: () => void;
   submitSupplement: () => void;
+  analysisStarted: boolean;
+  analysisReady: boolean;
+  clarificationMode: 'QUESTIONS' | 'NONE';
+  setClarificationMode: (mode: 'QUESTIONS' | 'NONE') => void;
+  startAnalysis: () => void;
+  submitAnswers: (text: string) => void;
   reportTwoAvailable: boolean;
   viewedReportId: string;
   setViewedReport: (reportId: string) => void;
@@ -121,6 +127,9 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [batchState, setBatchState] = useState<InputBatchState | null>(null);
   const [supplementSubmitted, setSupplementSubmitted] = useState(false);
   const [problemEntries, setProblemEntries] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [analysisReady, setAnalysisReady] = useState(false);
+  const [clarificationMode, setClarificationMode] = useState<'QUESTIONS' | 'NONE'>('QUESTIONS');
   const [reportTwoAvailable, setReportTwoAvailable] = useState(false);
   const [viewedReportId, setViewedReportId] = useState('U1-REPORT-01');
   const [acknowledgedReportVersion, setAcknowledgedReportVersion] = useState(1);
@@ -333,12 +342,51 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
       ],
     }));
   };
+  const startAnalysis = () => {
+    if (analysisStarted) return;
+    setAnalysisStarted(true);
+    if (clarificationMode === 'NONE') {
+      setAnalysisReady(true);
+      setAcknowledgedReportVersion(1);
+      setPlans((previous) =>
+        previous.map((plan) =>
+          plan.state === 'DRAFT' && plan.reportId === u1ReportTwo.reportId
+            ? { ...plan, reportId: u1ReportOne.reportId, reportVersion: u1ReportOne.version }
+            : plan,
+        ),
+      );
+    }
+  };
+  const submitAnswers = (text: string) => {
+    const answer = text.trim();
+    if (!answer) return;
+    setAnalysisStarted(true);
+    const input: Submission = {
+      id: crypto.randomUUID(),
+      projectId: u1Project.id,
+      context: contextFor(u1ReportOne, 'CUSTOMER'),
+      draft: {
+        text: answer,
+        attachments: ['补充批次说明（无新增文件）'],
+        fixedExample: true,
+      },
+    };
+    submit(input);
+    setAnalysisReady(true);
+    setAcknowledgedReportVersion(2);
+  };
   const value: U1State = {
     batches,
     batchState,
     setBatchState,
     supplementSubmitted,
     problemEntries,
+    analysisStarted,
+    analysisReady,
+    clarificationMode,
+    setClarificationMode,
+    startAnalysis,
+    submitAnswers,
     showProblemEntries: () => {
       setProblemEntries(true);
     },

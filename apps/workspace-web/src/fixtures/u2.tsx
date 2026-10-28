@@ -436,9 +436,16 @@ export interface RoundOpinionInput {
 
 export type RoundOpinionResult = { ok: true; requestId: string } | { ok: false; reason: string };
 
+export interface StageActionResult {
+  ok: boolean;
+  reason?: string | undefined;
+  finalizationId?: string | undefined;
+}
+
 export interface U2Api {
   plan: PlanView;
   planCheck: { ready: boolean; reason?: string | undefined };
+  stageReady: Record<MvpStageId, { ready: boolean; reason?: string | undefined }>;
   reviewedReportId: string;
   reviewStages: readonly JourneyReviewStage[];
   sessions: Record<string, StageSession>;
@@ -448,6 +455,13 @@ export interface U2Api {
   update: (stage: MvpStageId, change: (session: StageSession) => StageSession) => void;
   updateAny: (change: (session: StageSession) => StageSession) => void;
   submitRoundOpinions: (input: RoundOpinionInput) => RoundOpinionResult;
+  generateInitial: (stage: MvpStageId) => StageActionResult;
+  reconcileGeneration: (stage: MvpStageId) => StageActionResult;
+  retryGeneration: (stage: MvpStageId) => StageActionResult;
+  addNextCandidate: (stage: MvpStageId) => void;
+  viewLatest: (stage: MvpStageId) => void;
+  finalizeStage: (stage: MvpStageId) => StageActionResult;
+  simulateManualRefinalization: () => void;
 }
 
 const U2Context = createContext<U2Api | null>(null);
@@ -705,9 +719,301 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     }));
     return { ok: true, requestId };
   };
+  const generateSession = (current: StageSession, stage: MvpStageId): StageSession => {
+    if (!stageReady[stage].ready)
+      return { ...current, message: stageReady[stage].reason ?? '当前阶段尚未就绪。' };
+    if (Object.values(current.files).some((file) => file.versions.length > 0))
+      return { ...current, message: '本阶段已有候选；请审阅或重新定稿，不重复生成。' };
+    if (current.generationStatus === 'PENDING' || current.generationStatus === 'UNKNOWN')
+      return { ...current, message: '原生成请求仍未决；只核对原请求，不创建第二个意图。' };
+    const stageFiles = planStageFiles(plan, stage);
+    const allVersions = stageFiles
+      .map((file) => {
+        const versionId = u2VersionsFor(file.id)[0];
+        return versionId ? versionRef(file, versionId) : undefined;
+      })
+      .filter((ref): ref is FileVersionRef => ref !== undefined);
+    if (allVersions.length !== stageFiles.length)
+      return { ...current, message: '当前计划缺少可用候选版本；不能生成完整集合。' };
+    const scene = current.generationScene;
+    const versions = scene === 'missing' ? allVersions.slice(0, -1) : allVersions;
+    const intent: GenerationIntent = {
+      requestId: `U2-GEN-${crypto.randomUUID().slice(0, 8)}`,
+      projectId,
+      stage,
+      planId: plan.planId,
+      planVersion: plan.version,
+      versions,
+    };
+    if (scene === 'failed') {
+      const message = '模拟生成失败；范围确认与输入保留，可重试本次生成。';
+      return {
+        ...current,
+        generationStatus: 'FAILED',
+        generationRequest: { intent },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'FAILED', message),
+        ],
+        message,
+      };
+    }
+    if (scene === 'pending' || scene === 'unknown') {
+      const message =
+        scene === 'pending'
+          ? '生成请求待回执；重复操作不会创建第二个意图。'
+          : '生成结果未知；只能核对原请求。';
+      return {
+        ...current,
+        generationStatus: scene === 'pending' ? 'PENDING' : 'UNKNOWN',
+        generationRequest: { intent },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, scene === 'pending' ? 'PENDING' : 'UNKNOWN', message),
+        ],
+        message,
+      };
+    }
+    if (scene === 'mismatch') {
+      const receipt: GenerationReceipt = {
+        classification: 'DEVELOPMENT_FIXTURE_ONLY',
+        requestId: intent.requestId,
+        projectId,
+        stage,
+        planId: plan.planId,
+        planVersion: plan.version + 1,
+        versions,
+      };
+      const message = '模拟回执上下文不匹配；只能核对原请求。';
+      return {
+        ...current,
+        generationStatus: 'PENDING',
+        generationRequest: { intent, receipt },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'MISMATCH', message),
+        ],
+        message,
+      };
+    }
+    const message =
+      scene === 'missing'
+        ? '生成回执已到达，但模拟缺少一份文件；完整集合不能定稿。'
+        : '候选已到达（模拟）；请核对本阶段文件。';
+    return {
+      ...applyVersions(current, versions),
+      generationStatus: 'RECEIVED',
+      generationRequest: { intent },
+      generationAttempts: [
+        ...current.generationAttempts,
+        generationAttempt(intent, 'RECEIVED', message),
+      ],
+      message,
+    };
+  };
+
+  const generateInitial = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const next = generateSession(current, stage);
+    if (next !== current) setSessions((previous) => ({ ...previous, [key]: next }));
+    return next.generationStatus === 'RECEIVED'
+      ? { ok: true }
+      : { ok: false, reason: next.message };
+  };
+
+  const reconcileGeneration = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const request = current.generationRequest;
+    if (!request) return { ok: false, reason: '没有可核对的原生成请求。' };
+    if (current.generationStatus === 'FAILED')
+      return { ok: false, reason: '原生成请求已失败；请重试本次生成。' };
+    if (request.receipt && !generationReceiptMatches(request.intent, request.receipt)) {
+      const message = '原生成回执与项目、阶段或版本不匹配，未应用任何候选。';
+      const next: StageSession = {
+        ...current,
+        generationStatus: 'MISMATCH',
+        generationAttempts: current.generationAttempts.map((attempt) =>
+          attempt.requestId === request.intent.requestId
+            ? { ...attempt, status: 'MISMATCH', message, unresolvedHistory: true }
+            : attempt,
+        ),
+        message,
+      };
+      setSessions((previous) => ({ ...previous, [key]: next }));
+      return { ok: false, reason: message };
+    }
+    const receipt: GenerationReceipt = request.receipt ?? {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      requestId: request.intent.requestId,
+      projectId: request.intent.projectId,
+      stage: request.intent.stage,
+      planId: request.intent.planId,
+      planVersion: request.intent.planVersion,
+      versions: request.intent.versions,
+    };
+    const message = '已核对原生成请求并确认回执；未创建第二个意图。';
+    const next: StageSession = {
+      ...applyVersions(current, receipt.versions),
+      generationStatus: 'RECEIVED',
+      generationRequest: { ...request, receipt },
+      generationAttempts: current.generationAttempts.map((attempt) =>
+        attempt.requestId === request.intent.requestId
+          ? { ...attempt, status: 'RECEIVED', message, unresolvedHistory: true }
+          : attempt,
+      ),
+      message,
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+    return { ok: true };
+  };
+
+  const addNextCandidate = (stage: MvpStageId) => {
+    const key = sessionKey(plan, stage);
+    const stageFiles = planStageFiles(plan, stage);
+    setSessions((previous) => {
+      const current = previous[key] ?? emptySession(key, stage);
+      const unviewed = stageFiles.some((file) => {
+        const state = current.files[file.id];
+        const latest = state?.versions.at(-1);
+        return latest !== undefined && latest !== state?.viewedVersionId;
+      });
+      if (unviewed) {
+        return {
+          ...previous,
+          [key]: { ...current, message: '已有新稿等待查看；请先显式查看当前新稿。' },
+        };
+      }
+      let next = current;
+      const announced: string[] = [];
+      for (const file of stageFiles) {
+        const state = next.files[file.id];
+        const candidate = u2VersionsFor(file.id).find(
+          (versionId) => !state?.versions.includes(versionId),
+        );
+        if (!candidate) continue;
+        next = addSessionVersion(next, file.id, candidate);
+        announced.push(`${file.title} ${u2VersionLabel(candidate)}`);
+      }
+      const message =
+        announced.length > 0
+          ? `新稿已到达（模拟）：${announced.join('、')}；当前阅读保持不变，请显式查看。`
+          : '本轮已没有后续模拟候选；可核对当前版本。';
+      return { ...previous, [key]: { ...next, message } };
+    });
+  };
+
+  const viewLatest = (stage: MvpStageId) => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const next = adoptLatestVersions(
+      current,
+      planStageFiles(plan, stage).map((file) => file.id),
+    );
+    if (next === current) return;
+    setSessions((previous) => ({
+      ...previous,
+      [key]: { ...next, message: '已显式查看最新候选；请重新核对差异与本轮意见。' },
+    }));
+  };
+
+  const finalizeStage = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const stageFiles = planStageFiles(plan, stage);
+    const availabilities = stageFiles.map((file) => fileAvailability(file, current.files[file.id]));
+    const currentSet = viewedVersionSet(availabilities);
+    const active = activeSubmission(
+      Object.values(sessions).flatMap((candidate) => candidate.submissions),
+    );
+    const upstreamBasisChanged =
+      stage === 'PROCEDURES'
+        ? current.finalization?.manualFinalizationId !== manualFinalization?.finalizationId
+        : stage === 'RULES'
+          ? current.finalization?.manualFinalizationId !== manualFinalization?.finalizationId ||
+            current.finalization?.procedureFinalizationId !== procedureFinalization?.finalizationId
+          : false;
+    const refinalizing = Boolean(
+      current.finalization &&
+      (upstreamBasisChanged ||
+        (currentSet && !sameVersionSet(currentSet, current.finalization.files))),
+    );
+    const upstreamCheck =
+      stage === 'MANUAL' ? { ok: true } : stage === 'PROCEDURES' ? manualReady : procedureReady;
+    const blocker = finalizationBlocker({
+      plan: planCheck,
+      upstream: upstreamCheck,
+      files: availabilities,
+      active: Boolean(active),
+      finalized: Boolean(current.finalization),
+      refinalization: refinalizing,
+    });
+    if (!stageReady[stage].ready)
+      return { ok: false, reason: stageReady[stage].reason ?? '当前阶段尚未就绪。' };
+    if (!currentSet) return { ok: false, reason: '完整集合缺少文件或版本。' };
+    if (blocker) return { ok: false, reason: blocker };
+    const intent: FinalizationIntent = {
+      requestId: `U2-FINAL-${crypto.randomUUID().slice(0, 8)}`,
+      projectId,
+      stage,
+      planId: plan.planId,
+      planVersion: plan.version,
+      files: currentSet,
+      inputRefs: planInputRefs(plan),
+      templateIds: plan.templateBasis,
+      ...(stage !== 'MANUAL' && manualFinalization
+        ? { manualFinalizationId: manualFinalization.finalizationId }
+        : {}),
+      ...(stage === 'RULES' && procedureFinalization
+        ? { procedureFinalizationId: procedureFinalization.finalizationId }
+        : {}),
+    };
+    const receipt: FinalizationReceipt = {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      ...intent,
+      finalizationId: `U2-STAGE-${crypto.randomUUID().slice(0, 8)}`,
+      confirmedAt: new Date().toISOString(),
+    };
+    const next: StageSession = {
+      ...withFinalization(current, receipt),
+      finalizationStatus: 'DONE',
+      finalizationRequest: { intent, receipt },
+      message: current.finalization
+        ? '已按当前依据重新确认完整集合；原定稿保留在历史中。'
+        : '阶段完整集合已确认（模拟）；回执绑定精确计划、输入与版本集合。',
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+    return { ok: true, finalizationId: receipt.finalizationId };
+  };
+
+  const simulateManualRefinalization = () => {
+    const key = sessionKey(plan, 'MANUAL');
+    const current = sessions[key] ?? emptySession(key, 'MANUAL');
+    const source = current.finalization;
+    if (!source) return;
+    const nextFinalization: StageFinalization = {
+      ...source,
+      finalizationId: `U2-STAGE-${crypto.randomUUID().slice(0, 8)}`,
+      confirmedAt: new Date().toISOString(),
+    };
+    const next: StageSession = {
+      ...current,
+      finalization: nextFinalization,
+      finalizationStatus: 'DONE',
+      finalizationHistory: [
+        ...current.finalizationHistory,
+        { finalization: source, supersededBy: nextFinalization.finalizationId },
+      ],
+      message: '模拟质量手册重新定稿；控制程序与第三阶段旧集合保留，但需按新依据重新核对。',
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+  };
+
   const api: U2Api = {
     plan,
     planCheck,
+    stageReady,
     reviewedReportId: u1.viewedReportId,
     reviewStages,
     sessions,
@@ -717,6 +1023,13 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     update,
     updateAny,
     submitRoundOpinions,
+    generateInitial,
+    reconcileGeneration,
+    retryGeneration: generateInitial,
+    addNextCandidate,
+    viewLatest,
+    finalizeStage,
+    simulateManualRefinalization,
   };
   return (
     <U2Context.Provider value={api}>

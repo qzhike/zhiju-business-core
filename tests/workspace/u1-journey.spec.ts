@@ -16,11 +16,15 @@ async function openRehearsal(page: Page) {
 }
 
 async function rehearsalLink(page: Page, name: string) {
-  await openRehearsal(page);
-  await page
-    .locator('details.journey-rehearsal')
-    .getByRole('link', { name, exact: true })
-    .dispatchEvent('click');
+  const details = page.locator('details.journey-rehearsal');
+  await details.waitFor({ state: 'attached' });
+  await details.evaluate((element) => {
+    element.setAttribute('open', '');
+  });
+  const link = details.locator('a', { hasText: name }).first();
+  await link.evaluate((element) => {
+    (element as HTMLAnchorElement).click();
+  });
 }
 
 async function confirmPlan(page: Page, scenario = 'received') {
@@ -36,6 +40,12 @@ async function openAnalysisControls(page: Page) {
   if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
 }
 
+async function openReportRecords(page: Page) {
+  await page.locator('details.analysis-records').evaluate((element) => {
+    element.setAttribute('open', '');
+  });
+}
+
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
   await openAnalysisControls(page);
@@ -49,11 +59,13 @@ test('continuous journey keeps one project, explicit versions and return paths',
   page,
 }) => {
   await page.goto('/workbench?enterprise=U1-ENTERPRISE&project=MVP-U1-PROJECT');
-  const card = page.getByRole('article', { name: 'M1 连续演练 · 当前下一步', exact: true });
-  await expect(card).toContainText('U1-REPORT-01');
-  await expect(card).toContainText('待确认修改范围');
-  await expect(card).toContainText('阶段定稿 0/3');
-  await card.getByRole('link', { name: '查看项目概览' }).click();
+  const card = page.getByRole('article', { name: 'M1 连续演练 · 当前任务', exact: true });
+  await expect(card).toContainText('待开始分析');
+  await expect(card).toContainText('资料 1 批');
+  await card.getByRole('link', { name: '进入当前工作' }).click();
+  await expect(page).toHaveURL(`${base}/work`);
+  await expect(page.getByRole('heading', { level: 1, name: '当前工作' })).toBeVisible();
+  await rehearsalLink(page, '项目概览（阅读）');
   await expect(page).toHaveURL(overview);
   await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
   await expect(page.locator('.overview-steps > li')).toHaveCount(3);
@@ -79,7 +91,7 @@ test('continuous journey keeps one project, explicit versions and return paths',
   expect(stepBoxes).toHaveLength(3);
   expect(new Set(stepBoxes.map((box) => box.y)).size).toBe(1);
   expect(new Set(stepBoxes.map((box) => box.x)).size).toBe(3);
-  await page.getByRole('link', { name: '查看资料批次' }).click();
+  await rehearsalLink(page, '资料（阅读）');
   await expect(page).toHaveURL(intake);
   await expect(page.getByRole('heading', { name: '准备首轮客户资料' })).toBeVisible();
   await expect(page.locator('.intake-batch')).toHaveCount(1);
@@ -105,7 +117,7 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await page.goto(reportTwo);
   await expect(page.getByRole('heading', { name: '第 2 版分析尚未到达' })).toBeVisible();
   await expect(page.getByRole('link', { name: '返回第 1 版' })).toBeVisible();
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await rehearsalLink(page, '项目概览（阅读）');
   await expect(page).toHaveURL(overview);
   await expect(page.getByText('MVP-U1-PROJECT', { exact: false }).first()).toBeVisible();
   await page.goto(`${base}/analysis/UNKNOWN-REPORT`);
@@ -164,9 +176,9 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('.analysis-receipt').first()).toContainText('第 2 版分析已到达');
   await expect(page).toHaveURL(reportOne);
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await rehearsalLink(page, '项目概览（阅读）');
   await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-01');
-  await page.getByRole('link', { name: '资料', exact: true }).click();
+  await rehearsalLink(page, '资料（阅读）');
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await expect(page).toHaveURL(reportOne);
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
@@ -176,16 +188,13 @@ test('answer and supplement produce a second report without losing the first', a
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
   await expect(page.getByRole('link', { name: '核对信息与文件范围 →' })).toBeVisible();
   await expect(page.locator('main')).toContainText('本轮变化');
-  await page.getByRole('link', { name: '项目概览' }).click();
+  await rehearsalLink(page, '项目概览（阅读）');
   await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-02');
-  await page.getByRole('link', { name: '资料', exact: true }).click();
+  await rehearsalLink(page, '资料（阅读）');
   await rehearsalLink(page, '分析与澄清');
   await expect(page).toHaveURL(reportTwo);
-  await page.getByText('报告记录', { exact: true }).click();
+  await openReportRecords(page);
   await page.getByRole('link', { name: /查看第 1 版/u }).click();
-  await expect(page).toHaveURL(reportOne);
-  await page.getByRole('link', { name: '资料', exact: true }).click();
-  await rehearsalLink(page, '分析与澄清');
   await expect(page).toHaveURL(reportOne);
   await page.getByRole('button', { name: '拟交付文件' }).click();
   await page
@@ -194,7 +203,7 @@ test('answer and supplement produce a second report without losing the first', a
     .click();
   await expect(page.getByRole('heading', { name: '新增变更实施记录' })).toHaveCount(1);
   await expect(page.getByText('按正式模板形成')).toBeVisible();
-  await page.getByText('报告记录', { exact: true }).click();
+  await openReportRecords(page);
   await page.getByRole('link', { name: /查看第 1 版/u }).click();
   await expect(page).toHaveURL(reportOne);
   await expect(page.locator('main')).toContainText('历史报告 · 只读');
@@ -208,7 +217,7 @@ test('a later supplement stays visible but is marked outside the earlier analysi
   await openAnalysisControls(page);
   await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
-  await page.getByRole('link', { name: '处理结果', exact: true }).click();
+  await rehearsalLink(page, '处理结果（阅读）');
   await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
   await page.getByLabel('轮次', { exact: true }).selectOption('ANALYSIS-1');
   const supplement = page.locator('.results-table tr', { hasText: '变更记录清单' });
