@@ -173,6 +173,8 @@ export interface MarkdownReviewPageProps {
   busy: boolean;
   directoryStatus: string;
   onMore: () => Promise<void>;
+  /** Results detail starts with only the reading surface; opinions open on demand. */
+  focusReading?: boolean;
   /** Development adapter controls; rendered inside the opinion rail. */
   controls?: ReactNode;
 }
@@ -187,11 +189,13 @@ export function MarkdownReviewPage({
   busy,
   directoryStatus,
   onMore,
+  focusReading = false,
   controls,
 }: MarkdownReviewPageProps) {
   const [tab, setTab] = useState<'changes' | 'document' | 'summary'>('changes');
   const [index, setIndex] = useState(0);
   const [pane, setPane] = useState<'document' | 'opinion'>('document');
+  const [opinionOpen, setOpinionOpen] = useState(!focusReading);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [chapterState, setChapterState] = useState<Record<string, boolean>>({});
@@ -431,11 +435,27 @@ export function MarkdownReviewPage({
             {download.status}
           </p>
         </div>
+        {focusReading && (
+          <div className="markdown-focus-actions">
+            <button
+              type="button"
+              className="button"
+              aria-expanded={opinionOpen}
+              onClick={() => {
+                setOpinionOpen((open) => !open);
+                setPane(opinionOpen ? 'document' : 'opinion');
+              }}
+            >
+              {opinionOpen ? '收起意见与处理' : '打开意见与处理'}
+            </button>
+          </div>
+        )}
       </header>
       <div className="markdown-mobile-tabs">
         <button
           onClick={() => {
             setPane('document');
+            if (focusReading) setOpinionOpen(false);
           }}
           aria-pressed={pane === 'document'}
         >
@@ -444,13 +464,18 @@ export function MarkdownReviewPage({
         <button
           onClick={() => {
             setPane('opinion');
+            if (focusReading) setOpinionOpen(true);
           }}
           aria-pressed={pane === 'opinion'}
         >
           意见与处理
         </button>
       </div>
-      <div className="markdown-review-layout">
+      <div
+        className={`markdown-review-layout${focusReading ? ' focus-reading' : ''}${
+          focusReading && opinionOpen ? ' show-opinion' : ''
+        }`}
+      >
         <nav className="markdown-files" aria-label="本轮文件">
           <h2>本轮文件</h2>
           {files ? (

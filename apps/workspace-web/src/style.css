@@ -51,6 +51,24 @@
   flex: 1;
   min-height: 0;
 }
+.markdown-focus-actions {
+  display: flex;
+  align-items: flex-start;
+}
+.markdown-review-layout.focus-reading {
+  grid-template-columns: minmax(0, 1fr);
+}
+.markdown-review-layout.focus-reading .markdown-files,
+.markdown-review-layout.focus-reading .markdown-opinion {
+  display: none;
+}
+.markdown-review-layout.focus-reading.show-opinion {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.markdown-review-layout.focus-reading.show-opinion .markdown-opinion {
+  display: flex;
+}
+
 .markdown-files,
 .markdown-reader,
 .markdown-opinion {
@@ -532,6 +550,10 @@
   }
   .markdown-review-layout {
     grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .markdown-review-layout.focus-reading,
+  .markdown-review-layout.focus-reading.show-opinion {
+    grid-template-columns: minmax(0, 1fr);
   }
   .markdown-mobile-tabs {
     display: flex;

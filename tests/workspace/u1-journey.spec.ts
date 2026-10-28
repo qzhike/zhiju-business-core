@@ -9,6 +9,20 @@ const reportOne = `${base}/analysis/U1-REPORT-01`;
 const reportTwo = `${base}/analysis/U1-REPORT-02`;
 const plan = `${base}/startup/U1-REPORT-02`;
 
+async function openRehearsal(page: Page) {
+  const details = page.locator('details.journey-rehearsal');
+  await details.waitFor({ state: 'attached' });
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+}
+
+async function rehearsalLink(page: Page, name: string) {
+  await openRehearsal(page);
+  await page
+    .locator('details.journey-rehearsal')
+    .getByRole('link', { name, exact: true })
+    .dispatchEvent('click');
+}
+
 async function confirmPlan(page: Page, scenario = 'received') {
   const controls = page.locator('.fixture-options');
   if (scenario !== 'received') await controls.getByLabel('确认回执场景').selectOption(scenario);
@@ -54,8 +68,17 @@ test('continuous journey keeps one project, explicit versions and return paths',
   expect(stageBox).not.toBeNull();
   expect(levelBox).not.toBeNull();
   if (!stageBox || !levelBox) throw new Error('overview panels are not visible');
-  expect(Math.abs(stageBox.y - levelBox.y)).toBeLessThan(2);
-  expect(stageBox.x).toBeLessThan(levelBox.x);
+  expect(stageBox.y).toBeLessThan(levelBox.y);
+  expect(Math.abs(stageBox.x - levelBox.x)).toBeLessThan(2);
+  const stepBoxes = await page.locator('.overview-steps > li').evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width) };
+    }),
+  );
+  expect(stepBoxes).toHaveLength(3);
+  expect(new Set(stepBoxes.map((box) => box.y)).size).toBe(1);
+  expect(new Set(stepBoxes.map((box) => box.x)).size).toBe(3);
   await page.getByRole('link', { name: '查看资料批次' }).click();
   await expect(page).toHaveURL(intake);
   await expect(page.getByRole('heading', { name: '准备首轮客户资料' })).toBeVisible();
@@ -75,10 +98,10 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
   await expect(page.locator('main')).toContainText('U1-REPORT-01');
   await expect(page.getByText('先记录客户答复并核对新报告')).toBeVisible();
-  await expect(page.getByRole('link', { name: '修改范围', exact: true })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  );
+  await openRehearsal(page);
+  await expect(
+    page.locator('details.journey-rehearsal').getByRole('link', { name: '修改范围', exact: true }),
+  ).toHaveAttribute('aria-disabled', 'true');
   await page.goto(reportTwo);
   await expect(page.getByRole('heading', { name: '第 2 版分析尚未到达' })).toBeVisible();
   await expect(page.getByRole('link', { name: '返回第 1 版' })).toBeVisible();
@@ -143,7 +166,7 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.getByRole('heading', { name: '分析总览' })).toBeVisible();
   await page.getByRole('link', { name: '项目概览' }).click();
   await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-01');
-  await page.getByRole('link', { name: '资料批次' }).click();
+  await page.getByRole('link', { name: '资料', exact: true }).click();
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await expect(page).toHaveURL(reportOne);
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
@@ -155,14 +178,14 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('main')).toContainText('本轮变化');
   await page.getByRole('link', { name: '项目概览' }).click();
   await expect(page.locator('main')).toContainText('当前分析报告 U1-REPORT-02');
-  await page.getByRole('link', { name: '资料批次' }).click();
-  await page.getByRole('link', { name: '分析与澄清' }).click();
+  await page.getByRole('link', { name: '资料', exact: true }).click();
+  await rehearsalLink(page, '分析与澄清');
   await expect(page).toHaveURL(reportTwo);
   await page.getByText('报告记录', { exact: true }).click();
   await page.getByRole('link', { name: /查看第 1 版/u }).click();
   await expect(page).toHaveURL(reportOne);
-  await page.getByRole('link', { name: '资料批次' }).click();
-  await page.getByRole('link', { name: '分析与澄清' }).click();
+  await page.getByRole('link', { name: '资料', exact: true }).click();
+  await rehearsalLink(page, '分析与澄清');
   await expect(page).toHaveURL(reportOne);
   await page.getByRole('button', { name: '拟交付文件' }).click();
   await page
@@ -176,6 +199,24 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page).toHaveURL(reportOne);
   await expect(page.locator('main')).toContainText('历史报告 · 只读');
   await expect(page.locator('.analysis-receipt').first()).toContainText('已接收意见');
+});
+
+test('a later supplement stays visible but is marked outside the earlier analysis round', async ({
+  page,
+}) => {
+  await page.goto(reportOne);
+  await openAnalysisControls(page);
+  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await page.getByRole('button', { name: '提交补充', exact: true }).click();
+  await page.getByRole('link', { name: '处理结果', exact: true }).click();
+  await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
+  await page.getByLabel('轮次', { exact: true }).selectOption('ANALYSIS-1');
+  const supplement = page.locator('.results-table tr', { hasText: '变更记录清单' });
+  await expect(supplement).toContainText('未纳入本轮（补充批次后到达）');
+  await page.getByRole('button', { name: '本轮涉及' }).click();
+  await expect(supplement).toHaveCount(0);
+  await page.getByLabel('轮次', { exact: true }).selectOption('ANALYSIS-2');
+  await expect(supplement).toContainText('作为分析依据');
 });
 
 test('analysis failure is distinct and a received opinion locks the composer', async ({ page }) => {
@@ -253,7 +294,7 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page).toHaveURL(`${base}/stages/manual`);
   await expect(page.getByRole('heading', { name: '质量手册审阅' })).toBeVisible();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await page.getByRole('link', { name: '修改范围', exact: true }).click();
+  await rehearsalLink(page, '修改范围');
   await expect(page).toHaveURL(plan);
   await page.getByRole('textbox', { name: /范围内反馈/u }).fill('请保留客户 I/II/III 类术语');
   await page.getByRole('button', { name: '提交范围内反馈（模拟修订请求）' }).click();
@@ -336,8 +377,8 @@ test('UNKNOWN keeps the original intent across navigation and recovers only that
   await page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('unknown');
   await confirmPlan(page);
   await expect(page.getByRole('alert')).toContainText('确认结果未知（UNKNOWN）');
-  await page.getByRole('link', { name: '分析与澄清' }).click();
-  await page.getByRole('link', { name: '修改范围', exact: true }).click();
+  await rehearsalLink(page, '分析与澄清');
+  await rehearsalLink(page, '修改范围');
   await expect(page.getByRole('alert')).toContainText('确认结果未知（UNKNOWN）');
   await expect(page.getByRole('button', { name: '确认这份修改范围' })).toBeDisabled();
   await page.getByRole('button', { name: '重新查询原请求' }).click();
@@ -355,6 +396,8 @@ test('development marker, layouts and keyboard focus remain usable', async ({ pa
   for (const path of [overview, intake, reportOne, plan]) {
     for (const [width, height] of [
       [1440, 900],
+      [700, 900],
+      [641, 900],
       [360, 800],
       [320, 800],
     ] as const) {
@@ -364,6 +407,16 @@ test('development marker, layouts and keyboard focus remain usable', async ({ pa
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
+      if (path === overview) {
+        const steps = await page.locator('.overview-steps').boundingBox();
+        const levels = await page.locator('.overview-levels').boundingBox();
+        expect(steps && levels && steps.y + steps.height <= levels.y + 1).toBe(true);
+        for (const step of await page.locator('.overview-steps li').all()) {
+          expect(
+            await step.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+          ).toBe(true);
+        }
+      }
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     }
   }

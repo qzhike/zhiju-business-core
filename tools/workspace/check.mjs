@@ -90,6 +90,9 @@ async function checkProductionBundle() {
       'U3-PKG-',
       'U3-UPSTREAM-',
       'SYNTHETIC-MANIFEST.md',
+      'DEVELOPMENT_RESULTS_ADAPTER_ONLY',
+      'results-inventory',
+      '有新的轮次可查看',
       '返工与复核',
       '执行与恢复',
     ]) {

@@ -1094,12 +1094,6 @@ function content(
   };
 }
 
-function sectionSections(seed: CandidateSeed, before: boolean): readonly SectionSpec[] {
-  if (!before) return seed.sections;
-  if (seed.versionId === 'V1') return currentSections[seed.fileId] ?? [];
-  return candidateSeeds[seed.fileId]?.V1?.sections ?? [];
-}
-
 function tableSignature(table: TableSpec): string {
   return [table.caption, ...table.headers, ...table.rows.map((row) => row.join('|'))].join('|');
 }
@@ -1215,21 +1209,34 @@ function changesFor(
 
 const emptySections: readonly SectionSpec[] = [];
 
-/** Exact public-safe candidate for one planned file and version. */
-export function u2Candidate(fileId: string, versionId: string): MarkdownReviewData | undefined {
+/** Exact public-safe comparison for one planned file and two explicit bases. */
+export function u2CandidateComparison(
+  fileId: string,
+  fromVersionId: string | null,
+  toVersionId: string,
+): MarkdownReviewData | undefined {
   const meta = u2FileMetas[fileId];
-  const seed = candidateSeeds[fileId]?.[versionId];
-  if (!meta || !seed) return undefined;
-  const beforeSections = sectionSections(seed, true);
-  const afterSections = seed.sections;
-  const afterId = revisionIds[fileId]?.[versionId] ?? `${fileId}-${versionId}`;
-  const before = content(
-    `${afterId}B`,
-    `${meta.title} · 比较基线`,
-    beforeSections.length > 0 ? beforeSections : emptySections,
+  const toSeed = candidateSeeds[fileId]?.[toVersionId];
+  if (!meta || !toSeed) return undefined;
+  const fromSeed = fromVersionId ? candidateSeeds[fileId]?.[fromVersionId] : undefined;
+  if (fromVersionId && !fromSeed) return undefined;
+  const beforeSections = fromVersionId
+    ? (fromSeed?.sections ?? emptySections)
+    : (currentSections[fileId] ?? emptySections);
+  const afterSections = toSeed.sections;
+  const afterId = revisionIds[fileId]?.[toVersionId] ?? `${fileId}-${toVersionId}`;
+  const beforeId = fromVersionId
+    ? (revisionIds[fileId]?.[fromVersionId] ?? `${fileId}-${fromVersionId}`)
+    : `${afterId}B`;
+  const before = content(beforeId, `${meta.title} · 比较基线`, beforeSections);
+  const after = content(afterId, `${meta.title} · ${toSeed.versionLabel}`, afterSections);
+  const { changes, groups } = changesFor(
+    before,
+    after,
+    beforeSections,
+    afterSections,
+    `${fileId}:${fromVersionId ?? 'BASE'}:${toVersionId}`,
   );
-  const after = content(afterId, `${meta.title} · ${seed.versionLabel}`, afterSections);
-  const { changes, groups } = changesFor(before, after, beforeSections, afterSections, fileId);
   const empty = beforeSections.length === 0;
   return {
     content: after,
@@ -1240,7 +1247,7 @@ export function u2Candidate(fileId: string, versionId: string): MarkdownReviewDa
         ...(empty ? {} : { fromRevisionRef: before.revisionRef }),
         baselineKind: empty ? 'EMPTY_INITIAL' : 'REVISION',
       },
-      diffHash: hash(`${fileId}:${versionId}:diff`),
+      diffHash: hash(`${fileId}:${fromVersionId ?? 'BASE'}:${toVersionId}:diff`),
       totalChanges: changes.length,
       changedUnitCount: changes.length,
       filteredChanges: changes.length,
@@ -1248,6 +1255,13 @@ export function u2Candidate(fileId: string, versionId: string): MarkdownReviewDa
       entries: changes,
     },
   };
+}
+
+/** Exact public-safe candidate for one planned file and version. */
+export function u2Candidate(fileId: string, versionId: string): MarkdownReviewData | undefined {
+  const versions = [...u2VersionsFor(fileId)].sort();
+  const index = versions.indexOf(versionId);
+  return u2CandidateComparison(fileId, index > 0 ? (versions[index - 1] ?? null) : null, versionId);
 }
 
 export function u2VersionsFor(fileId: string): readonly string[] {

@@ -101,7 +101,6 @@ export function ProjectOverviewPage({
                   <div className="overview-step-body">
                     <strong>{stage.label}</strong>
                     <span className="status-tag">{stage.state}</span>
-                    <p>{stage.detail}</p>
                   </div>
                 </li>
               );
@@ -112,10 +111,21 @@ export function ProjectOverviewPage({
               ? `当前进度：第 ${currentStageIndex + 1} 步 · ${currentStage.label} · ${currentStage.state}`
               : '当前进度：尚未开始'}
           </p>
+          <details className="overview-stage-details">
+            <summary>查看阶段依据与历史</summary>
+            <ul>
+              {stages.map((stage) => (
+                <li key={stage.id}>
+                  <strong>{stage.label}</strong> · {stage.state}
+                  <p>{stage.detail}</p>
+                </li>
+              ))}
+            </ul>
+          </details>
         </section>
         <section className="panel" aria-label="四个文件层级">
           <h2>四个文件层级</h2>
-          <p className="muted">层级是文件组织方式，不是串行审批关卡。</p>
+          <p className="muted">层级是文件组织方式，不是串行审批关卡，也不是阶段顺序。</p>
           <ul className="overview-levels">
             {levels.map((level) => (
               <li key={level.id}>
@@ -123,7 +133,10 @@ export function ProjectOverviewPage({
                 <span>
                   输入 {level.inputCount} · 本轮计划 {level.plannedCount}
                 </span>
-                <p>{level.detail}</p>
+                <details>
+                  <summary>查看说明</summary>
+                  <p>{level.detail}</p>
+                </details>
               </li>
             ))}
           </ul>

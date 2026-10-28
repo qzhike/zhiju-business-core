@@ -32,6 +32,13 @@ async function confirmPlan(page: Page, scenario = 'received') {
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
 }
 
+async function rehearsalLink(page: Page, name: string) {
+  const details = page.locator('details.journey-rehearsal');
+  await details.waitFor({ state: 'attached' });
+  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  await details.getByRole('link', { name, exact: true }).click();
+}
+
 async function reachManual(page: Page) {
   await acknowledgeSecondReport(page);
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
@@ -336,7 +343,7 @@ test('save, submission and finalization recovery keep one original request', asy
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
   await expect(page.getByText('本项目已有待回执或待核验的修改请求')).toHaveCount(0);
   await page.getByRole('link', { name: '项目概览' }).click();
-  await page.getByRole('link', { name: '质量手册审阅', exact: true }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await expect(page.locator('.markdown-submission')).toContainText('提交结果待核验');
   await page.getByRole('button', { name: '重新查询原修订请求' }).click();
   await expect(page.getByText('原修订请求仍无可匹配回执')).toBeVisible();
@@ -367,7 +374,7 @@ test('save, submission and finalization recovery keep one original request', asy
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '确认质量手册定稿（模拟）' })).toBeDisabled();
   await page.getByRole('link', { name: '项目概览' }).click();
-  await page.getByRole('link', { name: '质量手册审阅', exact: true }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await expect(
     page.locator('.stage-finalize').getByText('定稿请求待回执', { exact: true }),
   ).toBeVisible();
@@ -466,7 +473,7 @@ test('unresolved save requests block revision submission and stay recoverable', 
     void dialog.accept();
   });
   await page.getByRole('link', { name: '项目概览' }).click();
-  await page.getByRole('link', { name: '质量手册审阅', exact: true }).click();
+  await rehearsalLink(page, '质量手册审阅');
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
   await page.getByLabel('模拟保存回执').selectOption('SAVED');
@@ -493,7 +500,7 @@ test('desktop and narrow layouts keep reading, opinions, basis and return action
     await expect(page.getByRole('note').first()).toContainText('开发');
     await expect(page.locator('.stage-basis')).toContainText('输入依据');
     await expect(
-      page.locator('.journey-nav').getByRole('link', { name: '修改范围', exact: true }),
+      page.locator('.journey-nav').getByRole('link', { name: '处理结果', exact: true }),
     ).toBeVisible();
     await expect(page.locator('.stage-set')).toBeVisible();
     if (width <= 900) {
