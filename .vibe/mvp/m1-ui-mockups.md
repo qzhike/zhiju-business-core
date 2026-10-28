@@ -1,6 +1,6 @@
 # M1 页面结构与交互草图
 
-版本：v1.0；用户确认：2026-10-27。状态：`IMPLEMENTED / AUTOMATED ACCEPTANCE PASS (M1-010–016, R5–R9) / HUMAN WALKTHROUGH NOT RUN`。
+版本：v1.0；用户确认：2026-10-27。状态：`IMPLEMENTED / AUTOMATED ACCEPTANCE PASS (M1-010–016, R5–R12) / HUMAN WALKTHROUGH NOT RUN`。
 
 本稿承接用户已确认的 [PR #322 页面修改意见](https://github.com/qzhike/zhiju-business-core/pull/322#issuecomment-6444018781)，用于 [Issue #321](https://github.com/qzhike/zhiju-business-core/issues/321) 的 M1 mock 页面修订。审查基线为 `e4f6f4d48dc31fa0a082a68bd8c300c8319fd791`，实施子 PR 目标为 `batch/mvp-v1-ui`。本稿约束页面层级、区块顺序、操作位置和版本语义；字号、颜色、具体间距由实现阶段结合现有组件确定。
 

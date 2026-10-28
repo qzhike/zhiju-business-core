@@ -597,6 +597,14 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
   };
   const submitRoundOpinions = (input: RoundOpinionInput): RoundOpinionResult => {
     if (input.files.length === 0) return { ok: false, reason: '本轮没有可提交的文件意见。' };
+    const sourcePlan = u1.plans.find(
+      (plan) => plan.planId === input.planId && plan.version === input.planVersion,
+    );
+    if (sourcePlan?.state !== 'CONFIRMED' || sourcePlan.supersededBy)
+      return {
+        ok: false,
+        reason: `计划 ${input.planId} 第 ${input.planVersion} 版不是当前可执行的已确认计划；历史轮次只能查看。`,
+      };
     const activeNow = activeSubmission(
       Object.values(sessions).flatMap((candidate) => candidate.submissions),
     );
