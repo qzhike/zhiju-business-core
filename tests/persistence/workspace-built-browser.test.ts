@@ -539,7 +539,10 @@ describe.skipIf(!databaseUrl)('exact Markdown built browser journey #279', () =>
     }
     const navigator = page.locator('.markdown-change-toolbar');
     expect(await navigator.innerText()).toContain('本文件共 36 处修改');
-    expect(await page.locator('.markdown-files').innerText()).toContain(
+    // The shared project catalog replaces the round-only reader column; the
+    // live adapter's directory note remains visible in the reader.
+    expect(await page.locator('.markdown-files').count()).toBe(0);
+    expect(await page.locator('.markdown-files-note').innerText()).toContain(
       '跨文件成果目录读取尚未接入',
     );
     const note = page.getByRole('textbox', { name: '意见草稿' });

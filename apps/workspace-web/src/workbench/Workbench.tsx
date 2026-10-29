@@ -321,39 +321,43 @@ export function Workbench({
           ) : projectView === 'cards' ? (
             <ul className="wb-project-cards" aria-label="授权项目卡片">
               {visibleProjects.map((project) => (
-                <li className="wb-project-card" data-project-key={project.key} key={project.key}>
-                  <h3>{project.name}</h3>
-                  <p className="muted">
-                    {project.code} · {project.status}
-                  </p>
-                  <p className="wb-progress">{project.progress}</p>
-                  <ProjectActions
-                    project={project}
-                    selectedKey={selectedKey}
-                    memory={memory}
-                    onSelect={selectProject}
-                  />
+                <li key={project.key}>
+                  <article className="work-item wb-project-card" data-project-key={project.key}>
+                    <h3>{project.name}</h3>
+                    <p className="muted">
+                      {project.code} · {project.status}
+                    </p>
+                    <p className="wb-progress">{project.progress}</p>
+                    <ProjectActions
+                      project={project}
+                      selectedKey={selectedKey}
+                      memory={memory}
+                      onSelect={selectProject}
+                    />
+                  </article>
                 </li>
               ))}
             </ul>
           ) : (
             <ul className="wb-project-list" aria-label="授权项目列表">
               {visibleProjects.map((project) => (
-                <li className="wb-project-row" data-project-key={project.key} key={project.key}>
-                  <div className="wb-row-identity">
-                    <h3>{project.name}</h3>
-                    <p className="muted">{project.code}</p>
-                  </div>
-                  <div className="wb-row-status">
-                    <span>{project.status}</span>
-                    <p className="wb-progress">{project.progress}</p>
-                  </div>
-                  <ProjectActions
-                    project={project}
-                    selectedKey={selectedKey}
-                    memory={memory}
-                    onSelect={selectProject}
-                  />
+                <li key={project.key}>
+                  <article className="work-item wb-project-row" data-project-key={project.key}>
+                    <div className="wb-row-identity">
+                      <h3>{project.name}</h3>
+                      <p className="muted">{project.code}</p>
+                    </div>
+                    <div className="wb-row-status">
+                      <span>{project.status}</span>
+                      <p className="wb-progress">{project.progress}</p>
+                    </div>
+                    <ProjectActions
+                      project={project}
+                      selectedKey={selectedKey}
+                      memory={memory}
+                      onSelect={selectProject}
+                    />
+                  </article>
                 </li>
               ))}
             </ul>

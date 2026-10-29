@@ -94,6 +94,13 @@ function markup(overrides: Partial<Parameters<typeof MarkdownReviewPage>[0]> = {
 }
 
 describe('bounded review workspace boundaries', () => {
+  it('keeps the live directory note without a round-only file column', () => {
+    const html = markup({ workspace: { directoryNote: '跨文件成果目录读取尚未接入' } });
+    expect(html).toContain('markdown-review-layout without-files');
+    expect(html).toContain('跨文件成果目录读取尚未接入');
+    expect(html).not.toContain('本轮文件');
+  });
+
   it('keeps unavailable operations disabled with the supplied input preserved', () => {
     const html = markup();
     expect(html).toContain('本页未提交的意见');
