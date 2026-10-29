@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   GROUPS,
@@ -8,7 +8,12 @@ import {
   type ReadNotice,
   type WorkGroup,
 } from './model.js';
-import { WorkLink, useWorkbenchMemory, type ReadingPosition } from './navigation.js';
+import {
+  WorkLink,
+  useWorkbenchMemory,
+  type ProjectViewMode,
+  type ReadingPosition,
+} from './navigation.js';
 import './workbench.css';
 
 export interface WorkbenchProps {
@@ -52,6 +57,9 @@ export function Workbench({
   const [group, setGroup] = useState(view.group);
   const restored = useRef(false);
   const root = useRef<HTMLDivElement>(null);
+  const projectScroll = useRef<HTMLDivElement>(null);
+  const pendingAnchor = useRef<string | undefined>(undefined);
+  const [projectView, setProjectView] = useState<ProjectViewMode>(memory.projectView);
   const selected = projects.find((project) => project.key === selectedKey);
   const visibleProjects = projects.filter(
     (project) => selectedKey === null || project.key === selectedKey,
@@ -109,6 +117,36 @@ export function Workbench({
     memory.views.set(path, next);
     onSelect(key);
   }
+
+  function switchProjectView(next: ProjectViewMode) {
+    if (next === projectView) return;
+    const region = projectScroll.current;
+    let anchorKey = selectedKey ?? undefined;
+    if (!anchorKey && region) {
+      anchorKey = Array.from(region.querySelectorAll<HTMLElement>('[data-project-key]')).find(
+        (element) => element.offsetTop + element.offsetHeight > region.scrollTop,
+      )?.dataset.projectKey;
+    }
+    memory.projectView = next;
+    pendingAnchor.current = anchorKey;
+    setProjectView(next);
+  }
+
+  useLayoutEffect(() => {
+    const anchorKey = pendingAnchor.current;
+    pendingAnchor.current = undefined;
+    const region = projectScroll.current;
+    const target = anchorKey
+      ? region?.querySelector<HTMLElement>(`[data-project-key="${CSS.escape(anchorKey)}"]`)
+      : undefined;
+    if (!region || !target) return;
+    const top = target.offsetTop;
+    if (
+      top < region.scrollTop ||
+      top + target.offsetHeight > region.scrollTop + region.clientHeight
+    )
+      region.scrollTop = top;
+  }, [projectView]);
 
   function renderGroup(id: WorkGroup) {
     const items = filtered.filter((card) => card.group === id);
@@ -236,53 +274,90 @@ export function Workbench({
       </div>
       <section className="panel wb-projects" aria-label="项目进度">
         <div className="wb-section-head">
-          <h2>授权项目</h2>
-          <span className="muted">
-            {directory.state === 'READY' ? directory.detail : '当前授权范围'}
-          </span>
+          <div className="wb-section-title">
+            <h2>授权项目</h2>
+            <span className="muted">
+              {directory.state === 'READY' ? directory.detail : '当前授权范围'}
+            </span>
+          </div>
+          <div className="wb-view-switch" role="group" aria-label="项目视图">
+            <button
+              type="button"
+              aria-pressed={projectView === 'cards'}
+              onClick={() => {
+                switchProjectView('cards');
+              }}
+            >
+              卡片
+            </button>
+            <button
+              type="button"
+              aria-pressed={projectView === 'list'}
+              onClick={() => {
+                switchProjectView('list');
+              }}
+            >
+              列表
+            </button>
+          </div>
         </div>
         <SourceNotice notice={directory} compact />
         <div
           className="wb-project-scroll"
+          ref={projectScroll}
           data-scroll-region="projects"
           onScroll={(event) => {
             view.scroll.projects = event.currentTarget.scrollTop;
           }}
         >
-          {visibleProjects.map((project) => (
-            <article className="work-item wb-project" key={project.key}>
-              <div>
-                <h3>{project.name}</h3>
-                <p className="muted">
-                  {project.code} · {project.status}
-                </p>
-              </div>
-              <p className="wb-progress">{project.progress}</p>
-              <div className="wb-project-actions">
-                <button
-                  aria-pressed={selectedKey === project.key}
-                  onClick={() => {
-                    selectProject(selectedKey === project.key ? null : project.key);
-                  }}
-                >
-                  {selectedKey === project.key ? '收起看板' : '查看该项目看板'}
-                </button>
-                <WorkLink
-                  projectKey={project.key}
-                  action={{
-                    label: '准备项目交付',
-                    destination: { kind: 'delivery', projectId: project.projectId },
-                  }}
-                />
-                <details className="wb-project-ref">
-                  <summary>项目引用</summary>
-                  <p>
-                    {project.projectId} · 聚合版本 {project.version}
+          {visibleProjects.length === 0 ? (
+            <p className="wb-empty">
+              {loading
+                ? '正在读取授权项目…'
+                : failed
+                  ? '授权项目未能读取，请查看上方提示。'
+                  : '当前授权范围内没有项目。'}
+            </p>
+          ) : projectView === 'cards' ? (
+            <ul className="wb-project-cards" aria-label="授权项目卡片">
+              {visibleProjects.map((project) => (
+                <li className="wb-project-card" data-project-key={project.key} key={project.key}>
+                  <h3>{project.name}</h3>
+                  <p className="muted">
+                    {project.code} · {project.status}
                   </p>
-                </details>
-              </div>
-            </article>
-          ))}
+                  <p className="wb-progress">{project.progress}</p>
+                  <ProjectActions
+                    project={project}
+                    selectedKey={selectedKey}
+                    memory={memory}
+                    onSelect={selectProject}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ul className="wb-project-list" aria-label="授权项目列表">
+              {visibleProjects.map((project) => (
+                <li className="wb-project-row" data-project-key={project.key} key={project.key}>
+                  <div className="wb-row-identity">
+                    <h3>{project.name}</h3>
+                    <p className="muted">{project.code}</p>
+                  </div>
+                  <div className="wb-row-status">
+                    <span>{project.status}</span>
+                    <p className="wb-progress">{project.progress}</p>
+                  </div>
+                  <ProjectActions
+                    project={project}
+                    selectedKey={selectedKey}
+                    memory={memory}
+                    onSelect={selectProject}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
       <div className="wb-context">
@@ -362,6 +437,52 @@ export function Workbench({
         </details>
       </section>
       {controls}
+    </div>
+  );
+}
+
+function ProjectActions({
+  project,
+  selectedKey,
+  memory,
+  onSelect,
+}: {
+  project: ProjectView;
+  selectedKey: string | null;
+  memory: ReturnType<typeof useWorkbenchMemory>;
+  onSelect: (key: string | null) => void;
+}) {
+  const open = memory.projectRefs.has(project.key);
+  return (
+    <div className="wb-project-actions">
+      <button
+        aria-pressed={selectedKey === project.key}
+        onClick={() => {
+          onSelect(selectedKey === project.key ? null : project.key);
+        }}
+      >
+        {selectedKey === project.key ? '收起看板' : '查看该项目看板'}
+      </button>
+      <WorkLink
+        projectKey={project.key}
+        action={{
+          label: '准备项目交付',
+          destination: { kind: 'delivery', projectId: project.projectId },
+        }}
+      />
+      <details
+        className="wb-project-ref"
+        open={open}
+        onToggle={(event) => {
+          if (event.currentTarget.open) memory.projectRefs.add(project.key);
+          else memory.projectRefs.delete(project.key);
+        }}
+      >
+        <summary>项目引用</summary>
+        <p>
+          {project.projectId} · 聚合版本 {project.version}
+        </p>
+      </details>
     </div>
   );
 }

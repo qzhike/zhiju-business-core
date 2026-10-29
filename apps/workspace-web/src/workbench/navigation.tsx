@@ -16,10 +16,16 @@ interface RecentEntry {
   action: WorkAction;
 }
 
+export type ProjectViewMode = 'cards' | 'list';
+
 interface NavigationMemory {
   views: Map<string, ReadingPosition>;
   recent: RecentEntry[];
   returnTo: string;
+  /** Card/list is a page-session preference, never a URL or storage value. */
+  projectView: ProjectViewMode;
+  /** Expanded project references survive a layout switch. */
+  projectRefs: Set<string>;
 }
 
 const Memory = createContext<NavigationMemory | null>(null);
@@ -30,6 +36,8 @@ export function WorkbenchNavigation({ children }: { children: ReactNode }) {
     views: new Map(),
     recent: [],
     returnTo: '/workbench',
+    projectView: 'cards',
+    projectRefs: new Set(),
   }));
   return <Memory.Provider value={memory}>{children}</Memory.Provider>;
 }

@@ -190,6 +190,17 @@ UI-258-011 的合成 OIDC HTTP 泄漏探针按替身实际签发的 compact JWT 
 
 独立 exact-head review、真实服务/Runner/持久化、Windows/macOS 最近两个 Chrome/Edge 稳定版本与独立人工验收须另有证据；未执行层保持 `NOT RUN`。
 
+### 工作台项目面板双视图验收（2026-10-29）
+
+状态：**IMPLEMENTED / AUTOMATED VERIFIED / HUMAN VISUAL ACCEPTANCE NOT RUN**。对应 [UI01 双视图设计](../module-specs/Module-Spec-UI01-WorkspaceUI.md#已批准工作台项目面板双视图2026-10-29) 与 [M1 双视图草图](../mvp/m1-ui-mockups.md#工作台项目面板双视图2026-10-29)。以下场景由 `board-views.spec.ts` 执行；不借用 UI-BOARD-001–006 或已实现文档目录的通过证据。
+
+| ID | 场景 | 可观察结果 | 当前实际输出 / 结果 |
+|---|---|---|---|
+| UI-BOARD-007 | 首次进入、切换列表、切项目、离开返回、整页刷新及身份失效 | 首次默认卡片；显式选择列表后，同一有效页面会话内切项目/返回仍为列表；刷新或身份失效恢复卡片；偏好不写 URL、持久存储或后端 | `PASS (AUTOMATED)` · `board-views.spec.ts` 默认卡片、列表切项目/返回、刷新重置；生产构建身份失效重建后恢复卡片 |
+| UI-BOARD-008 | 多项目及选中项目、卡片/列表互切、展开引用、工作筛选与阅读位置 | 两种视图项目集合/顺序/来源状态与进度一致，所有项目动作及引用等价可达；切换保留当前项目、展开引用、工作搜索/分组和其他阅读状态，不触发选择/导航/数据重取/业务操作；以选中或原首个可见项目定位，焦点保留在切换控件；查看/收起看板及准备交付沿用既有行为 | `PASS (AUTOMATED)` · `board-views.spec.ts` 两种视图同集合/顺序/动作/引用、选择/筛选/展开/焦点与锚点连续性 |
+| UI-BOARD-009 | 两种视图下的空目录、读取中、部分分页、失败与原位更新；缺少进度来源 | 状态提示和范围/水位一致，切换控件始终可用；不重启加载/分页、不把失败当空、不丢失已读项目；不新增跨项目看板请求、不推算进度百分比；更新仍不抢焦点或改写选择 | `PASS (AUTOMATED)` · `board-views.spec.ts` loading/empty/error/denied/expired/stale 两视图与既有原位更新回归 |
+| UI-BOARD-010 | 1280×800、1440×900、1920×1080、360×800 与 320 CSS px；长名称、键盘与可访问性 | 两种视图桌面有界滚动并保留下方工作区域；窄屏卡片单列、列表行内分行且不自动变卡片；名称可读、全部入口可达，无页面横向溢出；切换有文字/当前选项语义、键盘可操作、焦点可见，axe 检查与人工视觉验收分别记录；项目常驻文档目录与独立 Mock 面板保持既有行为 | `PASS (AUTOMATED LAYOUT/A11Y)` · `board-views.spec.ts` 1280/1440/1920、360/320、长名称、键盘、两点 axe；人工视觉验收 NOT RUN |
+
 ## D12 / Q11 项目交付交互与恢复设计场景（#260）
 
 状态：`PROPOSED / FUTURE DESIGN / NOT REGISTERED / NOT IMPLEMENTED`。对应 [UI D12](../module-specs/Module-Spec-UI01-WorkspaceUI.md#d12--q11-项目交付与原意图恢复提案260)；保留已批准原型布局/中文文案，以下不借用合成演示或工程外壳的浏览器结果。
