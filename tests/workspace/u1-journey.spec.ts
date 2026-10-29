@@ -440,6 +440,9 @@ test('UNKNOWN keeps the original intent across navigation and recovers only that
 });
 
 test('development marker, layouts and keyboard focus remain usable', async ({ page, browser }) => {
+  // Twenty page loads with a full axe pass each exceed the default 30s on a
+  // loaded CI runner; all assertions remain unchanged.
+  test.setTimeout(90_000);
   console.log(`U1 controlled Chromium ${browser.version()}; user walkthrough still NOT RUN`);
   for (const path of [overview, intake, reportOne, plan]) {
     for (const [width, height] of [
