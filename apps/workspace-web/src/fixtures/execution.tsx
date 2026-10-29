@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // Explicit development events only. No timers, business requests or browser persistence.
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -178,215 +179,217 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
         })
       }
       controls={
-        <details className="execution-controls">
-          <summary>执行演示控制与边界</summary>
-          <p className="muted">
-            合成回执与进度，不表示真实业务成功 · {fixtureMarker} · 仅内存，不模拟自动成功
-          </p>
-          <div>
-            <label>
-              读取场景
-              <select
-                value={phase}
-                onChange={(event) => {
-                  setPhase(event.target.value as NonNullable<ExecutionPageProps['phase']>);
+        <MockControls>
+          <details className="execution-controls">
+            <summary>执行演示控制与边界</summary>
+            <p className="muted">
+              合成回执与进度，不表示真实业务成功 · {fixtureMarker} · 仅内存，不模拟自动成功
+            </p>
+            <div>
+              <label>
+                读取场景
+                <select
+                  value={phase}
+                  onChange={(event) => {
+                    setPhase(event.target.value as NonNullable<ExecutionPageProps['phase']>);
+                  }}
+                >
+                  <option value="AVAILABLE">正常</option>
+                  <option value="ERROR">读取失败</option>
+                  <option value="EXPIRED">访问失效</option>
+                  <option value="LOADING">等待读取</option>
+                </select>
+              </label>
+              <label>
+                重试回执
+                <select
+                  value={outcome}
+                  onChange={(event) => {
+                    setOutcome(event.target.value as typeof outcome);
+                  }}
+                >
+                  <option value="UNKNOWN">UNKNOWN</option>
+                  <option value="HOLD">等待回执</option>
+                  <option value="ACCEPTED">已接收</option>
+                  <option value="MISMATCH">错文件回执</option>
+                </select>
+              </label>
+              <label>
+                原请求查询结果
+                <select
+                  value={queryOutcome}
+                  onChange={(event) => {
+                    setQueryOutcome(event.target.value as typeof queryOutcome);
+                  }}
+                >
+                  <option value="UNKNOWN">仍待核验</option>
+                  <option value="ACCEPTED">已接收等待安排</option>
+                </select>
+              </label>
+              <button
+                onClick={() => {
+                  for (const release of adapter.pending.values()) release('UNKNOWN');
                 }}
               >
-                <option value="AVAILABLE">正常</option>
-                <option value="ERROR">读取失败</option>
-                <option value="EXPIRED">访问失效</option>
-                <option value="LOADING">等待读取</option>
-              </select>
-            </label>
-            <label>
-              重试回执
-              <select
-                value={outcome}
-                onChange={(event) => {
-                  setOutcome(event.target.value as typeof outcome);
+                返回待核验重试回执
+              </button>
+              <button
+                onClick={() => {
+                  for (const release of adapter.pending.values()) release('ACCEPTED');
                 }}
               >
-                <option value="UNKNOWN">UNKNOWN</option>
-                <option value="HOLD">等待回执</option>
-                <option value="ACCEPTED">已接收</option>
-                <option value="MISMATCH">错文件回执</option>
-              </select>
-            </label>
-            <label>
-              原请求查询结果
-              <select
-                value={queryOutcome}
-                onChange={(event) => {
-                  setQueryOutcome(event.target.value as typeof queryOutcome);
+                返回已接收重试回执
+              </button>
+              <p className="muted">已记录重试意图：{adapter.intents.size}</p>
+              <button
+                onClick={() => {
+                  const files = Array.from({ length: 40 }, (_, index) =>
+                    file(
+                      `DEMO-LIST-${index + 1}`,
+                      `LIST-${index + 1}`,
+                      `合成长清单文件 ${index + 1}`,
+                    ),
+                  );
+                  adapter.add({
+                    ...initial,
+                    requestId: 'WB-LONG-SCOPE',
+                    label: '长清单范围示例',
+                    confirmedFileIds: files.map((entry) => entry.id),
+                    files,
+                  });
                 }}
               >
-                <option value="UNKNOWN">仍待核验</option>
-                <option value="ACCEPTED">已接收等待安排</option>
-              </select>
-            </label>
-            <button
-              onClick={() => {
-                for (const release of adapter.pending.values()) release('UNKNOWN');
-              }}
-            >
-              返回待核验重试回执
-            </button>
-            <button
-              onClick={() => {
-                for (const release of adapter.pending.values()) release('ACCEPTED');
-              }}
-            >
-              返回已接收重试回执
-            </button>
-            <p className="muted">已记录重试意图：{adapter.intents.size}</p>
-            <button
-              onClick={() => {
-                const files = Array.from({ length: 40 }, (_, index) =>
-                  file(
-                    `DEMO-LIST-${index + 1}`,
-                    `LIST-${index + 1}`,
-                    `合成长清单文件 ${index + 1}`,
-                  ),
-                );
-                adapter.add({
-                  ...initial,
-                  requestId: 'WB-LONG-SCOPE',
-                  label: '长清单范围示例',
-                  confirmedFileIds: files.map((entry) => entry.id),
-                  files,
-                });
-              }}
-            >
-              带入长清单示例
-            </button>
-            <button
-              disabled={!current}
-              onClick={() => {
-                if (!current) return;
-                if (stored) adapter.add(stored);
-                adapter.update(current.requestId, (round) => ({
-                  ...round,
-                  files: round.files.map((item) => ({
-                    ...item,
-                    state: 'PROCESSING',
-                    update: '显式服务事件：开始处理',
-                  })),
-                }));
-              }}
-            >
-              模拟本轮实际处理
-            </button>
-            <button
-              disabled={!first || !current}
-              onClick={() => {
-                if (first)
-                  change(first, {
-                    state: 'READY',
-                    update: '精确候选已返回，可立即检查',
-                    retryAllowed: false,
-                    candidate: {
-                      projectId: current.projectId,
-                      requestId: current.requestId,
-                      fileId: first,
-                      revisionId: 'DEMO-REV-01',
-                    },
+                带入长清单示例
+              </button>
+              <button
+                disabled={!current}
+                onClick={() => {
+                  if (!current) return;
+                  if (stored) adapter.add(stored);
+                  adapter.update(current.requestId, (round) => ({
+                    ...round,
+                    files: round.files.map((item) => ({
+                      ...item,
+                      state: 'PROCESSING',
+                      update: '显式服务事件：开始处理',
+                    })),
+                  }));
+                }}
+              >
+                模拟本轮实际处理
+              </button>
+              <button
+                disabled={!first || !current}
+                onClick={() => {
+                  if (first)
+                    change(first, {
+                      state: 'READY',
+                      update: '精确候选已返回，可立即检查',
+                      retryAllowed: false,
+                      candidate: {
+                        projectId: current.projectId,
+                        requestId: current.requestId,
+                        fileId: first,
+                        revisionId: 'DEMO-REV-01',
+                      },
+                    });
+                }}
+              >
+                模拟首份候选到达
+              </button>
+              <button
+                disabled={!second}
+                onClick={() => {
+                  if (second)
+                    change(second, {
+                      state: 'FAILED',
+                      update: '本文件处理失败，其他结果保持',
+                      failure: '源文件读取受限，处理未完成。',
+                      failures: ['10:05 原运行：源文件读取受限'],
+                      retryAllowed: true,
+                    });
+                }}
+              >
+                模拟第二份失败
+              </button>
+              <button
+                disabled={!second}
+                onClick={() => {
+                  if (second) change(second, { retryAllowed: false });
+                }}
+              >
+                模拟撤回重试许可
+              </button>
+              <button
+                disabled={!second}
+                onClick={() => {
+                  if (second)
+                    change(second, {
+                      state: 'UNCERTAIN',
+                      update: '进展信息已迟到，尚未核验当前状态',
+                      retryAllowed: false,
+                    });
+                }}
+              >
+                模拟迟到信息
+              </button>
+              <button
+                onClick={() => {
+                  adapter.add({
+                    ...initial,
+                    requestId: 'WB-SCOPE-02',
+                    label: '第 2 轮 · 补充后的新增文件',
+                    reportId: 'DEMO-STARTUP-REPORT-02',
+                    reportVersion: 2,
+                    confirmedFileIds: ['DEMO-MANUAL'],
+                    files: [file('DEMO-MANUAL', 'QH-SC-01', '质量手册')],
+                    summary: '固定示例：后轮已确认，等待安排；前轮状态保持。',
+                    logs: ['10:03 固定后轮范围已确认'],
                   });
-              }}
-            >
-              模拟首份候选到达
-            </button>
-            <button
-              disabled={!second}
-              onClick={() => {
-                if (second)
-                  change(second, {
-                    state: 'FAILED',
-                    update: '本文件处理失败，其他结果保持',
-                    failure: '源文件读取受限，处理未完成。',
-                    failures: ['10:05 原运行：源文件读取受限'],
-                    retryAllowed: true,
+                }}
+              >
+                带入已确认后轮示例
+              </button>
+              <button
+                onClick={() => {
+                  adapter.update(requestId, (round) => ({
+                    ...round,
+                    files: round.files.map((item, index) =>
+                      index === 0
+                        ? {
+                            ...item,
+                            state: 'READY',
+                            update: '前轮返回精确候选',
+                            candidate: {
+                              projectId,
+                              requestId,
+                              fileId: item.id,
+                              revisionId: 'DEMO-REV-02',
+                            },
+                          }
+                        : item,
+                    ),
+                  }));
+                }}
+              >
+                模拟前轮新候选到达
+              </button>
+              <button
+                onClick={() => {
+                  adapter.add({
+                    ...initial,
+                    requestId: 'WB-EMPTY-SCOPE',
+                    label: '空范围读取示例',
+                    confirmedFileIds: [],
+                    files: [],
                   });
-              }}
-            >
-              模拟第二份失败
-            </button>
-            <button
-              disabled={!second}
-              onClick={() => {
-                if (second) change(second, { retryAllowed: false });
-              }}
-            >
-              模拟撤回重试许可
-            </button>
-            <button
-              disabled={!second}
-              onClick={() => {
-                if (second)
-                  change(second, {
-                    state: 'UNCERTAIN',
-                    update: '进展信息已迟到，尚未核验当前状态',
-                    retryAllowed: false,
-                  });
-              }}
-            >
-              模拟迟到信息
-            </button>
-            <button
-              onClick={() => {
-                adapter.add({
-                  ...initial,
-                  requestId: 'WB-SCOPE-02',
-                  label: '第 2 轮 · 补充后的新增文件',
-                  reportId: 'DEMO-STARTUP-REPORT-02',
-                  reportVersion: 2,
-                  confirmedFileIds: ['DEMO-MANUAL'],
-                  files: [file('DEMO-MANUAL', 'QH-SC-01', '质量手册')],
-                  summary: '固定示例：后轮已确认，等待安排；前轮状态保持。',
-                  logs: ['10:03 固定后轮范围已确认'],
-                });
-              }}
-            >
-              带入已确认后轮示例
-            </button>
-            <button
-              onClick={() => {
-                adapter.update(requestId, (round) => ({
-                  ...round,
-                  files: round.files.map((item, index) =>
-                    index === 0
-                      ? {
-                          ...item,
-                          state: 'READY',
-                          update: '前轮返回精确候选',
-                          candidate: {
-                            projectId,
-                            requestId,
-                            fileId: item.id,
-                            revisionId: 'DEMO-REV-02',
-                          },
-                        }
-                      : item,
-                  ),
-                }));
-              }}
-            >
-              模拟前轮新候选到达
-            </button>
-            <button
-              onClick={() => {
-                adapter.add({
-                  ...initial,
-                  requestId: 'WB-EMPTY-SCOPE',
-                  label: '空范围读取示例',
-                  confirmedFileIds: [],
-                  files: [],
-                });
-              }}
-            >
-              带入空范围示例
-            </button>
-          </div>
-        </details>
+                }}
+              >
+                带入空范围示例
+              </button>
+            </div>
+          </details>
+        </MockControls>
       }
     />
   );
@@ -611,41 +614,43 @@ export function FixtureExecutionReview() {
         }}
         controls={<FixtureReviewControls fixture={fixture} contextKey={path} />}
       />
-      <details className="execution-controls">
-        <summary>候选到达演示事件</summary>
-        <button
-          onClick={() => {
-            fixture.memory.candidates.add(path);
-            adapter.update(source.requestId, (round) => ({
-              ...round,
-              files: round.files.map((item) =>
-                item.id === fileId
-                  ? {
-                      ...item,
-                      state: 'READY',
-                      candidate: {
-                        projectId,
-                        requestId: source.requestId,
-                        fileId,
-                        revisionId: 'DEMO-REV-02',
-                      },
-                      update: '新的精确候选已到达，当前阅读版本保持',
-                    }
-                  : item,
-              ),
-            }));
-          }}
-        >
-          模拟阅读期间新候选到达
-        </button>
-        <button
-          onClick={() => {
-            fixture.applyApprovalReceipt(path);
-          }}
-        >
-          返回批准的选定回执
-        </button>
-      </details>
+      <MockControls>
+        <details className="execution-controls">
+          <summary>候选到达演示事件</summary>
+          <button
+            onClick={() => {
+              fixture.memory.candidates.add(path);
+              adapter.update(source.requestId, (round) => ({
+                ...round,
+                files: round.files.map((item) =>
+                  item.id === fileId
+                    ? {
+                        ...item,
+                        state: 'READY',
+                        candidate: {
+                          projectId,
+                          requestId: source.requestId,
+                          fileId,
+                          revisionId: 'DEMO-REV-02',
+                        },
+                        update: '新的精确候选已到达，当前阅读版本保持',
+                      }
+                    : item,
+                ),
+              }));
+            }}
+          >
+            模拟阅读期间新候选到达
+          </button>
+          <button
+            onClick={() => {
+              fixture.applyApprovalReceipt(path);
+            }}
+          >
+            返回批准的选定回执
+          </button>
+        </details>
+      </MockControls>
     </>
   );
 }

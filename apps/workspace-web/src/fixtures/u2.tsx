@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U2_ADAPTER_ONLY: isolated U2 review adapter. It consumes the U1
 // plan context, never reads customer files or calls Core/Runner, and keeps all
 // requests, saves and finalizations in page memory.
@@ -2134,49 +2135,6 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           onDownload: () => Promise.resolve(),
         },
         workspace: {
-          files: {
-            list: {
-              totalCount: files.length,
-              entries: files.map((file) => {
-                const availability = availabilities.find((entry) => entry.fileId === file.id);
-                const viewed = availability?.viewedVersionId;
-                const next = availability ? candidateVersion(availability) : undefined;
-                const missing = !viewed;
-                return {
-                  fileId: file.id,
-                  code: file.id,
-                  title: file.title,
-                  state: missing ? ('UNCERTAIN' as const) : ('READY' as const),
-                  detail: missing
-                    ? '缺少该文件候选'
-                    : `${u2VersionLabel(viewed)}${next ? ` · ${u2VersionLabel(next)}已到达` : ''}`,
-                  openable: Boolean(viewed),
-                };
-              }),
-              currentFileId: activeFileId ?? '',
-              query: '',
-              stateFilter: 'ALL' as const,
-              loading: false,
-              status: `本阶段共 ${files.length} 份计划文件（演示）`,
-            },
-            actions: {
-              onSelect: (fileId: string) => {
-                const availability = availabilities.find((entry) => entry.fileId === fileId);
-                if (!availability?.viewedVersionId) return;
-                const planFile = files.find((file) => file.id === fileId);
-                update((current) => ({
-                  ...current,
-                  activeFileId: fileId,
-                  scopeId: fileVersionScope(stage, {
-                    fileId,
-                    title: planFile?.title ?? fileId,
-                    versionId: availability.viewedVersionId ?? '',
-                    versionLabel: u2VersionLabel(availability.viewedVersionId ?? ''),
-                  }).id,
-                }));
-              },
-            },
-          },
           ...(summary
             ? {
                 summary: {
@@ -2383,213 +2341,215 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const controls = (
-    <details className="fixture-options" open>
-      <summary>U2 显式场景控制（演练）</summary>
-      <fieldset>
-        <legend>候选生成</legend>
-        <label>
-          生成回执场景
-          <select
-            value={session.generationScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['generationScene'];
-              update((current) => ({ ...current, generationScene: value }));
-            }}
-          >
-            <option value="matched">匹配回执 · 完整集合</option>
-            <option value="missing">匹配回执 · 缺少一份文件</option>
-            <option value="pending">待回执</option>
-            <option value="unknown">UNKNOWN</option>
-            <option value="failed">失败</option>
-            <option value="mismatch">错上下文回执</option>
-          </select>
-        </label>
-        <button onClick={queryGeneration} disabled={!session.generationRequest}>
-          重新查询原生成请求
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>意见草稿与修改</legend>
-        <label>
-          模拟保存回执
-          <select
-            value={session.saveScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['saveScene'];
-              update((current) => ({ ...current, saveScene: value }));
-            }}
-          >
-            <option value="SAVED">已保存到本页内存</option>
-            <option value="FAILED">保存失败</option>
-            <option value="UNKNOWN">保存结果待核验</option>
-          </select>
-        </label>
-        <button
-          onClick={applySaveReceipt}
-          disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
-        >
-          模拟当前范围原保存回执到达/查询
-        </button>
-        {draft.requestLabel && (
-          <p className="muted">
-            当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
-          </p>
-        )}
-        <button
-          onClick={rebindDraft}
-          disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
-        >
-          显式将当前草稿绑定到当前依据（模拟）
-        </button>
-        <label>
-          修改回执场景
-          <select
-            value={session.revisionScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['revisionScene'];
-              update((current) => ({ ...current, revisionScene: value }));
-            }}
-          >
-            <option value="RECEIVED">已接收</option>
-            <option value="PENDING">待回执</option>
-            <option value="UNKNOWN">UNKNOWN</option>
-            <option value="FAILED">失败</option>
-            <option value="MISMATCH">回执错绑</option>
-          </select>
-        </label>
-        <button onClick={receiveRevision} disabled={!myActive}>
-          模拟原修订回执到达
-        </button>
-        <button onClick={queryRevision} disabled={!myActive}>
-          重新查询原修订请求
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>版本与候选</legend>
-        {activeAvailability && activeAvailability.versions.length > 0 && (
+    <MockControls>
+      <details className="fixture-options" open>
+        <summary>U2 显式场景控制（演练）</summary>
+        <fieldset>
+          <legend>候选生成</legend>
           <label>
-            查看当前文件版本
+            生成回执场景
             <select
-              value={activeAvailability.viewedVersionId ?? ''}
+              value={session.generationScene}
               onChange={(event) => {
-                switchVersion(activeAvailability.fileId, event.target.value);
+                const value = event.target.value as StageSession['generationScene'];
+                update((current) => ({ ...current, generationScene: value }));
               }}
             >
-              {activeAvailability.versions.map((versionId) => (
-                <option key={versionId} value={versionId}>
-                  {u2VersionLabel(versionId)}
-                </option>
-              ))}
+              <option value="matched">匹配回执 · 完整集合</option>
+              <option value="missing">匹配回执 · 缺少一份文件</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">失败</option>
+              <option value="mismatch">错上下文回执</option>
             </select>
           </label>
-        )}
-        <label>
-          候选回执场景
-          <select
-            value={session.candidateScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['candidateScene'];
-              update((current) => ({ ...current, candidateScene: value }));
-            }}
-          >
-            <option value="matched">匹配当前版本集合</option>
-            <option value="mismatch">错绑版本集合</option>
-          </select>
-        </label>
-        <button
-          onClick={nextCandidate}
-          disabled={!receivedForCurrent || !hasNextVersion || Boolean(active)}
-        >
-          模拟下一轮候选到达
-        </button>
-        <button onClick={removeFileForRehearsal}>模拟缺少一份文件</button>
-        <button
-          onClick={restoreFileForRehearsal}
-          disabled={Object.keys(session.removed).length === 0}
-        >
-          恢复缺失文件（演示）
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>阶段定稿</legend>
-        <label>
-          定稿回执场景
-          <select
-            value={session.finalizationScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['finalizationScene'];
-              update((current) => ({ ...current, finalizationScene: value }));
-            }}
-          >
-            <option value="matched">匹配回执</option>
-            <option value="pending">待回执</option>
-            <option value="unknown">UNKNOWN</option>
-            <option value="failed">失败</option>
-            <option value="mismatch">版本集合错绑</option>
-            <option value="changed">确认期间版本变化</option>
-          </select>
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>U3 返工与恢复（同一旅程）</legend>
-        {stage === 'MANUAL' && session.finalization && (
-          <button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</button>
-        )}
-        {stage === 'PROCEDURES' && procedureImpact && (
-          <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
-        )}
-        {stage === 'RULES' && (
-          <>
-            <button
-              onClick={() => {
-                addRulesCandidateVersion('V2');
+          <button onClick={queryGeneration} disabled={!session.generationRequest}>
+            重新查询原生成请求
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>意见草稿与修改</legend>
+          <label>
+            模拟保存回执
+            <select
+              value={session.saveScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['saveScene'];
+                update((current) => ({ ...current, saveScene: value }));
               }}
             >
-              模拟第三阶段受影响候选到达（第 2 版）
-            </button>
-            <button
-              onClick={() => {
-                addRulesCandidateVersion('V3');
+              <option value="SAVED">已保存到本页内存</option>
+              <option value="FAILED">保存失败</option>
+              <option value="UNKNOWN">保存结果待核验</option>
+            </select>
+          </label>
+          <button
+            onClick={applySaveReceipt}
+            disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
+          >
+            模拟当前范围原保存回执到达/查询
+          </button>
+          {draft.requestLabel && (
+            <p className="muted">
+              当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
+            </p>
+          )}
+          <button
+            onClick={rebindDraft}
+            disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
+          >
+            显式将当前草稿绑定到当前依据（模拟）
+          </button>
+          <label>
+            修改回执场景
+            <select
+              value={session.revisionScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['revisionScene'];
+                update((current) => ({ ...current, revisionScene: value }));
               }}
             >
-              模拟第三阶段后续改稿（第 3 版）
-            </button>
-          </>
+              <option value="RECEIVED">已接收</option>
+              <option value="PENDING">待回执</option>
+              <option value="UNKNOWN">UNKNOWN</option>
+              <option value="FAILED">失败</option>
+              <option value="MISMATCH">回执错绑</option>
+            </select>
+          </label>
+          <button onClick={receiveRevision} disabled={!myActive}>
+            模拟原修订回执到达
+          </button>
+          <button onClick={queryRevision} disabled={!myActive}>
+            重新查询原修订请求
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>版本与候选</legend>
+          {activeAvailability && activeAvailability.versions.length > 0 && (
+            <label>
+              查看当前文件版本
+              <select
+                value={activeAvailability.viewedVersionId ?? ''}
+                onChange={(event) => {
+                  switchVersion(activeAvailability.fileId, event.target.value);
+                }}
+              >
+                {activeAvailability.versions.map((versionId) => (
+                  <option key={versionId} value={versionId}>
+                    {u2VersionLabel(versionId)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            候选回执场景
+            <select
+              value={session.candidateScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['candidateScene'];
+                update((current) => ({ ...current, candidateScene: value }));
+              }}
+            >
+              <option value="matched">匹配当前版本集合</option>
+              <option value="mismatch">错绑版本集合</option>
+            </select>
+          </label>
+          <button
+            onClick={nextCandidate}
+            disabled={!receivedForCurrent || !hasNextVersion || Boolean(active)}
+          >
+            模拟下一轮候选到达
+          </button>
+          <button onClick={removeFileForRehearsal}>模拟缺少一份文件</button>
+          <button
+            onClick={restoreFileForRehearsal}
+            disabled={Object.keys(session.removed).length === 0}
+          >
+            恢复缺失文件（演示）
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>阶段定稿</legend>
+          <label>
+            定稿回执场景
+            <select
+              value={session.finalizationScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['finalizationScene'];
+                update((current) => ({ ...current, finalizationScene: value }));
+              }}
+            >
+              <option value="matched">匹配回执</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">失败</option>
+              <option value="mismatch">版本集合错绑</option>
+              <option value="changed">确认期间版本变化</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>U3 返工与恢复（同一旅程）</legend>
+          {stage === 'MANUAL' && session.finalization && (
+            <button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</button>
+          )}
+          {stage === 'PROCEDURES' && procedureImpact && (
+            <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
+          )}
+          {stage === 'RULES' && (
+            <>
+              <button
+                onClick={() => {
+                  addRulesCandidateVersion('V2');
+                }}
+              >
+                模拟第三阶段受影响候选到达（第 2 版）
+              </button>
+              <button
+                onClick={() => {
+                  addRulesCandidateVersion('V3');
+                }}
+              >
+                模拟第三阶段后续改稿（第 3 版）
+              </button>
+            </>
+          )}
+          <button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</button>
+          <p>
+            <Link to={reworkPath}>打开返工与复核</Link> ·{' '}
+            <Link to={recoveryPath}>打开执行与恢复</Link> ·{' '}
+            <Link to={deliveryPath}>打开最终交付</Link>
+          </p>
+          <p className="muted">
+            草稿不替换当前定稿；重新定稿保留前任并标记下游待复核；记录复核不是定稿关卡。
+          </p>
+        </fieldset>
+        <button
+          onClick={() => {
+            update((current) => ({ ...current, simulatedAnswer: !current.simulatedAnswer }));
+          }}
+        >
+          演练：模拟客户答复（编号按模板）
+        </button>
+        {session.simulatedAnswer && (
+          <p className="notice" role="status">
+            模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
+          </p>
         )}
-        <button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</button>
         <p>
-          <Link to={reworkPath}>打开返工与复核</Link> ·{' '}
-          <Link to={recoveryPath}>打开执行与恢复</Link> ·{' '}
-          <Link to={deliveryPath}>打开最终交付</Link>
+          <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}
+          <Link to={proceduresPath}>演练：直接打开控制程序审阅</Link> ·{' '}
+          <Link to={rulesPath}>演练：直接打开管理制度及记录表单审阅</Link>
+        </p>
+        <p>
+          <Link to={scopePath}>扩大范围？返回 U1 修改范围计划</Link>
         </p>
         <p className="muted">
-          草稿不替换当前定稿；重新定稿保留前任并标记下游待复核；记录复核不是定稿关卡。
+          单项目一次修改批次 · 保存、提交与定稿分离 · 刷新会重置本页内存 · 没有自动轮询。
         </p>
-      </fieldset>
-      <button
-        onClick={() => {
-          update((current) => ({ ...current, simulatedAnswer: !current.simulatedAnswer }));
-        }}
-      >
-        演练：模拟客户答复（编号按模板）
-      </button>
-      {session.simulatedAnswer && (
-        <p className="notice" role="status">
-          模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
-        </p>
-      )}
-      <p>
-        <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}
-        <Link to={proceduresPath}>演练：直接打开控制程序审阅</Link> ·{' '}
-        <Link to={rulesPath}>演练：直接打开管理制度及记录表单审阅</Link>
-      </p>
-      <p>
-        <Link to={scopePath}>扩大范围？返回 U1 修改范围计划</Link>
-      </p>
-      <p className="muted">
-        单项目一次修改批次 · 保存、提交与定稿分离 · 刷新会重置本页内存 · 没有自动轮询。
-      </p>
-    </details>
+      </details>
+    </MockControls>
   );
 
   return (

@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 import { readFile, readdir } from 'node:fs/promises';
@@ -13,13 +14,16 @@ const rules = `${base}/stages/rules`;
 async function openAnalysisControls(page: Page) {
   const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 }
 
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
@@ -27,7 +31,10 @@ async function acknowledgeSecondReport(page: Page) {
 
 async function confirmPlan(page: Page, scenario = 'received') {
   const controls = page.locator('.fixture-options');
-  if (scenario !== 'received') await controls.getByLabel('确认回执场景').selectOption(scenario);
+  if (scenario !== 'received')
+    await withMockControls(page, async () =>
+      controls.getByLabel('确认回执场景').selectOption(scenario),
+    );
   await page.getByRole('button', { name: '确认这份修改范围' }).click();
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
 }
@@ -71,7 +78,7 @@ async function submitOpinion(page: Page, text: string, scopeLabel?: string) {
 }
 
 async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: string) {
-  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('matched'));
   await page
     .getByRole('button', {
       name: stage === 'quality' ? '确认质量手册定稿（模拟）' : '确认控制程序完整集合（模拟）',
@@ -85,8 +92,9 @@ async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: 
 
 async function switchFileVersion(page: Page, fileTitle: string) {
   await page
-    .locator('.markdown-files')
+    .getByRole('navigation', { name: '项目文档' })
     .getByRole('button', { name: new RegExp(fileTitle, 'u') })
+    .first()
     .click();
   const switchButton = page.getByRole('button', { name: '显式切换并核对引用' });
   if (await switchButton.isVisible().catch(() => false)) await switchButton.click();
@@ -98,8 +106,10 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
 }) => {
   console.log(`U2 controlled Chromium ${browser.version()}; user U2 walkthrough still NOT RUN`);
   await reachManual(page);
-  await expect(page.locator('.journey-nav')).toContainText('控制程序审阅 · 待前置');
-  await expect(page.locator('.journey-nav')).toContainText('管理制度及记录表单审阅 · 待前置');
+  await expect(page.locator('details.journey-rehearsal')).toContainText('控制程序审阅 · 待前置');
+  await expect(page.locator('details.journey-rehearsal')).toContainText(
+    '管理制度及记录表单审阅 · 待前置',
+  );
   await expect(page.getByRole('button', { name: '检查完成并批准' })).toHaveCount(0);
   await expect(page.getByText('尚未生成本阶段候选；请先生成并核对候选。')).toBeVisible();
 
@@ -111,8 +121,10 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await page.locator('#markdown-note').fill('第一轮：保留客户质量目标与现有职责');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
   await expect(page.locator('.markdown-draft-state')).toContainText('正在模拟保存');
-  await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('SAVED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟草稿已保存到本页内存');
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText(
@@ -125,7 +137,9 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await expect(page.locator('.markdown-history')).toContainText('原请求 U2-REV-');
 
   await page.locator('#markdown-note').fill('下轮草稿：切换候选后仍应保留');
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
   await expect(page.locator('.markdown-reader')).toContainText('新候选已到达');
   await expect(page.locator('.markdown-opinion-context')).toContainText('第 1 版候选');
@@ -138,12 +152,12 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await expect(page.locator('#markdown-note')).toHaveValue('');
   await expect(page.getByText('已显式切换到本精确版本')).toBeVisible();
 
-  await page.getByLabel('查看当前文件版本').selectOption('V1');
+  await withMockControls(page, async () => page.getByLabel('查看当前文件版本').selectOption('V1'));
   await expect(page.locator('#markdown-note')).toHaveValue('下轮草稿：切换候选后仍应保留');
-  await page.getByLabel('查看当前文件版本').selectOption('V2');
+  await withMockControls(page, async () => page.getByLabel('查看当前文件版本').selectOption('V2'));
   await expect(page.locator('#markdown-note')).toHaveValue('');
 
-  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('matched'));
   await page.getByRole('button', { name: '确认质量手册定稿（模拟）' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('质量手册 · 第 2 版候选');
@@ -152,7 +166,7 @@ test('manual feedback, candidate switch and stage finalization bind exact versio
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
   await expect(page.locator('.stage-finalization-result')).toContainText('U2-STAGE-');
   await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
-  await page.getByLabel('查看当前文件版本').selectOption('V1');
+  await withMockControls(page, async () => page.getByLabel('查看当前文件版本').selectOption('V1'));
   await expect(page.locator('.stage-finalization-result')).toContainText('质量手册 · 第 2 版候选');
   await expect(page.getByRole('link', { name: '进入控制程序审阅' })).toBeVisible();
 });
@@ -177,20 +191,28 @@ test('control procedure finalizes as its own complete set against the finalized 
   await submitOpinion(page, '本轮联动：统一编号引用与通知职责', '阶段 控制程序');
   await expect(page.locator('.markdown-history')).toContainText('本轮联动：统一编号引用与通知职责');
 
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
   await switchFileVersion(page, '变更控制程序');
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
 
-  await page.getByRole('button', { name: '模拟缺少一份文件' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟缺少一份文件' }).click(),
+  );
   await expect(page.locator('.stage-finalize')).toContainText('尚未生成本阶段候选');
   await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeDisabled();
   await expect(page.locator('.markdown-review')).toHaveCount(0);
   await expect(page.locator('.stage-set')).toContainText('缺失');
-  await page.getByRole('button', { name: '恢复缺失文件（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '恢复缺失文件（演示）' }).click(),
+  );
   await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
-  await page.getByLabel('定稿回执场景').selectOption('mismatch');
+  await withMockControls(page, async () =>
+    page.getByLabel('定稿回执场景').selectOption('mismatch'),
+  );
   await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
@@ -201,17 +223,17 @@ test('control procedure finalizes as its own complete set against the finalized 
   await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
   await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
-  await page.getByLabel('定稿回执场景').selectOption('changed');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('changed'));
   await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByText('确认期间文件版本集合已变化').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
   await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
-  await page.getByLabel('查看当前文件版本').selectOption('V2');
+  await withMockControls(page, async () => page.getByLabel('查看当前文件版本').selectOption('V2'));
   await expect(page.getByRole('button', { name: '确认控制程序完整集合（模拟）' })).toBeEnabled();
 
-  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('matched'));
   await page.getByRole('button', { name: '确认控制程序完整集合（模拟）' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('变更控制程序 · 第 2 版候选');
@@ -246,8 +268,9 @@ test('third stage confirms management rules and record forms against both upstre
   await expect(page.locator('.stage-set')).toContainText('变更评审记录');
   await expect(page.locator('.stage-set')).toContainText('变更实施记录');
   await page
-    .locator('.markdown-files')
+    .getByRole('navigation', { name: '项目文档' })
     .getByRole('button', { name: /变更申请单/u })
+    .first()
     .click();
   await page.getByRole('button', { name: '完整文件' }).click();
   await expect(page.getByRole('region', { name: '完整表格，可横向滚动' })).toBeVisible();
@@ -256,7 +279,9 @@ test('third stage confirms management rules and record forms against both upstre
   await submitOpinion(page, '第三阶段：保留客户编号映射待核对', '阶段 管理制度及记录表单');
   await expect(page.locator('.markdown-history')).toContainText('第三阶段：保留客户编号映射待核对');
 
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
   for (const title of ['外来文件管理规定', '变更申请单', '变更评审记录', '变更实施记录']) {
     await switchFileVersion(page, title);
@@ -264,20 +289,26 @@ test('third stage confirms management rules and record forms against both upstre
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
 
   await submitOpinion(page, '第三阶段第二轮：补充复核引用', '阶段 管理制度及记录表单');
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await expect(page.getByText('新候选已到达（模拟）')).toBeVisible();
   for (const title of ['外来文件管理规定', '变更申请单', '变更评审记录', '变更实施记录']) {
     await switchFileVersion(page, title);
   }
   await expect(page.locator('.stage-set')).toContainText('第 3 版候选');
 
-  await page.getByRole('button', { name: '模拟缺少一份文件' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟缺少一份文件' }).click(),
+  );
   await expect(
     page.getByRole('button', { name: '确认管理制度及记录表单完整集合（模拟）' }),
   ).toBeDisabled();
-  await page.getByRole('button', { name: '恢复缺失文件（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '恢复缺失文件（演示）' }).click(),
+  );
 
-  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('matched'));
   await page.getByRole('button', { name: '确认管理制度及记录表单完整集合（模拟）' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('外来文件管理规定 · 第 3 版候选');
@@ -299,14 +330,18 @@ test('deep links cannot invent a missing plan or upstream finalization', async (
   await expect(page.getByRole('link', { name: '返回修改范围' })).toBeVisible();
 
   await reachManual(page);
-  await page.getByRole('link', { name: '演练：直接打开控制程序审阅' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('link', { name: '演练：直接打开控制程序审阅' }).click(),
+  );
   await expect(page).toHaveURL(procedures);
   await expect(page.getByRole('heading', { name: '缺少本阶段前置依据' })).toBeVisible();
   await expect(page.locator('main')).toContainText('尚无与计划匹配的手册定稿');
   await expect(page.getByRole('link', { name: '返回质量手册审阅' })).toBeVisible();
 
   await page.getByRole('link', { name: '返回质量手册审阅' }).click();
-  await page.getByRole('link', { name: '演练：直接打开管理制度及记录表单审阅' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('link', { name: '演练：直接打开管理制度及记录表单审阅' }).click(),
+  );
   await expect(page).toHaveURL(rules);
   await expect(page.getByRole('heading', { name: '缺少本阶段前置依据' })).toBeVisible();
   await expect(page.locator('main')).toContainText('需要先有质量手册定稿');
@@ -315,7 +350,7 @@ test('deep links cannot invent a missing plan or upstream finalization', async (
   await rehearsalLink(page, '项目概览（阅读）');
   await expect(page).toHaveURL(overview);
   await expect(page.locator('.overview-next')).toContainText('进入质量手册审阅');
-  await expect(page.locator('.journey-nav')).toContainText('控制程序审阅 · 待前置');
+  await expect(page.locator('details.journey-rehearsal')).toContainText('控制程序审阅 · 待前置');
 });
 
 test('save, submission and finalization recovery keep one original request', async ({ page }) => {
@@ -324,28 +359,34 @@ test('save, submission and finalization recovery keep one original request', asy
 
   await page.locator('#markdown-note').fill('保存失败测试草稿');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
-  await page.getByLabel('模拟保存回执').selectOption('FAILED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('FAILED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存失败');
   await expect(page.locator('#markdown-note')).toHaveValue('保存失败测试草稿');
 
   await page.locator('#markdown-note').fill('保存 UNKNOWN 草稿');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
-  await page.getByLabel('模拟保存回执').selectOption('UNKNOWN');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('UNKNOWN'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
   await page.locator('#markdown-note').fill('保存 UNKNOWN 草稿（已修改）');
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
-  await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('SAVED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText(
     '原保存请求已返回；新输入尚未保存',
   );
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeEnabled();
 
-  await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
+  await withMockControls(page, async () => page.getByLabel('修改回执场景').selectOption('UNKNOWN'));
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-submission')).toContainText('提交结果待核验');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
@@ -353,20 +394,28 @@ test('save, submission and finalization recovery keep one original request', asy
   await rehearsalLink(page, '项目概览（阅读）');
   await rehearsalLink(page, '质量手册审阅');
   await expect(page.locator('.markdown-submission')).toContainText('提交结果待核验');
-  await page.getByRole('button', { name: '重新查询原修订请求' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '重新查询原修订请求' }).click(),
+  );
   await expect(page.getByText('原修订请求仍无可匹配回执')).toBeVisible();
-  await page.getByRole('button', { name: '模拟原修订回执到达' }).click();
-  await page.getByRole('button', { name: '重新查询原修订请求' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟原修订回执到达' }).click(),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '重新查询原修订请求' }).click(),
+  );
   await expect(page.locator('.markdown-history')).toContainText('已接收（模拟）');
   await expect(page.locator('.markdown-submission')).toHaveCount(0);
 
-  await page.getByLabel('修改回执场景').selectOption('FAILED');
+  await withMockControls(page, async () => page.getByLabel('修改回执场景').selectOption('FAILED'));
   await page.locator('#markdown-note').fill('失败意见保留在历史');
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText('失败（模拟）');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
 
-  await page.getByLabel('定稿回执场景').selectOption('mismatch');
+  await withMockControls(page, async () =>
+    page.getByLabel('定稿回执场景').selectOption('mismatch'),
+  );
   await page.getByRole('button', { name: '确认质量手册定稿（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
@@ -374,7 +423,7 @@ test('save, submission and finalization recovery keep one original request', asy
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
   await page.getByRole('button', { name: '重新核对后重试定稿（模拟）' }).click();
 
-  await page.getByLabel('定稿回执场景').selectOption('pending');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('pending'));
   await page.getByRole('button', { name: '确认质量手册定稿（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并生成模拟回执' }).click();
   await expect(
@@ -389,17 +438,23 @@ test('save, submission and finalization recovery keep one original request', asy
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByText('原定稿请求仍无可匹配回执').first()).toBeVisible();
 
-  await page.getByLabel('修改回执场景').selectOption('UNKNOWN');
+  await withMockControls(page, async () => page.getByLabel('修改回执场景').selectOption('UNKNOWN'));
   await page.locator('#markdown-note').fill('定稿等待期间的修改');
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-submission')).toContainText('提交结果待核验');
-  await page.getByRole('button', { name: '模拟原定稿回执到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟原定稿回执到达' }).click(),
+  );
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByText('仍有待回执或待核验的修改请求').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: '模拟原修订回执到达' }).click();
-  await page.getByRole('button', { name: '重新查询原修订请求' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟原修订回执到达' }).click(),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '重新查询原修订请求' }).click(),
+  );
   await expect(page.locator('.markdown-history')).toContainText('定稿等待期间的修改');
   await page.getByRole('button', { name: '重新查询原定稿请求' }).click();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
@@ -412,14 +467,18 @@ test('stage draft keeps its original basis until explicit rebind', async ({ page
   await page.getByLabel('意见作用范围').selectOption({ label: '阶段 质量手册' });
   await page.locator('#markdown-note').fill('阶段草稿按 V1 保存');
   await page.getByRole('button', { name: '保存意见草稿（模拟）' }).click();
-  await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('SAVED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟草稿已保存');
 
   await page.getByLabel('意见作用范围').selectOption({ label: '文件 质量手册 · 第 1 版候选' });
   await page.locator('#markdown-note').fill('文件范围意见');
   await page.getByRole('button', { name: '提交并修改' }).click();
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await page.getByRole('button', { name: '显式切换并核对引用' }).click();
   await expect(page.getByText('已显式切换到本精确版本')).toBeVisible();
 
@@ -430,7 +489,9 @@ test('stage draft keeps its original basis until explicit rebind', async ({ page
   await page.locator('#markdown-note').fill('阶段草稿按 V1 保存（补充）');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
   await expect(page.getByText('该草稿按上一版本依据保存')).toBeVisible();
-  await page.getByRole('button', { name: '显式将当前草稿绑定到当前依据（模拟）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '显式将当前草稿绑定到当前依据（模拟）' }).click(),
+  );
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText('阶段草稿按 V1 保存');
@@ -442,7 +503,7 @@ test('unresolved save requests block revision submission and stay recoverable', 
 }) => {
   await reachManual(page);
   await generate(page);
-  const requestNote = page.locator('.stage-controls p.muted', {
+  const requestNote = page.locator('#mock-controls-panel p.muted', {
     hasText: '当前范围原保存请求',
   });
 
@@ -455,13 +516,15 @@ test('unresolved save requests block revision submission and stay recoverable', 
   await expect(page.getByText('仍在等待原保存请求回执')).toBeVisible();
   await expect(page.getByRole('button', { name: '保存意见草稿（模拟）' })).toBeDisabled();
 
-  await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('SAVED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText(
     '原保存请求已返回；新输入尚未保存',
   );
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
-  await page.getByLabel('修改回执场景').selectOption('FAILED');
+  await withMockControls(page, async () => page.getByLabel('修改回执场景').selectOption('FAILED'));
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText('失败（模拟）');
   await expect(page.locator('.markdown-history')).toContainText('提交文本 B');
@@ -471,8 +534,10 @@ test('unresolved save requests block revision submission and stay recoverable', 
   await expect(requestNote).toContainText('U2-SAVE-');
   expect(await requestNote.textContent()).not.toBe(firstRequest);
 
-  await page.getByLabel('模拟保存回执').selectOption('UNKNOWN');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('UNKNOWN'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await page.locator('#markdown-note').fill('提交文本 D');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
@@ -484,10 +549,14 @@ test('unresolved save requests block revision submission and stay recoverable', 
   await rehearsalLink(page, '质量手册审阅');
   await expect(page.locator('.markdown-draft-state')).toContainText('模拟保存结果待核验');
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeDisabled();
-  await page.getByLabel('模拟保存回执').selectOption('SAVED');
-  await page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click();
+  await withMockControls(page, async () => page.getByLabel('模拟保存回执').selectOption('SAVED'));
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟当前范围原保存回执到达/查询' }).click(),
+  );
   await expect(page.getByRole('button', { name: '提交并修改' })).toBeEnabled();
-  await page.getByLabel('修改回执场景').selectOption('RECEIVED');
+  await withMockControls(page, async () =>
+    page.getByLabel('修改回执场景').selectOption('RECEIVED'),
+  );
   await page.getByRole('button', { name: '提交并修改' }).click();
   await expect(page.locator('.markdown-history')).toContainText('提交文本 D');
 });

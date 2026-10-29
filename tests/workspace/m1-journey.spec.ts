@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -8,7 +9,8 @@ const plan = `${base}/startup/U1-REPORT-02`;
 async function openAnalysisControls(page: Page) {
   const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 }
 
 async function confirmPlan(page: Page) {
@@ -23,7 +25,7 @@ async function generate(page: Page) {
 }
 
 async function finalize(page: Page, button: string, versionText: string) {
-  await page.getByLabel('定稿回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('定稿回执场景').selectOption('matched'));
   await page.getByRole('button', { name: button, exact: true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText(versionText);
@@ -79,7 +81,9 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
 
   await page.goto(reportOne);
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
@@ -142,7 +146,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await page.getByRole('link', { name: '开始打包冻结清单' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
 
-  await page.getByLabel('打包回执场景').selectOption('FAILED');
+  await withMockControls(page, async () => page.getByLabel('打包回执场景').selectOption('FAILED'));
   await page.getByRole('button', { name: '开始打包（模拟）' }).click();
   await expect(page.getByText('打包失败；冻结清单与确认未改变')).toBeVisible();
   const afterFailure = await homeCard(page);
@@ -152,7 +156,7 @@ test('home-to-ZIP journey keeps one project, reflects board progress and downloa
   await page.getByRole('link', { name: '重试同一冻结清单' }).click();
   await expect(page).toHaveURL(`${base}/delivery`);
 
-  await page.getByLabel('打包回执场景').selectOption('UNKNOWN');
+  await withMockControls(page, async () => page.getByLabel('打包回执场景').selectOption('UNKNOWN'));
   await page.getByRole('button', { name: '再次打包同一冻结清单（模拟）' }).click();
   await expect(page.getByText('打包结果待核验；只查询原打包请求。')).toBeVisible();
   const afterUnknown = await homeCard(page);
@@ -221,7 +225,9 @@ test('protected content, template conflicts and reading limits require explicit 
 
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();

@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
@@ -618,15 +619,17 @@ function ProjectIntake({
         </details>
       </section>
       {fixedZip && (
-        <button
-          disabled={frozen}
-          onClick={() => {
-            setZip(fixedZip);
-            setError('');
-          }}
-        >
-          带入演示 ZIP 包
-        </button>
+        <MockControls>
+          <button
+            disabled={frozen}
+            onClick={() => {
+              setZip(fixedZip);
+              setError('');
+            }}
+          >
+            带入演示 ZIP 包
+          </button>
+        </MockControls>
       )}
       {controls}
     </div>

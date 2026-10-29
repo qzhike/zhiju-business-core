@@ -96,6 +96,9 @@ async function checkProductionBundle() {
       '返工与复核',
       '执行与恢复',
       'DEVELOPMENT_TASK_WORKSPACE_ADAPTER_ONLY',
+      'DEVELOPMENT_CATALOG_ADAPTER_ONLY',
+      '客户原始文档',
+      '清单明细',
       '确认交付清单并生成文档包',
       'task-steps',
     ]) {

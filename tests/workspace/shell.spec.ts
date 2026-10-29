@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 
@@ -27,7 +28,9 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await expect(page.getByRole('heading', { name: '我的工作台' })).toBeVisible();
   await expect(page.getByRole('note')).toContainText('不上传或读取 ZIP 内容');
   await page.getByRole('link', { name: '准备客户资料' }).click();
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('button', { name: '提交并分析' }).click();
   await expect(page.locator('.intake-receipt')).toContainText('正在接收资料');
   await expect(page.getByRole('link', { name: '查看分析报告', exact: true })).toBeVisible();
@@ -39,10 +42,14 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await expect(page.getByRole('checkbox', { name: '选择质量手册' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '确认信息与范围并开始' })).toBeDisabled();
   await page.getByRole('checkbox', { name: '选择纠正措施程序' }).check();
-  await page.getByRole('checkbox', { name: '演示必要信息缺失' }).check();
+  await withMockControls(page, async () =>
+    page.getByRole('checkbox', { name: '演示必要信息缺失' }).check(),
+  );
   await expect(page.getByRole('alert')).toContainText('文件选择已保留');
   await expect(page.getByRole('button', { name: '确认信息与范围并开始' })).toBeDisabled();
-  await page.getByRole('checkbox', { name: '演示必要信息缺失' }).uncheck();
+  await withMockControls(page, async () =>
+    page.getByRole('checkbox', { name: '演示必要信息缺失' }).uncheck(),
+  );
   await page.reload();
   await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).toBeChecked();
   await page.goBack();
@@ -83,8 +90,10 @@ test('desktop built fixture journey, exact versions, refresh and history', async
   await expect(page.getByText('已纳入第 1 版范围')).toBeVisible();
   await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).toBeDisabled();
   await page.getByRole('link', { name: '返回分析总览' }).click();
-  await page.getByText('分析演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '模拟新报告到达' }).click();
+  await withMockControls(page, async () => page.getByText('分析演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟新报告到达' }).click(),
+  );
   await expect(page).toHaveURL(report);
   await page.getByRole('link', { name: '查看第 2 版' }).click();
   await expect(page).toHaveURL(`${project}/analysis/DEMO-STARTUP-REPORT-02`);
@@ -96,8 +105,10 @@ test('desktop built fixture journey, exact versions, refresh and history', async
 test('narrow navigation, keyboard focus, empty states and error recovery', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/workbench');
-  await page.getByText('演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '查看空工作台' }).click();
+  await withMockControls(page, async () => page.getByText('演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '查看空工作台' }).click(),
+  );
   await expect(page.getByRole('heading', { name: '暂无待处理工作' })).toBeVisible();
   await page
     .getByRole('navigation', { name: '主要导航' })
@@ -113,7 +124,9 @@ test('narrow navigation, keyboard focus, empty states and error recovery', async
   await page.getByRole('button', { name: '创建项目并继续' }).click();
   await expect(page.getByRole('heading', { name: '准备首轮客户资料' })).toBeVisible();
   await page.goto(`${project}/intake`);
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('button', { name: '提交并分析' }).click();
   await page.getByRole('link', { name: '查看分析报告', exact: true }).click();
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
@@ -156,6 +169,8 @@ test('safe content, exact deep links and fixture cache recovery', async ({ page 
   });
   await page.reload();
   await expect(page.getByRole('alert')).toContainText('无法读取演示记录');
-  await page.getByRole('button', { name: '清除演示记录并重试' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '清除演示记录并重试' }).click(),
+  );
   await expect(page.getByRole('heading', { name: '核对信息，选择本轮文件' })).toBeVisible();
 });

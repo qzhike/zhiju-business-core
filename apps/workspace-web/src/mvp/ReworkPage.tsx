@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { Link } from 'react-router';
 import { JourneyNav, type JourneyReviewStage } from './JourneyNav.js';
 import type { StageReworkImpactView } from './StageReviewPage.js';
@@ -166,9 +167,11 @@ export function ReworkPage({
           </p>
         )}
         <div className="u3-actions">
-          <button className="primary" onClick={actions.announceManualDraft}>
-            模拟新手册草稿到达（第 3 版）
-          </button>
+          <MockControls>
+            <button className="primary" onClick={actions.announceManualDraft}>
+              模拟新手册草稿到达（第 3 版）
+            </button>
+          </MockControls>
           <Link className="button" to={links.manual}>
             打开质量手册审阅并重新定稿
           </Link>
@@ -187,12 +190,16 @@ export function ReworkPage({
             </p>
             <ImpactTable impact={procedures.impact} />
             <div className="u3-actions">
-              <button onClick={actions.addDownstreamCandidates}>
-                模拟新手册依据下的程序候选（第 3 版）
-              </button>
-              <button onClick={actions.adoptLatestDownstream}>
-                模拟已核对并采用控制程序全部最新候选
-              </button>
+              <MockControls>
+                <button onClick={actions.addDownstreamCandidates}>
+                  模拟新手册依据下的程序候选（第 3 版）
+                </button>
+              </MockControls>
+              <MockControls>
+                <button onClick={actions.adoptLatestDownstream}>
+                  模拟已核对并采用控制程序全部最新候选
+                </button>
+              </MockControls>
               <Link className="button primary" to={links.procedures}>
                 打开控制程序审阅并重新定稿
               </Link>
@@ -251,9 +258,11 @@ export function ReworkPage({
           </ul>
         )}
         <div className="u3-actions">
-          <button onClick={actions.adoptLatestRules}>
-            模拟已核对并采用管理制度及记录表单全部最新候选
-          </button>
+          <MockControls>
+            <button onClick={actions.adoptLatestRules}>
+              模拟已核对并采用管理制度及记录表单全部最新候选
+            </button>
+          </MockControls>
           <Link className="button primary" to={links.rules}>
             打开第三阶段审阅并整体定稿
           </Link>

@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { useContext } from 'react';
 import { Link } from 'react-router';
 import { MvpHandoffContext } from '../fixtures/handoff.js';
@@ -58,60 +59,62 @@ export function JourneyNav({
           </li>
         ))}
       </ol>
-      <details className="journey-rehearsal">
-        <summary>演练页面与阶段入口</summary>
-        <ul>
-          {oldSteps.map((step) => (
-            <li key={step.id}>
-              <Link
-                aria-current={current === step.id ? 'page' : undefined}
-                to={step.id === 'analysis' ? `${base}/analysis/${analysisReportId}` : step.path}
-                aria-disabled={step.id === 'scope' && !scopeEnabled ? 'true' : undefined}
-                onClick={(event) => {
-                  if (step.id === 'scope' && !scopeEnabled) event.preventDefault();
-                }}
-              >
-                {step.label}
-              </Link>
-            </li>
-          ))}
-          {reviewStages?.map((stage) => (
-            <li key={stage.id}>
-              <Link
-                aria-current={current === stage.id ? 'page' : undefined}
-                aria-disabled={stage.ready ? undefined : 'true'}
-                title={stage.ready ? undefined : stage.reason}
-                to={stage.href}
-                onClick={(event) => {
-                  if (!stage.ready) event.preventDefault();
-                }}
-              >
-                {stage.label}
-                {!stage.ready && <span className="journey-locked"> · 待前置</span>}
-              </Link>
-            </li>
-          ))}
-          {u3Stages.map((stage) => (
-            <li key={stage.id}>
-              <Link
-                aria-current={current === stage.id ? 'page' : undefined}
-                aria-disabled={stage.ready ? undefined : 'true'}
-                title={stage.ready ? undefined : stage.reason}
-                to={stage.href}
-                onClick={(event) => {
-                  if (!stage.ready) event.preventDefault();
-                }}
-              >
-                {stage.label}
-                {!stage.ready && <span className="journey-locked"> · 待前置</span>}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <p className="muted">
-          阶段入口按上游模拟定稿启用；直接打开链接不会补造缺失的依据。返工/恢复/交付保留同一项目与精确版本。
-        </p>
-      </details>
+      <MockControls>
+        <details className="journey-rehearsal">
+          <summary>演练页面与阶段入口</summary>
+          <ul>
+            {oldSteps.map((step) => (
+              <li key={step.id}>
+                <Link
+                  aria-current={current === step.id ? 'page' : undefined}
+                  to={step.id === 'analysis' ? `${base}/analysis/${analysisReportId}` : step.path}
+                  aria-disabled={step.id === 'scope' && !scopeEnabled ? 'true' : undefined}
+                  onClick={(event) => {
+                    if (step.id === 'scope' && !scopeEnabled) event.preventDefault();
+                  }}
+                >
+                  {step.label}
+                </Link>
+              </li>
+            ))}
+            {reviewStages?.map((stage) => (
+              <li key={stage.id}>
+                <Link
+                  aria-current={current === stage.id ? 'page' : undefined}
+                  aria-disabled={stage.ready ? undefined : 'true'}
+                  title={stage.ready ? undefined : stage.reason}
+                  to={stage.href}
+                  onClick={(event) => {
+                    if (!stage.ready) event.preventDefault();
+                  }}
+                >
+                  {stage.label}
+                  {!stage.ready && <span className="journey-locked"> · 待前置</span>}
+                </Link>
+              </li>
+            ))}
+            {u3Stages.map((stage) => (
+              <li key={stage.id}>
+                <Link
+                  aria-current={current === stage.id ? 'page' : undefined}
+                  aria-disabled={stage.ready ? undefined : 'true'}
+                  title={stage.ready ? undefined : stage.reason}
+                  to={stage.href}
+                  onClick={(event) => {
+                    if (!stage.ready) event.preventDefault();
+                  }}
+                >
+                  {stage.label}
+                  {!stage.ready && <span className="journey-locked"> · 待前置</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="muted">
+            阶段入口按上游模拟定稿启用；直接打开链接不会补造缺失的依据。返工/恢复/交付保留同一项目与精确版本。
+          </p>
+        </details>
+      </MockControls>
     </nav>
   );
 }

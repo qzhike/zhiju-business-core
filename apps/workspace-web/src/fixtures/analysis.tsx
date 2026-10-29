@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_ANALYSIS_ADAPTER_ONLY: fixed checked-in examples, no production import.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -277,60 +278,62 @@ function LegacyFixtureAnalysis() {
         </>
       }
       controls={
-        <details className="fixture-options">
-          <summary>分析演示控制</summary>
-          <p>固定报告仅用于页面验证，不上传或分析文件；刷新清理本页内存。</p>
-          <button onClick={adapter.arrive}>模拟新报告到达</button>
-          <label>
-            复核结果
-            <select
-              value={adapter.scenario}
-              onChange={(event) => {
-                adapter.setScenario(event.target.value);
+        <MockControls>
+          <details className="fixture-options">
+            <summary>分析演示控制</summary>
+            <p>固定报告仅用于页面验证，不上传或分析文件；刷新清理本页内存。</p>
+            <button onClick={adapter.arrive}>模拟新报告到达</button>
+            <label>
+              复核结果
+              <select
+                value={adapter.scenario}
+                onChange={(event) => {
+                  adapter.setScenario(event.target.value);
+                }}
+              >
+                <option value="received">收到合成意见</option>
+                <option value="failed">失败</option>
+                <option value="unavailable">不可用</option>
+                <option value="unknown">UNKNOWN</option>
+                <option value="mismatch">错上下文回执</option>
+              </select>
+            </label>
+            <button
+              disabled={
+                historical ||
+                state.context.kind !== 'CUSTOMER' ||
+                state.context.reportId !== report.reportId
+              }
+              onClick={() => {
+                adapter.update(report.reportId, (previous) => ({
+                  ...previous,
+                  drafts: {
+                    ...previous.drafts,
+                    [previous.context.key]: {
+                      ...emptyDraft,
+                      text: '固定演示：补充现行岗位职责文件。',
+                      attachments: ['固定岗位职责示例.md'],
+                      fixedExample: true,
+                    },
+                  },
+                }));
               }}
             >
-              <option value="received">收到合成意见</option>
-              <option value="failed">失败</option>
-              <option value="unavailable">不可用</option>
-              <option value="unknown">UNKNOWN</option>
-              <option value="mismatch">错上下文回执</option>
-            </select>
-          </label>
-          <button
-            disabled={
-              historical ||
-              state.context.kind !== 'CUSTOMER' ||
-              state.context.reportId !== report.reportId
-            }
-            onClick={() => {
-              adapter.update(report.reportId, (previous) => ({
-                ...previous,
-                drafts: {
-                  ...previous.drafts,
-                  [previous.context.key]: {
-                    ...emptyDraft,
-                    text: '固定演示：补充现行岗位职责文件。',
-                    attachments: ['固定岗位职责示例.md'],
-                    fixedExample: true,
-                  },
-                },
-              }));
-            }}
-          >
-            带入固定补充示例
-          </button>
-          <button
-            disabled={historical}
-            onClick={() => {
-              adapter.update(report.reportId, (previous) => ({
-                ...previous,
-                context: contextFor(report, 'CUSTOMER'),
-              }));
-            }}
-          >
-            重新核对当前报告上下文
-          </button>
-        </details>
+              带入固定补充示例
+            </button>
+            <button
+              disabled={historical}
+              onClick={() => {
+                adapter.update(report.reportId, (previous) => ({
+                  ...previous,
+                  context: contextFor(report, 'CUSTOMER'),
+                }));
+              }}
+            >
+              重新核对当前报告上下文
+            </button>
+          </details>
+        </MockControls>
       }
     />
   );
@@ -419,7 +422,7 @@ function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
       }}
       development
       controls={
-        <div className="fixture-options">
+        <>
           {error && (
             <p className="error" role="alert">
               {error}
@@ -450,18 +453,22 @@ function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
               重新查询原请求
             </button>
           )}
-          <label>
-            <input
-              type="checkbox"
-              checked={missing}
-              onChange={(event) => {
-                setMissing(event.target.checked);
-              }}
-            />{' '}
-            演示必要信息缺失
-          </label>
-          <button onClick={adapter.arrive}>模拟新结果到达</button>
-        </div>
+          <MockControls>
+            <div className="fixture-options">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={missing}
+                  onChange={(event) => {
+                    setMissing(event.target.checked);
+                  }}
+                />{' '}
+                演示必要信息缺失
+              </label>
+              <button onClick={adapter.arrive}>模拟新结果到达</button>
+            </div>
+          </MockControls>
+        </>
       }
     />
   );

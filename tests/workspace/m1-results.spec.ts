@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 import { readFile, readdir } from 'node:fs/promises';
 
@@ -12,13 +13,16 @@ const manualV2 = 'MANUAL-V2@U1-PLAN-01-v1';
 async function openAnalysisControls(page: Page) {
   const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 }
 
 async function reachManual(page: Page, scene: 'matched' | 'failed' | 'unknown' = 'matched') {
   await page.goto(reportOne);
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
@@ -28,14 +32,17 @@ async function reachManual(page: Page, scene: 'matched' | 'failed' | 'unknown' =
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
   await page.getByRole('button', { name: '进入质量手册审阅（演示）' }).click();
   await expect(page).toHaveURL(manual);
-  if (scene !== 'matched') await page.getByLabel('生成回执场景').selectOption(scene);
+  if (scene !== 'matched')
+    await withMockControls(page, async () => page.getByLabel('生成回执场景').selectOption(scene));
   await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
 }
 
 async function advanceManualToV2(page: Page) {
   await page.locator('#markdown-note').fill('结果页第一轮意见：保留客户质量目标');
   await page.getByRole('button', { name: '提交并修改' }).click();
-  await page.getByRole('button', { name: '模拟下一轮候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟下一轮候选到达' }).click(),
+  );
   await page.getByRole('button', { name: '显式切换并核对引用' }).click();
   await expect(page.locator('.stage-set')).toContainText('第 2 版候选');
 }
@@ -202,7 +209,7 @@ test('failed generation attempts remain selectable after retry and success', asy
   expect(secondAttempt).not.toBe(firstAttempt);
   if (!secondAttempt) throw new Error('Second generation attempt has no route identity');
   await rehearsalLink(page, '质量手册审阅');
-  await page.getByLabel('生成回执场景').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('生成回执场景').selectOption('matched'));
   await page.getByRole('button', { name: '模拟生成本阶段候选' }).click();
   await openReading(page, '处理结果（阅读）');
   await expect(roundSelect.locator('option')).toHaveCount(3);
@@ -232,7 +239,9 @@ test('scope expansion keeps plan-scoped rounds and opinions separate', async ({ 
   await expect(page).toHaveURL(manual);
   await rehearsalLink(page, '修改范围');
   await expect(page).toHaveURL(plan);
-  await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click(),
+  );
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
   await page.getByRole('button', { name: '确认这份修改范围' }).click();
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
@@ -270,7 +279,9 @@ test('historical analysis rounds keep their original plan membership', async ({ 
   await expect(page.locator('.results-table')).not.toContainText('变更通知单');
   await openReading(page, '项目概览（阅读）');
   await rehearsalLink(page, '修改范围');
-  await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click(),
+  );
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
   await openReading(page, '处理结果（阅读）');
   await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
@@ -293,7 +304,9 @@ test('superseded plans reject next-draft submission from a historical round', as
   await page.getByRole('link', { name: '← 返回结果总览' }).click();
   await rehearsalLink(page, '质量手册审阅');
   await rehearsalLink(page, '修改范围');
-  await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click(),
+  );
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
   await openReading(page, '处理结果（阅读）');
   await expect(page.getByLabel('轮次', { exact: true })).toHaveValue(manualV1);
@@ -340,9 +353,11 @@ test('recovery attempts do not rewrite a historical round outcome or provenance'
   await expect(manualRow).toContainText('已生成候选');
   await rehearsalLink(page, '执行与恢复');
   await expect(page.getByRole('heading', { name: '执行与恢复' })).toBeVisible();
-  await page.getByLabel('重试回执场景').selectOption('pending');
+  await withMockControls(page, async () => page.getByLabel('重试回执场景').selectOption('pending'));
   await page.getByRole('button', { name: '仅重试失败文件（模拟）' }).click();
-  await page.getByRole('button', { name: '模拟原重试回执到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟原重试回执到达' }).click(),
+  );
   await page.getByRole('button', { name: '查询原重试请求' }).click();
   await expect(page.locator('.u3-attempt')).toHaveCount(2);
   await openReading(page, '处理结果（阅读）');

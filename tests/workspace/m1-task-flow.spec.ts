@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 
 const base = '/projects/MVP-U1-PROJECT';
@@ -159,8 +160,8 @@ test('task workspace completes the approved journey and preserves exact versions
 
 test('analysis without clarification goes straight to scope confirmation', async ({ page }) => {
   await page.goto(work);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('分析澄清场景').selectOption('NONE');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('分析澄清场景').selectOption('NONE'));
   await page.getByRole('button', { name: '开始分析资料' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('确认修改范围');
   await expect(page.getByLabel('资料问题答复')).toHaveCount(0);
@@ -176,8 +177,8 @@ test('unknown scope confirmation recovers the original intent in current work', 
   await page.getByLabel('资料问题答复').fill('同意四层结构与编号迁移。');
   await page.getByRole('button', { name: '提交答复并继续分析' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('确认修改范围');
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('范围确认场景').selectOption('unknown');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('范围确认场景').selectOption('unknown'));
   await page.getByRole('button', { name: '确认范围并生成质量手册初稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对原范围确认请求');
   await page.getByRole('button', { name: '核对原确认请求' }).click();
@@ -193,12 +194,16 @@ test('generation failure keeps the confirmed scope and retries only execution', 
   await page.getByRole('button', { name: '开始分析资料' }).click();
   await page.getByLabel('资料问题答复').fill('同意四层结构与编号迁移。');
   await page.getByRole('button', { name: '提交答复并继续分析' }).click();
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('当前阶段生成场景').selectOption('failed');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () =>
+    page.getByLabel('当前阶段生成场景').selectOption('failed'),
+  );
   await page.getByRole('button', { name: '确认范围并生成质量手册初稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('质量手册生成失败，需重试');
   await expect(page.getByRole('button', { name: '确认范围并生成质量手册初稿' })).toHaveCount(0);
-  await page.getByLabel('当前阶段生成场景').selectOption('matched');
+  await withMockControls(page, async () =>
+    page.getByLabel('当前阶段生成场景').selectOption('matched'),
+  );
   await page.getByRole('button', { name: '核对或重试本阶段生成' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('审阅本轮质量手册');
   await expect(page.locator('.task-stage')).toContainText('第 1 版候选');
@@ -208,8 +213,10 @@ test('upstream re-finalization marks downstream stages for review in current wor
   page,
 }) => {
   await completeToDelivery(page);
-  await page.locator('details.task-dev summary').click();
-  await page.getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' }).click();
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' }).click(),
+  );
   await expect(page.locator('.task-next h2')).toHaveText('控制程序依据已变化，需复核');
   await page.getByRole('button', { name: '核对并重新定稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('管理制度及记录表单依据已变化，需复核');
@@ -220,8 +227,10 @@ test('upstream re-finalization marks downstream stages for review in current wor
 
 test('current work keeps partial execution recovery across navigation', async ({ page }) => {
   await completeToDelivery(page);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('显示执行恢复区（合成失败批次）').check();
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () =>
+    page.getByLabel('显示执行恢复区（合成失败批次）').check(),
+  );
   await expect(page.locator('.task-recovery')).toContainText('变更申请单');
   await expect(page.locator('.task-recovery')).toContainText('变更评审记录');
   await expect(page.locator('.task-recovery')).toContainText('已知失败');
@@ -243,8 +252,8 @@ test('current work keeps partial execution recovery across navigation', async ({
 
 test('mismatched confirmation stays blocked after the scene changes', async ({ page }) => {
   await completeToDelivery(page);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('确认回执').selectOption('mismatch');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('mismatch'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
@@ -253,14 +262,14 @@ test('mismatched confirmation stays blocked after the scene changes', async ({ p
   await page.locator('.task-delivery').getByRole('button', { name: '核对原最终确认请求' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
 
-  await page.getByLabel('确认回执').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('matched'));
   await page.locator('.task-delivery').getByRole('button', { name: '核对原最终确认请求' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
   await expect(page.getByRole('button', { name: '下载 Markdown ZIP（合成）' })).toHaveCount(0);
 
   await page.getByRole('button', { name: '结束原确认请求并重新核对' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
-  await page.getByLabel('确认回执').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('matched'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
@@ -272,15 +281,17 @@ test('basis change during unknown confirmation keeps the original intent blocked
   page,
 }) => {
   await completeToDelivery(page);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('确认回执').selectOption('unknown');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('unknown'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
     .click();
   await expect(page.locator('.task-next h2')).toHaveText('核对原最终确认请求');
 
-  await page.getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' }).click(),
+  );
   await expect(page.locator('.task-next h2')).toHaveText('控制程序依据已变化，需复核');
   await page.getByRole('button', { name: '核对并重新定稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('管理制度及记录表单依据已变化，需复核');
@@ -293,7 +304,7 @@ test('basis change during unknown confirmation keeps the original intent blocked
 
   await page.getByRole('button', { name: '结束原确认请求并重新核对' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('核对最终交付清单');
-  await page.getByLabel('确认回执').selectOption('matched');
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('matched'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
@@ -345,8 +356,8 @@ test('later finalization requires a new delivery confirmation and keeps the old 
 
 test('unknown packaging request survives a later finalization', async ({ page }) => {
   await completeToDelivery(page, 1);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('打包结果').selectOption('UNKNOWN');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('打包结果').selectOption('UNKNOWN'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
@@ -358,7 +369,7 @@ test('unknown packaging request survives a later finalization', async ({ page })
     .textContent();
   expect(requestText).toBeTruthy();
   const originalRequest = requestText ?? '';
-  await page.getByLabel('打包结果').selectOption('AVAILABLE');
+  await withMockControls(page, async () => page.getByLabel('打包结果').selectOption('AVAILABLE'));
 
   const projectNav = page.getByRole('navigation', { name: '项目导航' });
   await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
@@ -394,8 +405,8 @@ test('delivery unknown stops packaging and failure retries the same frozen list'
   page,
 }) => {
   await completeToDelivery(page);
-  await page.locator('details.task-dev summary').click();
-  await page.getByLabel('确认回执').selectOption('unknown');
+  await withMockControls(page, async () => page.locator('details.task-dev summary').click());
+  await withMockControls(page, async () => page.getByLabel('确认回执').selectOption('unknown'));
   await page
     .locator('.task-delivery')
     .getByRole('button', { name: '确认交付清单并生成文档包' })
@@ -405,12 +416,12 @@ test('delivery unknown stops packaging and failure retries the same frozen list'
   await page.locator('.task-delivery').getByRole('button', { name: '核对原最终确认请求' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('打包已冻结清单');
 
-  await page.getByLabel('打包结果').selectOption('FAILED');
+  await withMockControls(page, async () => page.getByLabel('打包结果').selectOption('FAILED'));
   await page.locator('.task-delivery').getByRole('button', { name: '打包已冻结清单' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('打包失败，需重试同一清单');
   await expect(page.getByRole('button', { name: '确认交付清单并生成文档包' })).toHaveCount(0);
 
-  await page.getByLabel('打包结果').selectOption('AVAILABLE');
+  await withMockControls(page, async () => page.getByLabel('打包结果').selectOption('AVAILABLE'));
   await page.getByRole('button', { name: '核对或重试打包' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
   await expect(page.locator('.task-delivery')).toContainText('U3-PKG-01');

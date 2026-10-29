@@ -474,11 +474,11 @@ export function MarkdownReviewPage({
       <div
         className={`markdown-review-layout${focusReading ? ' focus-reading' : ''}${
           focusReading && opinionOpen ? ' show-opinion' : ''
-        }`}
+        }${files ? '' : ' without-files'}`}
       >
-        <nav className="markdown-files" aria-label="本轮文件">
-          <h2>本轮文件</h2>
-          {files ? (
+        {files && (
+          <nav className="markdown-files" aria-label="本轮文件">
+            <h2>本轮文件</h2>
             <>
               <div className="markdown-files-summary">
                 <span>
@@ -550,13 +550,12 @@ export function MarkdownReviewPage({
               </div>
               <small>未加载页不计入分母；列表限定本轮工作范围。</small>
             </>
-          ) : (
-            <p className="markdown-files-note">
-              {workspace?.directoryNote ?? '跨文件成果目录读取尚未接入；本页只显示此精确版本。'}
-            </p>
-          )}
-        </nav>
+          </nav>
+        )}
         <section className="markdown-reader" aria-label="正文阅读">
+          {!files && workspace?.directoryNote && (
+            <p className="markdown-files-note">{workspace.directoryNote}</p>
+          )}
           <div className="markdown-reader-toolbar">
             <div>
               <button

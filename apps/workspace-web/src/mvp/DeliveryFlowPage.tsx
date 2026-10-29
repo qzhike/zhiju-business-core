@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { useState, type ReactNode } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Link } from 'react-router';
@@ -383,7 +384,9 @@ export function DeliveryFlowPage({
                 (confirmation.status === 'PENDING' ||
                   confirmation.status === 'UNKNOWN' ||
                   confirmation.status === 'MISMATCH') && (
-                  <button onClick={confirmation.onReceipt}>模拟原确认回执到达</button>
+                  <MockControls>
+                    <button onClick={confirmation.onReceipt}>模拟原确认回执到达</button>
+                  </MockControls>
                 )}
               {(confirmation.status === 'PENDING' ||
                 confirmation.status === 'UNKNOWN' ||
@@ -458,8 +461,8 @@ export function DeliveryFlowPage({
         )}
       </section>
 
-      <section className="panel" aria-label="返回与演练控制">
-        <h2>返回与演练控制</h2>
+      <section className="panel" aria-label="返回审阅">
+        <h2>返回审阅</h2>
         <div className="u3-actions">
           <Link to={links.manual}>质量手册审阅</Link>
           <Link to={links.procedures}>控制程序审阅</Link>
@@ -467,19 +470,21 @@ export function DeliveryFlowPage({
           <Link to={links.rework}>返工与复核</Link>
           <Link to={links.recovery}>执行与恢复</Link>
         </div>
-        <label>
-          下载观察场景
-          <select
-            value={downloadScene}
-            onChange={(event) => {
-              onDownloadScene(event.target.value);
-            }}
-          >
-            <option value="SENT">响应已开始保存</option>
-            <option value="FAILED">下载响应失败/中断</option>
-            <option value="UNKNOWN">下载结果待核实</option>
-          </select>
-        </label>
+        <MockControls>
+          <label>
+            下载观察场景
+            <select
+              value={downloadScene}
+              onChange={(event) => {
+                onDownloadScene(event.target.value);
+              }}
+            >
+              <option value="SENT">响应已开始保存</option>
+              <option value="FAILED">下载响应失败/中断</option>
+              <option value="UNKNOWN">下载结果待核实</option>
+            </select>
+          </label>
+        </MockControls>
         {controls}
       </section>
     </div>

@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_TASK_WORKSPACE_ADAPTER_ONLY: task-driven M1 rehearsal workspace.
 // It reuses the in-memory U1/U2/U3 fixtures and never calls Core or Runner.
 import { useEffect, useState } from 'react';
@@ -952,9 +953,11 @@ function RecoveryPanel({
           核对原重试请求
         </button>
         {execution.retry.onReceipt && (
-          <button className="button" onClick={execution.retry.onReceipt}>
-            模拟原重试回执到达
-          </button>
+          <MockControls>
+            <button className="button" onClick={execution.retry.onReceipt}>
+              模拟原重试回执到达
+            </button>
+          </MockControls>
         )}
       </div>
       {execution.retry.history.length > 0 && (
@@ -1227,120 +1230,122 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
   const stage = model.task.stage ?? 'MANUAL';
   const session = stageSession(u2, plan, stage);
   return (
-    <details className="fixture-options task-dev">
-      <summary>演练与诊断</summary>
-      <p>正常旅程不需要打开这些控件；回执、候选和故障注入只用于开发诊断。</p>
-      <label>
-        分析澄清场景
-        <select
-          value={u1.clarificationMode}
-          onChange={(event) => {
-            u1.setClarificationMode(event.target.value as 'QUESTIONS' | 'NONE');
-          }}
-        >
-          <option value="QUESTIONS">需要答复 2 个问题</option>
-          <option value="NONE">无需答复 · 不生成第二版</option>
-        </select>
-      </label>
-      <label>
-        范围确认场景
-        <select
-          value={u1.planScenario}
-          onChange={(event) => {
-            u1.setPlanScenario(event.target.value);
-          }}
-        >
-          <option value="received">匹配回执</option>
-          <option value="pending">待回执</option>
-          <option value="failed">失败</option>
-          <option value="unknown">UNKNOWN</option>
-          <option value="mismatch">错上下文回执</option>
-        </select>
-      </label>
-      <label>
-        当前阶段生成场景
-        <select
-          value={session.generationScene}
-          onChange={(event) => {
-            u2.update(stage, (current) => ({
-              ...current,
-              generationScene: event.target.value as StageSession['generationScene'],
-            }));
-          }}
-        >
-          <option value="matched">匹配回执 · 完整集合</option>
-          <option value="missing">匹配回执 · 缺少一份文件</option>
-          <option value="pending">待回执</option>
-          <option value="unknown">UNKNOWN</option>
-          <option value="failed">失败</option>
-          <option value="mismatch">错上下文回执</option>
-        </select>
-      </label>
-      <fieldset>
-        <legend>交付场景</legend>
+    <MockControls>
+      <details className="fixture-options task-dev">
+        <summary>演练与诊断</summary>
+        <p>正常旅程不需要打开这些控件；回执、候选和故障注入只用于开发诊断。</p>
         <label>
-          确认回执
+          分析澄清场景
           <select
-            value={u3.deliveryApi.state.confirmScene}
+            value={u1.clarificationMode}
             onChange={(event) => {
-              u3.deliveryApi.actions.configure({
-                confirmScene: event.target.value as
-                  'matched' | 'pending' | 'unknown' | 'failed' | 'mismatch' | 'changed',
-              });
+              u1.setClarificationMode(event.target.value as 'QUESTIONS' | 'NONE');
             }}
           >
-            <option value="matched">匹配回执</option>
+            <option value="QUESTIONS">需要答复 2 个问题</option>
+            <option value="NONE">无需答复 · 不生成第二版</option>
+          </select>
+        </label>
+        <label>
+          范围确认场景
+          <select
+            value={u1.planScenario}
+            onChange={(event) => {
+              u1.setPlanScenario(event.target.value);
+            }}
+          >
+            <option value="received">匹配回执</option>
+            <option value="pending">待回执</option>
+            <option value="failed">失败</option>
+            <option value="unknown">UNKNOWN</option>
+            <option value="mismatch">错上下文回执</option>
+          </select>
+        </label>
+        <label>
+          当前阶段生成场景
+          <select
+            value={session.generationScene}
+            onChange={(event) => {
+              u2.update(stage, (current) => ({
+                ...current,
+                generationScene: event.target.value as StageSession['generationScene'],
+              }));
+            }}
+          >
+            <option value="matched">匹配回执 · 完整集合</option>
+            <option value="missing">匹配回执 · 缺少一份文件</option>
             <option value="pending">待回执</option>
             <option value="unknown">UNKNOWN</option>
             <option value="failed">失败</option>
-            <option value="mismatch">错绑回执</option>
-            <option value="changed">确认前依据变化</option>
+            <option value="mismatch">错上下文回执</option>
           </select>
         </label>
+        <fieldset>
+          <legend>交付场景</legend>
+          <label>
+            确认回执
+            <select
+              value={u3.deliveryApi.state.confirmScene}
+              onChange={(event) => {
+                u3.deliveryApi.actions.configure({
+                  confirmScene: event.target.value as
+                    'matched' | 'pending' | 'unknown' | 'failed' | 'mismatch' | 'changed',
+                });
+              }}
+            >
+              <option value="matched">匹配回执</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">失败</option>
+              <option value="mismatch">错绑回执</option>
+              <option value="changed">确认前依据变化</option>
+            </select>
+          </label>
+          <label>
+            打包结果
+            <select
+              value={u3.deliveryApi.state.packagingScene}
+              onChange={(event) => {
+                u3.deliveryApi.actions.configure({
+                  packagingScene: event.target.value as
+                    'AVAILABLE' | 'FAILED' | 'UNKNOWN' | 'MISMATCH',
+                });
+              }}
+            >
+              <option value="AVAILABLE">包可用</option>
+              <option value="FAILED">打包失败</option>
+              <option value="UNKNOWN">待核验</option>
+              <option value="MISMATCH">错绑清单</option>
+            </select>
+          </label>
+        </fieldset>
         <label>
-          打包结果
-          <select
-            value={u3.deliveryApi.state.packagingScene}
+          <input
+            type="checkbox"
+            checked={u3.recovery.visible}
             onChange={(event) => {
-              u3.deliveryApi.actions.configure({
-                packagingScene: event.target.value as
-                  'AVAILABLE' | 'FAILED' | 'UNKNOWN' | 'MISMATCH',
-              });
+              u3.recovery.setVisible(event.target.checked);
             }}
-          >
-            <option value="AVAILABLE">包可用</option>
-            <option value="FAILED">打包失败</option>
-            <option value="UNKNOWN">待核验</option>
-            <option value="MISMATCH">错绑清单</option>
-          </select>
+          />
+          显示执行恢复区（合成失败批次）
         </label>
-      </fieldset>
-      <label>
-        <input
-          type="checkbox"
-          checked={u3.recovery.visible}
-          onChange={(event) => {
-            u3.recovery.setVisible(event.target.checked);
+        <button
+          onClick={() => {
+            u2.simulateManualRefinalization();
           }}
-        />
-        显示执行恢复区（合成失败批次）
-      </label>
-      <button
-        onClick={() => {
-          u2.simulateManualRefinalization();
-        }}
-        disabled={!u2.manualFinalization}
-      >
-        模拟质量手册重新定稿（上游依据变化）
-      </button>
-      <button
-        onClick={() => {
-          u1.expandPlan(plan.planId);
-        }}
-      >
-        扩大范围：新增变更通知单（演示）
-      </button>
-    </details>
+          disabled={!u2.manualFinalization}
+        >
+          模拟质量手册重新定稿（上游依据变化）
+        </button>
+        <button
+          onClick={() => {
+            u1.expandPlan(plan.planId);
+          }}
+        >
+          扩大范围：新增变更通知单（演示）
+        </button>
+      </details>
+    </MockControls>
   );
 }
 

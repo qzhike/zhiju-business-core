@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 // IM-UI-01 (#286): the bounded review workspace journey on the development fixture.
 //
 // It exercises the shared MarkdownReviewPage through the isolated development
@@ -12,7 +13,8 @@ import { AxeBuilder } from '@axe-core/playwright';
 const workspace = '/review-workspace';
 const controls = async (page: Page) => {
   const details = page.locator('details.review-controls');
-  if ((await details.getAttribute('open')) === null) await details.locator('> summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('> summary').click());
   return details;
 };
 const position = (page: Page) => page.locator('.markdown-change-current small');
@@ -181,7 +183,9 @@ test('retains the reading version and draft when a new candidate arrives, then s
   await note.fill('针对第 1 版的引用');
   await page.getByRole('button', { name: '下一处变化' }).click();
   await controls(page);
-  await page.getByRole('button', { name: '模拟本文件新候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟本文件新候选到达' }).click(),
+  );
   await expect(page.locator('.markdown-reading-scroll')).toContainText('新候选已到达');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
   await expect(position(page)).toContainText('当前 2 / 36');
@@ -209,7 +213,9 @@ test('retains the reading version and draft when a new candidate arrives, then s
   await expect(note).toHaveValue('');
   await note.fill('针对第 2 版的意见');
   await expect(submit(page)).toBeEnabled();
-  await page.getByLabel('查看本文件版本').selectOption('DEMO-WS-REV-01');
+  await withMockControls(page, async () =>
+    page.getByLabel('查看本文件版本').selectOption('DEMO-WS-REV-01'),
+  );
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
   await expect(note).toHaveValue('针对第 1 版的引用');
   await note.fill('');
@@ -222,7 +228,9 @@ test('freezes the submitted input, keeps the next-round draft and reconciles the
   const note = page.getByRole('textbox', { name: '意见草稿' });
   await note.fill('第一条：请核对目的表述。');
   await controls(page);
-  await page.getByRole('button', { name: '返回草稿保存回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回草稿保存回执' }).click(),
+  );
   await expect(page.locator('.markdown-draft-state')).toContainText('个人草稿已保存');
   await submit(page).click();
   const status = page.locator('.markdown-submission');
@@ -238,7 +246,9 @@ test('freezes the submitted input, keeps the next-round draft and reconciles the
   await expect(page.getByRole('button', { name: '检查完成并批准' })).toBeDisabled();
   await expect(status).toContainText('自动核验已结束', { timeout: 15_000 });
   await expect(status).toContainText('已查询 3 次');
-  await page.getByLabel('原提交的查询结果').selectOption('accepted');
+  await withMockControls(page, async () =>
+    page.getByLabel('原提交的查询结果').selectOption('accepted'),
+  );
   await status.getByRole('button', { name: '重新查询' }).click();
   await expect(status).toContainText('修改请求已接收，等待安排', { timeout: 10_000 });
   await expect(status).toContainText('已查询 4 次');
@@ -274,7 +284,9 @@ test('requires an explicitly chosen baseline for a Markdown suggestion and never
   await expect(page.locator('.markdown-submission')).toContainText('未收到本次提交的回执');
   // A newer candidate keeps the submitted snapshot readable and never auto-switches.
   await controls(page);
-  await page.getByRole('button', { name: '模拟本文件新候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟本文件新候选到达' }).click(),
+  );
   await expect(page.locator('.markdown-original')).toContainText('改稿.md');
   await expect(page.locator('.markdown-reading-scroll')).toContainText('新候选已到达');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
@@ -289,20 +301,28 @@ test('advances only after a matching approval receipt and keeps unknown results 
   await files.getByRole('button', { name: /预防措施程序/ }).click();
   await expect(page.getByRole('button', { name: '检查完成并批准' })).toBeEnabled();
   await controls(page);
-  await page.getByLabel('单文件批准回执').selectOption('hold');
+  await withMockControls(page, async () => page.getByLabel('单文件批准回执').selectOption('hold'));
   await approve(page).click();
   await expect(page.locator('.markdown-opinion')).toContainText('批准结果待核验');
   await expect(page.locator('.markdown-opinion')).toContainText('不会按点击或未知结果切换文件');
   // A second click cannot create another intent while the first is unresolved.
   await expect(approve(page)).toBeDisabled();
-  await page.getByLabel('单文件批准回执').selectOption('unknown');
-  await page.getByRole('button', { name: '返回批准的选定回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByLabel('单文件批准回执').selectOption('unknown'),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回批准的选定回执' }).click(),
+  );
   await expect(page.locator('.markdown-opinion')).toContainText('批准结果待核验');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
   await expect(page.locator('details.review-controls')).toContainText('已批准 0 份');
   // A matching receipt is the only path that advances to the next file.
-  await page.getByLabel('单文件批准回执').selectOption('accepted');
-  await page.getByRole('button', { name: '返回批准的选定回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByLabel('单文件批准回执').selectOption('accepted'),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回批准的选定回执' }).click(),
+  );
   await expect(page.locator('.markdown-files')).toContainText('匹配批准成功（演示）');
   await expect(page.locator('details.review-controls')).toContainText('已批准 1 份');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 1 处修改');
@@ -337,7 +357,7 @@ test('keeps the download state separate from reading and reports unavailable rep
   await expect(page.locator('.markdown-download-status')).toContainText('下载响应已完整接收');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
   await controls(page);
-  await page.getByLabel('下载状态').selectOption('UNAVAILABLE');
+  await withMockControls(page, async () => page.getByLabel('下载状态').selectOption('UNAVAILABLE'));
   await expect(page.getByRole('button', { name: '下载 Markdown' })).toBeDisabled();
   await expect(page.locator('.markdown-download')).toContainText('未提供已登记表示');
   await expect(page.locator('.markdown-change-toolbar')).toContainText('本文件共 36 处修改');
@@ -426,9 +446,13 @@ test('shows supplied draft save states truthfully and never loses the input', as
     ['UNAVAILABLE', '服务器草稿能力尚未接入'],
     ['SAVED', '个人草稿已保存'],
   ] as const) {
-    await panel.getByLabel('个人草稿保存回执').selectOption(value);
+    await withMockControls(page, async () =>
+      panel.getByLabel('个人草稿保存回执').selectOption(value),
+    );
     await note.fill(`保存状态示例意见 · ${value}`);
-    await panel.getByRole('button', { name: '返回草稿保存回执' }).click();
+    await withMockControls(page, async () =>
+      panel.getByRole('button', { name: '返回草稿保存回执' }).click(),
+    );
     await expect(page.locator('.markdown-draft-state')).toContainText(expected);
     await expect(note).toHaveValue(`保存状态示例意见 · ${value}`);
   }

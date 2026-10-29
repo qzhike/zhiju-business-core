@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U3_ADAPTER_ONLY: isolated rework/recovery/delivery adapter. It
 // consumes the U1/U2 project context, never reads customer files or calls
 // Core/Runner, and keeps every request, attempt, package and download in page
@@ -719,56 +720,58 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       canSave: execution.draft.text.trim().length > 0 && !draftSaveUnresolved(execution.draft),
     },
     controls: (
-      <details className="fixture-options" open>
-        <summary>U3 执行恢复场景控制（演练）</summary>
-        <label>
-          重试回执场景
-          <select
-            value={execution.retryScene}
-            onChange={(event) => {
-              setExecution((current) => ({
-                ...current,
-                retryScene: event.target.value as ExecutionState['retryScene'],
-              }));
+      <MockControls>
+        <details className="fixture-options" open>
+          <summary>U3 执行恢复场景控制（演练）</summary>
+          <label>
+            重试回执场景
+            <select
+              value={execution.retryScene}
+              onChange={(event) => {
+                setExecution((current) => ({
+                  ...current,
+                  retryScene: event.target.value as ExecutionState['retryScene'],
+                }));
+              }}
+            >
+              <option value="matched">匹配回执 · 仅失败文件</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">已知失败</option>
+              <option value="mismatch">错尝试/错项目回执</option>
+            </select>
+          </label>
+          <label>
+            意见保存回执
+            <select
+              value={execution.draftScene}
+              onChange={(event) => {
+                setExecution((current) => ({
+                  ...current,
+                  draftScene: event.target.value as ExecutionState['draftScene'],
+                }));
+              }}
+            >
+              <option value="SAVED">已保存到本页内存</option>
+              <option value="FAILED">保存失败</option>
+              <option value="UNKNOWN">保存结果待核验</option>
+            </select>
+          </label>
+          <button
+            onClick={() => {
+              applyDraftReceipt();
             }}
+            disabled={!draftSaveUnresolved(execution.draft)}
           >
-            <option value="matched">匹配回执 · 仅失败文件</option>
-            <option value="pending">待回执</option>
-            <option value="unknown">UNKNOWN</option>
-            <option value="failed">已知失败</option>
-            <option value="mismatch">错尝试/错项目回执</option>
-          </select>
-        </label>
-        <label>
-          意见保存回执
-          <select
-            value={execution.draftScene}
-            onChange={(event) => {
-              setExecution((current) => ({
-                ...current,
-                draftScene: event.target.value as ExecutionState['draftScene'],
-              }));
-            }}
-          >
-            <option value="SAVED">已保存到本页内存</option>
-            <option value="FAILED">保存失败</option>
-            <option value="UNKNOWN">保存结果待核验</option>
-          </select>
-        </label>
-        <button
-          onClick={() => {
-            applyDraftReceipt();
-          }}
-          disabled={!draftSaveUnresolved(execution.draft)}
-        >
-          模拟原意见保存回执到达/查询
-        </button>
-        <p className="muted">
-          {execution.draft.requestLabel
-            ? `原保存请求 ${execution.draft.requestLabel} · ${mvpDraftStateLabels[execution.draft.state]}`
-            : '当前没有待回收的意见保存请求。'}
-        </p>
-      </details>
+            模拟原意见保存回执到达/查询
+          </button>
+          <p className="muted">
+            {execution.draft.requestLabel
+              ? `原保存请求 ${execution.draft.requestLabel} · ${mvpDraftStateLabels[execution.draft.state]}`
+              : '当前没有待回收的意见保存请求。'}
+          </p>
+        </details>
+      </MockControls>
     ),
     links: {
       manual: manualPath,
@@ -967,61 +970,63 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       }));
     },
     controls: (
-      <details className="fixture-options" open>
-        <summary>U3 交付场景控制（演练）</summary>
-        <label>
-          确认回执场景
-          <select
-            value={delivery.confirmScene}
-            onChange={(event) => {
-              setDelivery((current) => ({
-                ...current,
-                confirmScene: event.target.value as DeliveryState['confirmScene'],
-              }));
+      <MockControls>
+        <details className="fixture-options" open>
+          <summary>U3 交付场景控制（演练）</summary>
+          <label>
+            确认回执场景
+            <select
+              value={delivery.confirmScene}
+              onChange={(event) => {
+                setDelivery((current) => ({
+                  ...current,
+                  confirmScene: event.target.value as DeliveryState['confirmScene'],
+                }));
+              }}
+            >
+              <option value="matched">匹配回执</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">失败</option>
+              <option value="mismatch">错绑回执</option>
+              <option value="changed">确认前版本/依据变化</option>
+            </select>
+          </label>
+          <label>
+            打包回执场景
+            <select
+              value={delivery.packagingScene}
+              onChange={(event) => {
+                setDelivery((current) => ({
+                  ...current,
+                  packagingScene: event.target.value as DeliveryState['packagingScene'],
+                }));
+              }}
+            >
+              <option value="AVAILABLE">包可用</option>
+              <option value="FAILED">打包失败</option>
+              <option value="UNKNOWN">打包结果待核验</option>
+              <option value="MISMATCH">错绑冻结清单</option>
+            </select>
+          </label>
+          <button
+            onClick={() => {
+              simulateRecordRevision();
             }}
           >
-            <option value="matched">匹配回执</option>
-            <option value="pending">待回执</option>
-            <option value="unknown">UNKNOWN</option>
-            <option value="failed">失败</option>
-            <option value="mismatch">错绑回执</option>
-            <option value="changed">确认前版本/依据变化</option>
-          </select>
-        </label>
-        <label>
-          打包回执场景
-          <select
-            value={delivery.packagingScene}
-            onChange={(event) => {
-              setDelivery((current) => ({
-                ...current,
-                packagingScene: event.target.value as DeliveryState['packagingScene'],
-              }));
+            模拟管理制度及记录表单后续改稿（第 3 版）
+          </button>
+          <button
+            onClick={() => {
+              startNewRound();
             }}
+            disabled={!delivery.frozen}
           >
-            <option value="AVAILABLE">包可用</option>
-            <option value="FAILED">打包失败</option>
-            <option value="UNKNOWN">打包结果待核验</option>
-            <option value="MISMATCH">错绑冻结清单</option>
-          </select>
-        </label>
-        <button
-          onClick={() => {
-            simulateRecordRevision();
-          }}
-        >
-          模拟管理制度及记录表单后续改稿（第 3 版）
-        </button>
-        <button
-          onClick={() => {
-            startNewRound();
-          }}
-          disabled={!delivery.frozen}
-        >
-          开始新一轮最终交付确认（保留历史包）
-        </button>
-        <p className="muted">{delivery.note}</p>
-      </details>
+            开始新一轮最终交付确认（保留历史包）
+          </button>
+          <p className="muted">{delivery.note}</p>
+        </details>
+      </MockControls>
     ),
     links: {
       manual: manualPath,

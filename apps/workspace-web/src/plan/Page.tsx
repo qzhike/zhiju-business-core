@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import {
@@ -264,9 +265,11 @@ export function PlanPage({
           {plan.state === 'PENDING' && <button onClick={onQuery}>查询同一确认请求</button>}
           {plan.state === 'UNKNOWN' && <button onClick={onQuery}>重新查询原请求</button>}
           {plan.state === 'FAILED' && <button onClick={onRetry}>使用新意图重试确认</button>}
-          <button disabled={!confirmed} onClick={onExpand}>
-            扩大范围：新增变更通知单（演示）
-          </button>
+          <MockControls>
+            <button disabled={!confirmed} onClick={onExpand}>
+              扩大范围：新增变更通知单（演示）
+            </button>
+          </MockControls>
         </div>
         {!confirmable && !confirmed && plan.state !== 'PENDING' && plan.state !== 'UNKNOWN' && (
           <p className="muted" role="status">

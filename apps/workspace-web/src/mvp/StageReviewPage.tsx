@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import { useState, type ReactNode } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Link } from 'react-router';
@@ -330,7 +331,9 @@ export function StageReviewPage({
                 </button>
                 {generation.onReceipt &&
                   (generation.status === 'PENDING' || generation.status === 'UNKNOWN') && (
-                    <button onClick={generation.onReceipt}>模拟原生成回执到达</button>
+                    <MockControls>
+                      <button onClick={generation.onReceipt}>模拟原生成回执到达</button>
+                    </MockControls>
                   )}
                 {generation.onQuery &&
                   (generation.status === 'PENDING' ||
@@ -509,7 +512,9 @@ export function StageReviewPage({
                   </AlertDialog.Root>
                   {finalization.onReceipt &&
                     (finalization.status === 'PENDING' || finalization.status === 'UNKNOWN') && (
-                      <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
+                      <MockControls>
+                        <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
+                      </MockControls>
                     )}
                   {(finalization.status === 'PENDING' ||
                     finalization.status === 'UNKNOWN' ||
@@ -542,14 +547,7 @@ export function StageReviewPage({
           )}
         </>
       )}
-      <section className="panel stage-controls" aria-label="U2 演练控制">
-        <h2>U2 演练控制</h2>
-        <p className="muted">
-          以下控件显式驱动页面状态；不会上传、调用
-          Runner、保存服务器记录或按时间推断成功。普通页内导航保留本次演练草稿与历史，刷新会重置。
-        </p>
-        {controls}
-      </section>
+      {controls}
     </div>
   );
 }

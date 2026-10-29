@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 import { readFile, readdir } from 'node:fs/promises';
@@ -12,7 +13,8 @@ const plan = `${base}/startup/U1-REPORT-02`;
 async function openRehearsal(page: Page) {
   const details = page.locator('details.journey-rehearsal');
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 }
 
 async function rehearsalLink(page: Page, name: string) {
@@ -32,7 +34,10 @@ async function rehearsalLink(page: Page, name: string) {
 
 async function confirmPlan(page: Page, scenario = 'received') {
   const controls = page.locator('.fixture-options');
-  if (scenario !== 'received') await controls.getByLabel('确认回执场景').selectOption(scenario);
+  if (scenario !== 'received')
+    await withMockControls(page, async () =>
+      controls.getByLabel('确认回执场景').selectOption(scenario),
+    );
   await page.getByRole('button', { name: '确认这份修改范围' }).click();
   await page.getByRole('button', { name: '确认并生成模拟回执' }).click();
 }
@@ -40,7 +45,8 @@ async function confirmPlan(page: Page, scenario = 'received') {
 async function openAnalysisControls(page: Page) {
   const details = page.locator('details.fixture-options', { hasText: 'U1 分析演示控制' });
   await details.waitFor({ state: 'attached' });
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 }
 
 async function openReportRecords(page: Page) {
@@ -52,7 +58,9 @@ async function openReportRecords(page: Page) {
 async function acknowledgeSecondReport(page: Page) {
   await page.goto(reportOne);
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await page.getByRole('link', { name: '主动查看第 2 版' }).click();
   await page.getByRole('button', { name: '标记已核对第 2 版' }).click();
@@ -98,12 +106,16 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page).toHaveURL(intake);
   await expect(page.getByRole('heading', { name: '准备首轮客户资料' })).toBeVisible();
   await expect(page.locator('.intake-batch')).toHaveCount(1);
-  await page.getByRole('button', { name: '演示：提交补充批次' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '演示：提交补充批次' }).click(),
+  );
   await expect(page.locator('.intake-batch')).toHaveCount(2);
   await expect(page.locator('.intake-batch').first()).toContainText('U1-BATCH-01');
   await expect(page.locator('.intake-batch').nth(1)).toContainText('U1-BATCH-02');
   await expect(page.locator('.intake-batch').nth(1)).toContainText('补充批次');
-  await page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click(),
+  );
   await expect(page.locator('.batch-entries tr[data-state="UNSUPPORTED"]')).toContainText('PDF');
   await expect(
     page.locator('.batch-entries tr[data-state="FAILED"]', { hasText: 'XLS' }),
@@ -115,7 +127,9 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(page.getByText('先记录客户答复并核对新报告')).toBeVisible();
   await openRehearsal(page);
   await expect(
-    page.locator('details.journey-rehearsal').getByRole('link', { name: '修改范围', exact: true }),
+    page
+      .locator('details.journey-rehearsal')
+      .getByRole('link', { name: '修改范围', exact: true, includeHidden: true }),
   ).toHaveAttribute('aria-disabled', 'true');
   await page.goto(reportTwo);
   await expect(page.getByRole('heading', { name: '第 2 版分析尚未到达' })).toBeVisible();
@@ -152,13 +166,15 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
     ['FAILED', '存在失败条目'],
     ['RECEIVING', '正在接收'],
   ] as const) {
-    await page.getByLabel('批次状态').selectOption(value);
+    await withMockControls(page, async () => page.getByLabel('批次状态').selectOption(value));
     await expect(page.locator('.intake-batch').first()).toContainText(label);
   }
   await expect(page.locator('.batch-limitations')).toContainText('批注/修订');
   await expect(page.getByRole('button', { name: '提交并分析' })).toBeDisabled();
   await expect(page.locator('main')).toContainText('不通过真实上传');
-  await page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click(),
+  );
   await expect(page.locator('.batch-entries tbody tr')).toHaveCount(14);
   await expect(page.locator('main')).not.toContainText('分析报告已就绪');
 });
@@ -174,7 +190,9 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page.locator('.understanding-groups')).toContainText('读取限制');
   await expect(page.locator('.template-applicability')).toContainText('T03');
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await expect(page.locator('.analysis-receipt').first()).toContainText('第 2 版分析已到达');
   await expect(page).toHaveURL(reportOne);
@@ -201,6 +219,7 @@ test('answer and supplement produce a second report without losing the first', a
   await expect(page).toHaveURL(reportOne);
   await page.getByRole('button', { name: '拟交付文件' }).click();
   await page
+    .locator('.analysis-list')
     .getByRole('button', { name: /变更实施记录/u })
     .first()
     .click();
@@ -218,7 +237,9 @@ test('a later supplement stays visible but is marked outside the earlier analysi
 }) => {
   await page.goto(reportOne);
   await openAnalysisControls(page);
-  await page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定客户答复（成功场景）' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充', exact: true }).click();
   await rehearsalLink(page, '处理结果（阅读）');
   await page.getByLabel('结果类型', { exact: true }).selectOption('ANALYSIS');
@@ -235,12 +256,14 @@ test('analysis failure is distinct and a received opinion locks the composer', a
   await page.goto(reportOne);
   await page.getByRole('button', { name: '针对整个项目提意见' }).click();
   await openAnalysisControls(page);
-  await page.getByLabel('分析回执场景').selectOption('failed');
+  await withMockControls(page, async () => page.getByLabel('分析回执场景').selectOption('failed'));
   await page.getByRole('textbox', { name: '说明与意见' }).fill('失败的合成意见');
   await page.getByRole('button', { name: '提交项目级意见' }).click();
   await expect(page.locator('.analysis-receipt').first()).toContainText('复核失败');
   await expect(page.getByRole('button', { name: '提交项目级意见' })).toBeEnabled();
-  await page.getByLabel('分析回执场景').selectOption('received');
+  await withMockControls(page, async () =>
+    page.getByLabel('分析回执场景').selectOption('received'),
+  );
   await page.getByRole('button', { name: '提交项目级意见' }).click();
   await expect(page.locator('.analysis-receipt').last()).toContainText('已接收意见');
   await expect(page.getByRole('button', { name: '提交项目级意见' })).toBeDisabled();
@@ -271,6 +294,7 @@ test('project, question and file-plan feedback keep their exact context', async 
 
   await page.getByRole('button', { name: '拟交付文件' }).click();
   await page
+    .locator('.analysis-list')
     .getByRole('button', { name: /质量手册/u })
     .first()
     .click();
@@ -317,7 +341,9 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.locator('main')).toContainText('请保留客户 I/II/III 类术语');
   await expect(page.locator('main')).toContainText('第二条范围内意见：补充培训说明');
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeEnabled();
-  await page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '扩大范围：新增变更通知单（演示）' }).click(),
+  );
   await expect(page.locator('.plan-file-list > li')).toHaveCount(7);
   await expect(page.locator('.analysis-receipt')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: /范围内反馈/u })).toHaveValue('');
@@ -346,7 +372,9 @@ test('new plan arrival keeps the old reading view until an explicit switch', asy
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
   await confirmPlan(page);
   await expect(page.locator('.plan-receipt')).toContainText('U1-PLAN-01');
-  await page.getByRole('button', { name: '模拟新计划到达（不切换当前视图）' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟新计划到达（不切换当前视图）' }).click(),
+  );
   await expect(page).toHaveURL(plan);
   await expect(page.locator('.plan-page .eyebrow').first()).toContainText('计划第 1 版');
   await expect(page.getByText('新计划已到达，当前仍是第 1 版。')).toBeVisible();
@@ -363,7 +391,9 @@ test('PENDING confirmation keeps one request and offers only the same query', as
   await acknowledgeSecondReport(page);
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
   await expect(page).toHaveURL(plan);
-  await page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('pending');
+  await withMockControls(page, async () =>
+    page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('pending'),
+  );
   await confirmPlan(page);
   await expect(page.getByRole('status').filter({ hasText: '确认请求待回执' })).toBeVisible();
   await expect(page.getByRole('button', { name: '查询同一确认请求' })).toBeVisible();
@@ -374,7 +404,9 @@ test('PENDING confirmation keeps one request and offers only the same query', as
 test('FAILED confirmation preserves the plan and allows one explicit retry', async ({ page }) => {
   await acknowledgeSecondReport(page);
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
-  await page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('failed');
+  await withMockControls(page, async () =>
+    page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('failed'),
+  );
   await confirmPlan(page);
   await expect(page.getByRole('alert')).toContainText('确认失败');
   await expect(page.getByRole('button', { name: '重新确认这份计划' })).toBeVisible();
@@ -386,7 +418,9 @@ test('UNKNOWN keeps the original intent across navigation and recovers only that
 }) => {
   await acknowledgeSecondReport(page);
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
-  await page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('unknown');
+  await withMockControls(page, async () =>
+    page.locator('.fixture-options').getByLabel('确认回执场景').selectOption('unknown'),
+  );
   await confirmPlan(page);
   await expect(page.getByRole('alert')).toContainText('确认结果未知（UNKNOWN）');
   await rehearsalLink(page, '分析与澄清');
@@ -395,7 +429,9 @@ test('UNKNOWN keeps the original intent across navigation and recovers only that
   await expect(page.getByRole('button', { name: '确认这份修改范围' })).toBeDisabled();
   await page.getByRole('button', { name: '重新查询原请求' }).click();
   await expect(page.getByText('原模拟请求仍无可匹配回执')).toBeVisible();
-  await page.getByRole('button', { name: '模拟原请求回执到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟原请求回执到达' }).click(),
+  );
   await page.getByRole('button', { name: '重新查询原请求' }).click();
   await expect(page.locator('.plan-receipt')).toHaveCount(1);
   await expect(page.getByText('未创建第二个意图')).toBeVisible();

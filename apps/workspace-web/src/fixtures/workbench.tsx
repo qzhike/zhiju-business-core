@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // Isolated development adapter. It never performs business requests or saves data.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -312,62 +313,64 @@ export function FixtureWorkbench() {
       }
       coverage="开发场景 · 各数量由固定合成数据提供，不代表真实服务、运行、批准或项目完成。"
       controls={
-        <details className="wb-controls">
-          <summary>演示控制</summary>
-          <div>
-            <button
-              onClick={() => {
-                state.setMode(mode === 'empty' ? 'mixed' : 'empty');
-              }}
-            >
-              {mode === 'empty' ? '查看匿名示例' : '查看空工作台'}
-            </button>
-            <label>
-              页面状态
-              <select
-                value={mode}
-                onChange={(event) => {
-                  state.setMode(event.target.value);
+        <MockControls>
+          <details className="wb-controls">
+            <summary>演示控制</summary>
+            <div>
+              <button
+                onClick={() => {
+                  state.setMode(mode === 'empty' ? 'mixed' : 'empty');
                 }}
               >
-                {[
-                  ['mixed', '混合工作'],
-                  ['loading', '加载中'],
-                  ['empty', '完整空结果'],
-                  ['error', '读取失败'],
-                  ['denied', '拒绝访问'],
-                  ['expired', '会话过期'],
-                  ['stale', '陈旧 / 部分结果'],
-                ].map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              disabled={state.pending}
-              onClick={() => {
-                state.schedule('candidate');
-              }}
-            >
-              延迟返回一份候选
-            </button>
-            <button
-              disabled={state.pending}
-              onClick={() => {
-                state.schedule('report');
-              }}
-            >
-              延迟返回新报告
-            </button>
-            <span role="status">
-              {state.pending
-                ? '等待合成更新；可继续输入或打开其他页面'
-                : '仅更新本次内存中的演示卡片，刷新后重置'}
-            </span>
-          </div>
-        </details>
+                {mode === 'empty' ? '查看匿名示例' : '查看空工作台'}
+              </button>
+              <label>
+                页面状态
+                <select
+                  value={mode}
+                  onChange={(event) => {
+                    state.setMode(event.target.value);
+                  }}
+                >
+                  {[
+                    ['mixed', '混合工作'],
+                    ['loading', '加载中'],
+                    ['empty', '完整空结果'],
+                    ['error', '读取失败'],
+                    ['denied', '拒绝访问'],
+                    ['expired', '会话过期'],
+                    ['stale', '陈旧 / 部分结果'],
+                  ].map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                disabled={state.pending}
+                onClick={() => {
+                  state.schedule('candidate');
+                }}
+              >
+                延迟返回一份候选
+              </button>
+              <button
+                disabled={state.pending}
+                onClick={() => {
+                  state.schedule('report');
+                }}
+              >
+                延迟返回新报告
+              </button>
+              <span role="status">
+                {state.pending
+                  ? '等待合成更新；可继续输入或打开其他页面'
+                  : '仅更新本次内存中的演示卡片，刷新后重置'}
+              </span>
+            </div>
+          </details>
+        </MockControls>
       }
     />
   );

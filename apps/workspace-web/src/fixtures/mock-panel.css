@@ -1,0 +1,132 @@
+.mock-panel {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 9;
+  width: min(420px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.mock-panel-surface,
+.mock-panel-trigger {
+  pointer-events: auto;
+  box-shadow: 0 8px 32px #22202c26;
+}
+
+.mock-panel-surface {
+  width: 100%;
+  max-height: min(680px, calc(100dvh - 80px));
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.mock-panel-surface[hidden] {
+  display: none;
+}
+
+.mock-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--soft);
+}
+
+.mock-panel-heading h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.mock-panel-heading p,
+.mock-panel-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mock-panel-note {
+  padding: 8px 16px;
+}
+
+.mock-panel-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 16px;
+  overflow-wrap: anywhere;
+}
+
+.mock-panel-body:empty::after {
+  content: '当前页面没有额外演练控件。';
+  color: var(--muted);
+}
+
+.mock-control-group {
+  margin-top: 10px;
+}
+
+.mock-panel-body details,
+.mock-panel-body fieldset,
+.mock-panel-body label,
+.mock-panel-body select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mock-panel-body .execution-controls,
+.mock-panel-body .delivery-controls {
+  max-height: none;
+  overflow: visible;
+}
+
+.mock-panel-body label {
+  display: block;
+  margin: 8px 0;
+}
+
+.mock-panel-body select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.mock-panel-body button {
+  max-width: 100%;
+  white-space: normal;
+  margin: 4px 4px 4px 0;
+}
+
+.mock-panel-body ul {
+  padding-left: 20px;
+}
+
+.mock-panel-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  font-weight: 600;
+}
+
+@media print {
+  .mock-panel {
+    display: none;
+  }
+}
