@@ -413,8 +413,10 @@ function ProjectCatalog() {
     );
   };
 
-  const openRevision = (row: RevisedRow, version: RevisionVersion) => {
-    if (stagePage && stageOfLevel(row.level) === stagePage) {
+  const openRevision = (row: RevisedRow, version: RevisionVersion, exact: boolean) => {
+    // An exact version choice always opens that version. Only the ordinary
+    // document selection keeps the stage reader in place.
+    if (!exact && stagePage && stageOfLevel(row.level) === stagePage) {
       const viewed = sessionFor(u2.plan, stagePage, u2.sessions).files[row.fileId]?.viewedVersionId;
       if (!viewed) return;
       u2.update(stagePage, (current) => ({
@@ -480,10 +482,10 @@ function ProjectCatalog() {
     setChooser(undefined);
     openOriginal(row);
   };
-  const selectRevised = (row: RevisedRow, version: RevisionVersion) => {
+  const selectRevised = (row: RevisedRow, version: RevisionVersion, exact = false) => {
     catalog.select('REVISED', row.fileId);
     setChooser(undefined);
-    openRevision(row, version);
+    openRevision(row, version, exact);
   };
   const switchOriginal = (row: OriginalRow) => {
     catalog.choose('ORIGINALS');
@@ -495,7 +497,7 @@ function ProjectCatalog() {
     catalog.choose('REVISED');
     catalog.select('REVISED', row.fileId);
     setChooser(undefined);
-    openRevision(row, row.latest);
+    openRevision(row, row.latest, false);
   };
 
   return (
@@ -688,7 +690,7 @@ function ProjectCatalog() {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          selectRevised(row, version);
+                                          selectRevised(row, version, true);
                                         }}
                                       >
                                         {version.label} · {version.stateLabel}

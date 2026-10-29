@@ -222,6 +222,44 @@ test('type switching changes only the list while the reader and task stay intact
   );
 });
 
+test('same-stage exact version selection opens the chosen version', async ({ page }) => {
+  await page.goto(work);
+  await startToManualReview(page);
+  await submitRound(page, '质量手册', '质量手册意见：保留客户质量目标。', '质量手册有新稿可查看');
+  await viewNew(page, '第 2 版候选');
+  await submitRound(page, '质量手册', '质量手册意见：补充记录编号映射。', '质量手册有新稿可查看');
+  await viewNew(page, '第 3 版候选');
+
+  await withMockControls(page, async () => {
+    await page.locator('.mock-panel details.journey-rehearsal summary').click();
+    await page
+      .locator('.mock-panel')
+      .getByRole('link', { name: '质量手册审阅', exact: true })
+      .click();
+  });
+  await expect(page).toHaveURL(`${base}/stages/manual`);
+  await expect(
+    catalog(page).getByRole('button', { name: '修订文档', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.stage-set')).toContainText('第 3 版候选');
+
+  // An explicit history-version action opens that exact version, even on the
+  // stage page that currently reads V3.
+  await catalog(page).getByText('版本与来源（3）').click();
+  await catalog(page).getByRole('button', { name: '第 1 版候选 · 历史版本' }).click();
+  await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
+  await expect(page.locator('.results-detail-head')).toContainText('第 1 版候选');
+
+  // Ordinary same-stage file selection still keeps the review page in place.
+  await page.goBack();
+  await expect(page).toHaveURL(`${base}/stages/manual`);
+  await catalog(page)
+    .getByRole('button', { name: /^质量手册 修订/u })
+    .click();
+  await expect(page).toHaveURL(`${base}/stages/manual`);
+  await expect(page.locator('.stage-set')).toContainText('第 3 版候选');
+});
+
 test('completed journey exposes new-file provenance and exact version history', async ({
   page,
 }) => {
