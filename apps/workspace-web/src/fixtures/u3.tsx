@@ -316,6 +316,8 @@ export interface U3DeliveryApi {
     packagingRequestLabel?: string | undefined;
     packages: readonly DeliveryPackage[];
     frozen?: FrozenDelivery | undefined;
+    packagingFrozen?: FrozenDelivery | undefined;
+    packagingPackage?: DeliveryPackage | undefined;
     currentPackage?: DeliveryPackage | undefined;
     packageAvailable: boolean;
   };
@@ -1039,6 +1041,10 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const currentPackage = frozenCurrent
     ? delivery.packages.find((pkg) => pkg.id === delivery.packagingRequest?.packageId)
     : undefined;
+  const packagingFrozen = delivery.packagingRequest ? delivery.frozen : undefined;
+  const packagingPackage = delivery.packagingRequest?.packageId
+    ? delivery.packages.find((pkg) => pkg.id === delivery.packagingRequest?.packageId)
+    : undefined;
   const packageAvailable =
     frozenCurrent &&
     delivery.packagingStatus === 'AVAILABLE' &&
@@ -1095,6 +1101,8 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
           : {}),
         packages: delivery.packages,
         ...(frozenCurrent && delivery.frozen ? { frozen: delivery.frozen } : {}),
+        ...(packagingFrozen ? { packagingFrozen } : {}),
+        ...(packagingPackage ? { packagingPackage } : {}),
         ...(currentPackage ? { currentPackage } : {}),
         packageAvailable,
       },
@@ -1148,6 +1156,19 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       setDelivery((current) => ({
         ...current,
         confirmNote: '原最终确认请求仍未收敛；请先核对原请求，不能创建第二个确认意图。',
+      }));
+      return;
+    }
+    if (
+      delivery.packagingRequest &&
+      (delivery.packagingStatus === 'PENDING' ||
+        delivery.packagingStatus === 'UNKNOWN' ||
+        delivery.packagingStatus === 'MISMATCH' ||
+        delivery.packagingStatus === 'FAILED')
+    ) {
+      setDelivery((current) => ({
+        ...current,
+        confirmNote: '原打包请求仍未收敛；请先核对或重试同一冻结清单，不能覆盖为新确认。',
       }));
       return;
     }

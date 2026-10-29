@@ -370,6 +370,23 @@ function deriveTask(
       title: '核对当前阶段',
       reason: '当前阶段尚未形成可确认的完整集合；请按阶段状态处理。',
     };
+  if (
+    delivery.state.packagingFrozen &&
+    (delivery.state.packagingStatus === 'PENDING' ||
+      delivery.state.packagingStatus === 'UNKNOWN' ||
+      delivery.state.packagingStatus === 'MISMATCH' ||
+      delivery.state.packagingStatus === 'FAILED')
+  )
+    return {
+      key: 'PACKAGING_RECOVERY',
+      title:
+        delivery.state.packagingStatus === 'FAILED'
+          ? '打包失败，需重试同一清单'
+          : delivery.state.packagingStatus === 'PENDING'
+            ? '正在打包冻结清单'
+            : '核对原打包请求',
+      reason: delivery.state.packagingNote,
+    };
   if (!delivery.state.frozen) {
     if (
       delivery.state.confirmStatus === 'PENDING' ||
@@ -971,13 +988,20 @@ function RecoveryPanel({
 function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> }) {
   const delivery = model.delivery;
   const task = model.task;
+  const packagingUnresolved = Boolean(
+    delivery.state.packagingFrozen &&
+    (delivery.state.packagingStatus === 'PENDING' ||
+      delivery.state.packagingStatus === 'UNKNOWN' ||
+      delivery.state.packagingStatus === 'MISMATCH' ||
+      delivery.state.packagingStatus === 'FAILED'),
+  );
   const deliveryTask =
     task.key === 'DELIVERY_CONFIRM' ||
     task.key === 'DELIVERY_RECONCILE' ||
     task.key === 'PACKAGING' ||
     task.key === 'PACKAGING_RECOVERY' ||
     task.key === 'DOWNLOAD';
-  if (!deliveryTask && !delivery.state.frozen) return null;
+  if (!deliveryTask && !delivery.state.frozen && !delivery.state.packagingFrozen) return null;
   return (
     <section className="panel task-delivery" aria-label="最终交付">
       <h2>最终交付</h2>
@@ -1032,12 +1056,55 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
           </table>
         </div>
       )}
+      {packagingUnresolved && delivery.state.packagingFrozen && (
+        <details className="task-package-history" open>
+          <summary>原打包请求与冻结清单</summary>
+          <p>
+            {delivery.state.packagingRequestLabel ?? '原打包请求'} ·{' '}
+            {delivery.state.packagingStatus === 'FAILED'
+              ? '打包失败'
+              : delivery.state.packagingStatus === 'PENDING'
+                ? '打包中'
+                : delivery.state.packagingStatus === 'UNKNOWN'
+                  ? '结果待核验'
+                  : '回执与清单不匹配'}
+          </p>
+          <ul>
+            {delivery.state.packagingFrozen.members.map((member) => (
+              <li key={member.fileId}>
+                {member.title} · {member.versionLabel} · {member.versionId}
+              </li>
+            ))}
+          </ul>
+          <p className="muted">该请求绑定旧的冻结清单；在核对或重试收敛前，不会覆盖为新确认。</p>
+        </details>
+      )}
       <p className="muted">
         确认与打包是两个内部事实：确认成功后才对同一冻结清单打包；确认未知不会开始打包。失败只重试同一清单。
       </p>
       <p role="status">{delivery.state.confirmNote || delivery.state.packagingNote}</p>
       <div className="task-actions">
-        {!delivery.state.frozen && (
+        {packagingUnresolved && !delivery.state.frozen && (
+          <>
+            {(delivery.state.packagingStatus === 'UNKNOWN' ||
+              delivery.state.packagingStatus === 'MISMATCH') && (
+              <button className="button primary" onClick={delivery.actions.queryPackaging}>
+                核对原打包请求
+              </button>
+            )}
+            {delivery.state.packagingStatus === 'FAILED' && (
+              <button className="button primary" onClick={delivery.actions.retryPackaging}>
+                重试同一冻结清单
+              </button>
+            )}
+            {delivery.state.packagingStatus === 'PENDING' && (
+              <button className="button primary" disabled>
+                正在打包…
+              </button>
+            )}
+          </>
+        )}
+        {!packagingUnresolved && !delivery.state.frozen && (
           <>
             <button
               className="button primary"
@@ -1109,6 +1176,27 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
           <p>{delivery.state.currentPackage.reason}</p>
         </div>
       )}
+      {delivery.state.packagingPackage &&
+        !delivery.state.currentPackage &&
+        delivery.state.packagingStatus === 'AVAILABLE' && (
+          <div className="task-package" role="status">
+            <h3>{delivery.state.packagingPackage.label} · 历史冻结清单</h3>
+            <p>
+              {delivery.state.packagingPackage.id} · {delivery.state.packagingPackage.createdAt} ·
+              包可用（模拟）
+            </p>
+            <p>该包对应旧冻结清单；当前 proposal 已变化，需重新确认后才能形成新的当前交付。</p>
+            <button
+              className="button"
+              onClick={() => {
+                const pkg = delivery.state.packagingPackage;
+                if (pkg) delivery.actions.download(pkg);
+              }}
+            >
+              下载历史 ZIP
+            </button>
+          </div>
+        )}
       {delivery.state.packages.length > 0 && (
         <details className="task-package-history">
           <summary>查看历史交付包</summary>
