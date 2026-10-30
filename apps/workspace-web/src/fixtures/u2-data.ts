@@ -4,6 +4,7 @@
 // in the local-only manifest.
 import type { MarkdownReviewData } from '../MarkdownReviewPage.js';
 import type { Change, Document, ReviewContent, Unit } from '../trusted/markdown.js';
+import { candidateMarkdown } from '../mvp/u3-model.js';
 
 interface TableSpec {
   caption: string;
@@ -1264,22 +1265,11 @@ export function u2Candidate(fileId: string, versionId: string): MarkdownReviewDa
   return u2CandidateComparison(fileId, index > 0 ? (versions[index - 1] ?? null) : null, versionId);
 }
 
-/** Exact Markdown byte count for the candidate representation of one revision. */
+/** Exact bytes of the shared Markdown representation used by rehearsal ZIP members. */
 export function u2RevisionBytes(fileId: string, versionId: string): number | undefined {
-  const seed = candidateSeeds[fileId]?.[versionId];
-  if (!seed) return undefined;
-  const parts: string[] = [];
-  for (const section of seed.sections) {
-    parts.push(`## ${section.title}`);
-    if (section.paragraphs) parts.push(...section.paragraphs);
-    if (section.table) {
-      parts.push(section.table.caption);
-      parts.push(`| ${section.table.headers.join(' | ')} |`);
-      parts.push(`| ${section.table.headers.map(() => '---').join(' | ')} |`);
-      for (const row of section.table.rows) parts.push(`| ${row.join(' | ')} |`);
-    }
-  }
-  return new TextEncoder().encode(parts.join('\n\n')).length;
+  const candidate = u2Candidate(fileId, versionId);
+  if (!candidate) return undefined;
+  return new TextEncoder().encode(candidateMarkdown(candidate)).length;
 }
 
 export function u2VersionsFor(fileId: string): readonly string[] {

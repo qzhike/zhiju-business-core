@@ -368,5 +368,5 @@ test('revision size uses exact Markdown bytes instead of flattened unit text', a
   await page.getByRole('button', { name: '查看新稿', exact: true }).click();
   await expect(page.locator('.task-stage')).toContainText('第 2 版候选');
   const v2 = page.locator('.browser-document', { hasText: '质量手册' }).first();
-  await expect(v2.locator('.browser-subline')).toContainText('1.4 KB');
+  await expect(v2.locator('.browser-subline')).toContainText('1.3 KB');
 });
