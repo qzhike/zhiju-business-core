@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router';
@@ -16,9 +17,10 @@ import { planActionLabels, planLevelLabels, type PlanFile, type PlanView } from 
 import { fileVersionScope, type MvpStageId } from '../mvp/review-model.js';
 import { u1Project } from './u1-data.js';
 import { useU1 } from './u1.js';
-import { emptySession, planStageFiles, sessionKey, useU2 } from './u2.js';
-import { u2VersionLabel } from './u2-data.js';
+import { emptySession, planStageFiles, sessionKey, useU2, type StageSession } from './u2.js';
+import { u2Candidate, u2VersionLabel } from './u2-data.js';
 import './project-catalog.css';
+import './project-file-browser.css';
 
 const projectId = u1Project.id;
 const base = `/projects/${projectId}`;
@@ -27,6 +29,19 @@ type CatalogView = 'ORIGINALS' | 'REVISED';
 type OriginalFilter = 'ALL' | 'ISSUES' | 'CONTAINER';
 type RevisedFilter = 'ALL' | 'CANDIDATE' | 'FINALIZED';
 type RevisionState = 'CANDIDATE' | 'FINALIZED' | 'HISTORY';
+type SortField = 'NAME' | 'MODIFIED';
+
+interface SortState {
+  field: SortField;
+  direction: 'ASC' | 'DESC';
+}
+
+interface FileMetadata {
+  modifiedAt: string;
+  modifiedBy: string;
+  detail: string;
+  bytes?: number | undefined;
+}
 
 interface CatalogState {
   view: CatalogView;
@@ -35,6 +50,8 @@ interface CatalogState {
   filter: Record<CatalogView, OriginalFilter | RevisedFilter>;
   selected: Record<CatalogView, string | undefined>;
   scroll: Record<CatalogView, number>;
+  sort: Record<CatalogView, SortState>;
+  collapsed: Record<CatalogView, string[]>;
 }
 
 interface CatalogApi extends CatalogState {
@@ -45,6 +62,8 @@ interface CatalogApi extends CatalogState {
   select: (view: CatalogView, key: string) => void;
   rememberScroll: (view: CatalogView, top: number) => void;
   autoReview: (fileId: string) => void;
+  setSort: (view: CatalogView, sort: SortState) => void;
+  toggleExpanded: (view: CatalogView, key: string) => void;
 }
 
 const CatalogContext = createContext<CatalogApi | null>(null);
@@ -56,6 +75,11 @@ const initialState: CatalogState = {
   filter: { ORIGINALS: 'ALL', REVISED: 'ALL' },
   selected: { ORIGINALS: undefined, REVISED: undefined },
   scroll: { ORIGINALS: 0, REVISED: 0 },
+  sort: {
+    ORIGINALS: { field: 'NAME', direction: 'ASC' },
+    REVISED: { field: 'NAME', direction: 'ASC' },
+  },
+  collapsed: { ORIGINALS: [], REVISED: [] },
 };
 
 export function FixtureCatalogProvider({ children }: { children: ReactNode }) {
@@ -94,6 +118,20 @@ export function FixtureCatalogProvider({ children }: { children: ReactNode }) {
         selected: { ...current.selected, REVISED: fileId },
       }));
     },
+    setSort: (view, sort) => {
+      setState((current) => ({ ...current, sort: { ...current.sort, [view]: sort } }));
+    },
+    toggleExpanded: (view, key) => {
+      setState((current) => ({
+        ...current,
+        collapsed: {
+          ...current.collapsed,
+          [view]: current.collapsed[view].includes(key)
+            ? current.collapsed[view].filter((entry) => entry !== key)
+            : [...current.collapsed[view], key],
+        },
+      }));
+    },
   };
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
 }
@@ -118,6 +156,8 @@ interface OriginalRow {
   member: boolean;
   damaged: boolean;
   retained: boolean;
+  metadata: FileMetadata;
+  uploaded: string;
 }
 
 interface RevisionVersion {
@@ -129,6 +169,9 @@ interface RevisionVersion {
   planLabel: string;
   href: string;
   planIndex: number;
+  metadata: FileMetadata;
+  opinion?: string | undefined;
+  finalization?: string | undefined;
 }
 
 interface RevisedRow {
@@ -209,6 +252,96 @@ function latestVersionId(
   return session.files[fileId]?.versions.at(-1);
 }
 
+const originalModification: Record<string, { at: string; by: string }> = {
+  C01: { at: '2026-10-18 14:05', by: '文件记录 · 匿名客户（模拟）' },
+  C02: { at: '2026-10-19 10:20', by: '文件记录 · 匿名客户（模拟）' },
+  C03: { at: '2026-10-19 16:40', by: '示例编辑者（模拟）' },
+  C04: { at: '2026-10-17 09:10', by: '文件记录 · 匿名客户（模拟）' },
+  C05: { at: '2026-10-17 15:30', by: '文件记录 · 匿名客户（模拟）' },
+  C06: { at: '2026-10-18 11:45', by: '示例编辑者（模拟）' },
+  C07: { at: '2026-10-18 17:25', by: '文件记录 · 匿名客户（模拟）' },
+  C08: { at: '2026-10-16 08:50', by: '文件记录 · 匿名客户（模拟）' },
+  'C08-R1': { at: '未提供', by: '未提供' },
+  'C08-R2': { at: '未提供', by: '未提供' },
+  C09: { at: '2026-10-19 09:35', by: '示例编辑者（模拟）' },
+  S01: { at: '2026-10-20 09:25', by: '文件记录 · 匿名客户（模拟）' },
+};
+
+function originalMetadata(entry: InputBatch['entries'][number]): FileMetadata {
+  if (entry.state === 'FAILED' || entry.state === 'UNSUPPORTED') {
+    return {
+      modifiedAt: '读取失败',
+      modifiedBy: '读取失败',
+      detail: `读取失败：${entry.note}`,
+      bytes: entry.bytes,
+    };
+  }
+  const value = originalModification[entry.id];
+  if (!value) {
+    return {
+      modifiedAt: '未提供',
+      modifiedBy: '未提供',
+      detail: '修改记录未提供；批次提交时间不替代内容修改时间。',
+      bytes: entry.bytes,
+    };
+  }
+  return {
+    modifiedAt: value.at,
+    modifiedBy: value.by,
+    detail: '来源：文件记录（模拟） · 显示时区 UTC+08:00；初始作者/上传人不替代最后修改者。',
+    bytes: entry.bytes,
+  };
+}
+
+function revisionBytes(fileId: string, versionId: string): number | undefined {
+  const candidate = u2Candidate(fileId, versionId);
+  if (!candidate) return undefined;
+  return new TextEncoder().encode(
+    candidate.content.document.units.map((unit) => unit.text ?? '').join('\n'),
+  ).length;
+}
+
+function revisionMetadata(fileId: string, versionId: string): FileMetadata {
+  const index = Number(versionId.replace(/\D/gu, '')) || 0;
+  const day = index >= 3 ? '30' : '29';
+  const hour = String(9 + Math.max(0, index - 1) * 2).padStart(2, '0');
+  return {
+    modifiedAt: `2026-10-${day} ${hour}:20`,
+    modifiedBy: 'AI 生成（模拟）',
+    detail: '来源：模拟生成记录 · 显示时区 UTC+08:00；意见/定稿不改变内容修改时间。',
+    bytes: revisionBytes(fileId, versionId),
+  };
+}
+
+function revisionOpinion(
+  session: StageSession,
+  fileId: string,
+  versionId: string,
+): string | undefined {
+  const submission = session.submissions.find((entry) =>
+    entry.basis.files.some((ref) => ref.fileId === fileId && ref.versionId === versionId),
+  );
+  return submission
+    ? `意见发起：示例顾问（模拟） · ${submission.submittedAt} · ${submission.requestId}`
+    : undefined;
+}
+
+function revisionFinalization(
+  session: StageSession,
+  fileId: string,
+  versionId: string,
+): string | undefined {
+  const current = session.finalization;
+  if (current?.files.some((ref) => ref.fileId === fileId && ref.versionId === versionId))
+    return `定稿 ${current.finalizationId} · ${current.confirmedAt}`;
+  const historical = session.finalizationHistory.find((entry) =>
+    entry.finalization.files.some((ref) => ref.fileId === fileId && ref.versionId === versionId),
+  );
+  return historical
+    ? `历史定稿 ${historical.finalization.finalizationId} · ${historical.finalization.confirmedAt}`
+    : undefined;
+}
+
 function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof useU2>): CatalogData {
   const plan = u2.plan;
   const plans = u1.plans.length > 0 ? u1.plans : [plan];
@@ -233,6 +366,8 @@ function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof us
         member: entry.id.includes('-'),
         damaged: entry.state === 'FAILED' || entry.state === 'UNSUPPORTED',
         retained: retained.has(entry.id),
+        metadata: originalMetadata(entry),
+        uploaded: `批次提交 ${batch.submittedAt}（模拟，不替代内容修改）`,
       };
     }),
   }));
@@ -282,6 +417,13 @@ function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof us
             planLabel: `${candidatePlan.planId} 第 ${candidatePlan.version} 版`,
             href: `${base}/results/${encodeURIComponent(`${stage}-${versionId}@${candidatePlan.planId}-v${candidatePlan.version}`)}/${encodeURIComponent(file.id)}`,
             planIndex,
+            metadata: revisionMetadata(file.id, versionId),
+            ...(revisionOpinion(session, file.id, versionId)
+              ? { opinion: revisionOpinion(session, file.id, versionId) }
+              : {}),
+            ...(revisionFinalization(session, file.id, versionId)
+              ? { finalization: revisionFinalization(session, file.id, versionId) }
+              : {}),
           });
         }
       }
@@ -356,9 +498,11 @@ function revisedCounterparts(file: PlanFile | undefined, data: CatalogData): Ori
 
 export function FixtureProjectWorkspace() {
   const params = useParams();
+  const location = useLocation();
   if (params.projectId !== projectId) return <Outlet />;
+  const currentWork = location.pathname === `${base}/work`;
   return (
-    <div className="project-workspace">
+    <div className={`project-workspace${currentWork ? ' is-current-work' : ''}`}>
       <ProjectCatalog />
       <div className="project-workspace-main">
         <Outlet />
@@ -377,6 +521,7 @@ function ProjectCatalog() {
   const list = useRef<HTMLDivElement>(null);
   const reviewApplied = useRef(false);
   const [chooser, setChooser] = useState<string | undefined>(undefined);
+  const currentWork = location.pathname === `${base}/work`;
   const target = reviewTarget(location.pathname);
   const stage = target?.stage;
   const stagePage = stageFromParam(
@@ -577,12 +722,56 @@ function ProjectCatalog() {
             </button>
           ) : null}
         </div>
+        {currentWork && (
+          <div className="project-browser-tools">
+            <label>
+              排序
+              <select
+                value={catalog.sort[view].field}
+                onChange={(event) => {
+                  catalog.setSort(view, {
+                    ...catalog.sort[view],
+                    field: event.target.value as SortField,
+                  });
+                }}
+              >
+                <option value="NAME">名称</option>
+                <option value="MODIFIED">最后修改时间</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                catalog.setSort(view, {
+                  ...catalog.sort[view],
+                  direction: catalog.sort[view].direction === 'ASC' ? 'DESC' : 'ASC',
+                });
+              }}
+            >
+              {catalog.sort[view].direction === 'ASC' ? '升序 ↑' : '降序 ↓'}
+            </button>
+            <span className="project-browser-timezone">时间 UTC+08:00（模拟）</span>
+          </div>
+        )}
         <Link className="project-catalog-detail" to={`${base}/files`}>
           清单明细
         </Link>
       </div>
       <div className="project-catalog-list" ref={list}>
-        {view === 'ORIGINALS' ? (
+        {currentWork ? (
+          <FileBrowserList
+            data={data}
+            plan={u2.plan}
+            originals={visibleOriginals}
+            revised={visibleRevised}
+            openOriginal={openOriginal}
+            openRevision={openRevision}
+            switchOriginal={switchOriginal}
+            switchRevision={switchRevision}
+            chooser={chooser}
+            setChooser={setChooser}
+          />
+        ) : view === 'ORIGINALS' ? (
           <>
             {data.batches.map((batch) => {
               const rows = visibleOriginals.filter((row) => row.batchId === batch.id);
@@ -721,6 +910,434 @@ function ProjectCatalog() {
         目录覆盖整个项目；阅读历史轮次不改变该轮固定输入与结果。原件只读，修订文档按精确版本绑定候选、定稿和历史。
       </p>
     </nav>
+  );
+}
+
+interface BrowserInfo {
+  kind: 'ORIGINAL' | 'REVISION';
+  original?: OriginalRow;
+  revision?: RevisedRow;
+  version?: RevisionVersion;
+}
+
+interface BrowserRow {
+  key: string;
+  kind: 'FOLDER' | 'DOCUMENT';
+  label: string;
+  state?: string;
+  metadata?: FileMetadata;
+  secondary?: string;
+  open?: () => void;
+  info: BrowserInfo;
+  children?: BrowserRow[];
+}
+
+const timePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/u;
+
+function formatBytes(bytes: number | undefined): string {
+  if (bytes === undefined) return '大小未提供';
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function sortBrowserRows(rows: BrowserRow[], sort: SortState): BrowserRow[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((left, right) => {
+      if (left.row.kind !== right.row.kind) return left.row.kind === 'FOLDER' ? -1 : 1;
+      if (sort.field === 'NAME') {
+        const compared = left.row.label.localeCompare(right.row.label, 'zh-Hans-CN');
+        return (sort.direction === 'ASC' ? compared : -compared) || left.index - right.index;
+      }
+      const leftTime = left.row.metadata?.modifiedAt;
+      const rightTime = right.row.metadata?.modifiedAt;
+      const leftValid = leftTime && timePattern.test(leftTime);
+      const rightValid = rightTime && timePattern.test(rightTime);
+      if (leftValid && !rightValid) return -1;
+      if (!leftValid && rightValid) return 1;
+      if (!leftValid && !rightValid) return left.index - right.index;
+      const compared = (leftTime ?? '').localeCompare(rightTime ?? '');
+      return (sort.direction === 'ASC' ? compared : -compared) || left.index - right.index;
+    })
+    .map((entry) => entry.row);
+}
+
+function originalDocumentRow(
+  row: OriginalRow,
+  originals: readonly OriginalRow[],
+  openOriginal: (row: OriginalRow) => void,
+): BrowserRow {
+  const members = originals.filter((entry) => entry.entryId.startsWith(`${row.entryId}-`));
+  return {
+    key: row.key,
+    kind: 'DOCUMENT',
+    label: row.name,
+    state: `原件 · ${row.reading}${row.retained ? ' · 沿用原件' : ''}`,
+    metadata: row.metadata,
+    secondary: `${row.format} · ${formatBytes(row.metadata.bytes)}`,
+    open: () => {
+      openOriginal(row);
+    },
+    info: { kind: 'ORIGINAL', original: row },
+    ...(members.length > 0
+      ? {
+          children: members.map((member) => originalDocumentRow(member, originals, openOriginal)),
+        }
+      : {}),
+  };
+}
+
+function originalTree(
+  data: CatalogData,
+  rows: readonly OriginalRow[],
+  openOriginal: (row: OriginalRow) => void,
+): BrowserRow[] {
+  return data.batches.flatMap((batch) => {
+    const batchRows = rows.filter((row) => row.batchId === batch.id);
+    if (batchRows.length === 0) return [];
+    const directories = new Map<string, OriginalRow[]>();
+    for (const row of batchRows) {
+      const directory = row.path.split('/')[0] ?? '';
+      directories.set(directory, [...(directories.get(directory) ?? []), row]);
+    }
+    const children = [...directories.entries()].map(([directory, entries]) => ({
+      key: `${batch.id}:dir:${directory}`,
+      kind: 'FOLDER' as const,
+      label: directory,
+      info: { kind: 'ORIGINAL' as const },
+      children: entries.map((row) => originalDocumentRow(row, rows, openOriginal)),
+    }));
+    return [
+      {
+        key: batch.id,
+        kind: 'FOLDER' as const,
+        label: batch.label,
+        info: { kind: 'ORIGINAL' as const },
+        children,
+      },
+    ];
+  });
+}
+
+function revisionTree(
+  data: CatalogData,
+  rows: readonly RevisedRow[],
+  openRevision: (row: RevisedRow, version: RevisionVersion, exact: boolean) => void,
+): BrowserRow[] {
+  return levelOrder.flatMap((level) => {
+    const documents = rows.filter((row) => row.level === level);
+    if (documents.length === 0) return [];
+    return [
+      {
+        key: `level:${level}`,
+        kind: 'FOLDER' as const,
+        label: planLevelLabels[level],
+        info: { kind: 'REVISION' as const },
+        children: documents.map((row): BrowserRow => ({
+          key: row.fileId,
+          kind: 'DOCUMENT',
+          label: row.title,
+          state: `${row.latest.label} · ${row.latest.stateLabel}${row.newFile ? ' · 新增' : ''}`,
+          metadata: row.latest.metadata,
+          secondary: `${row.actionLabel} · ${formatBytes(row.latest.metadata.bytes)}`,
+          open: () => {
+            openRevision(row, row.latest, false);
+          },
+          info: { kind: 'REVISION', revision: row, version: row.latest },
+          children: row.versions.map((version) => ({
+            key: `${row.fileId}:${version.roundId}`,
+            kind: 'DOCUMENT',
+            label: version.label,
+            state: version.stateLabel,
+            metadata: version.metadata,
+            secondary: `${version.planLabel} · ${formatBytes(version.metadata.bytes)}`,
+            open: () => {
+              openRevision(row, version, true);
+            },
+            info: { kind: 'REVISION', revision: row, version },
+          })),
+        })),
+      },
+    ];
+  });
+}
+
+function FileBrowserList({
+  data,
+  originals,
+  revised,
+  plan,
+  openOriginal,
+  openRevision,
+  switchOriginal,
+  switchRevision,
+  chooser,
+  setChooser,
+}: {
+  data: CatalogData;
+  plan: PlanView;
+  originals: readonly OriginalRow[];
+  revised: readonly RevisedRow[];
+  openOriginal: (row: OriginalRow) => void;
+  openRevision: (row: RevisedRow, version: RevisionVersion, exact: boolean) => void;
+  switchOriginal: (row: OriginalRow) => void;
+  switchRevision: (row: RevisedRow) => void;
+  chooser: string | undefined;
+  setChooser: (value: string | undefined) => void;
+}) {
+  const catalog = useCatalog();
+  const view = catalog.view;
+  const sort = catalog.sort[view];
+  const collapsed = new Set(catalog.collapsed[view]);
+  const tree =
+    view === 'ORIGINALS'
+      ? originalTree(data, originals, openOriginal)
+      : revisionTree(data, revised, openRevision);
+  const infoMap = new Map<string, BrowserInfo>();
+  const collect = (rows: BrowserRow[]) => {
+    for (const row of rows) {
+      infoMap.set(row.key, row.info);
+      if (row.children) collect(row.children);
+    }
+  };
+  collect(tree);
+  const [infoKey, setInfoKey] = useState<string | undefined>(undefined);
+  const selectedKey = catalog.selected[view];
+  const selectedInfo = infoKey ? infoMap.get(infoKey) : undefined;
+  const filtered = catalog.search[view].trim().length > 0 || catalog.filter[view] !== 'ALL';
+  const selectedOriginal = selectedInfo?.original;
+  const selectedRevision = selectedInfo?.revision;
+  const counterparts = selectedOriginal
+    ? originalCounterparts(selectedOriginal.entryId, plan, data)
+    : undefined;
+  const originalOptions = selectedRevision
+    ? revisedCounterparts(data.planFile(selectedRevision.fileId), data)
+    : [];
+
+  const renderRows = (rows: BrowserRow[], depth: number): ReactNode =>
+    sortBrowserRows(rows, sort).map((row) => (
+      <div
+        className="browser-row"
+        key={row.key}
+        style={{ '--browser-depth': depth } as CSSProperties}
+      >
+        {row.kind === 'FOLDER' ? (
+          <div className="browser-folder-line">
+            <button
+              type="button"
+              className="browser-folder"
+              aria-expanded={!collapsed.has(row.key)}
+              onClick={() => {
+                catalog.toggleExpanded(view, row.key);
+              }}
+            >
+              <span aria-hidden="true">{!collapsed.has(row.key) ? '−' : '+'}</span> {row.label}
+            </button>
+            <span className="browser-time">不适用</span>
+            <span className="browser-author">不适用</span>
+          </div>
+        ) : (
+          <div
+            className="browser-document"
+            data-selected={selectedKey === row.key ? 'true' : undefined}
+          >
+            <div className="browser-line">
+              {row.children ? (
+                <button
+                  type="button"
+                  className="browser-expander"
+                  aria-expanded={!collapsed.has(row.key)}
+                  aria-label={`${collapsed.has(row.key) ? '展开' : '收起'} ${row.label}`}
+                  onClick={() => {
+                    catalog.toggleExpanded(view, row.key);
+                  }}
+                >
+                  {!collapsed.has(row.key) ? '−' : '+'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="browser-name"
+                aria-label={
+                  row.info.kind === 'ORIGINAL'
+                    ? `${row.label} ${row.info.original?.path ?? ''} ${
+                        row.info.original?.format ?? ''
+                      } · ${row.info.original?.reading ?? ''}${
+                        row.info.original?.retained ? ' · 沿用原件' : ''
+                      }`
+                    : row.info.version && row.info.version !== row.info.revision?.latest
+                      ? `${row.label} · ${row.state ?? ''}`
+                      : `${row.label} ${row.info.revision?.actionLabel ?? ''} · ${row.state ?? ''}`
+                }
+                onClick={() => {
+                  setInfoKey(row.key);
+                  if (row.info.kind === 'ORIGINAL' && row.info.original)
+                    catalog.select('ORIGINALS', row.info.original.key);
+                  else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
+                  row.open?.();
+                }}
+              >
+                {row.label}
+              </button>
+              <span className="browser-time">{row.metadata?.modifiedAt ?? '未提供'}</span>
+              <span className="browser-author">{row.metadata?.modifiedBy ?? '未提供'}</span>
+            </div>
+            <div className="browser-subline">
+              <span>{row.state}</span>
+              <span>{row.secondary}</span>
+              <button
+                type="button"
+                className="browser-info"
+                aria-pressed={selectedKey === row.key}
+                onClick={() => {
+                  setInfoKey(row.key);
+                  if (row.info.kind === 'ORIGINAL' && row.info.original)
+                    catalog.select('ORIGINALS', row.info.original.key);
+                  else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
+                }}
+              >
+                文件信息
+              </button>
+            </div>
+          </div>
+        )}
+        {!collapsed.has(row.key) && row.children ? (
+          <div className="browser-children">{renderRows(row.children, depth + 1)}</div>
+        ) : null}
+      </div>
+    ));
+
+  return (
+    <>
+      <p className="project-browser-scope">
+        {filtered
+          ? `筛选范围 · ${view === 'ORIGINALS' ? originals.length : revised.length} 个条目（全项目 ${
+              view === 'ORIGINALS' ? data.documentCount + data.containerCount : data.revised.length
+            }）`
+          : '全项目范围'}
+      </p>
+      <div className="browser-header" aria-hidden="true">
+        <span>名称 / 版本与状态</span>
+        <span>最后修改时间</span>
+        <span>修改人</span>
+      </div>
+      {tree.length === 0 ? (
+        <p className="project-catalog-empty">
+          {view === 'ORIGINALS'
+            ? data.originals.length === 0
+              ? '当前项目没有客户原始文档。'
+              : '没有符合条件的原始文档。'
+            : data.revised.length === 0
+              ? '尚未生成修订文档。'
+              : '没有符合条件的修订文档。'}
+        </p>
+      ) : (
+        renderRows(tree, 0)
+      )}
+      {view === 'REVISED' && data.revised.length === 0 ? (
+        <div className="project-catalog-empty" role="status">
+          <p>计划中的预计/新增文件仍留在当前工作与清单明细中，不计为已生成修订。</p>
+          <button
+            type="button"
+            onClick={() => {
+              catalog.choose('ORIGINALS');
+            }}
+          >
+            查看客户原始文档
+          </button>
+        </div>
+      ) : null}
+      {selectedInfo?.kind === 'ORIGINAL' && selectedOriginal ? (
+        <section className="project-file-info" aria-label="文件信息">
+          <h3>文件信息</h3>
+          <dl>
+            <dt>完整路径</dt>
+            <dd>{selectedOriginal.path}</dd>
+            <dt>批次</dt>
+            <dd>
+              {selectedOriginal.batchLabel} · {selectedOriginal.zipName}
+            </dd>
+            <dt>类型与大小</dt>
+            <dd>
+              {selectedOriginal.format} · {formatBytes(selectedOriginal.metadata.bytes)}
+            </dd>
+            <dt>读取状态</dt>
+            <dd>{selectedOriginal.reading}</dd>
+            <dt>最后修改</dt>
+            <dd>
+              {selectedOriginal.metadata.modifiedAt} · {selectedOriginal.metadata.modifiedBy}
+            </dd>
+            <dt>修改记录</dt>
+            <dd>{selectedOriginal.metadata.detail}</dd>
+            <dt>上传记录</dt>
+            <dd>{selectedOriginal.uploaded}</dd>
+          </dl>
+          <ProvenanceOriginal
+            row={selectedOriginal}
+            counterparts={counterparts}
+            chooser={chooser === selectedOriginal.key}
+            onChoose={() => {
+              setChooser(selectedOriginal.key);
+            }}
+            onSwitch={switchRevision}
+          />
+        </section>
+      ) : null}
+      {selectedInfo?.kind === 'REVISION' && selectedRevision ? (
+        <section className="project-file-info" aria-label="文件信息">
+          <h3>文件信息</h3>
+          <dl>
+            <dt>文件与层级</dt>
+            <dd>
+              {selectedRevision.fileId} · {selectedRevision.levelLabel} ·{' '}
+              {selectedRevision.actionLabel}
+            </dd>
+            <dt>当前显示版本</dt>
+            <dd>
+              {selectedInfo.version?.label ?? selectedRevision.latest.label} ·{' '}
+              {selectedInfo.version?.stateLabel ?? selectedRevision.latest.stateLabel}
+            </dd>
+            <dt>轮次与计划</dt>
+            <dd>
+              {selectedInfo.version?.planLabel ?? selectedRevision.latest.planLabel} ·{' '}
+              {selectedInfo.version?.roundId ?? selectedRevision.latest.roundId}
+            </dd>
+            <dt>类型与大小</dt>
+            <dd>
+              {selectedRevision.actionLabel} ·{' '}
+              {formatBytes((selectedInfo.version ?? selectedRevision.latest).metadata.bytes)}
+            </dd>
+            <dt>最后修改</dt>
+            <dd>
+              {(selectedInfo.version ?? selectedRevision.latest).metadata.modifiedAt} ·{' '}
+              {(selectedInfo.version ?? selectedRevision.latest).metadata.modifiedBy}
+            </dd>
+            <dt>修改记录</dt>
+            <dd>{(selectedInfo.version ?? selectedRevision.latest).metadata.detail}</dd>
+            {selectedInfo.version?.opinion ? (
+              <>
+                <dt>意见发起</dt>
+                <dd>{selectedInfo.version.opinion}</dd>
+              </>
+            ) : null}
+            {selectedInfo.version?.finalization ? (
+              <>
+                <dt>定稿记录</dt>
+                <dd>{selectedInfo.version.finalization}</dd>
+              </>
+            ) : null}
+          </dl>
+          <ProvenanceRevised
+            row={selectedRevision}
+            options={originalOptions}
+            chooser={chooser === `revised:${selectedRevision.fileId}`}
+            onChoose={() => {
+              setChooser(`revised:${selectedRevision.fileId}`);
+            }}
+            onSwitch={switchOriginal}
+          />
+        </section>
+      ) : null}
+    </>
   );
 }
 
