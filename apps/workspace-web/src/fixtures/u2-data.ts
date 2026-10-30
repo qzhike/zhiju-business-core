@@ -1264,6 +1264,24 @@ export function u2Candidate(fileId: string, versionId: string): MarkdownReviewDa
   return u2CandidateComparison(fileId, index > 0 ? (versions[index - 1] ?? null) : null, versionId);
 }
 
+/** Exact Markdown byte count for the candidate representation of one revision. */
+export function u2RevisionBytes(fileId: string, versionId: string): number | undefined {
+  const seed = candidateSeeds[fileId]?.[versionId];
+  if (!seed) return undefined;
+  const parts: string[] = [];
+  for (const section of seed.sections) {
+    parts.push(`## ${section.title}`);
+    if (section.paragraphs) parts.push(...section.paragraphs);
+    if (section.table) {
+      parts.push(section.table.caption);
+      parts.push(`| ${section.table.headers.join(' | ')} |`);
+      parts.push(`| ${section.table.headers.map(() => '---').join(' | ')} |`);
+      for (const row of section.table.rows) parts.push(`| ${row.join(' | ')} |`);
+    }
+  }
+  return new TextEncoder().encode(parts.join('\n\n')).length;
+}
+
 export function u2VersionsFor(fileId: string): readonly string[] {
   return Object.keys(candidateSeeds[fileId] ?? {});
 }

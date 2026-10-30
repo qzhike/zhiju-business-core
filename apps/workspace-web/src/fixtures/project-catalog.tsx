@@ -18,7 +18,7 @@ import { fileVersionScope, type MvpStageId } from '../mvp/review-model.js';
 import { u1Project } from './u1-data.js';
 import { useU1 } from './u1.js';
 import { emptySession, planStageFiles, sessionKey, useU2, type StageSession } from './u2.js';
-import { u2Candidate, u2VersionLabel } from './u2-data.js';
+import { u2RevisionBytes, u2VersionLabel } from './u2-data.js';
 import './project-catalog.css';
 import './project-file-browser.css';
 
@@ -294,11 +294,7 @@ function originalMetadata(entry: InputBatch['entries'][number]): FileMetadata {
 }
 
 function revisionBytes(fileId: string, versionId: string): number | undefined {
-  const candidate = u2Candidate(fileId, versionId);
-  if (!candidate) return undefined;
-  return new TextEncoder().encode(
-    candidate.content.document.units.map((unit) => unit.text ?? '').join('\n'),
-  ).length;
+  return u2RevisionBytes(fileId, versionId);
 }
 
 function revisionMetadata(fileId: string, versionId: string): FileMetadata {
@@ -991,8 +987,22 @@ function originalTree(
   rows: readonly OriginalRow[],
   openOriginal: (row: OriginalRow) => void,
 ): BrowserRow[] {
+  // Keep container ancestry when a member matches a filter, and put each
+  // nested member under exactly one container instead of duplicating it as a
+  // directory sibling.
+  const needed = new Set(rows.map((row) => row.entryId));
+  for (const container of data.originals.filter((row) => row.container)) {
+    if (
+      data.originals.some(
+        (member) =>
+          member.entryId.startsWith(`${container.entryId}-`) && needed.has(member.entryId),
+      )
+    )
+      needed.add(container.entryId);
+  }
+  const effective = data.originals.filter((row) => needed.has(row.entryId));
   return data.batches.flatMap((batch) => {
-    const batchRows = rows.filter((row) => row.batchId === batch.id);
+    const batchRows = effective.filter((row) => row.batchId === batch.id && !row.member);
     if (batchRows.length === 0) return [];
     const directories = new Map<string, OriginalRow[]>();
     for (const row of batchRows) {
@@ -1004,7 +1014,7 @@ function originalTree(
       kind: 'FOLDER' as const,
       label: directory,
       info: { kind: 'ORIGINAL' as const },
-      children: entries.map((row) => originalDocumentRow(row, rows, openOriginal)),
+      children: entries.map((row) => originalDocumentRow(row, effective, openOriginal)),
     }));
     return [
       {
@@ -1100,9 +1110,13 @@ function FileBrowserList({
     }
   };
   collect(tree);
-  const [infoKey, setInfoKey] = useState<string | undefined>(undefined);
+  const [infoKeys, setInfoKeys] = useState<Record<CatalogView, string | undefined>>({
+    ORIGINALS: undefined,
+    REVISED: undefined,
+  });
   const selectedKey = catalog.selected[view];
-  const selectedInfo = infoKey ? infoMap.get(infoKey) : undefined;
+  const selectedRowKey = infoKeys[view] ?? selectedKey;
+  const selectedInfo = selectedRowKey ? infoMap.get(selectedRowKey) : undefined;
   const filtered = catalog.search[view].trim().length > 0 || catalog.filter[view] !== 'ALL';
   const selectedOriginal = selectedInfo?.original;
   const selectedRevision = selectedInfo?.revision;
@@ -1138,7 +1152,7 @@ function FileBrowserList({
         ) : (
           <div
             className="browser-document"
-            data-selected={selectedKey === row.key ? 'true' : undefined}
+            data-selected={selectedRowKey === row.key ? 'true' : undefined}
           >
             <div className="browser-line">
               {row.children ? (
@@ -1169,7 +1183,7 @@ function FileBrowserList({
                       : `${row.label} ${row.info.revision?.actionLabel ?? ''} · ${row.state ?? ''}`
                 }
                 onClick={() => {
-                  setInfoKey(row.key);
+                  setInfoKeys((current) => ({ ...current, [view]: row.key }));
                   if (row.info.kind === 'ORIGINAL' && row.info.original)
                     catalog.select('ORIGINALS', row.info.original.key);
                   else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
@@ -1187,9 +1201,9 @@ function FileBrowserList({
               <button
                 type="button"
                 className="browser-info"
-                aria-pressed={selectedKey === row.key}
+                aria-pressed={selectedRowKey === row.key}
                 onClick={() => {
-                  setInfoKey(row.key);
+                  setInfoKeys((current) => ({ ...current, [view]: row.key }));
                   if (row.info.kind === 'ORIGINAL' && row.info.original)
                     catalog.select('ORIGINALS', row.info.original.key);
                   else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);

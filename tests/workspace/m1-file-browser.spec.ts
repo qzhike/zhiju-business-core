@@ -197,7 +197,6 @@ test('original metadata separates file records, containers, failures and sizes',
   await expandOriginalDirectory(page, '历史记录');
   const container = page.locator('.browser-document', { hasText: '变更历史（嵌套 RAR）' });
   await expect(container.locator('.browser-time')).toHaveText('2026-10-16 08:50');
-  await container.locator('.browser-expander').click();
   for (const name of ['变更记录 2024（RAR 内 DOCX）', '变更台账 2024（RAR 内 DOCX）']) {
     const member = page.locator('.browser-document', { hasText: name });
     await expect(member.locator('.browser-time')).toHaveText('未提供');
@@ -302,4 +301,72 @@ test('counts, retained originals, planned exclusion and project isolation stay t
   );
   await page.goto('/projects/OTHER/work');
   await expect(page.locator('.project-catalog')).toHaveCount(0);
+});
+
+test('archive members appear only under their container and disappear on collapse', async ({
+  page,
+}) => {
+  await page.goto(work);
+  await expandOriginalDirectory(page, '历史记录');
+  await expect(page.locator('.browser-document')).toHaveCount(12);
+  const directory = page.locator('.browser-row', {
+    has: page.locator('> .browser-folder-line > .browser-folder', { hasText: '历史记录' }),
+  });
+  await expect(directory.locator('.browser-document')).toHaveCount(3);
+  const container = directory.locator('.browser-document', { hasText: '变更历史（嵌套 RAR）' });
+  await expect(container).toBeVisible();
+  await container.locator('.browser-expander').click();
+  await expect(directory.locator('.browser-document', { hasText: '变更记录 2024' })).toHaveCount(0);
+  await expect(directory.locator('.browser-document', { hasText: '变更台账 2024' })).toHaveCount(0);
+  await expect(container).toBeVisible();
+});
+
+test('version info selection keeps the chosen historical row pressed and parent unselected', async ({
+  page,
+}) => {
+  await page.goto(work);
+  await startToManualReview(page);
+  await page.getByLabel('质量手册 本轮意见').fill('质量手册意见：保留客户质量目标。');
+  await page.getByRole('button', { name: /提交 \d+ 条意见并生成下一稿/u }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('质量手册有新稿可查看');
+  await page.getByRole('button', { name: '查看新稿', exact: true }).click();
+  await expect(page.locator('.task-stage')).toContainText('第 2 版候选');
+  await page.getByLabel('质量手册 本轮意见').fill('质量手册意见：补充记录编号映射。');
+  await page.getByRole('button', { name: /提交 \d+ 条意见并生成下一稿/u }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('质量手册有新稿可查看');
+  await page.getByRole('button', { name: '查看新稿', exact: true }).click();
+  await expect(page.locator('.task-stage')).toContainText('第 3 版候选');
+
+  await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
+  const v1 = page.locator('.browser-document', { hasText: '第 1 版候选' }).first();
+  await v1.locator('.browser-info').click();
+  await expect(v1.locator('.browser-info')).toHaveAttribute('aria-pressed', 'true');
+  const parent = page.locator('.browser-document', { hasText: '质量手册' }).first();
+  await expect(parent.locator('.browser-info')).toHaveAttribute('aria-pressed', 'false');
+  await expect(parent).not.toHaveAttribute('data-selected', 'true');
+  await expect(page.locator('.project-file-info')).toContainText('第 1 版候选 · 历史版本');
+  await expect(page.locator('.project-file-info')).toContainText('2026-10-29 09:20');
+
+  await catalog(page).getByLabel('排序').selectOption('MODIFIED');
+  await expect(v1.locator('.browser-info')).toHaveAttribute('aria-pressed', 'true');
+  await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
+  await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
+  await expect(v1.locator('.browser-info')).toHaveAttribute('aria-pressed', 'true');
+  await expect(parent.locator('.browser-info')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('revision size uses exact Markdown bytes instead of flattened unit text', async ({ page }) => {
+  await page.goto(work);
+  await startToManualReview(page);
+  await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
+  const v1 = page.locator('.browser-document', { hasText: '质量手册' }).first();
+  await expect(v1.locator('.browser-subline')).toContainText('1.0 KB');
+
+  await page.getByLabel('质量手册 本轮意见').fill('质量手册意见：保留客户质量目标。');
+  await page.getByRole('button', { name: /提交 \d+ 条意见并生成下一稿/u }).click();
+  await expect(page.locator('.task-next h2')).toHaveText('质量手册有新稿可查看');
+  await page.getByRole('button', { name: '查看新稿', exact: true }).click();
+  await expect(page.locator('.task-stage')).toContainText('第 2 版候选');
+  const v2 = page.locator('.browser-document', { hasText: '质量手册' }).first();
+  await expect(v2.locator('.browser-subline')).toContainText('1.4 KB');
 });
