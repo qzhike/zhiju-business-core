@@ -1,3 +1,30 @@
+最终 CI 暴露的工作台浏览器测试同步缺口已完成最小修复和独立语义复核，未发现新增产品阻断。新候选的 full 与 required CI 尚待完成，不提前 APPROVE；审查范围仍为 PR #322 → `batch/mvp-v1-ui`。
+
+# PR #322 CI 工作台上下文同步修复复审（2026-10-31）
+
+被审基线为 `0f474dd3bdef761f55fb734405c764bb71b1164c`，本节覆盖该基线后的工作台测试、UI01 Test 及正式 Review 增量。目标 base 仍为 `06595a6a94208399559ce5767dd107d0cc097184`。用户已授权合并和关闭 Issue #321；CI 修复不扩大至新的 UI 功能或组件迁移。
+
+## 失败证据与根因
+
+[CI 41187138666 / attempt 1](https://github.com/qzhike/zhiju-business-core/actions/runs/41187138666/attempts/1) 在上述基线失败：三个 persistence 分片及其汇总成功，开发制品浏览器 133/134 通过；`workbench.spec.ts` 首条在 `page.goBack()` 后期望搜索值“文件”，实际为空，因而 checks/verify 失败。旧本地通过不能覆盖该远端失败。
+
+独立 Reviewer 检查实际测试、`FixtureWorkbench`/`Workbench` 导航与内存模型，以及受控 Chromium 的事件诊断：旧序列在 URL 已更新、DOM 仍显示全部 3 个项目时输入“文件”；之后新项目视图提交为 1 个项目，搜索立即为空，这发生在打开文件之前。原生后退全程 document token 相同，未发生整页 reload。工作台按 pathname/query 保存各自 view，并按 selectedKey 重建；旧视图的输入不是新项目视图已经保存的状态。
+
+## 最小修复与审查处置
+
+- `workbench.spec.ts` 在切项目后等待 DOM 项目集合只有一个项目且精确 project key 匹配，再输入搜索；仅等待 URL 不再被视为 React 上下文已提交。
+- 保留原生链接点击、`page.goBack()`，以及搜索、完成项展开、操作焦点、最近访问的全部原断言；不增加重试、不延长超时、不降低 worker，也不修改产品代码。
+- owning UI-BOARD-002 同步该测试前置条件，不改变产品的返回恢复要求。
+- CPU 16× 诊断原序列首轮复现；修正同步后 12/12 返回保留“文件”，document token 均不变。修改后的工作台开发浏览器文件 4/4 通过。独立 Reviewer 读取脚本与原始事件记录，确认等待检查约束的是实际 DOM 上下文，未以替代导航或放松断言掩盖返回状态问题。
+
+本次修复是测试同步缺口的处置；不把诊断变为新的人工视觉或慢设备交互验收。诊断使用合成样例，保存在本地忽略目录；临时服务已停止，现有手动站点未改动。R1–R3、R5–R20 的既往关闭及 R4/P3 的 SUPERSEDED 处置继续适用。
+
+本节随修复纳入最终候选后执行配置化 full 与远端 required verify，精确 SHA、run/attempt 和最终独立结论写入 PR review/comments。此前实现 full、文档增量 docs 和失败 CI 分别保留历史含义；M1 人工、Runner、真实服务及 main 交付边界不变。
+
+---
+
+以下为 `6435188` 实现与 `0f474dd` 正式记录纳入前的审查快照；其待 CI 状态由上方失败及修复记录接续。
+
 当前增量语义复审完成，未发现新增阻断；`6435188` 的本地 full 已通过。本文尚需纳入最终候选，最终 APPROVE 与合并仍待该候选的 required CI 和独立确认。本次审查范围仅为 M1 子 PR 进入 `batch/mvp-v1-ui`。
 
 # PR #322 最终交付增量审查（2026-10-31）

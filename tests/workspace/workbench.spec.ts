@@ -10,6 +10,14 @@ test('workbench built fixture: exact links, recent access and return context', a
   await expect(completed).not.toHaveAttribute('open', '');
   await page.getByLabel('筛选项目').selectOption('project:WB-ENTERPRISE-01/DEMO-PROJECT-01');
   await expect(page).toHaveURL(/project=DEMO-PROJECT-01$/u);
+  // The URL changes before Router commits the new project-scoped workbench.
+  // Wait for that view so input cannot land in the previous all-projects view.
+  const selectedProjects = page.locator('[data-project-key]');
+  await expect(selectedProjects).toHaveCount(1);
+  await expect(selectedProjects).toHaveAttribute(
+    'data-project-key',
+    'project:WB-ENTERPRISE-01/DEMO-PROJECT-01',
+  );
   await page.getByLabel('查找工作').fill('文件');
   await completed.locator('summary').click();
   const card = page.getByRole('article', { name: '体系文件升级 · 文件进度', exact: true });
