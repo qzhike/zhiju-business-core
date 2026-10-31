@@ -53,33 +53,35 @@ CI 对 Pull Request 使用 base-to-head 的完整变更集合，不能仅凭最�
 
 路由回归须覆盖 Draft/ready 低风险及文档混合、任一高风险/未知路径覆盖低风险、带首尾空格或字面反斜杠的真实 Git 文件名及混合变更、main 同路径 full、严格文档 main、空/失败 diff、重命名旧路径与累计 PR diff；工作流回归须覆盖同 PR 新 SHA 共享取消组、不同 PR 隔离、每个 main run 独立且禁止取消，以及 docs/code/full 的取消结果均不得通过汇总。
 
-普通 Vitest 只收集无需数据库的测试。原 `tests/persistence/pinned-baseline.test.ts`、`migration-isolation.test.ts`，以及 `query-projection.test.ts` 的 Snapshot hash 和 `enterprise-project-scope.test.ts` 的 SourceMaterial 输入拒绝纯测试，分别迁到 `tests/business/` 的 `pinned-baseline`、`migration-isolation`、`project-board-hash`、`source-material-validation` 文件；断言与测试名称保留。新增无需数据库用例必须进入普通收集范围，不能放入被普通配置排除的数据库目录。
+2026-10-31 用户确认按最新 MVP 业务链移除旧平台专用数据库测试。本节是本次测试范围调整的唯一权威；产品范围见 [MVP 可用闭环](../mvp/usable-loop.md#8-明确移出本次-mvp)。旧七模块实现、迁移、公开契约与历史证据保留，但旧平台专用持久化回归不再属于当前 `full`。当前通过不能解释为旧平台数据库回归通过；恢复旧能力或重新接入旧模块时，必须先恢复适用场景并同步 owning Module-Test。
 
-Persistence Gate 使用独立 `vitest.persistence.config.ts` 收集 `tests/persistence/**/*.test.ts`，保持同一临时数据库内文件串行与 worker 隔离，防止角色权限负例交叉影响；不重复普通检查。完整数据库 Gate 不允许意外 skipped 用例，退出失败或异常取消仍是失败；仅明确选定文件的聚焦诊断允许测试名称过滤，并明确输出非完整 Gate。配置目标仍为 `docs/code/full`，路由按本节风险规则；CI 的 `checks` 执行预算为 30 分钟，每个 persistence 分片执行预算为 60 分钟。分片仅在显式参数下启用，不能与聚焦文件/名称过滤混用；本地默认完整 Gate 不分片。继承的环境变量不能覆盖 Gate 选择的模式。
+当前 Persistence Gate 覆盖独立 `DocumentDelivery` 数据库及其真实 HTTP、Browser 和访问保护：
 
-CI 持久化测试固定分为三个独立 runner，各自完成锁定镜像、版本检查、空库迁移到 V6002、历史数据 seed、后续迁移和收尾。`tools/persistence/partitions.mjs` 显式分配耗时文件到分片 1/2，其余及新增文件归入分片 3；分片之间不共享数据库。独立发现的全部文件必须恰好分配一次；明确路径不存在、重复分配、非法分片或空集合均失败。完整/分片执行结束须核对实际 Vitest 文件集合与预期集合完全相同，不能只核对总数。关键清单按预期分片文件筛选，保持原叶级名称、唯一性和成功状态检查，不能按实际收集反推期望。业务测试体、真实期限、文件内顺序和隔离清理不变。
+- 保留 `mvp-document-delivery.test.ts`、`mvp-http.test.ts`、`mvp-built-browser.test.ts`、`mvp-postgres-restart.test.ts`；保留实际事务、幂等、归属/RLS、原件与清单不可变、文件与数据库故障、UNKNOWN、并发及重启读回，不能改成内存替身。
+- 原受控 Keycloak 登录、错误 issuer/audience、回调拒绝、令牌刷新和密钥轮换迁到 `mvp-controlled-keycloak.test.ts`，经过真实 MVP Core/BFF/构建 Web 和独立员工绑定；去除旧 Enterprise/Grant/Projection 准备，保留拒绝前零业务读取证据。
+- 移除旧 IdentityPolicy、EnterpriseProject、TaskExecution/Context、Artifact AST/Workbook/Branch/Renderer、QualityGovernance、ReleasePublication、旧 Preparation/目录/投影专用持久化入口及仅供这些入口使用的测试辅助代码。旧七 schema 的角色/技术表/Outbox/Inbox/事务 runner 回归随之退出；这不取消新 MVP 的访问保护、原件保护、精确版本、事务与恢复要求。
+- 普通 Unit/Contract、共享 OIDC/BFF 安全和输入格式安全测试继续执行；本次不按旧模块名称批量删除普通测试。移除的旧隔离执行测试工具不再要求自身生命周期回归，仍被保留测试使用的辅助代码继续保留。
+- M2/M3 的意见、计划、阶段版本、上游返工和冻结交付包，随真实接入在 owning Spec/Test 中补齐；已有 B1 测试不能代替完整 MVP 或 bopu 真实验收。
 
-重复的 migration no-op 用例合并到每次 Gate 收尾：Flyway migrate 成功、报告无待执行迁移、完整 migration history 前后完全相同三者缺一不可。历史读取失败、命令失败或历史漂移均不能通过，异常仍清理容器。此合并将 748 个 Vitest 叶级用例变为 747 个，加 1 项更强的 Gate 检查；96 个关键业务用例不变。旧业务套件在新 MVP 能力替代并核对依赖前继续保留，不能仅凭缩编计划删除。
+Gate 继续验证锁定 PostgreSQL/Flyway 镜像和版本，但只应用 `modules/document-delivery/migrations`，与 MVP 实例初始化使用同一迁移目录；不再应用旧七模块迁移或 seed V6002 Provider Result。空库迁移、第二次 migrate 成功且无待执行项、完整迁移 history 前后相同、异常清理仍是必需检查。每个业务测试使用隔离的 MVP database；同一临时实例内文件继续串行，避免数据库重建和角色负例相互干扰。
 
-完整数据库 Gate 另按 `tools/persistence/critical-cases.json` 核对关键业务执行清单：四个 initial-context 入口的 92 个叶级用例，以及 controlled-exit 入口的 4 个叶级用例。清单以仓库相对文件路径和原叶级名称标识，用例分组标签可变化；期望清单独立保存，不能从本轮实际收集结果即时生成。文件被排除、用例遗漏、重复、意外新增/改名/移位，以及未执行、失败或跳过均须拒绝完整 Gate。合法增删或迁移须同步审查清单和业务测试规范，不能只锁定总数。检查使用 Vitest 实际收集及结束状态；聚焦诊断明确不承担完整清单验收，不能冒充 full。普通测试通过真实 Vitest 子进程验证上述拒绝路径及聚焦边界。
+普通 Vitest 只收集无需数据库的测试；新增纯校验不得放进被普通配置排除的 `tests/persistence/`。完整/分片数据库验证不允许意外 skipped、失败或取消；聚焦诊断只能显式选择文件并标明不是完整 Gate。`docs/code/full` 路由、主干准入和批次要求不变，验证策略修改仍需 `full`。
 
-13 类 Core-valid unsupported final 保持 `initial-context-unsupported-final.test.ts` 中既有的两个独立 PostgreSQL 容器组。12 个授权资格变化用例迁至 `initial-context-eligibility.test.ts`，按 GRANT/POLICY 分成两个各 6 例的独立容器组；三个交付用例迁至 `initial-context-delivery.test.ts`，每例独占容器，最多同时执行两例。各组内部仍串行，交错执行真实等待；连接、角色、迁移、时钟、业务准备缓存和运行时存储各自独立。开始业务执行前验证实例身份不同，角色撤销、同一业务键行锁、时钟变化与 SQL 异常不跨组传播。每例后 drain；失败、超时或 drain 异常后，复用该环境的后续用例显式失败且不再执行业务操作。setup 部分失败和整组退出均关闭已创建的资源；断言失败及超时也必须保留排空与清理保障，不能把整个测试体加入其自身 drain 集合。其余 64 个 initial-context 用例保持原相对顺序；同一次 Gate 执行中的持久化文件继续使用串行配置，CI 跨分片并行仅发生在独立 runner 之间。上述用例级隔离调度只调整隔离执行，不删除或合并叶级用例、业务链、断言及 owning expiry cleanup，不改变真实期限、重试等待、Run budget、测试超时或完整门禁要求。
+CI 保留三个独立 runner 和现有检查名：分片 1 为 MVP custody，分片 2 为真实 Keycloak，分片 3 为 HTTP、built-browser、PostgreSQL restart 及新增文件。每个分片独立完成镜像检查、MVP 空库迁移和 no-op；全部文件必须恰好分配一次。明确路径不存在、重复分配、非法分片或空集合均失败；最终核对实际执行文件集合，不能只核对总数。CI `checks` 预算为 30 分钟，持久化分片预算为 60 分钟；本地 `full` 仍顺序执行 code 与完整不分片 persistence。
 
-隔离环境在排空开始前即禁止复用，仅完整成功且未发生失败或取消时恢复；Vitest 钩子超时不能绕过此状态。清理须在钩子预算内为测试体收敛、排空和连接关闭分别保留有限等待及停止容器的兜底机会，不能无限等待同一 Promise。setup 与退出共用关闭标记：退出后禁止准备下一批，已在途的启动返回后须立即回收，未结束的准备后续不得遗漏新产生资源。正常路径仍完整等待真实业务操作；上述界限仅处理异常退出，不调整业务期限或测试超时。
+`tools/persistence/critical-cases.json` 独立列出当前五个 MVP 入口的叶级用例名称。保留原四文件的全部用例，受控 Keycloak 场景按 MVP 入口重绑定。移除旧 96 项 Context/controlled-exit 清单；当前清单不得由本轮实际收集反推。缺文件、缺用例、重复、未审查的增删/改名/移位、失败或跳过均拒绝 Gate；普通测试通过真实 Vitest 子进程验证这些拒绝路径及聚焦边界。合法变化须同步审查清单和 MVP01 Test。
 
-initial Context 的连接池清理须等待所有已建立连接的 `end` 事件，再允许停止所属容器；`pool.end()` 返回或连接池计数归零不能单独证明底层连接已经关闭。连接在清理前因淘汰而移出池时，也须保留其关闭等待。普通回归以真实锁定版本的连接池配合可控连接结束事件验证这一顺序，以及空池、已结束连接、关闭失败和关闭期间真实连接错误的传播；不得添加吞掉 `57P01` 或其他数据库错误的监听器。既有资源关闭时限、失败退出和容器兜底清理保持不变。
-
-`controlled-exit.test.ts` 的 normal/recovered/cancel/cancel-progress 四例复用上述隔离生命周期，每例仍独占迁移后的 PostgreSQL、suite、时钟、运行时存储和业务来源。normal→cancel 与 recovered→cancel-progress 两组内部串行，最多两例同时执行业务，开始前验证数据库及可变状态隔离；原 900 秒测试超时保持。保留空 TE 业务库断言、各自完整 owning 链、Task-only/Task+Release 顺序、五类提交后故障与原材料重放、全部阶段查询和断言、真实退避及 lease 到期等待、动态 EXIT_EVIDENCE。迟到取消与已有 Progress 停止仍是两个独立来源。清理与故障拒绝遵循上述有限收敛规则，同一次 Gate 的持久化文件串行配置不变。
-
-数据库验证必须流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前执行项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL 文本、连接凭据或业务 payload。`initial-context` 另记录业务准备、Validation/Freeze 矩阵、队列探针、Run/Result 业务边界、正式完成的输入拒绝/原子回滚/评价与竞态/判定失效阶段、恢复链的材料确认/解决/Context-2 构建阶段、真实期限等待、历史升级和 pending-operation drain；测试正常退出前的汇总报告不能替代这些进度。真实队列竞态以指定 PostgreSQL 后端的阻塞关系同步，释放锁后等待后台操作完成；服务端到期测试继续等待实际 deadline，不改变数据库时钟或跳过 cleanup。
+数据库验证继续流式输出文件/测试开始、结束和耗时，长测试及 setup/cleanup 每 30 秒输出当前项；等待诊断只允许连接状态、等待事件、阻塞 PID 和事务持续时间，禁止 SQL、凭据或业务 payload。容器与连接必须在成功及失败路径清理；本次不缩短业务期限或跳过真实恢复等待。
 
 CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` 执行 docs 或完整 code 检查，`persistence-1/2/3` 仅在 full 时调用同一复用工作流，分别在独立 runner 执行固定分片。数据库任务先安装受控 Chromium 并 clean build 自己的 workspace libraries；不重复普通测试、格式、lint、Architecture 或 Contract Gate，也不把同一数据库内文件并行化。原 `persistence` 名称保留为汇总，要求三个明确分片全部 success，缺失、失败、取消、非法结果和意外 skipped 一律拒绝。本地配置的 full 仍是 code + 不分片 persistence 的完整顺序验证。原 `verify` 检查作为 always 汇总，必须确认 select/checks 成功，full 的 persistence 成功，docs/code 的 persistence 为预期 skipped；失败、取消、缺失/非法结果、未知目标和意外跳过不能通过。文档任务传入同一 BASE_SHA/GITHUB_SHA 边界；根 `vitest.persistence.config.ts` 单独变化也必须 full。分片带来的实际 CI 耗时改善须由调整后的远端运行验证，不能由历史耗时相加推定已达成。
 
 Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与应用依赖边界反例，以及实际构建匿名开发制品的受控 Chromium 旅程，接入 `code/full` 的普通检查。CI 为该检查安装锁定 Playwright 的 Chromium；它不替代真实 OIDC/业务 HTTP/Runner、Windows/macOS Chrome/Edge 支持矩阵、生产或独立人工验收。生成的匿名截图保持本地忽略，执行证据进入 Issue/PR。
 
+Workspace 浏览器验证默认使用 4 个 worker，保持 `fullyParallel: false`：开发制品测试文件之间并行，同一文件内顺序执行。`workspace:check` 的生产检查显式使用 1 个 worker。每例继续使用独立 BrowserContext；跨文件可变资源须隔离，真实剪贴板场景保留在同一文件内串行执行。该调度调整保留完整用例、断言、视口与可访问性组合，既有超时和零重试策略不变；不能把缩小用例集合或跳过失败算作提速。
+
 #### 2.1.2 批次交付第一阶段
 
-本节落实[已批准的批次设计](../decisions/batch-integration-ci.md)。共享 Vibe 只解释项目声明的阶段；本项目以仓库变量 `VIBE_BATCH_DELIVERY_ENABLED` 精确等于 `true` 为远端启用条件。缺失或 `false` 保持 §2.1.1 路由，非法值拒绝准入。设计批准、本地实现和本地验证不等于 GitHub 已启用。本轮不修改仓库变量、分支保护或其他 GitHub 设置。
+本节落实[已批准的批次设计](../decisions/batch-integration-ci.md)。共享 Vibe 只解释项目声明的阶段；本项目以仓库变量 `VIBE_BATCH_DELIVERY_ENABLED` 精确等于 `true` 为远端启用条件。缺失或 `false` 保持 §2.1.1 路由，非法值拒绝准入。设计批准、本地实现和本地验证不等于 GitHub 已启用。2026-10-23 用户已授权第一阶段远端启用及平台验收，main/batch 保护和变量已配置；本次修订时平台验收仍进行中，最终批次与合入后 main full 尚待收口。该日期快照及最终执行证据见 [批次 PR #316](https://github.com/qzhike/zhiju-business-core/pull/316)，实际路由仍以远端变量及生效保护为准。
 
 启用后，普通业务、UI 与紧急修复 PR 均先进入同仓库的 `batch/<goal>`；`<goal>` 使用小写字母、数字和分隔单词的连字符，可以只有一个子 PR。子 PR 完整累计 diff 仅含严格文档时为 `docs`，包含明确业务源代码、业务测试或 migration 路径时为 `code`，同时仍须执行 Issue 本阶段约定的事务、权限等聚焦检查。工程配置、依赖、构建、验证策略、未知和混合工程路径保留 `full`。允许路径由 `select-target.mts` 维护，不能为省略验证放宽路径。直接进入 main 的普通业务 PR 即使 full 通过也不准入；严格独立文档是例外，启用前有限的工程引导 PR 仍走旧规则 full。
 
@@ -93,7 +95,19 @@ Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与
 
 正式 `.vibe/reviews/pr-<number>/Review.md` 在冻结最终候选前记录语义发现、处置、阶段与目标；最终 SHA/检查确认留在 PR review/comment 中，不为回填成功日志产生新提交。实质发现和修复仍更新文档、重新审查并验证受影响候选。子任务进入集成分支不等于产品目标交付；main 与其必需 post-merge full 完成后才按授权更新真实交付事实。本地尚无 PR 时不伪造编号或预写正式批准。
 
-配置目标 `delivery` 用于路由、准入、累计 diff、候选漂移、取消与证据来源的聚焦回归；验证策略改动仍必须执行 `full`。启用顺序为：先以变量关闭状态交付工作流并验证真实 check 名称；为 main 配置实际主干准入与对应验证检查、up-to-date 和必需审查，为 batch 配置实际子 PR 验证与审查；验证保护及重定向负例后才设置变量为 `true`。检查名称以真实 GitHub 运行读取结果为准，不能仅凭本地 job id 宣称设置正确。此平台验收留待另行授权，不以本地测试替代。
+配置目标 `delivery` 用于路由、准入、累计 diff、候选漂移、取消与证据来源的聚焦回归；验证策略改动仍必须执行 `full`。启用顺序为：先以变量关闭状态交付工作流并验证真实 check 名称；为 main 配置实际主干准入与对应验证检查、up-to-date 和必需审查，为 batch 配置实际子 PR 验证与审查；验证保护及重定向负例后才设置变量为 `true`。检查名称以真实 GitHub 运行读取结果为准，不能仅凭本地 job id 宣称设置正确。已授权的平台验收必须完成实际运行及负例核验，不以本地测试或仅启用变量替代；单人审查的承载方式与平台自动门禁按下述约束区分。
+
+#### 远端启用操作约束
+
+远端保护以 GitHub 实际匹配到的规则为准：main 的必需检查是 `verification / verify` 与 `main-admission`，batch 子 PR 的必需检查是 `verify`；检查来源绑定 GitHub Actions，不接受同名的其他来源。两类目标都要求 PR、当前基线验证及未解决对话清零，不配置管理员或应用旁路，第一阶段使用普通 merge commit。
+
+项目按用户确认的单人开发方式执行审查：独立 Agent 审查、正式 Review 文档与人的合入授权仍然必需，人的授权可来自当前会话并在 PR 中记录其范围。GitHub 不支持作者正式批准自己的 PR，因此 main 和 batch 的 `required_approving_review_count=0`、`require_last_push_approval=false`；不要求第二个账户，不伪造 formal approval。平台自动执行 PR、CI 与基线门禁；Agent 审查和人的授权由交付流程核对，不能声称 GitHub 自动强制了这两项。候选、目标或基线变化后仍须重新判断审查和授权适用性，不将旧结论直接沿用到新组合。
+
+普通 `batch/<goal>` 的起点必须是已完成 main full 的精确 main 修订。main full 失败后的专用单 PR 恢复批次保留上述窄例外：记录故障修订与最近已验证基线，不扩展业务，恢复候选合入前后仍须 full。batch 创建豁免状态检查仅用于建立合法起点，不能夹带未经审查的变更；后续更新仍须经 PR、阶段检查与审查。GitHub 规则无法证明创建来源，执行者与独立 Reviewer 必须核对普通或恢复批次的起点身份及范围。活跃批次禁止删除和强推；批次交付后，清理仅对获授权的确切已完成分支处理，不为清理撤销其他批次保护。
+
+启用变量不会自动重跑既有 PR。切换前逐一核对已有 main PR 的必需检查、当前候选和新门禁适用性；旧的关闭模式成功不能作为启用后业务直达 main 的证据。未纳入本次迁移范围的业务 PR 保持阻挡，另行确认批次和验收归属后再改 base，不自动搬运其他执行上下文的工作。
+
+若平台验收暴露阻塞，先将 `VIBE_BATCH_DELIVERY_ENABLED` 设为 `false` 并回读，保留 main/batch 保护及必需检查；按实际失败范围恢复与复验，不能用删除 ruleset、增加旁路或放宽测试来恢复交付。成功、失败及回退证据记录在实际试点 PR，正式 Review 仍按本节既有规则收口。
 
 ### 2.2 Unit
 

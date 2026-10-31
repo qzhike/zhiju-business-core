@@ -173,6 +173,8 @@ export interface MarkdownReviewPageProps {
   busy: boolean;
   directoryStatus: string;
   onMore: () => Promise<void>;
+  /** Results detail starts with only the reading surface; opinions open on demand. */
+  focusReading?: boolean;
   /** Development adapter controls; rendered inside the opinion rail. */
   controls?: ReactNode;
 }
@@ -187,11 +189,13 @@ export function MarkdownReviewPage({
   busy,
   directoryStatus,
   onMore,
+  focusReading = false,
   controls,
 }: MarkdownReviewPageProps) {
   const [tab, setTab] = useState<'changes' | 'document' | 'summary'>('changes');
   const [index, setIndex] = useState(0);
   const [pane, setPane] = useState<'document' | 'opinion'>('document');
+  const [opinionOpen, setOpinionOpen] = useState(!focusReading);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [chapterState, setChapterState] = useState<Record<string, boolean>>({});
@@ -431,11 +435,27 @@ export function MarkdownReviewPage({
             {download.status}
           </p>
         </div>
+        {focusReading && (
+          <div className="markdown-focus-actions">
+            <button
+              type="button"
+              className="button"
+              aria-expanded={opinionOpen}
+              onClick={() => {
+                setOpinionOpen((open) => !open);
+                setPane(opinionOpen ? 'document' : 'opinion');
+              }}
+            >
+              {opinionOpen ? '收起意见与处理' : '打开意见与处理'}
+            </button>
+          </div>
+        )}
       </header>
       <div className="markdown-mobile-tabs">
         <button
           onClick={() => {
             setPane('document');
+            if (focusReading) setOpinionOpen(false);
           }}
           aria-pressed={pane === 'document'}
         >
@@ -444,16 +464,21 @@ export function MarkdownReviewPage({
         <button
           onClick={() => {
             setPane('opinion');
+            if (focusReading) setOpinionOpen(true);
           }}
           aria-pressed={pane === 'opinion'}
         >
           意见与处理
         </button>
       </div>
-      <div className="markdown-review-layout">
-        <nav className="markdown-files" aria-label="本轮文件">
-          <h2>本轮文件</h2>
-          {files ? (
+      <div
+        className={`markdown-review-layout${focusReading ? ' focus-reading' : ''}${
+          focusReading && opinionOpen ? ' show-opinion' : ''
+        }${files ? '' : ' without-files'}`}
+      >
+        {files && (
+          <nav className="markdown-files" aria-label="本轮文件">
+            <h2>本轮文件</h2>
             <>
               <div className="markdown-files-summary">
                 <span>
@@ -525,13 +550,12 @@ export function MarkdownReviewPage({
               </div>
               <small>未加载页不计入分母；列表限定本轮工作范围。</small>
             </>
-          ) : (
-            <p className="markdown-files-note">
-              {workspace?.directoryNote ?? '跨文件成果目录读取尚未接入；本页只显示此精确版本。'}
-            </p>
-          )}
-        </nav>
+          </nav>
+        )}
         <section className="markdown-reader" aria-label="正文阅读">
+          {!files && workspace?.directoryNote && (
+            <p className="markdown-files-note">{workspace.directoryNote}</p>
+          )}
           <div className="markdown-reader-toolbar">
             <div>
               <button
@@ -672,6 +696,7 @@ export function MarkdownReviewPage({
                 }}
                 onSelect={step}
                 onQuote={quote}
+                split={focusReading}
               />
             ) : (
               <p>两个精确版本之间没有变化。</p>
@@ -1053,6 +1078,7 @@ function ChangeView({
   onToggleChapter,
   onSelect,
   onQuote,
+  split,
 }: {
   change: Change;
   position: number;
@@ -1063,6 +1089,7 @@ function ChangeView({
   onToggleChapter: (open: boolean) => void;
   onSelect: (position: number) => void;
   onQuote: (change: Change, position: number) => void;
+  split: boolean;
 }) {
   const binding = changeBinding(visible.content, change);
   const afterResolves =
@@ -1098,18 +1125,42 @@ function ChangeView({
           ）在当前精确版本中未找到；未自动改绑到相邻内容。请核对来源位置或重新读取此版本。
         </p>
       )}
-      {change.beforeValue && visible.before && beforeResolves && (
-        <section className="markdown-before">
-          <h3>{change.kind === 'REMOVED' ? '已删除内容 · 原版本位置' : '原版本'}</h3>
-          <CanonicalDocument document={visible.before.document} focus={change.beforeValue.unitId} />
-        </section>
-      )}
-      {change.afterValue && afterResolves && (
-        <section className="markdown-after">
-          <h3>当前阅读版本</h3>
-          <CanonicalDocument document={visible.content.document} focus={change.afterValue.unitId} />
-        </section>
-      )}
+      <div
+        className={split ? 'markdown-comparison markdown-comparison-split' : 'markdown-comparison'}
+      >
+        {change.beforeValue && visible.before && beforeResolves ? (
+          <section className="markdown-before">
+            <h3>{change.kind === 'REMOVED' ? '已删除内容 · 原版本位置' : '原版本'}</h3>
+            <CanonicalDocument
+              document={visible.before.document}
+              focus={change.beforeValue.unitId}
+            />
+          </section>
+        ) : (
+          split && (
+            <section className="markdown-before markdown-missing-side">
+              <h3>原版本</h3>
+              <p>无客户原件，或该精确版本不包含此内容；不伪造基线正文。</p>
+            </section>
+          )
+        )}
+        {change.afterValue && afterResolves ? (
+          <section className="markdown-after">
+            <h3>当前阅读版本</h3>
+            <CanonicalDocument
+              document={visible.content.document}
+              focus={change.afterValue.unitId}
+            />
+          </section>
+        ) : (
+          split && (
+            <section className="markdown-after markdown-missing-side">
+              <h3>当前阅读版本</h3>
+              <p>本轮没有该位置的候选内容；不借用其他轮次补齐。</p>
+            </section>
+          )
+        )}
+      </div>
       {chapterChanges.length > 1 && (
         <details
           className="markdown-chapter-context"

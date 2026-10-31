@@ -1,5 +1,7 @@
 # Module-Test-007-IntegrationGateway
 
+2026-10-31 测试范围更新：用户已确认移除退出新版 MVP 链路的旧平台专用持久化测试，见 [当前验证范围](../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)。本文件的旧数据库 PASS/文件路径保留为历史证据，不代表当前 full 仍执行这些场景。普通 Unit/Contract 继续保留；重新接入本模块前须恢复适用持久化验证。共享 OIDC/会话安全继续验证，受控 Keycloak 数据库旅程改由 MVP01 拥有。
+
 版本：v0.3
 日期：2026-09-01（字段级 Schema 增补于 2026-08-18，Issue #17 运行时切片实现于 2026-08-22，WI-01 Binding Query 回归于 2026-08-28，IM-05 WI-05 本地 Renderer/Persistence/Openability 验证于 2026-08-30，Issue #24 formal Adapter Attempt Query Port 本地技术验证于 2026-09-01）
 状态：`API CONTRACT TEST BASELINE / WI-01 ADDITIVE BINDING QUERY CONTRACT REGRESSION PASS / ISSUE #17 RUNTIME SLICE PASS / IM-05 WI-05 UNIT + CONTRACT + PERSISTENCE + LOCAL OFFICE OPENABILITY + GIT DELIVERY PASS / PR #135 MERGED / ISSUE #125 CLOSED / ISSUE #24 FORMAL ADAPTER ATTEMPT QUERY PORT AND INDEPENDENT AUTHORITY COMPOSITION PASS IN PR #147 / EXACT-HEAD CI PASS / ISSUE #24 CLOSED / REAL EXTERNAL PROVIDER + PRODUCTION + INDEPENDENT BUSINESS ACCEPTANCE NOT RUN`

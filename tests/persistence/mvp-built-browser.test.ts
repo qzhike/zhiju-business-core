@@ -181,6 +181,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
   let webOrigin = '';
   let coreOrigin = '';
   let coreEnv: Record<string, string> = {};
+  let bffEnv: Record<string, string> = {};
+  let bffOrigin = '';
 
   beforeAll(async () => {
     if (adminUrl === undefined) throw new Error('persistence gate is required');
@@ -202,7 +204,7 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     const bffPort = await freePort();
     const corePort = await freePort();
     webOrigin = `http://127.0.0.1:${webPort}`;
-    const bffOrigin = `http://127.0.0.1:${bffPort}`;
+    bffOrigin = `http://127.0.0.1:${bffPort}`;
     coreOrigin = `http://127.0.0.1:${corePort}`;
     const trust = {
       trustConfigVersion: 'mvp-trust-v1',
@@ -268,16 +270,17 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
       env: coreEnv,
       readyUrl: `${coreOrigin}/api/mvp/v1/session`,
     });
+    bffEnv = {
+      NODE_ENV: 'production',
+      PORT: String(bffPort),
+      ZHIJU_WORKSPACE_TRUST_CONFIG: rawTrust,
+      ZHIJU_MVP_CLIENT_SECRET: CLIENT_SECRET,
+      ZHIJU_BFF_MVP_CORE_URL: coreOrigin,
+    };
     bff = await startChild({
       name: 'mvp-bff',
       entry: bffEntry,
-      env: {
-        NODE_ENV: 'production',
-        PORT: String(bffPort),
-        ZHIJU_WORKSPACE_TRUST_CONFIG: rawTrust,
-        ZHIJU_MVP_CLIENT_SECRET: CLIENT_SECRET,
-        ZHIJU_BFF_MVP_CORE_URL: coreOrigin,
-      },
+      env: bffEnv,
       readyUrl: `${bffOrigin}/bff/health`,
     });
     web = await startWeb(webPort, bffOrigin);
@@ -449,6 +452,36 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: /第 2 批/ }).click();
     await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
+    // A BFF restart loses only its in-memory session. Keep Core, PostgreSQL,
+    // Web and the file store running, then authenticate again to the same data.
+    await bff?.stop();
+    bff = await startChild({
+      name: 'mvp-bff-restart',
+      entry: bffEntry,
+      env: bffEnv,
+      readyUrl: `${bffOrigin}/bff/health`,
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: '需要重新登录' })).toBeVisible();
+    await expect(page.getByText('UI_SESSION_EXPIRED', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: '使用企业账号登录' }).click();
+    await page.waitForURL(`${webOrigin}${project}`, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible();
+    for (const number of [1, 2, 3])
+      await expect(page.getByRole('button', { name: new RegExp(`第 ${number} 批`) })).toBeVisible();
+    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible();
+    const restoredDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下载原包' }).click();
+    const restoredDownload = await restoredDownloadPromise;
+    const restoredPath = await restoredDownload.path();
+    vitestExpect(readFileSync(restoredPath).equals(packageBytes)).toBe(true);
+    await page.getByRole('link', { name: '← 返回项目列表' }).click();
+    await expect(page.getByRole('link', { name: '浏览器托管项目', exact: true })).toBeVisible();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('link', { name: '浏览器托管项目', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: '浏览器托管项目', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible();
     vitestExpect(project).toMatch(/^\/custody\/projects\//u);
   }, 120_000);
 });

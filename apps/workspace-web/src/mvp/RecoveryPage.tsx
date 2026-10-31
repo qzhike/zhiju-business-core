@@ -1,3 +1,4 @@
+import { MockControls } from '../fixtures/control-slot.js';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { JourneyNav, type JourneyReviewStage } from './JourneyNav.js';
@@ -97,7 +98,7 @@ export interface RecoveryPageProps {
   links: {
     manual: string;
     procedures: string;
-    records: string;
+    rules: string;
     rework: string;
     delivery: string;
   };
@@ -218,7 +219,11 @@ export function RecoveryPage({
           <button className="primary" disabled={!retry.canRetry} onClick={retry.onRetry}>
             仅重试失败文件（模拟）
           </button>
-          {retry.onReceipt && <button onClick={retry.onReceipt}>模拟原重试回执到达</button>}
+          {retry.onReceipt && (
+            <MockControls>
+              <button onClick={retry.onReceipt}>模拟原重试回执到达</button>
+            </MockControls>
+          )}
           <button disabled={!retry.canQuery} onClick={retry.onQuery}>
             查询原重试请求
           </button>
@@ -361,8 +366,8 @@ export function RecoveryPage({
         <p className="muted">失败恢复、迟到结果与意见保存都不改变当前阶段定稿或最终交付清单。</p>
         <div className="u3-actions">
           <Link to={links.manual}>质量手册审阅</Link>
-          <Link to={links.procedures}>第二阶段审阅</Link>
-          <Link to={links.records}>记录表单审阅</Link>
+          <Link to={links.procedures}>控制程序审阅</Link>
+          <Link to={links.rules}>管理制度及记录表单审阅</Link>
           <Link to={links.rework}>返工与复核</Link>
           <Link className="button primary" to={links.delivery}>
             最终交付
@@ -370,13 +375,7 @@ export function RecoveryPage({
         </div>
       </section>
 
-      <section className="panel" aria-label="演练控制">
-        <h2>演练控制</h2>
-        <p className="muted">
-          以下控件显式驱动状态；不会执行真实 Runner、不会按时间推断完成，也不会创建第二个原请求。
-        </p>
-        {controls}
-      </section>
+      {controls}
     </div>
   );
 }

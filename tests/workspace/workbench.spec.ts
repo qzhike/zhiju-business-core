@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { test, expect } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 import { readFile, readdir } from 'node:fs/promises';
@@ -8,6 +9,15 @@ test('workbench built fixture: exact links, recent access and return context', a
   const completed = page.locator('.wb-completed');
   await expect(completed).not.toHaveAttribute('open', '');
   await page.getByLabel('筛选项目').selectOption('project:WB-ENTERPRISE-01/DEMO-PROJECT-01');
+  await expect(page).toHaveURL(/project=DEMO-PROJECT-01$/u);
+  // The URL changes before Router commits the new project-scoped workbench.
+  // Wait for that view so input cannot land in the previous all-projects view.
+  const selectedProjects = page.locator('[data-project-key]');
+  await expect(selectedProjects).toHaveCount(1);
+  await expect(selectedProjects).toHaveAttribute(
+    'data-project-key',
+    'project:WB-ENTERPRISE-01/DEMO-PROJECT-01',
+  );
   await page.getByLabel('查找工作').fill('文件');
   await completed.locator('summary').click();
   const card = page.getByRole('article', { name: '体系文件升级 · 文件进度', exact: true });
@@ -32,10 +42,12 @@ test('workbench candidate and report updates preserve focus, input, original car
 }) => {
   await page.clock.install();
   await page.goto('/workbench');
-  await page.getByText('演示控制', { exact: true }).click();
+  await withMockControls(page, async () => page.getByText('演示控制', { exact: true }).click());
   const card = page.getByRole('article', { name: '体系文件升级 · 文件进度', exact: true });
   await expect(card).toContainText('待检查 3 份');
-  await page.getByRole('button', { name: '延迟返回一份候选' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '延迟返回一份候选' }).click(),
+  );
   const search = page.getByLabel('查找工作');
   await search.fill('体系');
   await page.clock.fastForward(1600);
@@ -45,7 +57,9 @@ test('workbench candidate and report updates preserve focus, input, original car
   await expect(search).toBeFocused();
   await expect(card).toHaveCount(1);
   await expect(page).toHaveURL('/workbench');
-  await page.getByRole('button', { name: '延迟返回新报告' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '延迟返回新报告' }).click(),
+  );
   await page
     .getByRole('article', { name: '体系文件升级 · 分析报告', exact: true })
     .getByRole('link', { name: '查看分析报告' })
@@ -126,8 +140,8 @@ test('workbench built viewport matrix, keyboard navigation and negative states',
       fullPage: true,
     });
   }
-  await page.getByText('演示控制', { exact: true }).click();
-  await page.getByLabel('页面状态').selectOption('loading');
+  await withMockControls(page, async () => page.getByText('演示控制', { exact: true }).click());
+  await withMockControls(page, async () => page.getByLabel('页面状态').selectOption('loading'));
   await expect(page.getByRole('heading', { name: '正在读取授权项目目录' })).toBeVisible();
   await expect(page.locator('.wb-card')).toHaveCount(0);
   for (const [mode, text] of [
@@ -135,15 +149,15 @@ test('workbench built viewport matrix, keyboard navigation and negative states',
     ['denied', '拒绝读取'],
     ['expired', '会话过期'],
   ] as const) {
-    await page.getByLabel('页面状态').selectOption(mode);
+    await withMockControls(page, async () => page.getByLabel('页面状态').selectOption(mode));
     await expect(page.getByRole('alert')).toContainText(text);
     await expect(page.locator('.wb-card')).toHaveCount(0);
   }
-  await page.getByLabel('页面状态').selectOption('empty');
+  await withMockControls(page, async () => page.getByLabel('页面状态').selectOption('empty'));
   await expect(page.getByRole('heading', { name: '暂无待处理工作' })).toBeVisible();
-  await page.getByLabel('页面状态').selectOption('stale');
+  await withMockControls(page, async () => page.getByLabel('页面状态').selectOption('stale'));
   await expect(page.locator('.wb-warning')).toContainText('STALE');
-  await page.getByLabel('页面状态').selectOption('mixed');
+  await withMockControls(page, async () => page.getByLabel('页面状态').selectOption('mixed'));
   await page.getByLabel('查找工作').fill('不存在的工作');
   await expect(page.locator('.wb-column:visible')).toContainText('没有匹配的工作');
   await page.getByRole('button', { name: '清除搜索' }).click();
@@ -161,6 +175,7 @@ test('production workbench excludes its development adapter and registers exact 
     for (const marker of [
       'WB-ENTERPRISE-01',
       'DEVELOPMENT_WORKBENCH_ADAPTER_MISSING',
+      'M1 连续演练',
       '延迟返回一份候选',
     ])
       expect(source.includes(marker), `Production bundle must exclude ${marker}`).toBe(false);

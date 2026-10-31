@@ -1,9 +1,10 @@
+import { withMockControls } from './mock-controls.js';
 import { expect, test, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 const intake = '/projects/DEMO-PROJECT-01/intake';
 async function options(page: Page, scenario: string) {
-  await page.getByText('演示选项', { exact: true }).click();
-  await page.getByLabel('分析场景').selectOption(scenario);
+  await withMockControls(page, async () => page.getByText('演示选项', { exact: true }).click());
+  await withMockControls(page, async () => page.getByLabel('分析场景').selectOption(scenario));
 }
 test('creation binds a keyboard-selected customer ID and exact project without analysis', async ({
   page,
@@ -24,7 +25,9 @@ test('creation binds a keyboard-selected customer ID and exact project without a
   await expect(page.locator('main')).toContainText('WB-ENTERPRISE-03');
   await expect(page.locator('main')).toContainText('同名客户项目');
   await expect(page.locator('.intake-receipt')).toHaveCount(0);
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('button', { name: '提交并分析' }).click();
   await expect(page.locator('.intake-receipt')).toContainText('等待安排');
   await expect(page.getByRole('link', { name: '查看分析报告', exact: true })).toHaveCount(0);
@@ -36,8 +39,8 @@ test('explicit NEW and mismatched creation preserve inputs and do not navigate',
   await page.getByRole('button', { name: '新建客户', exact: true }).click();
   await page.getByLabel('客户企业名称').fill('新企业');
   await page.getByLabel('项目名称', { exact: true }).fill('新项目');
-  await page.getByText('演示选项', { exact: true }).click();
-  await page.getByLabel('创建回执').selectOption('mismatch');
+  await withMockControls(page, async () => page.getByText('演示选项', { exact: true }).click());
+  await withMockControls(page, async () => page.getByLabel('创建回执').selectOption('mismatch'));
   await page.getByRole('button', { name: '创建项目并继续' }).click();
   await expect(page.getByRole('alert')).toContainText('不匹配');
   await expect(page).toHaveURL('/projects/new');
@@ -75,7 +78,9 @@ test('arbitrary ZIP never fabricates a report, invalid choice keeps previous inp
 test('fixed ZIP stages stay on page and retry retains failed original input', async ({ page }) => {
   await page.goto(intake);
   await options(page, 'analysis-failure');
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByLabel('补充说明（选填）').fill('保留说明');
   await page.clock.install({ time: new Date('2026-10-13T00:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-13T00:00:01Z'));
@@ -86,7 +91,7 @@ test('fixed ZIP stages stay on page and retry retains failed original input', as
     await expect(page.locator('.intake-receipt')).toContainText(text);
   }
   await expect(page).toHaveURL(intake);
-  await page.getByLabel('分析场景').selectOption('ready');
+  await withMockControls(page, async () => page.getByLabel('分析场景').selectOption('ready'));
   await page.getByRole('button', { name: '重新分析这份资料' }).click();
   await page.clock.runFor(1050);
   await expect(page.locator('.intake-receipt')).toContainText('正在核验分析报告');
@@ -103,12 +108,18 @@ test('fixed ZIP stages stay on page and retry retains failed original input', as
 test('preparation replacement and denied analysis retry are explicit', async ({ page }) => {
   await page.goto(intake);
   await options(page, 'preparation-failure');
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('button', { name: '提交并分析' }).click();
   await page.getByRole('button', { name: '更换 ZIP 包' }).click();
   await expect(page.getByLabel('选择 ZIP 文件', { exact: true })).toBeFocused();
-  await page.getByLabel('分析场景').selectOption('analysis-denied');
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByLabel('分析场景').selectOption('analysis-denied'),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('button', { name: '提交并分析' }).click();
   await expect(page.locator('.intake-receipt')).toContainText('分析失败');
   await expect(page.getByRole('button', { name: '重新分析这份资料' })).toHaveCount(0);
@@ -122,7 +133,9 @@ test('cross-project selection, late picker isolation, built viewport and accessi
   await expect(page.getByLabel('选择项目')).toHaveValue('');
   await page.getByLabel('选择项目').selectOption('DEMO-PROJECT-01');
   const picker = await page.getByLabel('选择 ZIP 文件', { exact: true }).elementHandle();
-  await page.getByRole('button', { name: '带入演示 ZIP 包' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
+  );
   await page.getByRole('link', { name: '新建项目', exact: true }).click();
   await page.evaluate((element) => {
     element.dispatchEvent(new Event('change', { bubbles: true }));

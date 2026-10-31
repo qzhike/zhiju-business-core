@@ -1,0 +1,139 @@
+.results-page {
+  display: grid;
+  gap: 12px;
+}
+.results-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  padding: 12px 16px;
+}
+.results-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.results-controls select {
+  min-width: 220px;
+  max-width: 100%;
+}
+.results-summary h2,
+.results-inventory h2,
+.results-history h2 {
+  margin: 0 0 4px;
+}
+.results-blockers {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: var(--amber);
+}
+.results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.results-inventory-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: end;
+}
+.results-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.results-filters button[aria-pressed='true'] {
+  border-color: var(--purple);
+  background: var(--soft);
+  color: var(--purple);
+}
+.results-table {
+  margin-top: 10px;
+  max-height: 52vh;
+  overflow: auto;
+}
+.results-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.results-table th,
+.results-table td {
+  border-top: 1px solid var(--line);
+  padding: 8px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.results-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.results-table td small {
+  display: block;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.results-row-member {
+  padding-left: 18px;
+  display: inline-block;
+}
+.results-table tr[data-pending='true'] {
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+}
+.results-pending {
+  color: var(--amber);
+}
+.results-detail-page {
+  max-height: none;
+}
+.results-detail-head {
+  display: grid;
+  gap: 4px;
+}
+.results-detail-head h1 {
+  margin: 0;
+}
+.results-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.results-detail-meta label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.results-detail-basis details,
+.results-detail-rehearsal {
+  margin-top: 8px;
+}
+.results-detail-basis p {
+  overflow-wrap: anywhere;
+}
+.results-unavailable {
+  border-color: var(--amber);
+}
+.results-detail-page .markdown-review {
+  min-height: 60vh;
+}
+@media (max-width: 760px) {
+  .results-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .results-controls select {
+    min-width: 0;
+    width: 100%;
+  }
+  .results-table {
+    max-height: none;
+  }
+}

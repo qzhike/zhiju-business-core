@@ -77,7 +77,7 @@ export interface IntakeReceipt {
 }
 
 // U1 presentation inputs. Receipt never proves reading or analysis.
-export type InputFormat = 'DOCX' | 'MARKDOWN' | 'XLSX' | 'XLS' | 'PDF' | 'OTHER';
+export type InputFormat = 'DOCX' | 'MARKDOWN' | 'XLSX' | 'XLS' | 'PDF' | 'RAR' | 'OTHER';
 export type InputEntryState = 'RECEIVED' | 'LIMITED' | 'FAILED' | 'UNSUPPORTED';
 export interface InputEntry {
   id: string;

@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // Isolated development adapter. It never performs business requests or saves data.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
@@ -8,6 +9,7 @@ import {
   type ProjectView,
   type WorkCard,
 } from '../workbench/model.js';
+import { MvpHandoffContext } from './handoff.js';
 
 const projects: readonly [ProjectView, ProjectView, ProjectView] = [
   {
@@ -49,20 +51,6 @@ const second = projects[1];
 const u1 = projects[2];
 const reportId = 'DEMO-STARTUP-REPORT-01';
 const fixtureCards: readonly WorkCard[] = [
-  {
-    id: 'wb-u1',
-    projectKey: u1.key,
-    title: 'U1 演练 · 从资料到确认范围',
-    group: 'attention',
-    status: '待试走',
-    reason:
-      '在隔离开发适配器中核对资料批次、澄清答复、精确修改范围与模拟回执；不调用 Core 或 Runner。',
-    context: 'U1-REPORT-01 / U1-REPORT-02 · 计划第 1 版',
-    action: {
-      label: '查看项目概览',
-      destination: { kind: 'overview', projectId: u1.projectId },
-    },
-  },
   {
     id: 'wb-analysis',
     projectKey: first.key,
@@ -236,21 +224,46 @@ export function FixtureWorkbenchProvider({ children }: { children: ReactNode }) 
 export function FixtureWorkbench() {
   const state = useContext(BoardContext);
   if (!state) throw new Error('DEVELOPMENT_WORKBENCH_ADAPTER_MISSING');
+  const handoff = useContext(MvpHandoffContext);
   const navigate = useNavigate();
   const location = useLocation();
   const selectedKey = selectedProjectKey(location.search);
   const mode = state.mode;
   const unavailable = mode === 'denied' || mode === 'expired' || mode === 'error';
   const loading = mode === 'loading';
+  const projectViews: readonly ProjectView[] = projects.map((project) =>
+    project.projectId === u1.projectId
+      ? {
+          ...project,
+          status: handoff?.projectStatus ?? project.status,
+          progress: handoff?.projectProgress ?? project.progress,
+        }
+      : project,
+  );
+  const mvpNext = handoff?.next;
+  const mvpCard: WorkCard = {
+    id: 'wb-u1',
+    projectKey: u1.key,
+    title: 'M1 连续演练 · 当前任务',
+    group: handoff?.projectStatus === '正在打包' ? 'running' : 'attention',
+    status: handoff?.projectStatus ?? '待处理 · 演练',
+    reason: mvpNext?.reason ?? '进入当前工作继续同一项目；页面状态保留在当前会话内存。',
+    context: handoff?.projectProgress ?? '资料 1 批 · 分析准备中',
+    action: {
+      label: '进入当前工作',
+      destination: { kind: 'work', projectId: u1.projectId },
+    },
+  };
+  const cards = [mvpCard, ...state.cards];
   return (
     <Workbench
       key={selectedKey ?? 'all'}
       selectedKey={selectedKey}
       onSelect={(key) => {
-        void navigate(workbenchPath(projects.find((project) => project.key === key) ?? null));
+        void navigate(workbenchPath(projectViews.find((project) => project.key === key) ?? null));
       }}
-      projects={unavailable || loading || mode === 'empty' ? [] : projects}
-      cards={unavailable || loading || mode === 'empty' ? [] : state.cards}
+      projects={unavailable || loading || mode === 'empty' ? [] : projectViews}
+      cards={unavailable || loading || mode === 'empty' ? [] : cards}
       directory={{
         id: 'directory',
         title:
@@ -272,7 +285,7 @@ export function FixtureWorkbench() {
             ? '正在等待读取 · 演示'
             : mode === 'empty'
               ? '完整空结果 · 演示'
-              : '已显示 2 个项目 · 完整合成场景',
+              : '已显示 3 个项目 · 完整合成场景',
         ...(unavailable || loading
           ? {
               action: {
@@ -300,62 +313,64 @@ export function FixtureWorkbench() {
       }
       coverage="开发场景 · 各数量由固定合成数据提供，不代表真实服务、运行、批准或项目完成。"
       controls={
-        <details className="wb-controls">
-          <summary>演示控制</summary>
-          <div>
-            <button
-              onClick={() => {
-                state.setMode(mode === 'empty' ? 'mixed' : 'empty');
-              }}
-            >
-              {mode === 'empty' ? '查看匿名示例' : '查看空工作台'}
-            </button>
-            <label>
-              页面状态
-              <select
-                value={mode}
-                onChange={(event) => {
-                  state.setMode(event.target.value);
+        <MockControls>
+          <details className="wb-controls">
+            <summary>演示控制</summary>
+            <div>
+              <button
+                onClick={() => {
+                  state.setMode(mode === 'empty' ? 'mixed' : 'empty');
                 }}
               >
-                {[
-                  ['mixed', '混合工作'],
-                  ['loading', '加载中'],
-                  ['empty', '完整空结果'],
-                  ['error', '读取失败'],
-                  ['denied', '拒绝访问'],
-                  ['expired', '会话过期'],
-                  ['stale', '陈旧 / 部分结果'],
-                ].map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              disabled={state.pending}
-              onClick={() => {
-                state.schedule('candidate');
-              }}
-            >
-              延迟返回一份候选
-            </button>
-            <button
-              disabled={state.pending}
-              onClick={() => {
-                state.schedule('report');
-              }}
-            >
-              延迟返回新报告
-            </button>
-            <span role="status">
-              {state.pending
-                ? '等待合成更新；可继续输入或打开其他页面'
-                : '仅更新本次内存中的演示卡片，刷新后重置'}
-            </span>
-          </div>
-        </details>
+                {mode === 'empty' ? '查看匿名示例' : '查看空工作台'}
+              </button>
+              <label>
+                页面状态
+                <select
+                  value={mode}
+                  onChange={(event) => {
+                    state.setMode(event.target.value);
+                  }}
+                >
+                  {[
+                    ['mixed', '混合工作'],
+                    ['loading', '加载中'],
+                    ['empty', '完整空结果'],
+                    ['error', '读取失败'],
+                    ['denied', '拒绝访问'],
+                    ['expired', '会话过期'],
+                    ['stale', '陈旧 / 部分结果'],
+                  ].map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                disabled={state.pending}
+                onClick={() => {
+                  state.schedule('candidate');
+                }}
+              >
+                延迟返回一份候选
+              </button>
+              <button
+                disabled={state.pending}
+                onClick={() => {
+                  state.schedule('report');
+                }}
+              >
+                延迟返回新报告
+              </button>
+              <span role="status">
+                {state.pending
+                  ? '等待合成更新；可继续输入或打开其他页面'
+                  : '仅更新本次内存中的演示卡片，刷新后重置'}
+              </span>
+            </div>
+          </details>
+        </MockControls>
       }
     />
   );

@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_INTAKE_ADAPTER_ONLY: never imported by the production entry.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
@@ -142,43 +143,46 @@ export function FixtureIntakeProvider({ children }: { children: ReactNode }) {
       run(input, receipt.failures, true);
     },
     controls: (
-      <details className="fixture-options">
-        <summary>演示选项</summary>
-        <div>
-          <p>
-            固定合成场景 · 不上传、创建或运行真实客户业务。只有带入固定 ZIP
-            且位于青禾示例项目才返回固定报告；其他 ZIP/新项目只展示合成等待回执。刷新清理本轮内存。
-          </p>
-          <label>
-            分析场景
-            <select
-              value={scenario}
-              onChange={(event) => {
-                setScenario(event.target.value);
-              }}
-            >
-              <option value="ready">固定报告就绪</option>
-              <option value="preparation-failure">准备失败</option>
-              <option value="analysis-failure">分析失败 · 允许重试</option>
-              <option value="analysis-denied">分析失败 · 不允许重试</option>
-              <option value="unknown">UNKNOWN</option>
-            </select>
-          </label>
-          <label>
-            创建回执
-            <select
-              value={creationMode}
-              onChange={(event) => {
-                setCreationMode(event.target.value);
-              }}
-            >
-              <option value="matching">匹配</option>
-              <option value="mismatch">不匹配</option>
-              <option value="error">不可用</option>
-            </select>
-          </label>
-        </div>
-      </details>
+      <MockControls>
+        <details className="fixture-options">
+          <summary>演示选项</summary>
+          <div>
+            <p>
+              固定合成场景 · 不上传、创建或运行真实客户业务。只有带入固定 ZIP
+              且位于青禾示例项目才返回固定报告；其他
+              ZIP/新项目只展示合成等待回执。刷新清理本轮内存。
+            </p>
+            <label>
+              分析场景
+              <select
+                value={scenario}
+                onChange={(event) => {
+                  setScenario(event.target.value);
+                }}
+              >
+                <option value="ready">固定报告就绪</option>
+                <option value="preparation-failure">准备失败</option>
+                <option value="analysis-failure">分析失败 · 允许重试</option>
+                <option value="analysis-denied">分析失败 · 不允许重试</option>
+                <option value="unknown">UNKNOWN</option>
+              </select>
+            </label>
+            <label>
+              创建回执
+              <select
+                value={creationMode}
+                onChange={(event) => {
+                  setCreationMode(event.target.value);
+                }}
+              >
+                <option value="matching">匹配</option>
+                <option value="mismatch">不匹配</option>
+                <option value="error">不可用</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </MockControls>
     ),
   };
   return <Context.Provider value={state}>{children}</Context.Provider>;

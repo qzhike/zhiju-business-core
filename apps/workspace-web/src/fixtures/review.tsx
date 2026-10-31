@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // Explicit development-only review workspace (#286). Synthetic content only:
 // it never reads customer documents, calls Core/Runner or claims success.
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -416,79 +417,82 @@ export function FixtureReviewControls({
 }) {
   const { memory, notify } = fixture;
   return (
-    <details className="execution-controls review-controls">
-      <summary>审查演示控制与边界</summary>
-      <p className="muted">
-        合成交互，不调用 Core 或 Runner，也不表示真实保存、提交、复核或批准 · {reviewFixtureMarker}
-      </p>
-      <div>
-        <label>
-          个人草稿保存回执
-          <select
-            value={memory.draftOutcome}
-            onChange={(event) => {
-              memory.draftOutcome = event.target.value as ReviewDraftState;
-              notify();
-            }}
-          >
-            <option value="SAVED">已保存</option>
-            <option value="UNSAVED">保存失败</option>
-            <option value="CONFLICT">草稿冲突（另一设备）</option>
-            <option value="UNKNOWN">保存结果待核验</option>
-            <option value="UNAVAILABLE">服务器草稿未接入</option>
-          </select>
-        </label>
-        <button onClick={fixture.applySaveReceipt}>返回草稿保存回执</button>
-        <label>
-          原提交的查询结果
-          <select
-            value={memory.receiptOutcome}
-            onChange={(event) => {
-              memory.receiptOutcome = event.target.value as ReceiptOutcome;
-              notify();
-            }}
-          >
-            <option value="unknown">暂时仍查不到回执</option>
-            <option value="accepted">已接收，等待安排</option>
-            <option value="running">已确认正在修改</option>
-            <option value="mismatch">回执上下文不匹配</option>
-          </select>
-        </label>
-        <label>
-          单文件批准回执
-          <select
-            value={memory.approvalOutcome}
-            onChange={(event) => {
-              memory.approvalOutcome = event.target.value as ApprovalOutcome;
-              notify();
-            }}
-          >
-            <option value="hold">等待回执</option>
-            <option value="accepted">匹配批准成功并进入下一份</option>
-            <option value="unknown">批准结果待核验</option>
-            <option value="mismatch">错上下文回执</option>
-          </select>
-        </label>
-        <label>
-          下载状态
-          <select
-            value={memory.download}
-            onChange={(event) => {
-              memory.download = event.target.value as 'AVAILABLE' | 'UNAVAILABLE';
-              notify();
-            }}
-          >
-            <option value="AVAILABLE">已登记表示</option>
-            <option value="UNAVAILABLE">未提供已登记表示</option>
-          </select>
-        </label>
-        {extra}
+    <MockControls>
+      <details className="execution-controls review-controls">
+        <summary>审查演示控制与边界</summary>
         <p className="muted">
-          当前上下文 {contextKey} · 已批准 {memory.approved.size} 份 ·
-          自动核验预算按已批准策略（最多 3 次、累计 10 秒）
+          合成交互，不调用 Core 或 Runner，也不表示真实保存、提交、复核或批准 ·{' '}
+          {reviewFixtureMarker}
         </p>
-      </div>
-    </details>
+        <div>
+          <label>
+            个人草稿保存回执
+            <select
+              value={memory.draftOutcome}
+              onChange={(event) => {
+                memory.draftOutcome = event.target.value as ReviewDraftState;
+                notify();
+              }}
+            >
+              <option value="SAVED">已保存</option>
+              <option value="UNSAVED">保存失败</option>
+              <option value="CONFLICT">草稿冲突（另一设备）</option>
+              <option value="UNKNOWN">保存结果待核验</option>
+              <option value="UNAVAILABLE">服务器草稿未接入</option>
+            </select>
+          </label>
+          <button onClick={fixture.applySaveReceipt}>返回草稿保存回执</button>
+          <label>
+            原提交的查询结果
+            <select
+              value={memory.receiptOutcome}
+              onChange={(event) => {
+                memory.receiptOutcome = event.target.value as ReceiptOutcome;
+                notify();
+              }}
+            >
+              <option value="unknown">暂时仍查不到回执</option>
+              <option value="accepted">已接收，等待安排</option>
+              <option value="running">已确认正在修改</option>
+              <option value="mismatch">回执上下文不匹配</option>
+            </select>
+          </label>
+          <label>
+            单文件批准回执
+            <select
+              value={memory.approvalOutcome}
+              onChange={(event) => {
+                memory.approvalOutcome = event.target.value as ApprovalOutcome;
+                notify();
+              }}
+            >
+              <option value="hold">等待回执</option>
+              <option value="accepted">匹配批准成功并进入下一份</option>
+              <option value="unknown">批准结果待核验</option>
+              <option value="mismatch">错上下文回执</option>
+            </select>
+          </label>
+          <label>
+            下载状态
+            <select
+              value={memory.download}
+              onChange={(event) => {
+                memory.download = event.target.value as 'AVAILABLE' | 'UNAVAILABLE';
+                notify();
+              }}
+            >
+              <option value="AVAILABLE">已登记表示</option>
+              <option value="UNAVAILABLE">未提供已登记表示</option>
+            </select>
+          </label>
+          {extra}
+          <p className="muted">
+            当前上下文 {contextKey} · 已批准 {memory.approved.size} 份 ·
+            自动核验预算按已批准策略（最多 3 次、累计 10 秒）
+          </p>
+        </div>
+      </details>
+    </MockControls>
   );
 }
 

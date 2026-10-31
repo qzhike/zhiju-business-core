@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U2_ADAPTER_ONLY: isolated U2 review adapter. It consumes the U1
 // plan context, never reads customer files or calls Core/Runner, and keeps all
 // requests, saves and finalizations in page memory.
@@ -16,6 +17,7 @@ import {
   StageReviewPage,
   type StageReviewBasisItem,
   type StageReviewFileView,
+  type StageReworkImpactView,
   type StageGenerationStatus,
 } from '../mvp/StageReviewPage.js';
 import {
@@ -36,6 +38,7 @@ import {
   planReady,
   procedureBasis,
   projectScope,
+  rulesBasis,
   sameVersionSet,
   stageScope,
   viewedVersionSet,
@@ -64,20 +67,15 @@ import {
   adoptLatestVersions,
   u3ImpactNote,
   u3ManualImpactFiles,
-  u3ProcedureImpactFiles,
+  u3RulesImpactFiles,
 } from './u3-data.js';
-import {
-  recordsReviewMatches,
-  recordsReviewStale,
-  type RecordsReviewMarker,
-  type ReworkImpact,
-} from '../mvp/u3-model.js';
+import type { ReworkBasisChange, ReworkImpact } from '../mvp/u3-model.js';
 import type { ReviewOpinionScopeOption } from '../review/model.js';
 
 const projectId = u1Project.id;
 const manualPath = `/projects/${projectId}/stages/manual`;
 const proceduresPath = `/projects/${projectId}/stages/procedures`;
-const recordsPath = `/projects/${projectId}/stages/records`;
+const rulesPath = `/projects/${projectId}/stages/rules`;
 const scopePath = `/projects/${projectId}/startup/U1-REPORT-02`;
 const reworkPath = `/projects/${projectId}/rework`;
 const recoveryPath = `/projects/${projectId}/recovery`;
@@ -86,7 +84,7 @@ const deliveryPath = `/projects/${projectId}/delivery`;
 const stageByParam: Record<string, MvpStageId> = {
   manual: 'MANUAL',
   procedures: 'PROCEDURES',
-  records: 'RECORDS',
+  rules: 'RULES',
 };
 export function planStageFiles(plan: PlanView, stage: MvpStageId): PlanFile[] {
   return plan.files.filter(
@@ -95,8 +93,8 @@ export function planStageFiles(plan: PlanView, stage: MvpStageId): PlanFile[] {
       (stage === 'MANUAL'
         ? file.level === 'MANUAL'
         : stage === 'PROCEDURES'
-          ? file.level === 'PROCEDURE' || file.level === 'RULE'
-          : file.level === 'RECORD'),
+          ? file.level === 'PROCEDURE'
+          : file.level === 'RULE' || file.level === 'RECORD'),
   );
 }
 
@@ -137,6 +135,15 @@ interface GenerationReceipt {
   versions: FileVersionRef[];
 }
 
+export interface GenerationAttempt {
+  requestId: string;
+  status: 'PENDING' | 'UNKNOWN' | 'FAILED' | 'RECEIVED' | 'MISMATCH';
+  message: string;
+  createdAt: string;
+  unresolvedHistory: boolean;
+  versions: readonly FileVersionRef[];
+}
+
 export interface StageSession {
   planKey: string;
   stage: MvpStageId;
@@ -144,6 +151,7 @@ export interface StageSession {
   generationScene: 'matched' | 'missing' | 'pending' | 'unknown' | 'failed' | 'mismatch';
   generationRequest?:
     { intent: GenerationIntent; receipt?: GenerationReceipt | undefined } | undefined;
+  generationAttempts: GenerationAttempt[];
   files: Record<string, SessionFileState>;
   removed: Record<string, string[]>;
   activeFileId?: string | undefined;
@@ -161,8 +169,6 @@ export interface StageSession {
   finalization?: StageFinalization | undefined;
   /** Previous exact finalizations retained when a newer set replaces the current basis. */
   finalizationHistory: { finalization: StageFinalization; supersededBy: string }[];
-  /** Records-form review binds exact versions and both upstream finalizations. */
-  reworkReview?: RecordsReviewMarker | undefined;
   candidateScene: 'matched' | 'mismatch';
   message?: string | undefined;
   simulatedAnswer?: boolean | undefined;
@@ -178,6 +184,7 @@ export function emptySession(key: string, stage: MvpStageId): StageSession {
     stage,
     generationStatus: 'NONE',
     generationScene: 'matched',
+    generationAttempts: [],
     files: {},
     removed: {},
     drafts: {},
@@ -190,6 +197,21 @@ export function emptySession(key: string, stage: MvpStageId): StageSession {
     finalizationStatus: 'NONE',
     finalizationHistory: [],
     candidateScene: 'matched',
+  };
+}
+
+function generationAttempt(
+  intent: GenerationIntent,
+  status: GenerationAttempt['status'],
+  message: string,
+): GenerationAttempt {
+  return {
+    requestId: intent.requestId,
+    status,
+    message,
+    createdAt: new Date().toISOString(),
+    unresolvedHistory: status !== 'RECEIVED',
+    versions: intent.versions,
   };
 }
 
@@ -275,17 +297,6 @@ function reportBasis(plan: PlanView): string {
   return `${plan.planId} 第 ${plan.version} 版`;
 }
 
-function stageLatestSet(
-  plan: PlanView,
-  stage: MvpStageId,
-  session: StageSession,
-): FileVersionRef[] {
-  return planStageFiles(plan, stage).flatMap((file) => {
-    const latest = session.files[file.id]?.versions.at(-1);
-    return latest ? [{ fileId: file.id, versionId: latest }] : [];
-  });
-}
-
 /** A manual re-finalization conservatively marks the whole downstream stage. */
 export function manualReworkImpact(
   plan: PlanView,
@@ -297,61 +308,82 @@ export function manualReworkImpact(
     return undefined;
   const planned = new Set(plan.files.map((file) => file.id));
   return {
-    source: 'MANUAL',
-    previousBasisId: procedureFinalization.manualFinalizationId ?? '未绑定手册定稿',
-    newBasisId: manualFinalization.finalizationId,
-    stages: ['PROCEDURES', 'RECORDS'],
+    changes: [
+      {
+        source: 'MANUAL',
+        previousBasisId: procedureFinalization.manualFinalizationId ?? '未绑定手册定稿',
+        newBasisId: manualFinalization.finalizationId,
+      },
+    ],
+    stages: ['PROCEDURES', 'RULES'],
     files: u3ManualImpactFiles.filter((file) => planned.has(file.fileId)),
     note: u3ImpactNote,
   };
 }
 
-/** Records need review until exact versions and both upstream bases are recorded. */
-export function recordsReworkState(
+/** The third stage is stale until its exact set and both upstream bases match. */
+export function rulesReworkState(
   plan: PlanView,
   manualFinalization: StageFinalization | undefined,
   procedureFinalization: StageFinalization | undefined,
-  session: StageSession,
+  rulesFinalization: StageFinalization | undefined,
 ): {
   active: boolean;
   impact?: ReworkImpact | undefined;
-  reviewed: boolean;
-  latest: readonly FileVersionRef[];
   reason?: string | undefined;
 } {
-  const latest = stageLatestSet(plan, 'RECORDS', session);
-  if (!manualFinalization || !procedureFinalization)
-    return { active: false, reviewed: false, latest };
-  const marker = session.reworkReview;
+  if (!manualFinalization || !procedureFinalization || !rulesFinalization) return { active: false };
   const planned = new Set(plan.files.map((file) => file.id));
-  const impact: ReworkImpact = {
-    source: 'PROCEDURES',
-    previousBasisId: marker?.procedureFinalizationId ?? '尚未复核记录表单',
-    newBasisId: procedureFinalization.finalizationId,
-    stages: ['RECORDS'],
-    files: u3ProcedureImpactFiles.filter((file) => planned.has(file.fileId)),
-    note: u3ImpactNote,
+  const manualChanged =
+    rulesFinalization.manualFinalizationId !== manualFinalization.finalizationId;
+  const procedureChanged =
+    rulesFinalization.procedureFinalizationId !== procedureFinalization.finalizationId;
+  if (!manualChanged && !procedureChanged) return { active: false };
+  const changes: ReworkBasisChange[] = [];
+  if (manualChanged)
+    changes.push({
+      source: 'MANUAL',
+      previousBasisId: rulesFinalization.manualFinalizationId ?? '未绑定手册定稿',
+      newBasisId: manualFinalization.finalizationId,
+    });
+  if (procedureChanged)
+    changes.push({
+      source: 'PROCEDURES',
+      previousBasisId: rulesFinalization.procedureFinalizationId ?? '未绑定控制程序定稿',
+      newBasisId: procedureFinalization.finalizationId,
+    });
+  return {
+    active: true,
+    impact: {
+      changes,
+      stages: ['RULES'],
+      files: u3RulesImpactFiles.filter((file) => planned.has(file.fileId)),
+      note: u3ImpactNote,
+    },
+    reason:
+      manualChanged && procedureChanged
+        ? '质量手册与控制程序均已重新定稿；管理制度及记录表单需按两项当前依据重新核对完整集合。'
+        : manualChanged
+          ? '质量手册重新定稿；管理制度及记录表单需按当前手册与控制程序重新核对完整集合。'
+          : '控制程序重新定稿；管理制度及记录表单需按当前控制程序重新核对完整集合。',
   };
-  if (!marker) return { active: true, impact, reviewed: false, latest, reason: '复核标记缺失。' };
-  if (
-    !recordsReviewMatches(marker, {
-      projectId,
-      planId: plan.planId,
-      planVersion: plan.version,
-      manualFinalizationId: manualFinalization.finalizationId,
-      procedureFinalizationId: procedureFinalization.finalizationId,
-    })
-  )
-    return { active: true, impact, reviewed: false, latest, reason: '复核依据已变化。' };
-  if (recordsReviewStale(marker, latest))
-    return {
-      active: true,
-      impact,
-      reviewed: false,
-      latest,
-      reason: '复核后出现新候选或精确版本变化。',
-    };
-  return { active: false, reviewed: true, latest };
+}
+
+function impactView(impact: ReworkImpact): StageReworkImpactView {
+  return {
+    changes: impact.changes.map((change) => ({
+      sourceLabel: change.source === 'MANUAL' ? '质量手册重新定稿' : '控制程序重新定稿',
+      previousBasisId: change.previousBasisId,
+      newBasisId: change.newBasisId,
+    })),
+    note: impact.note,
+    files: impact.files.map((file) => ({
+      fileId: file.fileId,
+      title: file.title,
+      actionLabel: file.action === 'REVISE' ? '修改' : '保留',
+      reason: file.reason,
+    })),
+  };
 }
 
 function withFinalization(session: StageSession, receipt: FinalizationReceipt): StageSession {
@@ -376,7 +408,8 @@ function basisText(basis: OpinionBasis): string {
     `${basis.planId} 第 ${basis.planVersion} 版`,
     basis.files.map((file) => `${file.fileId}@${file.versionId}`).join('、') || '无文件',
     basis.manualFinalizationId ? `手册定稿 ${basis.manualFinalizationId}` : '',
-    basis.procedureFinalizationId ? `第二阶段定稿 ${basis.procedureFinalizationId}` : '',
+    basis.procedureFinalizationId ? `控制程序定稿 ${basis.procedureFinalizationId}` : '',
+    basis.rulesFinalizationId ? `第三阶段定稿 ${basis.rulesFinalizationId}` : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -389,16 +422,47 @@ const submissionLabels: Record<MvpSubmission['status'], string> = {
   FAILED: '失败（模拟）',
 };
 
+export interface RoundOpinionInput {
+  planKey: string;
+  planId: string;
+  planVersion: number;
+  projectId: string;
+  stage: MvpStageId;
+  text: string;
+  files: readonly FileVersionRef[];
+  manualFinalizationId?: string | undefined;
+  procedureFinalizationId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
+}
+
+export type RoundOpinionResult = { ok: true; requestId: string } | { ok: false; reason: string };
+
+export interface StageActionResult {
+  ok: boolean;
+  reason?: string | undefined;
+  finalizationId?: string | undefined;
+}
+
 export interface U2Api {
   plan: PlanView;
   planCheck: { ready: boolean; reason?: string | undefined };
+  stageReady: Record<MvpStageId, { ready: boolean; reason?: string | undefined }>;
   reviewedReportId: string;
   reviewStages: readonly JourneyReviewStage[];
   sessions: Record<string, StageSession>;
   manualFinalization?: StageFinalization | undefined;
   procedureFinalization?: StageFinalization | undefined;
+  rulesFinalization?: StageFinalization | undefined;
   update: (stage: MvpStageId, change: (session: StageSession) => StageSession) => void;
   updateAny: (change: (session: StageSession) => StageSession) => void;
+  submitRoundOpinions: (input: RoundOpinionInput) => RoundOpinionResult;
+  generateInitial: (stage: MvpStageId) => StageActionResult;
+  reconcileGeneration: (stage: MvpStageId) => StageActionResult;
+  retryGeneration: (stage: MvpStageId) => StageActionResult;
+  addNextCandidate: (stage: MvpStageId) => void;
+  viewLatest: (stage: MvpStageId) => void;
+  finalizeStage: (stage: MvpStageId) => StageActionResult;
+  simulateManualRefinalization: () => void;
 }
 
 const U2Context = createContext<U2Api | null>(null);
@@ -410,14 +474,18 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
   const planCheck = planReady(planBinding(plan));
   const manualKey = sessionKey(plan, 'MANUAL');
   const procedureKey = sessionKey(plan, 'PROCEDURES');
+  const rulesKey = sessionKey(plan, 'RULES');
   const manualSession = sessions[manualKey] ?? emptySession(manualKey, 'MANUAL');
   const procedureSession = sessions[procedureKey] ?? emptySession(procedureKey, 'PROCEDURES');
+  const rulesSession = sessions[rulesKey] ?? emptySession(rulesKey, 'RULES');
   const manualFinalization =
     manualSession.finalization?.stage === 'MANUAL' ? manualSession.finalization : undefined;
   const procedureFinalization =
     procedureSession.finalization?.stage === 'PROCEDURES'
       ? procedureSession.finalization
       : undefined;
+  const rulesFinalization =
+    rulesSession.finalization?.stage === 'RULES' ? rulesSession.finalization : undefined;
   const manualReady = manualBasis(manualFinalization, {
     projectId,
     planId: plan.planId,
@@ -435,10 +503,20 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     manualFinalizationId: manualFinalization?.finalizationId,
     procedureFileIds: planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
   });
+  const rulesReady = rulesBasis(rulesFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFinalizationId: manualFinalization?.finalizationId,
+    procedureFinalizationId: procedureFinalization?.finalizationId,
+    ruleFileIds: planStageFiles(plan, 'RULES').map((file) => file.id),
+  });
   const stageReady: Record<MvpStageId, { ready: boolean; reason?: string | undefined }> = {
     MANUAL: planCheck,
     PROCEDURES: planCheck.ready ? { ready: manualReady.ok, reason: manualReady.reason } : planCheck,
-    RECORDS: !planCheck.ready
+    RULES: !planCheck.ready
       ? planCheck
       : !manualReady.ok
         ? { ready: false, reason: manualReady.reason }
@@ -454,21 +532,22 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
     },
     {
       id: 'PROCEDURES',
-      label: '程序与制度审阅',
+      label: '控制程序审阅',
       href: proceduresPath,
       ready: stageReady.PROCEDURES.ready,
       reason: stageReady.PROCEDURES.reason,
     },
     {
-      id: 'RECORDS',
-      label: '记录表单审阅',
-      href: recordsPath,
-      ready: stageReady.RECORDS.ready,
-      reason: stageReady.RECORDS.reason,
+      id: 'RULES',
+      label: '管理制度及记录表单审阅',
+      href: rulesPath,
+      ready: stageReady.RULES.ready,
+      reason: stageReady.RULES.reason,
     },
   ];
   const manualDone = manualReady.ok;
   const procedureDone = procedureReady.ok;
+  const rulesDone = rulesReady.ok;
   const handoff: MvpHandoff = {
     reviewStages,
     ...(planCheck.ready
@@ -484,7 +563,7 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
             },
             {
               id: 'procedures',
-              label: '控制程序与管理制度',
+              label: '控制程序',
               state: procedureDone
                 ? '已定稿（模拟）'
                 : manualDone
@@ -493,16 +572,22 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
               detail: procedureDone
                 ? `模拟定稿 ${procedureFinalization?.finalizationId ?? ''} 已绑定完整版本集合。`
                 : manualDone
-                  ? '以已定稿质量手册为依据，两类文件同轮审阅并整体确认。'
-                  : '第二阶段以质量手册的精确模拟定稿为依据。',
+                  ? '以已定稿质量手册为依据，整体确认控制程序的精确版本集合。'
+                  : '控制程序以质量手册的精确模拟定稿为依据。',
             },
             {
-              id: 'records',
-              label: '记录表单与交付',
-              state: procedureDone ? '待审阅（演示）' : '等待第二阶段定稿',
-              detail: procedureDone
-                ? '以前两阶段精确版本为依据；最终交付确认与打包属于 U3。'
-                : '前两阶段模拟定稿齐全后可进入 Markdown 记录表单审阅。',
+              id: 'rules',
+              label: '管理制度及记录表单',
+              state: rulesDone
+                ? '已定稿（模拟）'
+                : procedureDone
+                  ? '待审阅（演示）'
+                  : '等待控制程序定稿',
+              detail: rulesDone
+                ? `模拟定稿 ${rulesFinalization?.finalizationId ?? ''} 已绑定管理制度与记录表单完整集合。`
+                : procedureDone
+                  ? '以质量手册和已定稿控制程序为依据，整体确认管理制度及记录表单。'
+                  : '第三阶段以质量手册与控制程序的精确模拟定稿为依据。',
             },
           ],
           next: !manualDone
@@ -513,15 +598,21 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
               }
             : !procedureDone
               ? {
-                  label: '进入程序与制度审阅',
+                  label: '进入控制程序审阅',
                   href: proceduresPath,
-                  reason: '质量手册已有模拟定稿；下一步联动审阅控制程序与管理制度。',
+                  reason: '质量手册已有模拟定稿；下一步整体确认控制程序精确版本集合。',
                 }
-              : {
-                  label: '进入记录表单审阅',
-                  href: recordsPath,
-                  reason: '第二阶段完整集合已定稿；下一步核对记录表单依据。',
-                },
+              : !rulesDone
+                ? {
+                    label: '进入管理制度及记录表单审阅',
+                    href: rulesPath,
+                    reason: '控制程序完整集合已定稿；下一步整体确认管理制度及记录表单。',
+                  }
+                : {
+                    label: '进入最终交付确认（模拟）',
+                    href: deliveryPath,
+                    reason: '三个阶段均已有模拟定稿；下一步核对并冻结最终交付清单。',
+                  },
         }
       : {}),
   };
@@ -545,16 +636,401 @@ export function FixtureU2Provider({ children }: { children: ReactNode }) {
       return changed ? next : previous;
     });
   };
+  const submitRoundOpinions = (input: RoundOpinionInput): RoundOpinionResult => {
+    if (input.files.length === 0) return { ok: false, reason: '本轮没有可提交的文件意见。' };
+    const sourcePlan = u1.plans.find(
+      (plan) => plan.planId === input.planId && plan.version === input.planVersion,
+    );
+    if (sourcePlan?.state !== 'CONFIRMED' || sourcePlan.supersededBy)
+      return {
+        ok: false,
+        reason: `计划 ${input.planId} 第 ${input.planVersion} 版不是当前可执行的已确认计划；历史轮次只能查看。`,
+      };
+    const activeNow = activeSubmission(
+      Object.values(sessions).flatMap((candidate) => candidate.submissions),
+    );
+    if (activeNow)
+      return {
+        ok: false,
+        reason: `本项目已有待回执或待核验的修改请求 ${activeNow.requestId}；请先核对原请求。`,
+      };
+    const current = sessions[input.planKey] ?? emptySession(input.planKey, input.stage);
+    const basis: OpinionBasis = {
+      planId: input.planId,
+      planVersion: input.planVersion,
+      ...(input.manualFinalizationId ? { manualFinalizationId: input.manualFinalizationId } : {}),
+      ...(input.procedureFinalizationId
+        ? { procedureFinalizationId: input.procedureFinalizationId }
+        : {}),
+      ...(input.rulesFinalizationId ? { rulesFinalizationId: input.rulesFinalizationId } : {}),
+      files: input.files.map((file) => ({ ...file })),
+    };
+    const scope = stageScope(input.stage);
+    const already = current.submissions.find(
+      (submission) =>
+        submission.status === 'RECEIVED' &&
+        submission.scope.id === scope.id &&
+        submission.basis.planId === basis.planId &&
+        submission.basis.planVersion === basis.planVersion &&
+        sameVersionSet(submission.basis.files, basis.files),
+    );
+    if (already)
+      return {
+        ok: false,
+        reason: `本轮意见已登记为 ${already.requestId}；请等待新候选后再提交。`,
+      };
+    const requestId = `U2-REV-${crypto.randomUUID().slice(0, 8)}`;
+    const submission: MvpSubmission = {
+      submissionId: `U2-SUB-${crypto.randomUUID().slice(0, 8)}`,
+      requestId,
+      scope,
+      text: input.text,
+      basis,
+      status: 'RECEIVED',
+      note: '结果总览已提交本轮文件意见（模拟）；未生成新候选，等待显式演练下一轮候选。',
+      submittedAt: new Date().toISOString(),
+    };
+    const receipt: RevisionReceipt = {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      requestId,
+      projectId: input.projectId,
+      stage: input.stage,
+      scope,
+      basis,
+    };
+    setSessions((previous) => ({
+      ...previous,
+      [input.planKey]: {
+        ...current,
+        revisionIntents: {
+          ...current.revisionIntents,
+          [requestId]: {
+            requestId,
+            projectId: input.projectId,
+            stage: input.stage,
+            scope,
+            text: input.text,
+            basis,
+          },
+        },
+        revisionReceipts: { ...current.revisionReceipts, [requestId]: receipt },
+        submissions: [...current.submissions, submission],
+        message: `结果总览已登记模拟修改请求 ${requestId}；未调用 Runner。`,
+      },
+    }));
+    return { ok: true, requestId };
+  };
+  const generateSession = (current: StageSession, stage: MvpStageId): StageSession => {
+    if (!stageReady[stage].ready)
+      return { ...current, message: stageReady[stage].reason ?? '当前阶段尚未就绪。' };
+    if (Object.values(current.files).some((file) => file.versions.length > 0))
+      return { ...current, message: '本阶段已有候选；请审阅或重新定稿，不重复生成。' };
+    if (current.generationStatus === 'PENDING' || current.generationStatus === 'UNKNOWN')
+      return { ...current, message: '原生成请求仍未决；只核对原请求，不创建第二个意图。' };
+    const stageFiles = planStageFiles(plan, stage);
+    const allVersions = stageFiles
+      .map((file) => {
+        const versionId = u2VersionsFor(file.id)[0];
+        return versionId ? versionRef(file, versionId) : undefined;
+      })
+      .filter((ref): ref is FileVersionRef => ref !== undefined);
+    if (allVersions.length !== stageFiles.length)
+      return { ...current, message: '当前计划缺少可用候选版本；不能生成完整集合。' };
+    const scene = current.generationScene;
+    const versions = scene === 'missing' ? allVersions.slice(0, -1) : allVersions;
+    const intent: GenerationIntent = {
+      requestId: `U2-GEN-${crypto.randomUUID().slice(0, 8)}`,
+      projectId,
+      stage,
+      planId: plan.planId,
+      planVersion: plan.version,
+      versions,
+    };
+    if (scene === 'failed') {
+      const message = '模拟生成失败；范围确认与输入保留，可重试本次生成。';
+      return {
+        ...current,
+        generationStatus: 'FAILED',
+        generationRequest: { intent },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'FAILED', message),
+        ],
+        message,
+      };
+    }
+    if (scene === 'pending' || scene === 'unknown') {
+      const message =
+        scene === 'pending'
+          ? '生成请求待回执；重复操作不会创建第二个意图。'
+          : '生成结果未知；只能核对原请求。';
+      return {
+        ...current,
+        generationStatus: scene === 'pending' ? 'PENDING' : 'UNKNOWN',
+        generationRequest: { intent },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, scene === 'pending' ? 'PENDING' : 'UNKNOWN', message),
+        ],
+        message,
+      };
+    }
+    if (scene === 'mismatch') {
+      const receipt: GenerationReceipt = {
+        classification: 'DEVELOPMENT_FIXTURE_ONLY',
+        requestId: intent.requestId,
+        projectId,
+        stage,
+        planId: plan.planId,
+        planVersion: plan.version + 1,
+        versions,
+      };
+      const message = '模拟回执上下文不匹配；只能核对原请求。';
+      return {
+        ...current,
+        generationStatus: 'PENDING',
+        generationRequest: { intent, receipt },
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'MISMATCH', message),
+        ],
+        message,
+      };
+    }
+    const message =
+      scene === 'missing'
+        ? '生成回执已到达，但模拟缺少一份文件；完整集合不能定稿。'
+        : '候选已到达（模拟）；请核对本阶段文件。';
+    return {
+      ...applyVersions(current, versions),
+      generationStatus: 'RECEIVED',
+      generationRequest: { intent },
+      generationAttempts: [
+        ...current.generationAttempts,
+        generationAttempt(intent, 'RECEIVED', message),
+      ],
+      message,
+    };
+  };
+
+  const generateInitial = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const next = generateSession(current, stage);
+    if (next !== current) setSessions((previous) => ({ ...previous, [key]: next }));
+    return next.generationStatus === 'RECEIVED'
+      ? { ok: true }
+      : { ok: false, reason: next.message };
+  };
+
+  const reconcileGeneration = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const request = current.generationRequest;
+    if (!request) return { ok: false, reason: '没有可核对的原生成请求。' };
+    if (current.generationStatus === 'FAILED')
+      return { ok: false, reason: '原生成请求已失败；请重试本次生成。' };
+    if (request.receipt && !generationReceiptMatches(request.intent, request.receipt)) {
+      const message = '原生成回执与项目、阶段或版本不匹配，未应用任何候选。';
+      const next: StageSession = {
+        ...current,
+        generationStatus: 'MISMATCH',
+        generationAttempts: current.generationAttempts.map((attempt) =>
+          attempt.requestId === request.intent.requestId
+            ? { ...attempt, status: 'MISMATCH', message, unresolvedHistory: true }
+            : attempt,
+        ),
+        message,
+      };
+      setSessions((previous) => ({ ...previous, [key]: next }));
+      return { ok: false, reason: message };
+    }
+    const receipt: GenerationReceipt = request.receipt ?? {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      requestId: request.intent.requestId,
+      projectId: request.intent.projectId,
+      stage: request.intent.stage,
+      planId: request.intent.planId,
+      planVersion: request.intent.planVersion,
+      versions: request.intent.versions,
+    };
+    const message = '已核对原生成请求并确认回执；未创建第二个意图。';
+    const next: StageSession = {
+      ...applyVersions(current, receipt.versions),
+      generationStatus: 'RECEIVED',
+      generationRequest: { ...request, receipt },
+      generationAttempts: current.generationAttempts.map((attempt) =>
+        attempt.requestId === request.intent.requestId
+          ? { ...attempt, status: 'RECEIVED', message, unresolvedHistory: true }
+          : attempt,
+      ),
+      message,
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+    return { ok: true };
+  };
+
+  const addNextCandidate = (stage: MvpStageId) => {
+    const key = sessionKey(plan, stage);
+    const stageFiles = planStageFiles(plan, stage);
+    setSessions((previous) => {
+      const current = previous[key] ?? emptySession(key, stage);
+      const unviewed = stageFiles.some((file) => {
+        const state = current.files[file.id];
+        const latest = state?.versions.at(-1);
+        return latest !== undefined && latest !== state?.viewedVersionId;
+      });
+      if (unviewed) {
+        return {
+          ...previous,
+          [key]: { ...current, message: '已有新稿等待查看；请先显式查看当前新稿。' },
+        };
+      }
+      let next = current;
+      const announced: string[] = [];
+      for (const file of stageFiles) {
+        const state = next.files[file.id];
+        const candidate = u2VersionsFor(file.id).find(
+          (versionId) => !state?.versions.includes(versionId),
+        );
+        if (!candidate) continue;
+        next = addSessionVersion(next, file.id, candidate);
+        announced.push(`${file.title} ${u2VersionLabel(candidate)}`);
+      }
+      const message =
+        announced.length > 0
+          ? `新稿已到达（模拟）：${announced.join('、')}；当前阅读保持不变，请显式查看。`
+          : '本轮已没有后续模拟候选；可核对当前版本。';
+      return { ...previous, [key]: { ...next, message } };
+    });
+  };
+
+  const viewLatest = (stage: MvpStageId) => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const next = adoptLatestVersions(
+      current,
+      planStageFiles(plan, stage).map((file) => file.id),
+    );
+    if (next === current) return;
+    setSessions((previous) => ({
+      ...previous,
+      [key]: { ...next, message: '已显式查看最新候选；请重新核对差异与本轮意见。' },
+    }));
+  };
+
+  const finalizeStage = (stage: MvpStageId): StageActionResult => {
+    const key = sessionKey(plan, stage);
+    const current = sessions[key] ?? emptySession(key, stage);
+    const stageFiles = planStageFiles(plan, stage);
+    const availabilities = stageFiles.map((file) => fileAvailability(file, current.files[file.id]));
+    const currentSet = viewedVersionSet(availabilities);
+    const active = activeSubmission(
+      Object.values(sessions).flatMap((candidate) => candidate.submissions),
+    );
+    const upstreamBasisChanged =
+      stage === 'PROCEDURES'
+        ? current.finalization?.manualFinalizationId !== manualFinalization?.finalizationId
+        : stage === 'RULES'
+          ? current.finalization?.manualFinalizationId !== manualFinalization?.finalizationId ||
+            current.finalization?.procedureFinalizationId !== procedureFinalization?.finalizationId
+          : false;
+    const refinalizing = Boolean(
+      current.finalization &&
+      (upstreamBasisChanged ||
+        (currentSet && !sameVersionSet(currentSet, current.finalization.files))),
+    );
+    const upstreamCheck =
+      stage === 'MANUAL' ? { ok: true } : stage === 'PROCEDURES' ? manualReady : procedureReady;
+    const blocker = finalizationBlocker({
+      plan: planCheck,
+      upstream: upstreamCheck,
+      files: availabilities,
+      active: Boolean(active),
+      finalized: Boolean(current.finalization),
+      refinalization: refinalizing,
+    });
+    if (!stageReady[stage].ready)
+      return { ok: false, reason: stageReady[stage].reason ?? '当前阶段尚未就绪。' };
+    if (!currentSet) return { ok: false, reason: '完整集合缺少文件或版本。' };
+    if (blocker) return { ok: false, reason: blocker };
+    const intent: FinalizationIntent = {
+      requestId: `U2-FINAL-${crypto.randomUUID().slice(0, 8)}`,
+      projectId,
+      stage,
+      planId: plan.planId,
+      planVersion: plan.version,
+      files: currentSet,
+      inputRefs: planInputRefs(plan),
+      templateIds: plan.templateBasis,
+      ...(stage !== 'MANUAL' && manualFinalization
+        ? { manualFinalizationId: manualFinalization.finalizationId }
+        : {}),
+      ...(stage === 'RULES' && procedureFinalization
+        ? { procedureFinalizationId: procedureFinalization.finalizationId }
+        : {}),
+    };
+    const receipt: FinalizationReceipt = {
+      classification: 'DEVELOPMENT_FIXTURE_ONLY',
+      ...intent,
+      finalizationId: `U2-STAGE-${crypto.randomUUID().slice(0, 8)}`,
+      confirmedAt: new Date().toISOString(),
+    };
+    const next: StageSession = {
+      ...withFinalization(current, receipt),
+      finalizationStatus: 'DONE',
+      finalizationRequest: { intent, receipt },
+      message: current.finalization
+        ? '已按当前依据重新确认完整集合；原定稿保留在历史中。'
+        : '阶段完整集合已确认（模拟）；回执绑定精确计划、输入与版本集合。',
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+    return { ok: true, finalizationId: receipt.finalizationId };
+  };
+
+  const simulateManualRefinalization = () => {
+    const key = sessionKey(plan, 'MANUAL');
+    const current = sessions[key] ?? emptySession(key, 'MANUAL');
+    const source = current.finalization;
+    if (!source) return;
+    const nextFinalization: StageFinalization = {
+      ...source,
+      finalizationId: `U2-STAGE-${crypto.randomUUID().slice(0, 8)}`,
+      confirmedAt: new Date().toISOString(),
+    };
+    const next: StageSession = {
+      ...current,
+      finalization: nextFinalization,
+      finalizationStatus: 'DONE',
+      finalizationHistory: [
+        ...current.finalizationHistory,
+        { finalization: source, supersededBy: nextFinalization.finalizationId },
+      ],
+      message: '模拟质量手册重新定稿；控制程序与第三阶段旧集合保留，但需按新依据重新核对。',
+    };
+    setSessions((previous) => ({ ...previous, [key]: next }));
+  };
+
   const api: U2Api = {
     plan,
     planCheck,
+    stageReady,
     reviewedReportId: u1.viewedReportId,
     reviewStages,
     sessions,
     manualFinalization,
     procedureFinalization,
+    rulesFinalization,
     update,
     updateAny,
+    submitRoundOpinions,
+    generateInitial,
+    reconcileGeneration,
+    retryGeneration: generateInitial,
+    addNextCandidate,
+    viewLatest,
+    finalizeStage,
+    simulateManualRefinalization,
   };
   return (
     <U2Context.Provider value={api}>
@@ -578,7 +1054,14 @@ export function FixtureU2Stage() {
 }
 
 function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
-  const { plan, planCheck, sessions, manualFinalization, procedureFinalization } = api;
+  const {
+    plan,
+    planCheck,
+    sessions,
+    manualFinalization,
+    procedureFinalization,
+    rulesFinalization,
+  } = api;
   const key = sessionKey(plan, stage);
   const session = sessions[key] ?? emptySession(key, stage);
   const files = planStageFiles(plan, stage);
@@ -588,9 +1071,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     Object.values(sessions).flatMap((candidate) => candidate.submissions),
   );
   const recoveryActivity = useMvpActivity().recovery;
-  const allSubmissions = Object.values(sessions)
-    .flatMap((candidate) => candidate.submissions)
-    .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+  const allSubmissions = [...session.submissions].sort((left, right) =>
+    right.submittedAt.localeCompare(left.submittedAt),
+  );
   const myActive =
     active && session.submissions.some((submission) => submission.requestId === active.requestId)
       ? active
@@ -642,6 +1125,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     planVersion: plan.version,
     ...(manualId ? { manualFinalizationId: manualId } : {}),
     ...(procedureId ? { procedureFinalizationId: procedureId } : {}),
+    ...(stage === 'RULES' && rulesFinalization
+      ? { rulesFinalizationId: rulesFinalization.finalizationId }
+      : {}),
     files: currentSet ?? [],
   };
   const stageEvidence: StageReviewBasisItem[] = [
@@ -682,7 +1168,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             ...(procedureFinalization
               ? [
                   {
-                    label: '第二阶段完整集合',
+                    label: '控制程序完整集合',
                     detail: `${procedureFinalization.finalizationId} · ${procedureFinalization.files
                       .map((file) => `${file.fileId}@${file.versionId}`)
                       .join('、')}`,
@@ -704,7 +1190,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             ? { ready: true }
             : {
                 ready: false,
-                reason: '第二阶段以质量手册的精确模拟定稿为依据；当前尚无与计划匹配的手册定稿。',
+                reason: '控制程序以质量手册的精确模拟定稿为依据；当前尚无与计划匹配的手册定稿。',
                 returnHref: manualPath,
                 returnLabel: '返回质量手册审阅',
               }
@@ -721,13 +1207,13 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               : {
                   ready: false,
                   reason:
-                    '记录表单以第二阶段完整版本集合为依据；当前尚无与手册定稿匹配的第二阶段定稿。',
+                    '管理制度及记录表单以控制程序完整版本集合为依据；当前尚无与手册定稿匹配的控制程序定稿。',
                   returnHref: proceduresPath,
-                  returnLabel: '返回程序与制度审阅',
+                  returnLabel: '返回控制程序审阅',
                 }
             : {
                 ready: false,
-                reason: '记录表单需要先有质量手册定稿，再接续第二阶段完整集合定稿。',
+                reason: '第三阶段需要先有质量手册定稿，再接续控制程序完整集合定稿。',
                 returnHref: manualPath,
                 returnLabel: '返回质量手册审阅',
               }
@@ -747,13 +1233,44 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     const state = session.files[file.id];
     return (u2VersionsFor(file.id).at(-1) ?? '') !== (state?.versions.at(-1) ?? '');
   });
+  const upstreamBasisChanged =
+    stage === 'PROCEDURES'
+      ? session.finalization?.manualFinalizationId !== manualId
+      : stage === 'RULES'
+        ? session.finalization?.manualFinalizationId !== manualId ||
+          session.finalization?.procedureFinalizationId !== procedureId
+        : false;
   const refinalizing = Boolean(
-    session.finalization && currentSet && !sameVersionSet(currentSet, session.finalization.files),
+    session.finalization &&
+    (upstreamBasisChanged ||
+      (currentSet && !sameVersionSet(currentSet, session.finalization.files))),
   );
+  const manualBasisCheck = manualBasis(manualFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFileIds: planStageFiles(plan, 'MANUAL').map((file) => file.id),
+  });
+  const procedureBasisCheck = procedureBasis(procedureFinalization, {
+    projectId,
+    planId: plan.planId,
+    planVersion: plan.version,
+    inputRefs: planInputRefs(plan),
+    templateIds: plan.templateBasis,
+    manualFinalizationId: manualFinalization?.finalizationId,
+    procedureFileIds: planStageFiles(plan, 'PROCEDURES').map((file) => file.id),
+  });
+  const upstreamCheck =
+    stage === 'MANUAL'
+      ? { ok: true }
+      : stage === 'PROCEDURES'
+        ? manualBasisCheck
+        : procedureBasisCheck;
   const blocker = finalizationBlocker({
-    supported: stage !== 'RECORDS',
     plan: planCheck,
-    upstream: { ok: true },
+    upstream: upstreamCheck,
     files: availabilities,
     active: Boolean(active),
     finalized: Boolean(session.finalization),
@@ -779,45 +1296,12 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
     stage === 'PROCEDURES'
       ? manualReworkImpact(plan, manualFinalization, procedureFinalization)
       : undefined;
-  const recordsState =
-    stage === 'RECORDS'
-      ? recordsReworkState(plan, manualFinalization, procedureFinalization, session)
+  const rulesState =
+    stage === 'RULES'
+      ? rulesReworkState(plan, manualFinalization, procedureFinalization, rulesFinalization)
       : undefined;
-  const reviewRecords = () => {
-    if (!currentSet || !manualFinalization || !procedureFinalization) return;
-    update((current) => ({
-      ...current,
-      reworkReview: {
-        classification: 'DEVELOPMENT_FIXTURE_ONLY',
-        reviewId: `U3-REVIEW-${crypto.randomUUID().slice(0, 8)}`,
-        projectId,
-        planId: plan.planId,
-        planVersion: plan.version,
-        manualFinalizationId: manualFinalization.finalizationId,
-        procedureFinalizationId: procedureFinalization.finalizationId,
-        files: currentSet,
-        reviewedAt: new Date().toISOString(),
-      },
-      message:
-        '已记录记录表单受影响复核到当前精确版本；这不是定稿关卡，也不表示逐文件批准或最终交付。',
-    }));
-  };
-  const reviewFiles =
-    recordsState && session.reworkReview && !recordsState.active
-      ? session.reworkReview.files.map((ref) => {
-          const file = files.find((entry) => entry.id === ref.fileId);
-          return {
-            title: file?.title ?? ref.fileId,
-            versionLabel: u2VersionLabel(ref.versionId),
-          };
-        })
-      : (currentSet ?? []).map((ref) => {
-          const file = files.find((entry) => entry.id === ref.fileId);
-          return {
-            title: file?.title ?? ref.fileId,
-            versionLabel: u2VersionLabel(ref.versionId),
-          };
-        });
+  const rulesNotice = rulesState?.active ? rulesState.reason : undefined;
+  const rulesImpact = rulesState?.active ? rulesState.impact : undefined;
   const reworkView =
     stage === 'MANUAL'
       ? {
@@ -867,51 +1351,34 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               : {}),
             ...(procedureImpact
               ? {
-                  impact: {
-                    sourceLabel: '质量手册重新定稿',
-                    previousBasisId: procedureImpact.previousBasisId,
-                    newBasisId: procedureImpact.newBasisId,
-                    note: procedureImpact.note,
-                    files: procedureImpact.files.map((file) => ({
-                      fileId: file.fileId,
-                      title: file.title,
-                      actionLabel: file.action === 'REVISE' ? '修改' : '保留',
-                      reason: file.reason,
-                    })),
-                  },
+                  impact: impactView(procedureImpact),
                 }
               : {}),
           }
-        : recordsState
+        : rulesFinalization
           ? {
-              ...(recordsState.impact && recordsState.active
+              ...(rulesNotice ? { notice: rulesNotice } : {}),
+              ...(previousFinalization
                 ? {
-                    impact: {
-                      sourceLabel: '第二阶段完整集合定稿',
-                      previousBasisId: recordsState.impact.previousBasisId,
-                      newBasisId: recordsState.impact.newBasisId,
-                      note: recordsState.impact.note,
-                      files: recordsState.impact.files.map((file) => ({
-                        fileId: file.fileId,
-                        title: file.title,
-                        actionLabel: file.action === 'REVISE' ? '修改' : '保留',
-                        reason: file.reason,
-                      })),
+                    previous: {
+                      finalizationId: previousFinalization.finalization.finalizationId,
+                      supersededBy: previousFinalization.supersededBy,
+                      files: previousFinalization.finalization.files.map((ref) => {
+                        const file = files.find((entry) => entry.id === ref.fileId);
+                        return {
+                          fileId: ref.fileId,
+                          title: file?.title ?? ref.fileId,
+                          versionLabel: u2VersionLabel(ref.versionId),
+                        };
+                      }),
                     },
                   }
                 : {}),
-              review: {
-                reviewed: recordsState.reviewed,
-                reason:
-                  recordsState.reason ??
-                  '记录表单精确版本与质量手册、第二阶段完整集合一致；最终交付前需保留此复核。',
-                basisLabel: procedureFinalization
-                  ? `${manualFinalization?.finalizationId ?? '无手册定稿'} · ${procedureFinalization.finalizationId}`
-                  : '尚无第二阶段定稿',
-                files: reviewFiles,
-                canReview: readiness.ready && currentSet !== undefined,
-                onReview: reviewRecords,
-              },
+              ...(rulesImpact
+                ? {
+                    impact: impactView(rulesImpact),
+                  }
+                : {}),
             }
           : undefined;
   const canConfirm =
@@ -957,23 +1424,35 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         planVersion: plan.version,
         versions,
       };
-      if (scene === 'failed')
+      if (scene === 'failed') {
+        const message = '模拟生成失败；原计划与输入保留，可显式重新请求。';
         return {
           ...current,
           generationStatus: 'FAILED',
           generationRequest: { intent },
-          message: '模拟生成失败；原计划与输入保留，可显式重新请求。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, 'FAILED', message),
+          ],
+          message,
         };
-      if (scene === 'pending' || scene === 'unknown')
+      }
+      if (scene === 'pending' || scene === 'unknown') {
+        const message =
+          scene === 'pending'
+            ? '生成请求待回执；重复点击不会创建第二个意图。'
+            : '生成结果未知；只能查询原请求。';
         return {
           ...current,
           generationStatus: scene === 'pending' ? 'PENDING' : 'UNKNOWN',
           generationRequest: { intent },
-          message:
-            scene === 'pending'
-              ? '生成请求待回执；重复点击不会创建第二个意图。'
-              : '生成结果未知；只能查询原请求。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, scene === 'pending' ? 'PENDING' : 'UNKNOWN', message),
+          ],
+          message,
         };
+      }
       if (scene === 'mismatch') {
         const receipt: GenerationReceipt = {
           classification: 'DEVELOPMENT_FIXTURE_ONLY',
@@ -984,23 +1463,32 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           planVersion: plan.version + 1,
           versions,
         };
+        const message = '模拟回执上下文不匹配；请重新查询原请求核对。';
         return {
           ...current,
           generationStatus: 'PENDING',
           generationRequest: { intent, receipt },
-          message: '模拟回执上下文不匹配；请重新查询原请求核对。',
+          generationAttempts: [
+            ...current.generationAttempts,
+            generationAttempt(intent, 'MISMATCH', message),
+          ],
+          message,
         };
       }
+      const message =
+        scene === 'missing'
+          ? '生成回执已到达，但模拟缺少一份文件；缺失项显示为不可定稿，需返回核对。'
+          : '生成回执已到达；请核对本轮候选。';
       const withVersions = applyVersions(current, versions);
       return {
         ...withVersions,
         generationStatus: 'RECEIVED',
         generationRequest: { intent },
-        ...(scene === 'missing'
-          ? {
-              message: '生成回执已到达，但模拟缺少一份文件；缺失项显示为不可定稿，需返回核对。',
-            }
-          : {}),
+        generationAttempts: [
+          ...current.generationAttempts,
+          generationAttempt(intent, 'RECEIVED', message),
+        ],
+        ...(scene === 'missing' ? { message } : {}),
       };
     });
   };
@@ -1037,6 +1525,16 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         return {
           ...current,
           generationStatus: 'MISMATCH',
+          generationAttempts: current.generationAttempts.map((attempt) =>
+            attempt.requestId === request.intent.requestId
+              ? {
+                  ...attempt,
+                  status: 'MISMATCH',
+                  message: '原生成回执与项目、阶段或版本不匹配，未应用任何候选。',
+                  unresolvedHistory: true,
+                }
+              : attempt,
+          ),
           message: '原生成回执与项目、阶段或版本不匹配，未应用任何候选。',
         };
       }
@@ -1044,6 +1542,16 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       return {
         ...withVersions,
         generationStatus: 'RECEIVED',
+        generationAttempts: current.generationAttempts.map((attempt) =>
+          attempt.requestId === request.intent.requestId
+            ? {
+                ...attempt,
+                status: 'RECEIVED',
+                message: '已查询到原生成回执；未创建第二个意图。',
+                unresolvedHistory: attempt.unresolvedHistory,
+              }
+            : attempt,
+        ),
         message: '已查询到原生成回执；未创建第二个意图。',
       };
     });
@@ -1278,6 +1786,7 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         receipt.basis.planVersion === intent.basis.planVersion &&
         receipt.basis.manualFinalizationId === intent.basis.manualFinalizationId &&
         receipt.basis.procedureFinalizationId === intent.basis.procedureFinalizationId &&
+        receipt.basis.rulesFinalizationId === intent.basis.rulesFinalizationId &&
         sameVersionSet(receipt.basis.files, intent.basis.files);
       return {
         ...current,
@@ -1407,19 +1916,20 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const requestFinalization = () => {
-    if (stage === 'RECORDS' || !currentSet || !canFinalizeSet) return;
+    if (!currentSet || !canFinalizeSet) return;
     update((current) => {
       const scene = current.finalizationScene;
       const intent: FinalizationIntent = {
         requestId: `U2-FINAL-${crypto.randomUUID().slice(0, 8)}`,
         projectId,
-        stage: stage === 'PROCEDURES' ? 'PROCEDURES' : 'MANUAL',
+        stage,
         planId: plan.planId,
         planVersion: plan.version,
         files: currentSet,
         inputRefs: planInputRefs(plan),
         templateIds: plan.templateBasis,
-        ...(stage === 'PROCEDURES' && manualId ? { manualFinalizationId: manualId } : {}),
+        ...(stage !== 'MANUAL' && manualId ? { manualFinalizationId: manualId } : {}),
+        ...(stage === 'RULES' && procedureId ? { procedureFinalizationId: procedureId } : {}),
       };
       if (scene === 'failed')
         return {
@@ -1536,7 +2046,10 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         intent: request.intent,
         receipt: request.receipt,
         currentFiles: filesNow ?? [],
-        ...(stage === 'PROCEDURES' && manualId ? { currentManualFinalizationId: manualId } : {}),
+        ...(stage !== 'MANUAL' && manualId ? { currentManualFinalizationId: manualId } : {}),
+        ...(stage === 'RULES' && procedureId
+          ? { currentProcedureFinalizationId: procedureId }
+          : {}),
       });
       if (!evaluation.ok)
         return {
@@ -1622,49 +2135,6 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
           onDownload: () => Promise.resolve(),
         },
         workspace: {
-          files: {
-            list: {
-              totalCount: files.length,
-              entries: files.map((file) => {
-                const availability = availabilities.find((entry) => entry.fileId === file.id);
-                const viewed = availability?.viewedVersionId;
-                const next = availability ? candidateVersion(availability) : undefined;
-                const missing = !viewed;
-                return {
-                  fileId: file.id,
-                  code: file.id,
-                  title: file.title,
-                  state: missing ? ('UNCERTAIN' as const) : ('READY' as const),
-                  detail: missing
-                    ? '缺少该文件候选'
-                    : `${u2VersionLabel(viewed)}${next ? ` · ${u2VersionLabel(next)}已到达` : ''}`,
-                  openable: Boolean(viewed),
-                };
-              }),
-              currentFileId: activeFileId ?? '',
-              query: '',
-              stateFilter: 'ALL' as const,
-              loading: false,
-              status: `本阶段共 ${files.length} 份计划文件（演示）`,
-            },
-            actions: {
-              onSelect: (fileId: string) => {
-                const availability = availabilities.find((entry) => entry.fileId === fileId);
-                if (!availability?.viewedVersionId) return;
-                const planFile = files.find((file) => file.id === fileId);
-                update((current) => ({
-                  ...current,
-                  activeFileId: fileId,
-                  scopeId: fileVersionScope(stage, {
-                    fileId,
-                    title: planFile?.title ?? fileId,
-                    versionId: availability.viewedVersionId ?? '',
-                    versionLabel: u2VersionLabel(availability.viewedVersionId ?? ''),
-                  }).id,
-                }));
-              },
-            },
-          },
           ...(summary
             ? {
                 summary: {
@@ -1767,7 +2237,6 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const finalization = {
-    supported: stage !== 'RECORDS',
     status: session.finalizationStatus,
     reason: blocker ?? '完整集合已就绪；一次确认精确文件/版本与上游依据，只生成页面内模拟回执。',
     canConfirm,
@@ -1783,6 +2252,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             planLabel: reportBasis(plan),
             ...(session.finalization.manualFinalizationId
               ? { manualLabel: session.finalization.manualFinalizationId }
+              : {}),
+            ...(session.finalization.procedureFinalizationId
+              ? { procedureLabel: session.finalization.procedureFinalizationId }
               : {}),
             files: session.finalization.files.map((ref) => {
               const planFile = files.find((file) => file.id === ref.fileId);
@@ -1805,22 +2277,22 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const next =
     stage === 'MANUAL' && session.finalization
       ? {
-          label: '进入控制程序与管理制度审阅',
+          label: '进入控制程序审阅',
           href: proceduresPath,
-          reason: `质量手册模拟定稿 ${session.finalization.finalizationId} 已作为第二阶段依据；进入下一阶段不重复范围确认。`,
+          reason: `质量手册模拟定稿 ${session.finalization.finalizationId} 已作为控制程序依据；进入下一阶段不重复范围确认。`,
         }
       : stage === 'PROCEDURES' && session.finalization
         ? {
-            label: '进入记录表单审阅',
-            href: recordsPath,
-            reason: `第二阶段完整集合模拟定稿 ${session.finalization.finalizationId} 已作为记录表单依据；最终交付确认属于 U3。`,
+            label: '进入管理制度及记录表单审阅',
+            href: rulesPath,
+            reason: `控制程序完整集合模拟定稿 ${session.finalization.finalizationId} 已作为第三阶段依据；进入下一阶段不重复范围确认。`,
           }
-        : stage === 'RECORDS' && recordsState?.reviewed
+        : stage === 'RULES' && session.finalization
           ? {
               label: '进入最终交付确认（模拟）',
               href: `/projects/${projectId}/delivery`,
               reason:
-                '记录表单已复核到精确版本；最终交付清单仍需一次显式确认，阅读或复核本身不构成交付。',
+                '管理制度及记录表单完整集合已定稿；最终交付清单仍需一次显式确认，阅读或定稿本身不构成交付。',
             }
           : undefined;
 
@@ -1837,15 +2309,13 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
       };
     });
   };
-  const addRecordsCandidateVersion = (versionId: 'V2' | 'V3') => {
+  const addRulesCandidateVersion = (versionId: 'V2' | 'V3') => {
     update((current) => {
       let next = current;
       for (const file of files) {
         const candidate =
           versionId === 'V3'
-            ? file.id === 'F-FORM-APPLY'
-              ? (u2VersionsFor(file.id).at(-1) ?? 'V3')
-              : u2VersionsFor(file.id).at(-1)
+            ? u2VersionsFor(file.id).at(-1)
             : u2VersionsFor(file.id).includes('V2')
               ? 'V2'
               : undefined;
@@ -1855,8 +2325,8 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         ...next,
         message:
           versionId === 'V3'
-            ? '已模拟记录表单后续改稿到达；本次复核将过期，需重新核对精确版本。'
-            : '已模拟受影响记录表单候选到达；当前阅读与复核标记保持不变，请显式切换并核对。',
+            ? '已模拟第三阶段后续改稿到达；既有定稿仍是当前依据，需显式切换核对后重新定稿。'
+            : '已模拟第三阶段受影响候选到达；当前阅读与定稿保持不变，请显式切换并核对。',
       };
     });
   };
@@ -1871,134 +2341,134 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   };
 
   const controls = (
-    <details className="fixture-options" open>
-      <summary>U2 显式场景控制（演练）</summary>
-      <fieldset>
-        <legend>候选生成</legend>
-        <label>
-          生成回执场景
-          <select
-            value={session.generationScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['generationScene'];
-              update((current) => ({ ...current, generationScene: value }));
-            }}
-          >
-            <option value="matched">匹配回执 · 完整集合</option>
-            <option value="missing">匹配回执 · 缺少一份文件</option>
-            <option value="pending">待回执</option>
-            <option value="unknown">UNKNOWN</option>
-            <option value="failed">失败</option>
-            <option value="mismatch">错上下文回执</option>
-          </select>
-        </label>
-        <button onClick={queryGeneration} disabled={!session.generationRequest}>
-          重新查询原生成请求
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>意见草稿与修改</legend>
-        <label>
-          模拟保存回执
-          <select
-            value={session.saveScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['saveScene'];
-              update((current) => ({ ...current, saveScene: value }));
-            }}
-          >
-            <option value="SAVED">已保存到本页内存</option>
-            <option value="FAILED">保存失败</option>
-            <option value="UNKNOWN">保存结果待核验</option>
-          </select>
-        </label>
-        <button
-          onClick={applySaveReceipt}
-          disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
-        >
-          模拟当前范围原保存回执到达/查询
-        </button>
-        {draft.requestLabel && (
-          <p className="muted">
-            当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
-          </p>
-        )}
-        <button
-          onClick={rebindDraft}
-          disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
-        >
-          显式将当前草稿绑定到当前依据（模拟）
-        </button>
-        <label>
-          修改回执场景
-          <select
-            value={session.revisionScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['revisionScene'];
-              update((current) => ({ ...current, revisionScene: value }));
-            }}
-          >
-            <option value="RECEIVED">已接收</option>
-            <option value="PENDING">待回执</option>
-            <option value="UNKNOWN">UNKNOWN</option>
-            <option value="FAILED">失败</option>
-            <option value="MISMATCH">回执错绑</option>
-          </select>
-        </label>
-        <button onClick={receiveRevision} disabled={!myActive}>
-          模拟原修订回执到达
-        </button>
-        <button onClick={queryRevision} disabled={!myActive}>
-          重新查询原修订请求
-        </button>
-      </fieldset>
-      <fieldset>
-        <legend>版本与候选</legend>
-        {activeAvailability && activeAvailability.versions.length > 0 && (
+    <MockControls>
+      <details className="fixture-options" open>
+        <summary>U2 显式场景控制（演练）</summary>
+        <fieldset>
+          <legend>候选生成</legend>
           <label>
-            查看当前文件版本
+            生成回执场景
             <select
-              value={activeAvailability.viewedVersionId ?? ''}
+              value={session.generationScene}
               onChange={(event) => {
-                switchVersion(activeAvailability.fileId, event.target.value);
+                const value = event.target.value as StageSession['generationScene'];
+                update((current) => ({ ...current, generationScene: value }));
               }}
             >
-              {activeAvailability.versions.map((versionId) => (
-                <option key={versionId} value={versionId}>
-                  {u2VersionLabel(versionId)}
-                </option>
-              ))}
+              <option value="matched">匹配回执 · 完整集合</option>
+              <option value="missing">匹配回执 · 缺少一份文件</option>
+              <option value="pending">待回执</option>
+              <option value="unknown">UNKNOWN</option>
+              <option value="failed">失败</option>
+              <option value="mismatch">错上下文回执</option>
             </select>
           </label>
-        )}
-        <label>
-          候选回执场景
-          <select
-            value={session.candidateScene}
-            onChange={(event) => {
-              const value = event.target.value as StageSession['candidateScene'];
-              update((current) => ({ ...current, candidateScene: value }));
-            }}
+          <button onClick={queryGeneration} disabled={!session.generationRequest}>
+            重新查询原生成请求
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>意见草稿与修改</legend>
+          <label>
+            模拟保存回执
+            <select
+              value={session.saveScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['saveScene'];
+                update((current) => ({ ...current, saveScene: value }));
+              }}
+            >
+              <option value="SAVED">已保存到本页内存</option>
+              <option value="FAILED">保存失败</option>
+              <option value="UNKNOWN">保存结果待核验</option>
+            </select>
+          </label>
+          <button
+            onClick={applySaveReceipt}
+            disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
           >
-            <option value="matched">匹配当前版本集合</option>
-            <option value="mismatch">错绑版本集合</option>
-          </select>
-        </label>
-        <button
-          onClick={nextCandidate}
-          disabled={!receivedForCurrent || !hasNextVersion || Boolean(active)}
-        >
-          模拟下一轮候选到达
-        </button>
-        <button onClick={removeFileForRehearsal}>模拟缺少一份文件</button>
-        <button
-          onClick={restoreFileForRehearsal}
-          disabled={Object.keys(session.removed).length === 0}
-        >
-          恢复缺失文件（演示）
-        </button>
-      </fieldset>
-      {stage !== 'RECORDS' && (
+            模拟当前范围原保存回执到达/查询
+          </button>
+          {draft.requestLabel && (
+            <p className="muted">
+              当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
+            </p>
+          )}
+          <button
+            onClick={rebindDraft}
+            disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
+          >
+            显式将当前草稿绑定到当前依据（模拟）
+          </button>
+          <label>
+            修改回执场景
+            <select
+              value={session.revisionScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['revisionScene'];
+                update((current) => ({ ...current, revisionScene: value }));
+              }}
+            >
+              <option value="RECEIVED">已接收</option>
+              <option value="PENDING">待回执</option>
+              <option value="UNKNOWN">UNKNOWN</option>
+              <option value="FAILED">失败</option>
+              <option value="MISMATCH">回执错绑</option>
+            </select>
+          </label>
+          <button onClick={receiveRevision} disabled={!myActive}>
+            模拟原修订回执到达
+          </button>
+          <button onClick={queryRevision} disabled={!myActive}>
+            重新查询原修订请求
+          </button>
+        </fieldset>
+        <fieldset>
+          <legend>版本与候选</legend>
+          {activeAvailability && activeAvailability.versions.length > 0 && (
+            <label>
+              查看当前文件版本
+              <select
+                value={activeAvailability.viewedVersionId ?? ''}
+                onChange={(event) => {
+                  switchVersion(activeAvailability.fileId, event.target.value);
+                }}
+              >
+                {activeAvailability.versions.map((versionId) => (
+                  <option key={versionId} value={versionId}>
+                    {u2VersionLabel(versionId)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            候选回执场景
+            <select
+              value={session.candidateScene}
+              onChange={(event) => {
+                const value = event.target.value as StageSession['candidateScene'];
+                update((current) => ({ ...current, candidateScene: value }));
+              }}
+            >
+              <option value="matched">匹配当前版本集合</option>
+              <option value="mismatch">错绑版本集合</option>
+            </select>
+          </label>
+          <button
+            onClick={nextCandidate}
+            disabled={!receivedForCurrent || !hasNextVersion || Boolean(active)}
+          >
+            模拟下一轮候选到达
+          </button>
+          <button onClick={removeFileForRehearsal}>模拟缺少一份文件</button>
+          <button
+            onClick={restoreFileForRehearsal}
+            disabled={Object.keys(session.removed).length === 0}
+          >
+            恢复缺失文件（演示）
+          </button>
+        </fieldset>
         <fieldset>
           <legend>阶段定稿</legend>
           <label>
@@ -2019,67 +2489,67 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             </select>
           </label>
         </fieldset>
-      )}
-      <fieldset>
-        <legend>U3 返工与恢复（同一旅程）</legend>
-        {stage === 'MANUAL' && session.finalization && (
-          <button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</button>
+        <fieldset>
+          <legend>U3 返工与恢复（同一旅程）</legend>
+          {stage === 'MANUAL' && session.finalization && (
+            <button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</button>
+          )}
+          {stage === 'PROCEDURES' && procedureImpact && (
+            <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
+          )}
+          {stage === 'RULES' && (
+            <>
+              <button
+                onClick={() => {
+                  addRulesCandidateVersion('V2');
+                }}
+              >
+                模拟第三阶段受影响候选到达（第 2 版）
+              </button>
+              <button
+                onClick={() => {
+                  addRulesCandidateVersion('V3');
+                }}
+              >
+                模拟第三阶段后续改稿（第 3 版）
+              </button>
+            </>
+          )}
+          <button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</button>
+          <p>
+            <Link to={reworkPath}>打开返工与复核</Link> ·{' '}
+            <Link to={recoveryPath}>打开执行与恢复</Link> ·{' '}
+            <Link to={deliveryPath}>打开最终交付</Link>
+          </p>
+          <p className="muted">
+            草稿不替换当前定稿；重新定稿保留前任并标记下游待复核；记录复核不是定稿关卡。
+          </p>
+        </fieldset>
+        <button
+          onClick={() => {
+            update((current) => ({ ...current, simulatedAnswer: !current.simulatedAnswer }));
+          }}
+        >
+          演练：模拟客户答复（编号按模板）
+        </button>
+        {session.simulatedAnswer && (
+          <p className="notice" role="status">
+            模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
+          </p>
         )}
-        {stage === 'PROCEDURES' && procedureImpact && (
-          <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
-        )}
-        {stage === 'RECORDS' && (
-          <>
-            <button
-              onClick={() => {
-                addRecordsCandidateVersion('V2');
-              }}
-            >
-              模拟受影响记录表单候选到达（第 2 版）
-            </button>
-            <button
-              onClick={() => {
-                addRecordsCandidateVersion('V3');
-              }}
-            >
-              模拟后续记录表单改稿（第 3 版）
-            </button>
-          </>
-        )}
-        <button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</button>
         <p>
-          <Link to={reworkPath}>打开返工与复核</Link> ·{' '}
-          <Link to={recoveryPath}>打开执行与恢复</Link> ·{' '}
-          <Link to={deliveryPath}>打开最终交付</Link>
+          <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}
+          <Link to={proceduresPath}>演练：直接打开控制程序审阅</Link> ·{' '}
+          <Link to={rulesPath}>演练：直接打开管理制度及记录表单审阅</Link>
+        </p>
+        <p>
+          <Link to={scopePath}>扩大范围？返回 U1 修改范围计划</Link>
         </p>
         <p className="muted">
-          草稿不替换当前定稿；重新定稿保留前任并标记下游待复核；记录复核不是定稿关卡。
+          单项目一次修改批次 · 保存、提交与定稿分离 · 刷新会重置本页内存 · 没有自动轮询。
         </p>
-      </fieldset>
-      <button
-        onClick={() => {
-          update((current) => ({ ...current, simulatedAnswer: !current.simulatedAnswer }));
-        }}
-      >
-        演练：模拟客户答复（编号按模板）
-      </button>
-      {session.simulatedAnswer && (
-        <p className="notice" role="status">
-          模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
-        </p>
-      )}
-      <p>
-        <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}
-        <Link to={proceduresPath}>演练：直接打开程序与制度审阅</Link> ·{' '}
-        <Link to={recordsPath}>演练：直接打开记录表单审阅</Link>
-      </p>
-      <p>
-        <Link to={scopePath}>扩大范围？返回 U1 修改范围计划</Link>
-      </p>
-      <p className="muted">
-        单项目一次修改批次 · 保存、提交与定稿分离 · 刷新会重置本页内存 · 没有自动轮询。
-      </p>
-    </details>
+      </details>
+    </MockControls>
   );
 
   return (

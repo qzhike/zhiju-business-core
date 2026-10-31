@@ -10,26 +10,34 @@ const root = resolve(import.meta.dirname, '../..');
 const require = createRequire(import.meta.url);
 const vitest = join(dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
 const persistenceConfig = join(root, 'vitest.persistence.config.ts');
-const criticalFile = 'tests/persistence/controlled-exit.test.ts';
+const criticalFile = 'tests/persistence/mvp-controlled-keycloak.test.ts';
 
 it.each([
-  ['complete', 'critical inventory passed: files=5; tests=96'],
+  ['complete', 'critical inventory passed: files=5; tests=44'],
   ['missing-file', `missing file: ${criticalFile}`],
   ['missing-case', 'expected exactly one case, found 0:'],
   ['duplicate', 'expected exactly one case, found 2:'],
   ['renamed', 'unexpected case:'],
   ['extra', 'unexpected case:'],
-  ['moved', `missing file: ${criticalFile}`],
+  ['moved', `critical persistence file inventory failed: missing=${criticalFile}`],
   ['skipped', 'case did not pass (skipped):'],
   ['failed', 'case did not pass (failed):'],
   ['focused', 'critical inventory not checked: focused diagnostic only'],
-  ['partition-1', 'critical inventory passed: files=1; tests=64'],
-  ['partition-2', 'critical inventory passed: files=4; tests=32'],
-  ['partition-3', 'critical inventory passed: files=0; tests=0'],
+  ['partition-1', 'critical inventory passed: files=1; tests=30'],
+  ['partition-2', 'critical inventory passed: files=1; tests=7'],
+  ['partition-3', 'critical inventory passed: files=3; tests=7'],
   ['partition-2-missing-file', `missing file: ${criticalFile}`],
   ['partition-2-missing-case', 'expected exactly one case, found 0:'],
   ['partition-3-missing-file', 'persistence file inventory failed:'],
   ['partition-3-extra-file', 'persistence file inventory failed:'],
+  [
+    'deleted-critical-file',
+    'critical persistence file inventory failed: missing=tests/persistence/mvp-http.test.ts',
+  ],
+  [
+    'partition-3-deleted-critical-file',
+    'critical persistence file inventory failed: missing=tests/persistence/mvp-http.test.ts',
+  ],
   ['partition-2-focused', 'partition cannot bypass inventory'],
 ])(
   'enforces actual Vitest critical case execution: %s',
@@ -39,7 +47,7 @@ it.each([
       const inventory = JSON.parse(
         await readFile(join(root, 'tools/persistence/critical-cases.json'), 'utf8'),
       ) as Record<string, string[]>;
-      for (const name of ['run-cancellation', 'task-board-entry', 'new-noncritical'])
+      for (const name of ['new-noncritical'])
         inventory[`tests/persistence/${name}.test.ts`] = ['noncritical fixture case'];
       const partition = mode.startsWith('partition-') ? mode.split('-')[1] : undefined;
       const selected = partition
@@ -47,6 +55,8 @@ it.each([
         : Object.keys(inventory);
       const include: string[] = [];
       for (const [file, names] of Object.entries(inventory)) {
+        if (mode.endsWith('deleted-critical-file') && file === 'tests/persistence/mvp-http.test.ts')
+          continue;
         // Exclude a file from collection without deleting its source.
         const omitted =
           mode.endsWith('missing-file') &&
@@ -66,7 +76,7 @@ it.each([
         }
         const target =
           mode === 'moved' && file === criticalFile
-            ? 'tests/persistence/moved-controlled-exit.test.ts'
+            ? 'tests/persistence/moved-mvp-controlled-keycloak.test.ts'
             : file;
         if (target !== file) include[include.indexOf(file)] = target;
         await mkdir(dirname(join(temp, target)), { recursive: true });

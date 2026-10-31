@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U1_ADAPTER_ONLY: isolated U1 rehearsal adapter; never imported by
 // the production entry. Explicit events drive state; no timers or network calls.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -88,6 +89,12 @@ interface U1State {
   problemEntries: boolean;
   showProblemEntries: () => void;
   submitSupplement: () => void;
+  analysisStarted: boolean;
+  analysisReady: boolean;
+  clarificationMode: 'QUESTIONS' | 'NONE';
+  setClarificationMode: (mode: 'QUESTIONS' | 'NONE') => void;
+  startAnalysis: () => void;
+  submitAnswers: (text: string) => void;
   reportTwoAvailable: boolean;
   viewedReportId: string;
   setViewedReport: (reportId: string) => void;
@@ -121,6 +128,9 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
   const [batchState, setBatchState] = useState<InputBatchState | null>(null);
   const [supplementSubmitted, setSupplementSubmitted] = useState(false);
   const [problemEntries, setProblemEntries] = useState(false);
+  const [analysisStarted, setAnalysisStarted] = useState(false);
+  const [analysisReady, setAnalysisReady] = useState(false);
+  const [clarificationMode, setClarificationMode] = useState<'QUESTIONS' | 'NONE'>('QUESTIONS');
   const [reportTwoAvailable, setReportTwoAvailable] = useState(false);
   const [viewedReportId, setViewedReportId] = useState('U1-REPORT-01');
   const [acknowledgedReportVersion, setAcknowledgedReportVersion] = useState(1);
@@ -333,12 +343,51 @@ export function FixtureU1Provider({ children }: { children: ReactNode }) {
       ],
     }));
   };
+  const startAnalysis = () => {
+    if (analysisStarted) return;
+    setAnalysisStarted(true);
+    if (clarificationMode === 'NONE') {
+      setAnalysisReady(true);
+      setAcknowledgedReportVersion(1);
+      setPlans((previous) =>
+        previous.map((plan) =>
+          plan.state === 'DRAFT' && plan.reportId === u1ReportTwo.reportId
+            ? { ...plan, reportId: u1ReportOne.reportId, reportVersion: u1ReportOne.version }
+            : plan,
+        ),
+      );
+    }
+  };
+  const submitAnswers = (text: string) => {
+    const answer = text.trim();
+    if (!answer) return;
+    setAnalysisStarted(true);
+    const input: Submission = {
+      id: crypto.randomUUID(),
+      projectId: u1Project.id,
+      context: contextFor(u1ReportOne, 'CUSTOMER'),
+      draft: {
+        text: answer,
+        attachments: ['补充批次说明（无新增文件）'],
+        fixedExample: true,
+      },
+    };
+    submit(input);
+    setAnalysisReady(true);
+    setAcknowledgedReportVersion(2);
+  };
   const value: U1State = {
     batches,
     batchState,
     setBatchState,
     supplementSubmitted,
     problemEntries,
+    analysisStarted,
+    analysisReady,
+    clarificationMode,
+    setClarificationMode,
+    startAnalysis,
+    submitAnswers,
     showProblemEntries: () => {
       setProblemEntries(true);
     },
@@ -421,13 +470,13 @@ export function FixtureU1Overview() {
           },
           {
             id: 'procedures',
-            label: '控制程序与管理制度',
+            label: '控制程序',
             state: '未开始',
             detail: '以质量手册的精确模拟定稿为依据。',
           },
           {
-            id: 'records',
-            label: '记录表单与交付',
+            id: 'rules',
+            label: '管理制度及记录表单',
             state: '未开始',
             detail: '以前两阶段精确版本为依据；最终交付属于 U3。',
           },
@@ -521,37 +570,41 @@ export function FixtureU1Intake() {
         formatRules={u1FormatRules}
         unavailable="本页只展示已接收批次；补充资料由显式演示事件驱动，不通过真实上传。"
         controls={
-          <details className="fixture-options" open>
-            <summary>U1 资料演示控制</summary>
-            <p>显式事件驱动批次和失败条目；不读取本地 ZIP，不用计时器推断分析完成。</p>
-            <button disabled={state.supplementSubmitted} onClick={state.submitSupplement}>
-              {state.supplementSubmitted ? '补充批次已提交' : '演示：提交补充批次'}
-            </button>{' '}
-            <button disabled={state.problemEntries} onClick={state.showProblemEntries}>
-              {state.problemEntries ? '失败条目已展示' : '演示：加入失败与不支持条目'}
-            </button>
-            <label>
-              批次状态
-              <select
-                value={state.batchState ?? ''}
-                onChange={(event) => {
-                  state.setBatchState((event.target.value || null) as InputBatchState | null);
-                }}
-              >
-                <option value="">固定已接收 · 有限</option>
-                <option value="RECEIVING">正在接收</option>
-                <option value="LIMITED">已接收 · 有限</option>
-                <option value="WAITING">已接收 · 等待分析</option>
-                <option value="FAILED">存在失败条目</option>
-                <option value="UNKNOWN">接收结果待核验</option>
-              </select>
-            </label>
+          <>
+            <MockControls>
+              <details className="fixture-options" open>
+                <summary>U1 资料演示控制</summary>
+                <p>显式事件驱动批次和失败条目；不读取本地 ZIP，不用计时器推断分析完成。</p>
+                <button disabled={state.supplementSubmitted} onClick={state.submitSupplement}>
+                  {state.supplementSubmitted ? '补充批次已提交' : '演示：提交补充批次'}
+                </button>{' '}
+                <button disabled={state.problemEntries} onClick={state.showProblemEntries}>
+                  {state.problemEntries ? '失败条目已展示' : '演示：加入失败与不支持条目'}
+                </button>
+                <label>
+                  批次状态
+                  <select
+                    value={state.batchState ?? ''}
+                    onChange={(event) => {
+                      state.setBatchState((event.target.value || null) as InputBatchState | null);
+                    }}
+                  >
+                    <option value="">固定已接收 · 有限</option>
+                    <option value="RECEIVING">正在接收</option>
+                    <option value="LIMITED">已接收 · 有限</option>
+                    <option value="WAITING">已接收 · 等待分析</option>
+                    <option value="FAILED">存在失败条目</option>
+                    <option value="UNKNOWN">接收结果待核验</option>
+                  </select>
+                </label>
+              </details>
+            </MockControls>
             <p>
               <Link to={`/projects/${u1Project.id}/analysis/${state.viewedReportId}`}>
                 查看分析并记录客户答复
               </Link>
             </p>
-          </details>
+          </>
         }
       />
     </div>
@@ -644,40 +697,42 @@ export function FixtureU1Analysis() {
           </>
         }
         controls={
-          <details className="fixture-options" open>
-            <summary>U1 分析演示控制</summary>
-            <p>固定合成答复；不上传或分析附件，不调用 Runner。刷新清理本页内存。</p>
-            <select
-              aria-label="分析回执场景"
-              value={state.analysisScenario}
-              onChange={(event) => {
-                state.setAnalysisScenario(event.target.value);
-              }}
-            >
-              <option value="received">收到合成意见</option>
-              <option value="failed">失败</option>
-            </select>
-            <button
-              disabled={historical || report.version !== 1}
-              onClick={() => {
-                const customerContext = contextFor(report, 'CUSTOMER');
-                state.update(report.reportId, (previous) => ({
-                  ...previous,
-                  context: customerContext,
-                  drafts: {
-                    ...previous.drafts,
-                    [customerContext.key]: {
-                      text: '客户答复：同意四层结构与编号迁移；C04/C05/C07 继续作为内部表单保留；外来文件制度与变更实施记录请按正式模板补充；变更通知单是否新增待下一步确认。',
-                      attachments: ['补充批次说明（无新增文件）'],
-                      fixedExample: true,
+          <MockControls>
+            <details className="fixture-options" open>
+              <summary>U1 分析演示控制</summary>
+              <p>固定合成答复；不上传或分析附件，不调用 Runner。刷新清理本页内存。</p>
+              <select
+                aria-label="分析回执场景"
+                value={state.analysisScenario}
+                onChange={(event) => {
+                  state.setAnalysisScenario(event.target.value);
+                }}
+              >
+                <option value="received">收到合成意见</option>
+                <option value="failed">失败</option>
+              </select>
+              <button
+                disabled={historical || report.version !== 1}
+                onClick={() => {
+                  const customerContext = contextFor(report, 'CUSTOMER');
+                  state.update(report.reportId, (previous) => ({
+                    ...previous,
+                    context: customerContext,
+                    drafts: {
+                      ...previous.drafts,
+                      [customerContext.key]: {
+                        text: '客户答复：同意四层结构与编号迁移；C04/C05/C07 继续作为内部表单保留；外来文件制度与变更实施记录请按正式模板补充；变更通知单是否新增待下一步确认。',
+                        attachments: ['补充批次说明（无新增文件）'],
+                        fixedExample: true,
+                      },
                     },
-                  },
-                }));
-              }}
-            >
-              带入固定客户答复（成功场景）
-            </button>
-          </details>
+                  }));
+                }}
+              >
+                带入固定客户答复（成功场景）
+              </button>
+            </details>
+          </MockControls>
         }
       />
     </div>
@@ -762,41 +817,43 @@ export function FixtureU1Plan() {
         statusMessage={state.planMessage[plan.planId]}
         development
         controls={
-          <details className="fixture-options" open>
-            <summary>U1 范围演示控制</summary>
-            <p>确认回执由显式场景决定；不调用 Core，不用计时器推断执行完成。</p>
-            <label>
-              确认回执场景
-              <select
-                value={state.planScenario}
-                onChange={(event) => {
-                  state.setPlanScenario(event.target.value);
+          <MockControls>
+            <details className="fixture-options" open>
+              <summary>U1 范围演示控制</summary>
+              <p>确认回执由显式场景决定；不调用 Core，不用计时器推断执行完成。</p>
+              <label>
+                确认回执场景
+                <select
+                  value={state.planScenario}
+                  onChange={(event) => {
+                    state.setPlanScenario(event.target.value);
+                  }}
+                >
+                  <option value="received">匹配回执</option>
+                  <option value="pending">待回执</option>
+                  <option value="failed">失败</option>
+                  <option value="unknown">UNKNOWN</option>
+                  <option value="mismatch">错上下文回执</option>
+                </select>
+              </label>
+              <button
+                disabled={plan.state !== 'PENDING' && plan.state !== 'UNKNOWN'}
+                onClick={() => {
+                  state.simulatePlanReceipt(plan.planId);
                 }}
               >
-                <option value="received">匹配回执</option>
-                <option value="pending">待回执</option>
-                <option value="failed">失败</option>
-                <option value="unknown">UNKNOWN</option>
-                <option value="mismatch">错上下文回执</option>
-              </select>
-            </label>
-            <button
-              disabled={plan.state !== 'PENDING' && plan.state !== 'UNKNOWN'}
-              onClick={() => {
-                state.simulatePlanReceipt(plan.planId);
-              }}
-            >
-              模拟原请求回执到达
-            </button>
-            <button
-              disabled={!confirmed || plan.supersededBy !== undefined}
-              onClick={() => {
-                state.expandPlan(plan.planId, false);
-              }}
-            >
-              模拟新计划到达（不切换当前视图）
-            </button>
-          </details>
+                模拟原请求回执到达
+              </button>
+              <button
+                disabled={!confirmed || plan.supersededBy !== undefined}
+                onClick={() => {
+                  state.expandPlan(plan.planId, false);
+                }}
+              >
+                模拟新计划到达（不切换当前视图）
+              </button>
+            </details>
+          </MockControls>
         }
       />
     </>

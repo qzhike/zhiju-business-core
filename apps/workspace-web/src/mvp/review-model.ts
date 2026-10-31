@@ -2,12 +2,12 @@
 // These types are page-local view state; they are not public wire contracts,
 // server receipts, business eligibility rules or persistence records.
 
-export type MvpStageId = 'MANUAL' | 'PROCEDURES' | 'RECORDS';
+export type MvpStageId = 'MANUAL' | 'PROCEDURES' | 'RULES';
 
 export const mvpStageLabels: Record<MvpStageId, string> = {
   MANUAL: '质量手册',
-  PROCEDURES: '控制程序与管理制度',
-  RECORDS: '记录表单',
+  PROCEDURES: '控制程序',
+  RULES: '管理制度及记录表单',
 };
 
 /** The plan facts the review journey is allowed to bind to. */
@@ -76,7 +76,7 @@ export function sameStringSet(left: readonly string[], right: readonly string[])
   return normalize(left) === normalize(right);
 }
 
-export type FinalizationStage = Extract<MvpStageId, 'MANUAL' | 'PROCEDURES'>;
+export type FinalizationStage = MvpStageId;
 
 export interface FinalizationBasis {
   projectId: string;
@@ -86,6 +86,7 @@ export interface FinalizationBasis {
   inputRefs: readonly string[];
   templateIds: readonly string[];
   manualFinalizationId?: string | undefined;
+  procedureFinalizationId?: string | undefined;
 }
 
 export interface StageFinalization extends FinalizationBasis {
@@ -105,6 +106,7 @@ export function finalizationMatchesBasis(
     finalization.planId === basis.planId &&
     finalization.planVersion === basis.planVersion &&
     finalization.manualFinalizationId === basis.manualFinalizationId &&
+    finalization.procedureFinalizationId === basis.procedureFinalizationId &&
     sameStringSet(finalization.inputRefs, basis.inputRefs) &&
     sameStringSet(finalization.templateIds, basis.templateIds)
   );
@@ -193,6 +195,60 @@ export function procedureBasis(
   return { ok: true };
 }
 
+/**
+ * The third stage confirms the complete management-rule and record-form set
+ * against both finalized upstream stages. A later upstream candidate does not
+ * replace that basis; re-finalizing upstream marks this stage for re-review.
+ */
+export function rulesBasis(
+  finalization: StageFinalization | undefined,
+  expected: {
+    projectId: string;
+    planId: string;
+    planVersion: number;
+    inputRefs: readonly string[];
+    templateIds: readonly string[];
+    manualFinalizationId: string | undefined;
+    procedureFinalizationId: string | undefined;
+    ruleFileIds: readonly string[];
+  },
+): UpstreamCheck {
+  if (!finalization)
+    return { ok: false, reason: '尚无管理制度及记录表单的模拟定稿；最终交付不能确认。' };
+  if (finalization.stage !== 'RULES')
+    return { ok: false, reason: '上游依据不是管理制度及记录表单定稿。' };
+  if (
+    !expected.manualFinalizationId ||
+    finalization.manualFinalizationId !== expected.manualFinalizationId
+  )
+    return { ok: false, reason: '第三阶段定稿绑定的质量手册版本与当前上游不一致。' };
+  if (
+    !expected.procedureFinalizationId ||
+    finalization.procedureFinalizationId !== expected.procedureFinalizationId
+  )
+    return { ok: false, reason: '第三阶段定稿绑定的控制程序版本与当前上游不一致。' };
+  if (
+    !finalizationMatchesBasis(finalization, {
+      projectId: expected.projectId,
+      stage: 'RULES',
+      planId: expected.planId,
+      planVersion: expected.planVersion,
+      inputRefs: expected.inputRefs,
+      templateIds: expected.templateIds,
+      manualFinalizationId: expected.manualFinalizationId,
+      procedureFinalizationId: expected.procedureFinalizationId,
+    })
+  )
+    return { ok: false, reason: '第三阶段定稿与当前项目、计划或依据不匹配。' };
+  const finalFiles = finalization.files.map((file) => file.fileId);
+  if (
+    finalFiles.length !== expected.ruleFileIds.length ||
+    finalFiles.some((fileId) => !expected.ruleFileIds.includes(fileId))
+  )
+    return { ok: false, reason: '第三阶段定稿的完整版本集合与本计划不一致。' };
+  return { ok: true };
+}
+
 export interface FinalizationIntent extends FinalizationBasis {
   requestId: string;
   files: readonly FileVersionRef[];
@@ -217,6 +273,7 @@ export function finalizationIntentMatchesReceipt(
     intent.planId === receipt.planId &&
     intent.planVersion === receipt.planVersion &&
     intent.manualFinalizationId === receipt.manualFinalizationId &&
+    intent.procedureFinalizationId === receipt.procedureFinalizationId &&
     sameVersionSet(intent.files, receipt.files) &&
     sameStringSet(intent.inputRefs, receipt.inputRefs) &&
     sameStringSet(intent.templateIds, receipt.templateIds)
@@ -235,6 +292,9 @@ export function finalizationFromReceipt(receipt: FinalizationReceipt): StageFina
     ...(receipt.manualFinalizationId !== undefined
       ? { manualFinalizationId: receipt.manualFinalizationId }
       : {}),
+    ...(receipt.procedureFinalizationId !== undefined
+      ? { procedureFinalizationId: receipt.procedureFinalizationId }
+      : {}),
     inputRefs: receipt.inputRefs,
     templateIds: receipt.templateIds,
     confirmedAt: receipt.confirmedAt,
@@ -251,13 +311,17 @@ export function evaluateFinalizationReceipt(input: {
   receipt: FinalizationReceipt;
   currentFiles: readonly FileVersionRef[];
   currentManualFinalizationId?: string | undefined;
+  currentProcedureFinalizationId?: string | undefined;
 }): FinalizationEvaluation {
   if (!finalizationIntentMatchesReceipt(input.intent, input.receipt))
     return { ok: false, reason: '回执与原定稿请求或依据不匹配，未定稿。' };
   if (!sameVersionSet(input.intent.files, input.currentFiles))
     return { ok: false, reason: '确认期间文件版本集合已变化，未定稿；请重新核对完整集合。' };
-  if (input.intent.manualFinalizationId !== input.currentManualFinalizationId)
-    return { ok: false, reason: '确认期间上游依据已变化，未定稿；请重新核对手册依据。' };
+  if (
+    input.intent.manualFinalizationId !== input.currentManualFinalizationId ||
+    input.intent.procedureFinalizationId !== input.currentProcedureFinalizationId
+  )
+    return { ok: false, reason: '确认期间上游依据已变化，未定稿；请重新核对上游定稿依据。' };
   return { ok: true };
 }
 
@@ -313,6 +377,7 @@ export interface OpinionBasis {
   planVersion: number;
   manualFinalizationId?: string | undefined;
   procedureFinalizationId?: string | undefined;
+  rulesFinalizationId?: string | undefined;
   files: readonly FileVersionRef[];
 }
 
@@ -322,6 +387,7 @@ export function sameBasis(left: OpinionBasis, right: OpinionBasis): boolean {
     left.planVersion === right.planVersion &&
     left.manualFinalizationId === right.manualFinalizationId &&
     left.procedureFinalizationId === right.procedureFinalizationId &&
+    left.rulesFinalizationId === right.rulesFinalizationId &&
     sameVersionSet(left.files, right.files)
   );
 }
@@ -525,7 +591,6 @@ export function stageSetBlockers(files: readonly StageFileAvailability[]): strin
 }
 
 export function finalizationBlocker(input: {
-  supported: boolean;
   plan: { ready: boolean; reason?: string | undefined };
   upstream: UpstreamCheck;
   files: readonly StageFileAvailability[];
@@ -534,7 +599,6 @@ export function finalizationBlocker(input: {
   /** U3: an explicitly rechecked newer set may replace the current finalization as a new basis. */
   refinalization?: boolean | undefined;
 }): string | undefined {
-  if (!input.supported) return '记录表单不设单独定稿关卡；请进入最终交付确认（U3）。';
   if (!input.plan.ready) return input.plan.reason ?? '计划尚未就绪。';
   if (!input.upstream.ok) return input.upstream.reason ?? '上游依据尚未就绪。';
   if (input.finalized && !input.refinalization)

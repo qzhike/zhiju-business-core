@@ -1,10 +1,12 @@
+import { withMockControls } from './mock-controls.js';
 import { readFile, readdir } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 const route = '/projects/DEMO-PROJECT-01/delivery';
 const controls = async (page: Page) => {
   const details = page.locator('.delivery-controls');
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 };
 const choose = async (page: Page, name = '纠正措施程序') =>
   page.getByRole('checkbox', { name: `加入本批：${name} · 第 1 版`, exact: true }).check();
@@ -63,7 +65,9 @@ test('delivery pending and UNKNOWN only query one original intent, fixed package
 }) => {
   await page.goto(route);
   await controls(page);
-  await page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('HOLD');
+  await withMockControls(page, async () =>
+    page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('HOLD'),
+  );
   await choose(page);
   await choose(page, '质量手册');
   await openReview(page);
@@ -71,7 +75,9 @@ test('delivery pending and UNKNOWN only query one original intent, fixed package
   await expect(page.locator('.delivery-receipt')).toContainText('正在确认本批版本');
   await expect(page.getByRole('button', { name: '核对本批版本', exact: true })).toBeDisabled();
   await expect(page.locator('.delivery-controls')).toContainText('确认调用数：1');
-  await page.getByRole('button', { name: '返回待核实回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回待核实回执' }).click(),
+  );
   await expect(page.locator('.delivery-receipt')).toContainText('生成结果待核实');
   const intent = /原意图 ([^ ]+)/u.exec(await page.locator('.delivery-receipt').innerText())?.[1];
   expect(intent).toBeTruthy();
@@ -80,14 +86,16 @@ test('delivery pending and UNKNOWN only query one original intent, fixed package
     ['GENERATING', '正在生成交付包'],
     ['PACKAGE_READY', '交付包已可用'],
   ] as const) {
-    await page.getByLabel('原意图查询结果').selectOption(state);
+    await withMockControls(page, async () => page.getByLabel('原意图查询结果').selectOption(state));
     await page.getByRole('button', { name: '查询原生成意图' }).click();
     await expect(page.locator('.delivery-receipt')).toContainText(label);
     await expect(page.locator('.delivery-receipt')).toContainText(`原意图 ${intent}`);
   }
   await page.getByRole('link', { name: '查看本批交付包' }).click();
   await expect(page.locator('.delivery-detail')).toContainText('MANUAL-REV-01');
-  await page.getByRole('button', { name: '模拟手册新版本' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟手册新版本' }).click(),
+  );
   await expect(page.locator('.delivery-detail')).toContainText('MANUAL-REV-01');
   await expect(page.locator('.delivery-detail')).not.toContainText('MANUAL-REV-02');
   const downloaded = page.waitForEvent('download');
@@ -102,21 +110,29 @@ test('delivery pending and UNKNOWN only query one original intent, fixed package
   expect(bytes.toString()).toContain('MANUAL-REV-01');
   expect(bytes.toString()).not.toContain('MANUAL-REV-02');
   await expect(page.locator('.delivery-detail')).toContainText('已请求下载，保存情况未知');
-  await page.getByRole('button', { name: '模拟包许可过期' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟包许可过期' }).click(),
+  );
   await expect(page.locator('.delivery-detail')).toContainText('下载链接已过期');
   await expect(page.getByRole('button', { name: '下载合成示例包 .zip' })).toBeDisabled();
-  await page.getByRole('button', { name: '模拟包不可下载' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟包不可下载' }).click(),
+  );
   await expect(page.locator('.delivery-detail')).toContainText('当前无法下载');
-  await page.getByRole('button', { name: '模拟包校验失败' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟包校验失败' }).click(),
+  );
   await expect(page.locator('.delivery-detail')).toContainText('交付包校验失败');
-  await page.getByRole('button', { name: '恢复同一包可下载' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '恢复同一包可下载' }).click(),
+  );
   for (const [state, label] of [
     ['THROW', '下载结果待核实'],
     ['FAILED', '下载响应失败或中断'],
     ['RESPONSE_STARTED', '服务端已开始下载响应'],
     ['RESPONSE_SENT', '服务端已发送下载响应'],
   ] as const) {
-    await page.getByLabel('下载观察').selectOption(state);
+    await withMockControls(page, async () => page.getByLabel('下载观察').selectOption(state));
     await page.getByRole('button', { name: '下载合成示例包 .zip' }).click();
     await expect(page.locator('.delivery-detail')).toContainText(label);
   }
@@ -134,7 +150,9 @@ test('delivery rejects failures and mismatched receipts, partial/stale/access ex
   ] as const) {
     await page.goto(route);
     await controls(page);
-    await page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption(outcome);
+    await withMockControls(page, async () =>
+      page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption(outcome),
+    );
     await choose(page);
     await openReview(page);
     await page.getByRole('button', { name: '确认版本并生成交付包' }).click();
@@ -152,22 +170,30 @@ test('delivery rejects failures and mismatched receipts, partial/stale/access ex
     });
   await expect(page.getByRole('dialog')).toContainText('版本或交付条件已变化');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: '模拟部分读取' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟部分读取' }).click(),
+  );
   await expect(page.locator('.delivery-observation')).toContainText('PARTIAL');
   await expect(page.getByRole('button', { name: '核对本批版本', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: '模拟陈旧读取' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟陈旧读取' }).click(),
+  );
   await expect(page.locator('.delivery-observation')).toContainText('STALE');
-  await page.getByLabel('交付读取场景').selectOption('ERROR');
+  await withMockControls(page, async () => page.getByLabel('交付读取场景').selectOption('ERROR'));
   await expect(page.getByRole('alert').first()).toContainText('读取失败');
   await page.getByRole('button', { name: '重新读取', exact: true }).click();
-  await page.getByLabel('交付读取场景').selectOption('EXPIRED');
+  await withMockControls(page, async () => page.getByLabel('交付读取场景').selectOption('EXPIRED'));
   await expect(page.locator('.delivery-gate')).toContainText('访问已失效');
   await expect(page.locator('.delivery-file')).toHaveCount(0);
   await controls(page);
-  await page.getByLabel('交付读取场景').selectOption('AVAILABLE');
+  await withMockControls(page, async () =>
+    page.getByLabel('交付读取场景').selectOption('AVAILABLE'),
+  );
   await expect(page.locator('.delivery-selection')).toContainText('本批已选 0 份');
   await controls(page);
-  await page.getByRole('button', { name: '模拟空清单' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟空清单' }).click(),
+  );
   await expect(page.locator('.delivery-file-list')).toContainText('当前没有项目交付文件');
 });
 test('delivery bounded desktop and narrow history, keyboard focus, 200 files and accessibility', async ({
@@ -179,8 +205,10 @@ test('delivery bounded desktop and narrow history, keyboard focus, 200 files and
   );
   await page.goto(route);
   await controls(page);
-  await page.getByRole('button', { name: '带入 200 份文件' }).click();
-  await page.locator('.delivery-controls > summary').click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入 200 份文件' }).click(),
+  );
+  await withMockControls(page, async () => page.locator('.delivery-controls > summary').click());
   await expect(page.locator('.delivery-file')).toHaveCount(200);
   for (const [width, height] of [
     [1280, 800],
@@ -255,30 +283,42 @@ test('delivery ignores late original receipts after readback and access expirati
 }) => {
   await page.goto(route);
   await controls(page);
-  await page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('HOLD');
+  await withMockControls(page, async () =>
+    page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('HOLD'),
+  );
   await choose(page);
   await openReview(page);
   await page.getByRole('button', { name: '确认版本并生成交付包' }).click();
-  await page.getByLabel('原意图查询结果').selectOption('CONFIRMED');
+  await withMockControls(page, async () =>
+    page.getByLabel('原意图查询结果').selectOption('CONFIRMED'),
+  );
   await page.getByRole('button', { name: '查询原生成意图' }).click();
   await expect(page.locator('.delivery-receipt')).toContainText('本批版本已确认，待生成交付包');
-  await page.getByRole('button', { name: '返回待核实回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回待核实回执' }).click(),
+  );
   await expect(page.locator('.delivery-receipt')).toContainText('本批版本已确认，待生成交付包');
-  await page.getByLabel('交付读取场景').selectOption('EXPIRED');
+  await withMockControls(page, async () => page.getByLabel('交付读取场景').selectOption('EXPIRED'));
   await expect(page.locator('.delivery-file')).toHaveCount(0);
   await controls(page);
-  await page.getByLabel('交付读取场景').selectOption('AVAILABLE');
+  await withMockControls(page, async () =>
+    page.getByLabel('交付读取场景').selectOption('AVAILABLE'),
+  );
   await expect(page.locator('.delivery-receipt')).toHaveCount(0);
   await expect(page.locator('.delivery-selection')).toContainText('本批已选 0 份');
   await controls(page);
   await choose(page);
   await openReview(page);
   await page.getByRole('button', { name: '确认版本并生成交付包' }).click();
-  await page.getByLabel('交付读取场景').selectOption('EXPIRED');
+  await withMockControls(page, async () => page.getByLabel('交付读取场景').selectOption('EXPIRED'));
   await controls(page);
-  await page.getByRole('button', { name: '返回待核实回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回待核实回执' }).click(),
+  );
   await expect(page.locator('.delivery-receipt')).toHaveCount(0);
-  await page.getByLabel('交付读取场景').selectOption('AVAILABLE');
+  await withMockControls(page, async () =>
+    page.getByLabel('交付读取场景').selectOption('AVAILABLE'),
+  );
   await expect(page.locator('.delivery-receipt')).toHaveCount(0);
 });
 
@@ -287,7 +327,9 @@ test('delivery restores the original UNKNOWN intent after leaving and returning'
 }) => {
   await page.goto(route);
   await controls(page);
-  await page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('UNKNOWN');
+  await withMockControls(page, async () =>
+    page.getByRole('combobox', { name: '确认回执', exact: true }).selectOption('UNKNOWN'),
+  );
   await choose(page);
   await openReview(page);
   await page.getByRole('button', { name: '确认版本并生成交付包' }).click();
@@ -328,7 +370,7 @@ test('delivery retains supplied download observations on the same package after 
   ] as const;
   for (const [index, [state, label]] of observations.entries()) {
     await controls(page);
-    await page.getByLabel('下载观察').selectOption(state);
+    await withMockControls(page, async () => page.getByLabel('下载观察').selectOption(state));
     const downloaded = state === 'REQUESTED' ? page.waitForEvent('download') : null;
     await page.getByRole('button', { name: '下载合成示例包 .zip' }).click();
     if (downloaded) expect((await downloaded).suggestedFilename()).toContain('SYNTHETIC.zip');

@@ -1,3 +1,4 @@
+import { MockControls } from './control-slot.js';
 // Isolated synthetic events and bytes. Never a production release/export adapter.
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
 import { DeliveryPage, type DeliveryPageProps } from '../delivery/Page.js';
@@ -232,208 +233,215 @@ export function FixtureDelivery() {
         setData((prior) => ({ ...prior, completeness: 'COMPLETE' }));
       }}
       controls={
-        <details className="delivery-controls">
-          <summary>开发交付场景 · 全部为合成数据</summary>
-          <p>{marker} · 仅内存，不接 Core/Runner/生产受控导出。</p>
-          <p>确认调用数：{calls}</p>
-          <div>
-            <label>
-              确认回执
-              <select
-                value={outcome}
-                onChange={(event) => {
-                  setOutcome(event.target.value as typeof outcome);
-                }}
-              >
-                {[
-                  'PACKAGE_READY',
-                  'HOLD',
-                  'UNKNOWN',
-                  'REJECTED',
-                  'FAILED',
-                  'CONFIRMED',
-                  'GENERATING',
-                  'MISMATCH',
-                ].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              原意图查询结果
-              <select
-                value={readOutcome}
-                onChange={(event) => {
-                  setReadOutcome(event.target.value as typeof readOutcome);
-                }}
-              >
-                {['PACKAGE_READY', 'UNKNOWN', 'CONFIRMED', 'GENERATING', 'FAILED', 'REJECTED'].map(
-                  (value) => (
+        <MockControls>
+          <details className="delivery-controls">
+            <summary>开发交付场景 · 全部为合成数据</summary>
+            <p>{marker} · 仅内存，不接 Core/Runner/生产受控导出。</p>
+            <p>确认调用数：{calls}</p>
+            <div>
+              <label>
+                确认回执
+                <select
+                  value={outcome}
+                  onChange={(event) => {
+                    setOutcome(event.target.value as typeof outcome);
+                  }}
+                >
+                  {[
+                    'PACKAGE_READY',
+                    'HOLD',
+                    'UNKNOWN',
+                    'REJECTED',
+                    'FAILED',
+                    'CONFIRMED',
+                    'GENERATING',
+                    'MISMATCH',
+                  ].map((value) => (
                     <option key={value}>{value}</option>
-                  ),
-                )}
-              </select>
-            </label>
-            <label>
-              下载观察
-              <select
-                value={downloadOutcome}
-                onChange={(event) => {
-                  setDownloadOutcome(event.target.value);
+                  ))}
+                </select>
+              </label>
+              <label>
+                原意图查询结果
+                <select
+                  value={readOutcome}
+                  onChange={(event) => {
+                    setReadOutcome(event.target.value as typeof readOutcome);
+                  }}
+                >
+                  {[
+                    'PACKAGE_READY',
+                    'UNKNOWN',
+                    'CONFIRMED',
+                    'GENERATING',
+                    'FAILED',
+                    'REJECTED',
+                  ].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                下载观察
+                <select
+                  value={downloadOutcome}
+                  onChange={(event) => {
+                    setDownloadOutcome(event.target.value);
+                  }}
+                >
+                  {[
+                    'REQUESTED',
+                    'UNKNOWN',
+                    'FAILED',
+                    'THROW',
+                    'RESPONSE_STARTED',
+                    'RESPONSE_SENT',
+                  ].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                交付读取场景
+                <select
+                  value={phase}
+                  onChange={(event) => {
+                    setPhase(event.target.value as typeof phase);
+                  }}
+                >
+                  {['AVAILABLE', 'LOADING', 'ERROR', 'EXPIRED', 'UNAVAILABLE'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={() => {
+                  const intent = [...intents.values()].at(-1);
+                  if (intent && pending.current) {
+                    pending.current({ intent, state: 'UNKNOWN' });
+                    pending.current = null;
+                  }
                 }}
               >
-                {[
-                  'REQUESTED',
-                  'UNKNOWN',
-                  'FAILED',
-                  'THROW',
-                  'RESPONSE_STARTED',
-                  'RESPONSE_SENT',
-                ].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              交付读取场景
-              <select
-                value={phase}
-                onChange={(event) => {
-                  setPhase(event.target.value as typeof phase);
-                }}
-              >
-                {['AVAILABLE', 'LOADING', 'ERROR', 'EXPIRED', 'UNAVAILABLE'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              onClick={() => {
-                const intent = [...intents.values()].at(-1);
-                if (intent && pending.current) {
-                  pending.current({ intent, state: 'UNKNOWN' });
-                  pending.current = null;
-                }
-              }}
-            >
-              返回待核实回执
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({
-                  ...prior,
-                  files: prior.files.map((item) =>
-                    item.id !== 'MANUAL'
-                      ? item
-                      : {
-                          ...item,
-                          revisionId: 'MANUAL-REV-02',
-                          version: '第 2 版',
-                          qualification: { ...item.qualification, key: 'MANUAL-QUAL-02' },
-                        },
-                  ),
-                }));
-              }}
-            >
-              模拟手册新版本
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({
-                  ...prior,
-                  files: prior.files.map((item) =>
-                    item.id !== 'CORR'
-                      ? item
-                      : {
-                          ...item,
-                          qualification: {
-                            key: 'REVOKED',
-                            eligible: false,
-                            reason: '配套核验已失效，需重新核对',
+                返回待核实回执
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({
+                    ...prior,
+                    files: prior.files.map((item) =>
+                      item.id !== 'MANUAL'
+                        ? item
+                        : {
+                            ...item,
+                            revisionId: 'MANUAL-REV-02',
+                            version: '第 2 版',
+                            qualification: { ...item.qualification, key: 'MANUAL-QUAL-02' },
                           },
-                        },
-                  ),
-                }));
-              }}
-            >
-              模拟程序资格失效
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({
-                  ...prior,
-                  files: prior.files.filter((item) => item.id !== 'MANUAL'),
-                }));
-              }}
-            >
-              移除手册观察
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({ ...prior, completeness: 'PARTIAL' }));
-              }}
-            >
-              模拟部分读取
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({ ...prior, completeness: 'STALE' }));
-              }}
-            >
-              模拟陈旧读取
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({ ...prior, files: [] }));
-              }}
-            >
-              模拟空清单
-            </button>
-            <button
-              onClick={() => {
-                setData((prior) => ({
-                  ...prior,
-                  files: [
-                    ...initial.files,
-                    ...Array.from({ length: 197 }, (_, index) =>
-                      file(`LONG-${index}`, `合成文件 ${index}`, '8.5', '第 3 轮'),
                     ),
-                  ],
-                }));
-              }}
-            >
-              带入 200 份文件
-            </button>
-            <button
-              onClick={() => {
-                availability('EXPIRED');
-              }}
-            >
-              模拟包许可过期
-            </button>
-            <button
-              onClick={() => {
-                availability('UNAVAILABLE');
-              }}
-            >
-              模拟包不可下载
-            </button>
-            <button
-              onClick={() => {
-                availability('FAILED');
-              }}
-            >
-              模拟包校验失败
-            </button>
-            <button
-              onClick={() => {
-                availability('AVAILABLE');
-              }}
-            >
-              恢复同一包可下载
-            </button>
-          </div>
-        </details>
+                  }));
+                }}
+              >
+                模拟手册新版本
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({
+                    ...prior,
+                    files: prior.files.map((item) =>
+                      item.id !== 'CORR'
+                        ? item
+                        : {
+                            ...item,
+                            qualification: {
+                              key: 'REVOKED',
+                              eligible: false,
+                              reason: '配套核验已失效，需重新核对',
+                            },
+                          },
+                    ),
+                  }));
+                }}
+              >
+                模拟程序资格失效
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({
+                    ...prior,
+                    files: prior.files.filter((item) => item.id !== 'MANUAL'),
+                  }));
+                }}
+              >
+                移除手册观察
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({ ...prior, completeness: 'PARTIAL' }));
+                }}
+              >
+                模拟部分读取
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({ ...prior, completeness: 'STALE' }));
+                }}
+              >
+                模拟陈旧读取
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({ ...prior, files: [] }));
+                }}
+              >
+                模拟空清单
+              </button>
+              <button
+                onClick={() => {
+                  setData((prior) => ({
+                    ...prior,
+                    files: [
+                      ...initial.files,
+                      ...Array.from({ length: 197 }, (_, index) =>
+                        file(`LONG-${index}`, `合成文件 ${index}`, '8.5', '第 3 轮'),
+                      ),
+                    ],
+                  }));
+                }}
+              >
+                带入 200 份文件
+              </button>
+              <button
+                onClick={() => {
+                  availability('EXPIRED');
+                }}
+              >
+                模拟包许可过期
+              </button>
+              <button
+                onClick={() => {
+                  availability('UNAVAILABLE');
+                }}
+              >
+                模拟包不可下载
+              </button>
+              <button
+                onClick={() => {
+                  availability('FAILED');
+                }}
+              >
+                模拟包校验失败
+              </button>
+              <button
+                onClick={() => {
+                  availability('AVAILABLE');
+                }}
+              >
+                恢复同一包可下载
+              </button>
+            </div>
+          </details>
+        </MockControls>
       }
     />
   );

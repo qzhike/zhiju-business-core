@@ -22,6 +22,7 @@ import {
   procedureBasis,
   projectScope,
   revisionReceiptMatches,
+  rulesBasis,
   sameScope,
   sameVersionSet,
   stageScope,
@@ -48,7 +49,9 @@ const plan = {
 const manualFiles = [{ fileId: 'F-MANUAL', versionId: 'V2' }];
 const procedureFile = { fileId: 'F-PROCEDURE', versionId: 'V2' };
 const ruleFile = { fileId: 'F-EXTERNAL-RULE', versionId: 'V2' };
-const procedureFiles = [procedureFile, ruleFile];
+const formFile = { fileId: 'F-FORM-APPLY', versionId: 'V2' };
+const procedureFiles = [procedureFile];
+const rulesFiles = [ruleFile, formFile];
 const manualFinalization: StageFinalization = {
   classification: 'DEVELOPMENT_FIXTURE_ONLY',
   finalizationId: 'U2-FINAL-01',
@@ -67,6 +70,14 @@ const procedureFinalization: StageFinalization = {
   stage: 'PROCEDURES',
   files: procedureFiles,
   manualFinalizationId: manualFinalization.finalizationId,
+};
+const rulesFinalization: StageFinalization = {
+  ...procedureFinalization,
+  finalizationId: 'U2-FINAL-03',
+  stage: 'RULES',
+  files: rulesFiles,
+  manualFinalizationId: manualFinalization.finalizationId,
+  procedureFinalizationId: procedureFinalization.finalizationId,
 };
 
 function intent(overrides: Partial<FinalizationIntent> = {}): FinalizationIntent {
@@ -125,7 +136,7 @@ describe('U2 plan and version binding', () => {
 
   it('compares exact version sets without accepting missing or extra members', () => {
     expect(sameVersionSet([...procedureFiles].reverse(), procedureFiles)).toBe(true);
-    expect(sameVersionSet([procedureFile], procedureFiles)).toBe(false);
+    expect(sameVersionSet(procedureFiles, rulesFiles)).toBe(false);
     expect(
       sameVersionSet(
         [...procedureFiles, { fileId: 'F-FORM-NOTICE', versionId: 'V1' }],
@@ -189,8 +200,32 @@ describe('U2 upstream finalization', () => {
     expect(
       procedureBasis(procedureFinalization, {
         ...expected,
-        procedureFileIds: ['F-PROCEDURE'],
+        procedureFileIds: ['F-EXTERNAL-RULE'],
       }).reason,
+    ).toContain('完整版本集合');
+  });
+
+  it('requires the third-stage set to bind both upstream finalizations', () => {
+    const expected = {
+      projectId,
+      planId: plan.planId,
+      planVersion: plan.version,
+      inputRefs: plan.inputRefs,
+      templateIds: plan.templateIds,
+      manualFinalizationId: manualFinalization.finalizationId,
+      procedureFinalizationId: procedureFinalization.finalizationId,
+      ruleFileIds: rulesFiles.map((entry) => entry.fileId),
+    };
+    expect(rulesBasis(rulesFinalization, expected)).toEqual({ ok: true });
+    expect(rulesBasis(undefined, expected).reason).toContain('尚无管理制度及记录表单');
+    expect(
+      rulesBasis(rulesFinalization, { ...expected, manualFinalizationId: 'OTHER' }).reason,
+    ).toContain('质量手册版本');
+    expect(
+      rulesBasis(rulesFinalization, { ...expected, procedureFinalizationId: 'OTHER' }).reason,
+    ).toContain('控制程序版本');
+    expect(
+      rulesBasis(rulesFinalization, { ...expected, ruleFileIds: ['F-EXTERNAL-RULE'] }).reason,
     ).toContain('完整版本集合');
   });
 
@@ -247,9 +282,8 @@ describe('U2 upstream finalization', () => {
     ).toContain('上游依据已变化');
   });
 
-  it('blocks finalization for a stale candidate, active batch, missing file or records', () => {
+  it('blocks finalization for a stale candidate, active batch or missing file', () => {
     const base = {
-      supported: true,
       plan: { ready: true },
       upstream: { ok: true },
       files: [file('F-MANUAL', ['V1', 'V2'], 'V2')],
@@ -275,7 +309,6 @@ describe('U2 upstream finalization', () => {
         ],
       }),
     ).toContain('缺少文件或版本');
-    expect(finalizationBlocker({ ...base, supported: false })).toContain('不设单独定稿关卡');
   });
 });
 
@@ -429,7 +462,7 @@ describe('U2 candidate arrival', () => {
 
   it('resolves the exact viewed set only when every stage file has a version', () => {
     const files = [file('F-PROCEDURE', ['V2']), file('F-EXTERNAL-RULE', ['V2'])];
-    expect(viewedVersionSet(files)).toEqual(procedureFiles);
+    expect(viewedVersionSet(files)).toEqual([procedureFile, ruleFile]);
     expect(
       viewedVersionSet([
         file('F-PROCEDURE', ['V2']),

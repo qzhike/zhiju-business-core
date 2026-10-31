@@ -409,8 +409,59 @@
 .template-applicability .status-tag {
   margin-left: 8px;
 }
+.analysis-governance {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.analysis-governance h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.governance-grid,
+.governance-conflicts {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.governance-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface);
+}
+.governance-card h3,
+.governance-card h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.governance-card p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.governance-card small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.governance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.governance-sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  font-size: 13px;
+}
+.governance-sources ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
 @media (max-width: 700px) {
-  .understanding-groups {
+  .understanding-groups,
+  .governance-sources {
     grid-template-columns: minmax(0, 1fr);
   }
 }

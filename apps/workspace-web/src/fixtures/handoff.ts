@@ -20,6 +20,8 @@ export interface MvpHandoff {
   stages?: readonly OverviewStage[] | undefined;
   reviewStages?: readonly JourneyReviewStage[] | undefined;
   u3Stages?: readonly MvpHandoffStage[] | undefined;
+  projectStatus?: string | undefined;
+  projectProgress?: string | undefined;
 }
 
 export const MvpHandoffContext = createContext<MvpHandoff | null>(null);

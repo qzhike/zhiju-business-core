@@ -1,5 +1,7 @@
 # Module-Test-004-Artifact
 
+2026-10-31 测试范围更新：用户已确认移除退出新版 MVP 链路的旧平台专用持久化测试，见 [当前验证范围](../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)。本文件的旧数据库 PASS/文件路径保留为历史证据，不代表当前 full 仍执行这些场景。普通 Unit/Contract 继续保留；重新接入本模块前须恢复适用持久化验证。共享 OIDC/会话安全继续验证，受控 Keycloak 数据库旅程改由 MVP01 拥有。
+
 版本：v0.1
 日期：2026-08-30
 状态：`API CONTRACT TEST BASELINE / IM-04 WI-01–WI-09 AUTOMATED AND PERSISTENCE EVIDENCE PASS / ISSUE #90–#98 CLOSED / PARENT SCOPED TECHNICAL ACCEPTANCE PASS 2026-08-30 / IM-05 WI-05 CONTROLLED RENDERER COMPOSITION AND GIT DELIVERY PASS / PR #135 MERGED / ISSUE #125 CLOSED / INDEPENDENT BUSINESS MANUAL AND EXTERNAL BOUNDARIES NOT RUN`

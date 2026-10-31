@@ -1,18 +1,11 @@
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-// Balance the slow files using the reviewed CI timing sample. New files go to
-// partition 3 automatically; every partition owns a separate disposable DB.
+// Keep custody, real Keycloak and transport/restart on independent runners.
+// New files go to partition 3; every partition owns a separate disposable DB.
 export const fixedPartitions = {
-  1: ['tests/persistence/initial-context.test.ts'],
-  2: [
-    'tests/persistence/run-cancellation.test.ts',
-    'tests/persistence/initial-context-delivery.test.ts',
-    'tests/persistence/controlled-exit.test.ts',
-    'tests/persistence/initial-context-eligibility.test.ts',
-    'tests/persistence/initial-context-unsupported-final.test.ts',
-    'tests/persistence/task-board-entry.test.ts',
-  ],
+  1: ['tests/persistence/mvp-document-delivery.test.ts'],
+  2: ['tests/persistence/mvp-controlled-keycloak.test.ts'],
 };
 
 export function discoverPersistenceFiles(root) {

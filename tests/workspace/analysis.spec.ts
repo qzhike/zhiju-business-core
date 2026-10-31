@@ -1,3 +1,4 @@
+import { withMockControls } from './mock-controls.js';
 import { expect, test } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 const base = '/projects/DEMO-PROJECT-01';
@@ -64,8 +65,10 @@ test('one composer retains separate customer, judgment and plan drafts; submitte
   await expect(page.getByLabel('说明与意见')).toHaveValue('此文件计划需复核');
   await page.getByRole('button', { name: '切换客户补充' }).click();
   await expect(page.getByLabel('说明与意见')).toHaveValue('客户未提交草稿');
-  await page.getByText('分析演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '模拟新报告到达' }).click();
+  await withMockControls(page, async () => page.getByText('分析演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟新报告到达' }).click(),
+  );
   await page.getByRole('button', { name: '应用更新到当前总览' }).click();
   await page.getByRole('link', { name: '核对信息与文件范围 →' }).click();
   await expect(page.getByRole('checkbox', { name: '选择纠正措施程序' })).toBeDisabled();
@@ -75,8 +78,10 @@ test('fixed report update is explicit, preserves next draft and makes historical
   page,
 }) => {
   await page.goto(report);
-  await page.getByText('分析演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '带入固定补充示例' }).click();
+  await withMockControls(page, async () => page.getByText('分析演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入固定补充示例' }).click(),
+  );
   await page.getByRole('button', { name: '提交补充' }).click();
   await page.getByLabel('说明与意见').fill('下一稿保留');
   await expect(page.getByRole('button', { name: '应用更新到当前总览' })).toBeVisible();
@@ -100,8 +105,10 @@ for (const scenario of ['failed', 'unavailable', 'unknown', 'mismatch']) {
     page,
   }) => {
     await page.goto(report);
-    await page.getByText('分析演示控制', { exact: true }).click();
-    await page.getByLabel('复核结果').selectOption(scenario);
+    await withMockControls(page, async () =>
+      page.getByText('分析演示控制', { exact: true }).click(),
+    );
+    await withMockControls(page, async () => page.getByLabel('复核结果').selectOption(scenario));
     await page.getByLabel('说明与意见').fill('任意文本不能关闭缺口');
     await page.getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）').setInputFiles({
       name: 'local.md',
@@ -131,8 +138,10 @@ test('arrival preserves detailed reading and controlled viewport/focus/reflow ba
   );
   await page.goto(report);
   await page.getByLabel('说明与意见').fill('窄屏保留草稿');
-  await page.getByText('分析演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '模拟新报告到达' }).click();
+  await withMockControls(page, async () => page.getByText('分析演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟新报告到达' }).click(),
+  );
   await page.getByRole('button', { name: '客户需补充', exact: true }).click();
   await page.getByRole('button', { name: '组织图的可读版本 REQ-ORG' }).click();
   await expect(page.locator('.analysis-item')).toContainText('已提供但读取受限');
@@ -216,8 +225,10 @@ test('stale draft evidence stays bound to its original exact report after an exp
 }) => {
   await page.goto(report);
   await page.getByLabel('说明与意见').fill('保留第 1 版补充草稿');
-  await page.getByText('分析演示控制', { exact: true }).click();
-  await page.getByRole('button', { name: '模拟新报告到达' }).click();
+  await withMockControls(page, async () => page.getByText('分析演示控制', { exact: true }).click());
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟新报告到达' }).click(),
+  );
   await page.getByRole('button', { name: '应用更新到当前总览' }).click();
   await expect(page).toHaveURL(newer);
   await expect(page.getByRole('alert')).toContainText('上下文已过期');
@@ -284,8 +295,12 @@ for (const width of [1440, 360]) {
       .getByLabel('附上补充资料（DOCX / Markdown / XLSX / ZIP）')
       .setInputFiles({ name: 'plan.md', mimeType: 'text/markdown', buffer: Buffer.from('plan') });
     await page.getByRole('button', { name: '切换客户补充' }).click();
-    await page.getByText('分析演示控制', { exact: true }).click();
-    await page.getByRole('button', { name: '模拟新报告到达' }).click();
+    await withMockControls(page, async () =>
+      page.getByText('分析演示控制', { exact: true }).click(),
+    );
+    await withMockControls(page, async () =>
+      page.getByRole('button', { name: '模拟新报告到达' }).click(),
+    );
     await page.getByRole('button', { name: '应用更新到当前总览' }).click();
     await page.getByText('报告记录', { exact: true }).click();
     await page.getByRole('link', { name: '查看第 1 版（历史只读）' }).click();

@@ -1,10 +1,12 @@
+import { withMockControls } from './mock-controls.js';
 import { readdir, readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 const first = '/projects/DEMO-PROJECT-01/executions/WB-ROUND-01';
 const controls = async (page: Page) => {
   const details = page.locator('.execution-controls');
-  if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
+  if ((await details.getAttribute('open')) === null)
+    await withMockControls(page, async () => details.locator('summary').click());
 };
 test('mixed file results, exact candidates, uncertain retries and intact failure history', async ({
   page,
@@ -13,22 +15,34 @@ test('mixed file results, exact candidates, uncertain retries and intact failure
   await controls(page);
   await expect(page.locator('.execution-counts')).toContainText('本轮 2 份');
   await expect(page.locator('.execution-counts')).toContainText('等待安排 2');
-  await page.getByRole('button', { name: '模拟本轮实际处理' }).click();
-  await page.getByRole('button', { name: '模拟首份候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟本轮实际处理' }).click(),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟首份候选到达' }).click(),
+  );
   await expect(page.locator('.execution-counts')).toContainText('正在处理 1 · 待检查 1');
   await expect(page.locator('.execution-file')).toHaveCount(2);
   await expect(page.locator('.execution-list')).not.toContainText('质量手册');
-  await page.getByRole('button', { name: '模拟第二份失败' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟第二份失败' }).click(),
+  );
   const failed = page.locator('.execution-file').filter({ hasText: '预防措施程序' });
   await expect(failed).toContainText('失败原因：源文件读取受限');
-  await page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('HOLD');
+  await withMockControls(page, async () =>
+    page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('HOLD'),
+  );
   await failed.getByRole('button', { name: '重新处理本文件' }).dblclick();
   await expect(failed).toContainText('重试请求等待回执');
   await expect(failed.getByRole('button', { name: '重新处理本文件' })).toHaveCount(0);
-  await page.getByRole('button', { name: '返回待核验重试回执' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '返回待核验重试回执' }).click(),
+  );
   await expect(failed).toContainText('重试结果待核验');
   const intent = await failed.getByRole('status').innerText();
-  await page.getByLabel('原请求查询结果').selectOption('ACCEPTED');
+  await withMockControls(page, async () =>
+    page.getByLabel('原请求查询结果').selectOption('ACCEPTED'),
+  );
   await failed.getByRole('button', { name: '查询原重试请求' }).click();
   await expect(failed).toContainText('重试请求已接收，等待安排');
   expect(await failed.getByRole('status').innerText()).toContain(
@@ -48,20 +62,24 @@ test('round navigation retains search, filter, disclosures and does not steal fo
 }) => {
   await page.goto(first);
   await controls(page);
-  await page.getByRole('button', { name: '模拟本轮实际处理' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟本轮实际处理' }).click(),
+  );
   await page.getByText('本轮范围与报告依据', { exact: true }).click();
   await page.getByText('运行日志', { exact: true }).click();
   const search = page.getByRole('searchbox', { name: '查找本轮文件' });
   await search.fill('CX');
   await page.getByLabel('文件状态').selectOption('PROCESSING');
-  await page.getByRole('button', { name: '带入已确认后轮示例' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入已确认后轮示例' }).click(),
+  );
   await page.getByLabel('查看轮次').selectOption('WB-SCOPE-02');
   await expect(page.locator('.execution-counts')).toContainText('等待安排 1');
   await search.fill('手册');
   await controls(page);
   await search.focus();
   await page
-    .getByRole('button', { name: '模拟前轮新候选到达' })
+    .getByRole('button', { name: '模拟前轮新候选到达', includeHidden: true })
     .evaluate((button: HTMLButtonElement) => {
       button.click();
     });
@@ -85,26 +103,36 @@ test('read/access/empty states, permission denial and mismatched retry cannot cl
 }) => {
   await page.goto(first);
   await controls(page);
-  await page.getByRole('button', { name: '模拟第二份失败' }).click();
-  await page.getByRole('button', { name: '模拟撤回重试许可' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟第二份失败' }).click(),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟撤回重试许可' }).click(),
+  );
   await expect(page.getByRole('button', { name: '重新处理本文件' })).toHaveCount(0);
   await expect(page.locator('.execution-list')).toContainText('当前未获服务端重试许可');
-  await page.getByRole('button', { name: '模拟第二份失败' }).click();
-  await page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('MISMATCH');
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟第二份失败' }).click(),
+  );
+  await withMockControls(page, async () =>
+    page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('MISMATCH'),
+  );
   await page.getByRole('button', { name: '重新处理本文件' }).click();
   await expect(page.locator('.execution-list')).toContainText('重试结果待核验');
-  await page.getByLabel('读取场景').selectOption('ERROR');
+  await withMockControls(page, async () => page.getByLabel('读取场景').selectOption('ERROR'));
   await expect(page.getByRole('alert')).toContainText('读取失败');
   await page.getByRole('button', { name: '重新读取进度' }).click();
   await expect(page.locator('.execution-list')).toContainText('重试结果待核验');
   await controls(page);
-  await page.getByLabel('读取场景').selectOption('EXPIRED');
+  await withMockControls(page, async () => page.getByLabel('读取场景').selectOption('EXPIRED'));
   await expect(page.getByRole('alert')).toContainText('访问已失效');
   await expect(page.locator('.execution-file')).toHaveCount(0);
   await controls(page);
-  await page.getByLabel('读取场景').selectOption('AVAILABLE');
+  await withMockControls(page, async () => page.getByLabel('读取场景').selectOption('AVAILABLE'));
   await controls(page);
-  await page.getByRole('button', { name: '带入空范围示例' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入空范围示例' }).click(),
+  );
   await page.getByLabel('查看轮次').selectOption('WB-EMPTY-SCOPE');
   await expect(page.locator('.execution-list')).toContainText('本轮没有已确认文件');
   await page.goto('/projects/other/executions/WB-ROUND-01');
@@ -120,8 +148,10 @@ test('built desktop and narrow reflow, bounded scrolling, keyboard entry and acc
   );
   await page.goto(first);
   await controls(page);
-  await page.getByRole('button', { name: '模拟首份候选到达' }).click();
-  await page.locator('.execution-controls > summary').click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟首份候选到达' }).click(),
+  );
+  await withMockControls(page, async () => page.locator('.execution-controls > summary').click());
   for (const [width, height] of [
     [1280, 800],
     [1440, 900],
@@ -159,7 +189,9 @@ test('long confirmed list scrolls within its bounded area and restores its round
 }) => {
   await page.goto(first);
   await controls(page);
-  await page.getByRole('button', { name: '带入长清单示例' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '带入长清单示例' }).click(),
+  );
   await page.getByLabel('查看轮次').selectOption('WB-LONG-SCOPE');
   await expect(page.locator('.execution-counts')).toContainText('本轮 40 份');
   const list = page.locator('.execution-list');
@@ -178,15 +210,19 @@ test('ready candidate opens the shared reader and newer arrivals retain the exac
 }) => {
   await page.goto(first);
   await controls(page);
-  await page.getByRole('button', { name: '模拟首份候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟首份候选到达' }).click(),
+  );
   await page.getByRole('link', { name: '检查文件 · DEMO-REV-01' }).click();
   await expect(page.getByRole('heading', { name: '纠正措施程序（合成候选）' })).toBeVisible();
   const draft = page.getByRole('textbox', { name: '意见草稿' });
   await draft.fill('未提交的下一轮意见');
-  await page.getByText('候选到达演示事件', { exact: true }).click();
+  await withMockControls(page, async () =>
+    page.getByText('候选到达演示事件', { exact: true }).click(),
+  );
   await draft.focus();
   await page
-    .getByRole('button', { name: '模拟阅读期间新候选到达' })
+    .getByRole('button', { name: '模拟阅读期间新候选到达', includeHidden: true })
     .evaluate((button: HTMLButtonElement) => {
       button.click();
     });
@@ -238,7 +274,9 @@ test('nested candidate return preserves the scoped workbench URL, search, disclo
   await entry.click();
   await expect(page).toHaveURL(first);
   await controls(page);
-  await page.getByRole('button', { name: '模拟首份候选到达' }).click();
+  await withMockControls(page, async () =>
+    page.getByRole('button', { name: '模拟首份候选到达' }).click(),
+  );
   await page.getByRole('link', { name: '检查文件 · DEMO-REV-01' }).click();
   await expect(page.getByRole('heading', { name: '纠正措施程序（合成候选）' })).toBeVisible();
   await page.getByRole('link', { name: '返回本轮文件进度' }).click();
@@ -256,10 +294,18 @@ for (const receipt of ['UNKNOWN', 'ACCEPTED'] as const) {
   }) => {
     await page.goto(first);
     await controls(page);
-    await page.getByRole('button', { name: '带入已确认后轮示例' }).click();
-    await page.getByRole('button', { name: '模拟首份候选到达' }).click();
-    await page.getByRole('button', { name: '模拟第二份失败' }).click();
-    await page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('HOLD');
+    await withMockControls(page, async () =>
+      page.getByRole('button', { name: '带入已确认后轮示例' }).click(),
+    );
+    await withMockControls(page, async () =>
+      page.getByRole('button', { name: '模拟首份候选到达' }).click(),
+    );
+    await withMockControls(page, async () =>
+      page.getByRole('button', { name: '模拟第二份失败' }).click(),
+    );
+    await withMockControls(page, async () =>
+      page.getByRole('combobox', { name: '重试回执', exact: true }).selectOption('HOLD'),
+    );
     const row = page.locator('.execution-file').filter({ hasText: '预防措施程序' });
     await row.getByRole('button', { name: '重新处理本文件' }).dblclick();
     await expect(row).toContainText('重试请求等待回执');
@@ -275,6 +321,7 @@ for (const receipt of ['UNKNOWN', 'ACCEPTED'] as const) {
     await page
       .getByRole('button', {
         name: receipt === 'UNKNOWN' ? '返回待核验重试回执' : '返回已接收重试回执',
+        includeHidden: true,
       })
       .evaluate((button: HTMLButtonElement) => {
         button.click();
@@ -292,7 +339,9 @@ for (const receipt of ['UNKNOWN', 'ACCEPTED'] as const) {
     await expect(row).toContainText('失败历史（1）');
     if (receipt === 'UNKNOWN') {
       await expect(row.getByRole('button', { name: '查询原重试请求' })).toBeVisible();
-      await page.getByLabel('原请求查询结果').selectOption('ACCEPTED');
+      await withMockControls(page, async () =>
+        page.getByLabel('原请求查询结果').selectOption('ACCEPTED'),
+      );
       await row.getByRole('button', { name: '查询原重试请求' }).click();
       await expect(row).toContainText('重试请求已接收，等待安排');
       await expect(row.getByRole('status')).toContainText(original);

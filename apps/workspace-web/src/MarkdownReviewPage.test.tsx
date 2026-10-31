@@ -94,6 +94,13 @@ function markup(overrides: Partial<Parameters<typeof MarkdownReviewPage>[0]> = {
 }
 
 describe('bounded review workspace boundaries', () => {
+  it('keeps the live directory note without a round-only file column', () => {
+    const html = markup({ workspace: { directoryNote: '跨文件成果目录读取尚未接入' } });
+    expect(html).toContain('markdown-review-layout without-files');
+    expect(html).toContain('跨文件成果目录读取尚未接入');
+    expect(html).not.toContain('本轮文件');
+  });
+
   it('keeps unavailable operations disabled with the supplied input preserved', () => {
     const html = markup();
     expect(html).toContain('本页未提交的意见');
@@ -101,7 +108,10 @@ describe('bounded review workspace boundaries', () => {
     expect(html).toContain('批准能力尚未接入。');
     expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled');
     expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled');
-    expect(html).toContain('跨文件成果目录读取尚未接入');
+    // The shared project catalog is the file column; the reader no longer
+    // renders a duplicate round-only directory.
+    expect(html).toContain('markdown-review-layout without-files');
+    expect(html).not.toContain('本轮文件');
   });
   it('marks an ordinary edit stale when a newer candidate arrived and keeps the suggests-only exception', () => {
     const candidate = {

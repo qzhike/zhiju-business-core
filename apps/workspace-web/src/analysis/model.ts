@@ -41,6 +41,31 @@ export interface TemplateApplicability {
   explanation: string;
   sourceIds: string[];
 }
+export interface ProtectedContent {
+  id: string;
+  category: string;
+  statement: string;
+  sourceIds: string[];
+  templateIds: string[];
+  options: readonly { id: string; label: string; note: string }[];
+}
+export interface TemplateConflict {
+  id: string;
+  title: string;
+  customerSources: readonly { sourceId: string; statement: string }[];
+  templateSources: readonly { templateId: string; statement: string }[];
+  options: readonly { id: string; label: string; note: string }[];
+}
+export interface GovernanceDecision {
+  decisionId: string;
+  targetKind: 'PROTECTED_FACT' | 'TEMPLATE_CONFLICT';
+  targetId: string;
+  reportId: string;
+  reportVersion: number;
+  optionId: string;
+  optionLabel: string;
+  decidedAt: string;
+}
 export interface AnalysisReport {
   projectId: string;
   reportId: string;
@@ -52,6 +77,8 @@ export interface AnalysisReport {
   attentionItems: Attention[];
   understanding?: UnderstandingItem[];
   templates?: TemplateApplicability[];
+  protectedContent?: readonly ProtectedContent[];
+  templateConflicts?: readonly TemplateConflict[];
   evidence: Evidence[];
   plannedFiles: { id: string; title: string; customerCode: string | null; origin: string }[];
   changes: {
@@ -175,6 +202,8 @@ export interface AnalysisState {
   search: string;
   category: string;
   scroll: Record<string, number>;
+  protectedProposals: Record<string, { reportId: string; version: number; at: string }>;
+  decisions: Record<string, GovernanceDecision>;
 }
 export function initialState(report: AnalysisReport): AnalysisState {
   return {
@@ -185,6 +214,8 @@ export function initialState(report: AnalysisReport): AnalysisState {
     search: '',
     category: 'ALL',
     scroll: {},
+    protectedProposals: {},
+    decisions: {},
   };
 }
 export function matchesReceipt(input: Submission, receipt: Receipt): boolean {

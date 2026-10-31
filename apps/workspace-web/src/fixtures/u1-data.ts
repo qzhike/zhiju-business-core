@@ -23,6 +23,11 @@ export const u1FormatRules: readonly InputFormatRule[] = [
   { format: 'XLSX', disposition: 'SUPPORTED', note: '读取工作簿内容；本轮客户样本未包含该格式。' },
   { format: 'XLS', disposition: 'CONVERT', note: '旧 XLS 需员工先转换为 XLSX 再上传。' },
   { format: 'PDF', disposition: 'UNSUPPORTED', note: '暂不支持；不会静默转成其他格式。' },
+  {
+    format: 'RAR',
+    disposition: 'UNSUPPORTED',
+    note: '容器内成员不静默跳过；目录可列出，但解包与正文读取仍受限。',
+  },
   { format: '宏', disposition: 'UNSUPPORTED', note: '不执行宏。' },
 ];
 
@@ -83,6 +88,46 @@ const firstEntries: InputBatch['entries'] = [
     state: 'RECEIVED',
     note: '表格正文可提取；版面未核验。',
   },
+  {
+    id: 'C08',
+    path: '历史记录/变更历史（嵌套 RAR）',
+    format: 'RAR',
+    bytes: 58211,
+    state: 'LIMITED',
+    note: '容器目录可列出 2 份成员；成员未解包读取，不能因容器已列出视为已读。',
+  },
+  {
+    id: 'C08-R1',
+    path: '历史记录/变更记录 2024（RAR 内 DOCX）',
+    format: 'DOCX',
+    bytes: 28010,
+    state: 'LIMITED',
+    note: '嵌套 RAR 成员未解包；未读取正文或版式。',
+  },
+  {
+    id: 'C08-R2',
+    path: '历史记录/变更台账 2024（RAR 内 DOCX）',
+    format: 'DOCX',
+    bytes: 24011,
+    state: 'LIMITED',
+    note: '嵌套 RAR 成员未解包；未读取表格内容。',
+  },
+  {
+    id: 'C09',
+    path: '记录表单/变更编号说明.md',
+    format: 'MARKDOWN',
+    bytes: 4096,
+    state: 'RECEIVED',
+    note: 'Markdown 文本可读取；仅说明编号习惯，不代表客户已确认映射。',
+  },
+  {
+    id: 'C10',
+    path: '外来文件/外来标准清单（损坏）.docx',
+    format: 'DOCX',
+    bytes: 1536,
+    state: 'FAILED',
+    note: '文件损坏未读取；条目和失败原因保留，不静默丢弃。',
+  },
 ];
 
 export const u1InitialBatch: InputBatch = {
@@ -97,10 +142,12 @@ export const u1InitialBatch: InputBatch = {
     { id: 'U1-Q1', title: '四层文件结构与编号迁移', state: '待客户确认' },
     { id: 'U1-Q2', title: 'C04/C05/C07 的保留方式', state: '待客户确认' },
     { id: 'U1-READ', title: '原件图形与版式读取限制', state: '读取受限' },
+    { id: 'U1-RAR', title: '嵌套 RAR 成员未解包读取', state: '读取受限' },
   ],
   limitations: [
     '包结构与正文可提取，不等于语义、批注/修订或版式已完整读取。',
-    '本轮 7 份均为 DOCX；Markdown/XLSX 只有展示状态覆盖，未用真实客户样本验证。',
+    '本轮客户文件包含 DOCX、Markdown 与嵌套 RAR；RAR 成员未解包读取，Markdown 只读取文本。',
+    'C10 损坏条目保留失败原因，不能因其他文件成功而视为全包已读。',
   ],
   nextAction: '核对目录与读取限制，然后查看分析并记录客户答复或补充说明。',
 };
@@ -108,16 +155,28 @@ export const u1InitialBatch: InputBatch = {
 export const u1SupplementBatch: InputBatch = {
   id: 'U1-BATCH-02',
   label: '补充批次',
-  zipName: '客户答复（无新增文件）',
+  zipName: '客户答复与记录清单（补充批次）.zip',
   submittedAt: '2026-10-20 09:40',
   state: 'RECEIVED',
-  entries: [],
+  entries: [
+    {
+      id: 'S01',
+      path: '补充资料/变更记录清单.md',
+      format: 'MARKDOWN',
+      bytes: 8192,
+      state: 'RECEIVED',
+      note: 'Markdown 文本可读取；作为补充说明，不替代客户原件或正式确认。',
+    },
+  ],
   answers: [
     '同意按四层文件结构升级，并接受质量手册中文件与记录控制编号迁移；C04/C05/C07 继续作为内部表单保留。',
     '外来文件管理规定按正式模板新增；变更实施记录需要补充；变更通知单是否新增待下一步确认。',
   ],
   answerIds: ['A1', 'A1'],
-  limitations: ['补充批次只有文字答复，没有新增客户文件；不能据此宣称资料已补全。'],
+  limitations: [
+    '补充批次包含一份 Markdown 说明与文字答复；不覆盖首轮目录或成员身份。',
+    '新增说明不改变 RAR 成员未读取、C10 失败或原件版式未核验的限制。',
+  ],
   nextAction: '查看据此形成的第 2 版分析，再核对修改范围。',
 };
 
@@ -148,7 +207,7 @@ export const u1ReportOne: AnalysisReport = {
   summary:
     '客户已有质量手册、变更控制程序和五份关联表单；正式模板的四层文件结构、三层分流与记录编号存在适用缺口，另有两项表单映射待确认。',
   limitations: [
-    '仅依据 C01–C07 的 DOCX 正文提取结果；批注、修订、图形和版式未核验。',
+    '仅依据 C01–C09 的可读正文提取结果；C08 嵌套 RAR 成员未解包，C10 损坏未读取，批注、修订、图形和版式未核验。',
     'T01–T06 是正式模板的只读快照；模板条款不是客户事实，适用性逐项说明。',
     '本报告是页面演练的合成展示，不是 Runner 执行结果、业务审核或服务器接纳。',
   ],
@@ -249,10 +308,22 @@ export const u1ReportOne: AnalysisReport = {
       id: 'U-READ-LIMIT',
       category: 'READ_LIMIT',
       statement:
-        'C01–C07 只完成正文提取；图形、批注、修订、页眉页脚和版式没有核验，页面不能把这些未读部分当成已确认事实。',
-      sourceIds: ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07'],
+        'C01–C07 只完成正文提取；C08 嵌套 RAR 的成员未解包，C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
+      sourceIds: [
+        'C01',
+        'C02',
+        'C03',
+        'C04',
+        'C05',
+        'C06',
+        'C07',
+        'C08',
+        'C08-R1',
+        'C08-R2',
+        'C10',
+      ],
       templateIds: [],
-      limitation: '需要人工核对原件版式；本轮不声称完整读取。',
+      limitation: '需要人工核对原件版式与嵌套成员；本轮不声称完整读取。',
     },
   ],
   templates: [
@@ -352,19 +423,164 @@ export const u1ReportOne: AnalysisReport = {
     },
     {
       id: 'U1-READ',
-      title: '原件图形与版式未核验',
+      title: '原件图形、版式与嵌套 RAR 读取受限',
       kind: 'UNREADABLE_MATERIAL',
       audience: 'CUSTOMER',
-      reason: 'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取。',
-      question: '是否补充可读的组织关系说明，或接受本轮仅基于正文的演练？',
+      reason:
+        'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C08 嵌套 RAR 的成员未解包，C10 损坏。',
+      question: '是否补充可读的组织关系说明或嵌套成员，或接受本轮仅基于可读正文的演练？',
       affectedPlannedFileIds: ['F-MANUAL'],
       protectedFactIds: [],
-      evidenceIds: ['E-C01-STRUCT'],
+      evidenceIds: ['E-C01-STRUCT', 'E-C08-RAR'],
       customerRequest: {
         key: 'REQ-U1-READ',
         title: '原件读取限制说明',
-        text: '本轮只读取了正文；如组织图或流程图会影响判断，请补充可读版本或文字说明。',
+        text: '本轮只读取了可读正文；嵌套 RAR 成员与损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
       },
+    },
+  ],
+  protectedContent: [
+    {
+      id: 'PF-POLICY',
+      category: '质量方针',
+      statement: '客户现行质量方针与批准安排；本轮只读保留，候选不替客户改写。',
+      sourceIds: ['C01'],
+      templateIds: ['T01'],
+      options: [
+        { id: 'RETAIN', label: '保留客户既有方针（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换为模板表述（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+    {
+      id: 'PF-OBJECTIVES',
+      category: '质量目标',
+      statement: '客户现行质量目标及目标分解；本轮只读保留。',
+      sourceIds: ['C01'],
+      templateIds: ['T01'],
+      options: [
+        { id: 'RETAIN', label: '保留客户既有目标（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换为模板目标（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+    {
+      id: 'PF-STAFF',
+      category: '人员架构',
+      statement: '客户现有岗位、职责与任职安排；图形未核验，只按可读正文展示。',
+      sourceIds: ['C01'],
+      templateIds: ['T01'],
+      options: [
+        { id: 'RETAIN', label: '保留客户人员架构（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换人员架构（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+    {
+      id: 'PF-ORG',
+      category: '组织架构',
+      statement: '客户组织关系与岗位汇报线；组织图未可靠读取，不据此推断。',
+      sourceIds: ['C01'],
+      templateIds: ['T01'],
+      options: [
+        { id: 'RETAIN', label: '保留客户组织架构（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换组织架构（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+    {
+      id: 'PF-PROCESSES',
+      category: '关联流程',
+      statement: '客户现行变更相关流程与审批路径；保留既有责任安排。',
+      sourceIds: ['C02'],
+      templateIds: ['T02'],
+      options: [
+        { id: 'RETAIN', label: '保留客户关联流程（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换关联流程（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+    {
+      id: 'PF-PRODUCT',
+      category: '产品流程',
+      statement: '客户产品实现与变更控制流程；模板分流不直接替代客户产品流程。',
+      sourceIds: ['C02'],
+      templateIds: ['T02'],
+      options: [
+        { id: 'RETAIN', label: '保留客户产品流程（模拟）', note: '不改变受保护内容。' },
+        {
+          id: 'REPLACE',
+          label: '授权替换产品流程（模拟）',
+          note: '仅记录页面内决定，不代表真实授权。',
+        },
+      ],
+    },
+  ],
+  templateConflicts: [
+    {
+      id: 'TC-STRUCT',
+      title: '客户三层文件结构与模板四层结构并存',
+      customerSources: [
+        { sourceId: 'C01', statement: '按三个文件层次组织，文件控制 4.2.4、记录控制 4.2.5。' },
+      ],
+      templateSources: [
+        {
+          templateId: 'T01',
+          statement: '采用四层结构，并把变更/文件/记录控制放在 4.2.4、4.3.5、4.3.6。',
+        },
+      ],
+      options: [
+        {
+          id: 'KEEP_WITH_MAPPING',
+          label: '保留客户结构并补编号映射（模拟）',
+          note: '需要人工明确映射，不静默迁移。',
+        },
+        {
+          id: 'ADOPT_TEMPLATE',
+          label: '采用模板四层结构（模拟）',
+          note: '会改变客户文件层级，必须显式决定。',
+        },
+      ],
+    },
+    {
+      id: 'TC-GRADE',
+      title: '客户 I/II/III 分级与模板分流口径冲突',
+      customerSources: [
+        {
+          sourceId: 'C02',
+          statement: '按 I 类实质性、II 类非实质性、III 类一般变更分级并沿用客户审批职责。',
+        },
+      ],
+      templateSources: [
+        { templateId: 'T02', statement: '采用注册证四要素、风险分析和程序执行三层分流。' },
+      ],
+      options: [
+        {
+          id: 'KEEP_GRADES_PLUS_SPLIT',
+          label: '保留客户分级并补充模板分流（模拟）',
+          note: '不改变客户审批职责。',
+        },
+        {
+          id: 'ADOPT_TEMPLATE_SPLIT',
+          label: '改用模板分流（模拟）',
+          note: '必须显式决定，不能由普通意见授权。',
+        },
+      ],
     },
   ],
   evidence: [
@@ -444,6 +660,20 @@ export const u1ReportOne: AnalysisReport = {
       representation: 'ORIGINAL',
       locator: { kind: 'SECTION', value: '5.5 更新跟踪' },
       note: 'T03 规定外来文件检索、更新触发和变更控制凭证编号回填。',
+    },
+    {
+      id: 'E-C08-RAR',
+      sourceId: 'C08',
+      representation: 'CONTAINER_INDEX_ONLY',
+      locator: { kind: 'ARCHIVE', value: '嵌套 RAR 成员目录' },
+      note: '只列出容器内 2 份成员；未解包、未读取正文，不能视为已完整读取。',
+    },
+    {
+      id: 'E-C10-FAILED',
+      sourceId: 'C10',
+      representation: 'FAILED',
+      locator: { kind: 'WHOLE_DOCUMENT', value: '损坏的 DOCX 条目' },
+      note: '文件损坏未读取；失败条目保留在批次目录中，不静默丢弃。',
     },
   ],
   plannedFiles: [
@@ -566,13 +796,13 @@ export const u1ReportTwo: AnalysisReport = {
   summary:
     '客户确认四层结构、编号迁移和内部表单保留；据此补充外来文件制度和实施记录；变更通知单仍待下一步确认。读取限制仍在，候选尚未生成。',
   limitations: [
-    '第 2 版依据补充批次的文字答复，不是新增客户文件。',
-    'DOCX 图形、批注、修订和版式仍未核验。',
+    '第 2 版依据补充批次的文字答复与一份 Markdown 说明；它们不覆盖首轮目录或成员身份。',
+    'C08 嵌套 RAR 成员仍未解包，C10 损坏未读取；DOCX 图形、批注、修订和版式仍未核验。',
     '本报告仍是页面演练的合成展示，不是 Runner 执行或业务批准。',
   ],
   narrative: `## 本轮变化
 
-补充批次确认了四层结构、质量手册编号迁移和 C04/C05/C07 的内部保留。计划据此新增外来文件管理规定和变更实施记录；变更通知单是否新增仍待确认。
+补充批次确认了四层结构、质量手册编号迁移和 C04/C05/C07 的内部保留，并附一份 Markdown 编号说明。计划据此新增外来文件管理规定和变更实施记录；变更通知单是否新增仍待确认。
 
 ## 仍未确认
 
@@ -609,30 +839,51 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       templateIds: ['T02', 'T03', 'T06'],
     },
     {
+      id: 'U-S01-NUMBERING',
+      category: 'SOURCE_FACT',
+      statement:
+        'S01 补充说明描述客户现有变更记录编号习惯；它支持映射讨论，但不代表客户已确认最终编号方案。',
+      sourceIds: ['S01'],
+      templateIds: ['T02'],
+    },
+    {
       id: 'U-READ-LIMIT',
       category: 'READ_LIMIT',
       statement:
-        'C01–C07 只完成正文提取；图形、批注、修订、页眉页脚和版式没有核验，页面不能把这些未读部分当成已确认事实。',
-      sourceIds: ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07'],
+        'C01–C07 只完成正文提取；C08 嵌套 RAR 的成员未解包，C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
+      sourceIds: [
+        'C01',
+        'C02',
+        'C03',
+        'C04',
+        'C05',
+        'C06',
+        'C07',
+        'C08',
+        'C08-R1',
+        'C08-R2',
+        'C10',
+      ],
       templateIds: [],
-      limitation: '需要人工核对原件版式；本轮不声称完整读取。',
+      limitation: '需要人工核对原件版式与嵌套成员；本轮不声称完整读取。',
     },
   ],
   attentionItems: [
     {
       id: 'U1-READ',
-      title: '原件图形与版式未核验',
+      title: '原件图形、版式与嵌套 RAR 读取受限',
       kind: 'UNREADABLE_MATERIAL',
       audience: 'CUSTOMER',
-      reason: 'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取。',
-      question: '是否补充可读的组织关系说明，或接受本轮仅基于正文的演练？',
+      reason:
+        'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C08 嵌套 RAR 的成员未解包，C10 损坏。',
+      question: '是否补充可读的组织关系说明或嵌套成员，或接受本轮仅基于可读正文的演练？',
       affectedPlannedFileIds: ['F-MANUAL'],
       protectedFactIds: [],
-      evidenceIds: ['E-C01-STRUCT'],
+      evidenceIds: ['E-C01-STRUCT', 'E-C08-RAR'],
       customerRequest: {
         key: 'REQ-U1-READ',
         title: '原件读取限制说明',
-        text: '本轮只读取了正文；如组织图或流程图会影响判断，请补充可读版本或文字说明。',
+        text: '本轮只读取了可读正文；嵌套 RAR 成员与损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
       },
     },
     {
@@ -662,6 +913,30 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
           }
         : template,
   ),
+  templateConflicts: [
+    {
+      id: 'TC-NUMBERING',
+      title: '客户既有记录编号与模板 QR 编号并存',
+      customerSources: [
+        { sourceId: 'S01', statement: '客户现行记录按既有体系编号，历史记录另有归档习惯。' },
+      ],
+      templateSources: [
+        { templateId: 'T02', statement: '模板使用 QR-PD-4.2.4 系列编号并引用变更通知与台账。' },
+      ],
+      options: [
+        {
+          id: 'KEEP_NUMBERING',
+          label: '保留客户编号并建立映射（模拟）',
+          note: '不静默替换客户历史编号。',
+        },
+        {
+          id: 'ADOPT_QR',
+          label: '改用模板 QR 编号（模拟）',
+          note: '会改变客户记录身份，必须显式决定。',
+        },
+      ],
+    },
+  ],
   evidence: [
     ...u1ReportOne.evidence,
     {
@@ -670,6 +945,13 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       representation: 'EXTRACTED',
       locator: { kind: 'ANSWER', value: '补充批次客户答复' },
       note: '客户答复确认四层结构与编号迁移、内部表单保留，并要求补充实施记录和外来文件制度；通知单仍待确认。',
+    },
+    {
+      id: 'E-S01',
+      sourceId: 'S01',
+      representation: 'EXTRACTED',
+      locator: { kind: 'WHOLE_DOCUMENT', value: '补充批次 Markdown 编号说明' },
+      note: '说明客户记录编号习惯；未覆盖原件，也不等于客户确认映射方案。',
     },
   ],
   resolutionProposals: [
@@ -715,7 +997,7 @@ export const u1PlanOne: PlanView = {
     {
       batchId: u1SupplementBatch.id,
       label: u1SupplementBatch.label,
-      sourceIds: ['A1'],
+      sourceIds: ['A1', 'S01'],
     },
   ],
   templateBasis: [
