@@ -1,45 +1,24 @@
-// IM-UI-01 (#266): the required *controlled Keycloak* acceptance journey.
-//
-// Issue #266 / review finding R6 requires the trusted-Human entry to be proven
-// against a real controlled Keycloak Authorization Code + PKCE journey — not
-// only against the synthetic OIDC issuer the sibling cases use — together with
-// the applicable denial, refresh and key-rotation evidence. Production
-// installation and production credentials are explicitly out of scope; an
-// isolated realm/client/user created only for this controlled test is not.
-//
-// This case therefore composes the same real stack as the built-artifact case
-// (real Core workspace runtime, real BFF, real disposable PostgreSQL with the
-// provisioned linked ACTIVE Human, its grants and its readable Project Board
-// projection, and the *built* production SPA served with `/bff/*` reverse
-// proxied) in front of a real `keycloak/keycloak:26.7.0` container started from
-// the pinned digest. The realm, its confidential client, its audience client
-// scope, its un-audienced second client, its one test user, its client
-// secret/password and its signing key are generated at test time.
-//
-// The assertions are the journey plus four required denial/refresh/rotation
-// cases. Every rejection is asserted *and* bounded to the owning boundary: the
-// Core's owning dispatch is counted, so "reached no owning read" is an
-// observed fact rather than an inference from the status code.
+// Real Keycloak security regressions through the MVP custody composition.
+// Legacy Enterprise, Grant and Projection fixtures are deliberately absent.
 
 import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
+import { rm } from 'node:fs/promises';
 
-import { NestFactory } from '../../apps/api/node_modules/@nestjs/core/index.js';
-import { FastifyAdapter } from '../../apps/api/node_modules/@nestjs/platform-fastify/index.js';
 import fastify from '../../apps/api/node_modules/fastify/fastify.js';
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { AppModule } from '../../apps/api/src/app.module.js';
+import { MVP_JSON_BODY_LIMIT, registerMvpTransport } from '../../apps/api/src/mvp/http.js';
+import { createMvpCoreRuntime } from '../../apps/api/src/mvp/runtime.js';
 import {
-  WORKSPACE_BODY_LIMIT_BYTES,
-  registerWorkspaceTransport,
-  type WorkspaceDispatchRequest,
-  type WorkspaceDispatchResponse,
-} from '../../apps/api/src/workspace/controller.js';
-import { createWorkspaceCoreFromEnv } from '../../apps/api/src/workspace/server.js';
+  applyMvpMigration,
+  createMvpDatabase,
+  provisionMvp,
+  type MvpFixture,
+} from './mvp-fixtures.js';
 import { createBff } from '../../apps/workspace-bff/src/app.js';
 import { LOGIN_COOKIE, SESSION_COOKIE } from '../../apps/workspace-bff/src/cookies.js';
 import { newUuidV7 } from '@zhiju/shared-kernel';
@@ -63,10 +42,8 @@ import {
   CLIENT_SECRET_ENV,
   SUBJECT_EXTERNAL_ID,
   buildTrustDocument,
-  provisionTrustedWorkspace,
   reserveLoopbackPort,
-  type ProvisionedWorkspace,
-} from './trusted-http-fixtures.js';
+} from './oidc-fixtures.js';
 
 const databaseUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const execFileAsync = promisify(execFile);
@@ -83,12 +60,10 @@ async function keycloakLogTail(containerName: string): Promise<string> {
     .then((result) => result.stdout)
     .catch(() => '<no container log>');
 }
-const LOOKUP_KEY_HEX = '11'.repeat(32);
-const FIELD_KEY_HEX = '22'.repeat(32);
 const CURSOR_KEY_HEX = '33'.repeat(32);
 
 const VIEWPORT = { width: 1440, height: 900 } as const;
-const DIRECTORY_PATH = '/bff/queries/project.find_workspace_projects/1.0';
+const DIRECTORY_PATH = '/bff/mvp/v1/projects';
 const FIXTURE_MARKERS = ['DEMO-PROJECT-01', '演示'] as const;
 /**
  * Short JWKS lifetime: the key-rotation case must resolve the retired `kid`
@@ -104,7 +79,7 @@ const REFRESH_CLOCK_ADVANCE_MS = 280_000;
 
 interface ControlledStack {
   readonly keycloak: ControlledKeycloak;
-  readonly workspace: ProvisionedWorkspace;
+  readonly workspace: MvpFixture & { readonly projectId: string; readonly projectTitle: string };
   readonly webOrigin: string;
   readonly bffOrigin: string;
   readonly coreOrigin: string;
@@ -139,25 +114,6 @@ async function readJsonRecord(response: Response): Promise<Record<string, unknow
     throw new Error(`response body was not a JSON object (status ${response.status})`);
   }
   return parsed as Record<string, unknown>;
-}
-
-/**
- * The closed directory Query envelope the built SPA sends; the direct Core
- * cases reuse it byte-for-byte so a rejection can only come from the token.
- */
-function directoryQueryBody(): Record<string, unknown> {
-  return {
-    queryId: newUuidV7(),
-    type: 'project.find_workspace_projects',
-    version: '1.0',
-    scopeRef: {},
-    consistencyRequirement: 'AUTHORITATIVE',
-    pagination: { pageSize: 50 },
-    correlationId: newUuidV7(),
-    requestedAt: new Date().toISOString(),
-    payload: { page: { pageSize: 50 } },
-    integrity: null,
-  };
 }
 
 function decodeJwtSegment(token: string, index: 0 | 1): Record<string, unknown> {
@@ -210,20 +166,15 @@ async function callCoreDirectory(
   target: ControlledStack,
   accessToken: string,
 ): Promise<{ readonly status: number; readonly body: Record<string, unknown> }> {
-  const response = await fetch(
-    `${target.coreOrigin}/api/queries/project.find_workspace_projects/1.0`,
-    {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-        'x-workspace-session-binding': randomBytes(32).toString('base64url'),
-        'x-workspace-trust-config-hash': target.trustConfigHash,
-      },
-      body: JSON.stringify(directoryQueryBody()),
+  const response = await fetch(`${target.coreOrigin}/api/mvp/v1/projects`, {
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      authorization: `Bearer ${accessToken}`,
+      'x-workspace-session-binding': randomBytes(32).toString('base64url'),
+      'x-workspace-trust-config-hash': target.trustConfigHash,
     },
-  );
+  });
   return { status: response.status, body: await readJsonRecord(response) };
 }
 
@@ -265,13 +216,15 @@ async function startControlledStack(): Promise<ControlledStack> {
   };
 
   try {
-    const workspace = await provisionTrustedWorkspace({
-      databaseUrl,
-      lookupKey: Buffer.from(LOOKUP_KEY_HEX, 'hex'),
-      fieldKey: Buffer.from(FIELD_KEY_HEX, 'hex'),
+    const admin = await createMvpDatabase(databaseUrl);
+    await admin.end();
+    await applyMvpMigration(databaseUrl);
+    const fixture = await provisionMvp(databaseUrl, {
       issuer: keycloak.issuer,
+      subject: SUBJECT_EXTERNAL_ID,
     });
-    cleanups.push(workspace.close);
+    cleanups.push(() => rm(fixture.storeRoot, { recursive: true, force: true }));
+    const workspace = { ...fixture, projectId: newUuidV7(), projectTitle: 'Keycloak 托管项目' };
 
     // The browser only ever reaches the built artifact origin, so that origin is
     // the public origin and the upstream BFF host is allowlisted as well.
@@ -286,18 +239,19 @@ async function startControlledStack(): Promise<ControlledStack> {
         jwksUrl: keycloak.jwksUri,
         endSessionUrl: keycloak.endSessionEndpoint,
         revocationUrl: keycloak.revocationEndpoint,
-        boardServicePrincipalId: workspace.servicePrincipalId,
+        boardServicePrincipalId: newUuidV7(),
       }),
       publicOrigin: webOrigin,
       allowedHosts: [`127.0.0.1:${webPort}`, `127.0.0.1:${bffPort}`],
       callbackUri: `${webOrigin}/bff/auth/callback`,
-      postLogoutRedirectUri: `${webOrigin}/workbench`,
+      postLogoutRedirectUri: `${webOrigin}/custody`,
+      returnRoutePatterns: ['/custody', '/custody/projects/:projectRef'],
       jwksTtlSeconds: KEYCLOAK_JWKS_TTL_SECONDS,
     };
     const rawDocument = JSON.stringify(document);
     const trustConfigHash = createHash('sha256').update(rawDocument, 'utf8').digest('hex');
 
-    const counters = { jwksFetches: 0, coreRequests: 0, owningDispatches: 0 };
+    const counters = { jwksFetches: 0, coreRequests: 0 };
     const coreAccessTokens: string[] = [];
     // The Core reads its transport from the global fetch at construction time, so
     // this wrapper observes exactly the Core's OIDC traffic; the BFF keeps a
@@ -309,24 +263,36 @@ async function startControlledStack(): Promise<ControlledStack> {
       return realFetch(input, init);
     };
     globalThis.fetch = countingFetch;
+    cleanups.push(() => {
+      globalThis.fetch = realFetch;
+    });
     let clockNow = Date.now();
 
-    const runtime = createWorkspaceCoreFromEnv({
-      ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument,
-      ZHIJU_WORKSPACE_DATABASE_URL: databaseUrl,
-      ZHIJU_WORKSPACE_IDENTITY_LOOKUP_KEY: LOOKUP_KEY_HEX,
-      ZHIJU_WORKSPACE_IDENTITY_FIELD_KEY: FIELD_KEY_HEX,
-      ZHIJU_WORKSPACE_BOARD_CURSOR_KEY: CURSOR_KEY_HEX,
-      ZHIJU_WORKSPACE_BOARD_POLICY_REFS: '{}',
+    const runtime = await createMvpCoreRuntime({
+      NODE_ENV: 'test',
+      ZHIJU_MVP_INSTANCE_ID: fixture.instanceId,
+      ZHIJU_MVP_DATABASE_URL: fixture.databaseUrl,
+      ZHIJU_MVP_STORE_ROOT: fixture.storeRoot,
+      ZHIJU_MVP_STORE_ID: fixture.storeId,
+      ZHIJU_MVP_STORE_IDENTITY: fixture.store.identity.storeIdentity,
+      ZHIJU_MVP_CURSOR_KEY: CURSOR_KEY_HEX,
+      ZHIJU_MVP_TRUST_CONFIG: rawDocument,
+      ZHIJU_MVP_CORE_PORT: String(corePort),
     });
-    const instrumented = {
-      ...runtime,
-      dispatch: async (request: WorkspaceDispatchRequest): Promise<WorkspaceDispatchResponse> => {
-        counters.owningDispatches += 1;
-        return runtime.dispatch(request);
+    cleanups.push(() => runtime.close());
+    await runtime.service.createProject(
+      { ownerId: fixture.ownerId, displayName: 'MVP 操作者', authEpoch: 1 },
+      {
+        requestId: newUuidV7(),
+        projectId: workspace.projectId,
+        payload: { customerName: '受控客户', title: workspace.projectTitle },
       },
-    };
-    const server = fastify({ logger: false, bodyLimit: WORKSPACE_BODY_LIMIT_BYTES });
+    );
+    const projectReads = vi.spyOn(runtime.service, 'listProjects');
+    cleanups.push(() => {
+      projectReads.mockRestore();
+    });
+    const server = fastify({ logger: false, bodyLimit: MVP_JSON_BODY_LIMIT });
     // Callback-style hook on purpose: a *synchronous* `onRequest` hook (one that
     // returns `undefined`) silently stalls Fastify's body parsing for POSTs, so
     // the Core's own handlers would never run.
@@ -338,19 +304,14 @@ async function startControlledStack(): Promise<ControlledStack> {
       }
       done();
     });
-    const adapter = new FastifyAdapter(server);
-    const coreApp = await NestFactory.create(AppModule.register(instrumented), adapter, {
-      logger: false,
-    });
-    registerWorkspaceTransport(server, instrumented);
-    await coreApp.listen(corePort, '127.0.0.1');
-    cleanups.push(async () => {
-      await coreApp.close();
-    });
+    cleanups.push(() => server.close());
+    registerMvpTransport(server, runtime);
+    await server.listen({ port: corePort, host: '127.0.0.1' });
 
     const bffApp = await createBff({
       env: {
         ZHIJU_WORKSPACE_TRUST_CONFIG: rawDocument,
+        ZHIJU_BFF_MVP_CORE_URL: coreOrigin,
         [CLIENT_SECRET_ENV]: keycloak.clientSecret,
       },
       clock: () => clockNow,
@@ -366,9 +327,6 @@ async function startControlledStack(): Promise<ControlledStack> {
       bffOrigin,
     });
     cleanups.push(artifactServer.stop);
-    cleanups.push(() => {
-      globalThis.fetch = realFetch;
-    });
 
     console.log(
       `controlled-keycloak image:    ${keycloak.image}\n` +
@@ -392,7 +350,7 @@ async function startControlledStack(): Promise<ControlledStack> {
       jwksTtlSeconds: KEYCLOAK_JWKS_TTL_SECONDS,
       jwksFetches: () => counters.jwksFetches,
       coreRequests: () => counters.coreRequests,
-      owningDispatches: () => counters.owningDispatches,
+      owningDispatches: () => projectReads.mock.calls.length,
       coreAccessTokens: () => [...coreAccessTokens],
       advanceClock: (milliseconds) => {
         clockNow += milliseconds;
@@ -420,7 +378,7 @@ function activePage(): Page {
 }
 
 /** The repository must be buildable without a Keycloak-independent skip: this evidence is required. */
-describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real processes)', () => {
+describe('MVP01 controlled-Keycloak acceptance (real Keycloak and PostgreSQL)', () => {
   beforeAll(async () => {
     stack = await startControlledStack();
     browser = await chromium.launch({ headless: true });
@@ -444,13 +402,16 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
       responses.push({ status: response.status(), url: response.url() }),
     );
 
-    // 1. Anonymous workbench: the sign-in entry, no fabricated cards.
-    await page.goto(`${current.webOrigin}/workbench`);
+    // Open a known project through the same protected deep link used after login.
+    const projectPath = `/custody/projects/${current.workspace.projectId}`;
+    await page.goto(`${current.webOrigin}${projectPath}`);
     const signIn = page.getByRole('link', { name: '使用企业账号登录' });
     await signIn.waitFor({ state: 'visible' });
-    expect(await signIn.getAttribute('href')).toBe('/bff/auth/login?returnTo=%2Fworkbench');
-    expect(await page.locator('article.work-item').count()).toBe(0);
+    expect(await signIn.getAttribute('href')).toBe(
+      `/bff/auth/login?returnTo=${encodeURIComponent(projectPath)}`,
+    );
     const anonymousHtml = await page.content();
+    expect(anonymousHtml).not.toContain(current.workspace.projectTitle);
     for (const marker of FIXTURE_MARKERS) expect(anonymousHtml).not.toContain(marker);
 
     // 2. The real Keycloak sign-in form of the controlled realm.
@@ -469,57 +430,30 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     await page.locator('#password').fill(current.keycloak.userPassword);
     await page.locator('#kc-login').click();
 
-    // 3. Back on the app with a live session and the authorized directory card.
-    const card = page.locator('article.work-item');
+    // The authenticated browser reads the real MVP project without legacy grants.
+    const projectHeading = page.getByRole('heading', {
+      name: current.workspace.projectTitle,
+      exact: true,
+    });
     try {
-      await card.waitFor({ state: 'visible', timeout: 60_000 });
+      await projectHeading.waitFor({ state: 'visible', timeout: 60_000 });
     } catch (error) {
-      const body = (await page.locator('body').innerText()).slice(0, 400);
-      const diagnostic =
-        `url=${page.url()}\n` +
-        `coreRequests=${current.coreRequests()} owningDispatches=${current.owningDispatches()}\n` +
-        `responses=\n  ${responses.map((entry) => `${entry.status} ${entry.url}`).join('\n  ')}\n` +
-        `body=${JSON.stringify(body)}\n` +
-        `keycloak log tail:\n${await keycloakLogTail(current.keycloak.containerName)}`;
-      console.log(`controlled-keycloak journey diagnostic:\n${diagnostic}`);
+      const navigation = new URL(page.url());
+      const requests = responses.map((entry) => {
+        const url = new URL(entry.url);
+        return `${entry.status} ${url.origin}${url.pathname}`;
+      });
       throw new Error(
-        `the controlled-Keycloak sign-in never reached the authorized directory (${diagnostic})`,
+        `the controlled-Keycloak sign-in never reached MVP custody ` +
+          `(page=${navigation.origin}${navigation.pathname}; ` +
+          `alerts=${JSON.stringify(await page.getByRole('alert').allTextContents())}; ` +
+          `responses=${requests.join(' | ')}): ` +
+          (await keycloakLogTail(current.keycloak.containerName)),
         { cause: error },
       );
     }
-    expect(await card.count()).toBe(1);
-    // Exact references remain available in the compact workbench disclosure.
-    await card.getByText('项目引用', { exact: true }).click();
-    const cardText = (await card.innerText()).replace(/\s+/gu, ' ');
-    expect(cardText).toContain(
-      `${current.workspace.enterpriseDisplayName} · ${current.workspace.projectTitle}`,
-    );
-    expect(cardText).toContain(current.workspace.projectDisplayCode);
-    expect(cardText).toContain(current.workspace.projectId);
-    expect(cardText).toContain('进行中');
-    expect(cardText).toContain('聚合版本 1');
-
-    // 4. Selecting the Project reads its own board scope: the EP rows are the
-    //    owning projection rows and the TE board reports the honest unavailable
-    //    state because no Board Policy is deployed.
-    await card.getByRole('button', { name: '查看该项目看板' }).click();
-    const boardSection = page.locator('section.panel', {
-      has: page.getByRole('heading', { name: `项目看板 · ${current.workspace.projectTitle}` }),
-    });
-    await boardSection
-      .getByRole('heading', { name: '交付项看板（EP）', exact: true })
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    const boardRows = boardSection.locator('ul.progress-list li');
-    await boardRows.first().waitFor({ state: 'visible', timeout: 30_000 });
-    expect(await boardRows.count()).toBe(1);
-    await boardSection
-      .getByText('该项目任务看板当前不可用', { exact: true })
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    const boardsText = (await boardSection.innerText()).replace(/\s+/gu, ' ');
-    expect(boardsText).toContain('本次读取 1 条');
-    expect(boardsText).toContain('Board Item');
-    expect(boardsText).toContain('READY · APPROVED');
-    expect(boardsText).toContain('DEPENDENCY_UNAVAILABLE');
+    expect(await projectHeading.count()).toBe(1);
+    expect(page.url()).toBe(`${current.webOrigin}${projectPath}`);
 
     // 5. Evidence that the *real* controlled Keycloak performed the
     //    authorization: the browser hit the realm's authorize endpoint and the
@@ -563,10 +497,44 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
       `controlled-keycloak browser:  ${browser?.version() ?? 'unknown'} ` +
         `${VIEWPORT.width}x${VIEWPORT.height} headless`,
     );
-    console.log(`controlled-keycloak card:     ${cardText}`);
+    console.log(`controlled-keycloak project:  ${current.workspace.projectTitle}`);
   }, 180_000);
 
-  it('rejects an access token of the client without the audience mapper (401, no owning read)', async () => {
+  it('rejects a custody write without CSRF or with an invalid Origin before any Core call', async () => {
+    const current = activeStack();
+    const sessionCookie = ((await browserContext?.cookies()) ?? []).find(
+      (cookie) => cookie.name === SESSION_COOKIE,
+    )?.value;
+    if (!sessionCookie) throw new Error('no session cookie after the journey');
+    const cookie = `${SESSION_COOKIE}=${sessionCookie}`;
+    const session = await readJsonRecord(
+      await fetch(`${current.bffOrigin}/bff/session`, {
+        headers: { cookie },
+      }),
+    );
+    if (typeof session.csrfToken !== 'string') throw new Error('missing CSRF token');
+    const before = current.coreRequests();
+    for (const headers of [
+      { origin: current.webOrigin },
+      { origin: 'null', 'x-csrf-token': session.csrfToken },
+      { origin: 'http://untrusted.invalid', 'x-csrf-token': session.csrfToken },
+    ]) {
+      const response = await fetch(`${current.bffOrigin}/bff/mvp/v1/projects/${newUuidV7()}`, {
+        method: 'PUT',
+        headers: {
+          cookie,
+          'content-type': 'application/json',
+          'idempotency-key': newUuidV7(),
+          ...headers,
+        },
+        body: JSON.stringify({ customerName: '拒绝客户', title: '不得创建' }),
+      });
+      expect(response.status).toBe(403);
+      expect(current.coreRequests()).toBe(before);
+    }
+  });
+
+  it('rejects missing or wrong audience claims (401, no owning read)', async () => {
     const current = activeStack();
     const token = await current.keycloak.fetchUnaudiencedAccessToken();
     const claims = decodeJwtSegment(token, 1);
@@ -576,9 +544,38 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     const before = current.owningDispatches();
     const rejected = await callCoreDirectory(current, token);
     expect(rejected.status).toBe(401);
-    expect(rejected.body.code).toBe('AUTHENTICATION_REQUIRED');
+    expect(rejected.body.error).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
     expect(current.owningDispatches()).toBe(before);
     expect(JSON.stringify(rejected.body)).not.toContain(current.workspace.projectId);
+
+    // The no-mapper client also has a different azp. Isolate audience rejection
+    // with the realm's published signing key and an otherwise identical token.
+    const validClaims = accessTokenClaims(current.keycloak.issuer);
+    const control = current.keycloak.mintAccessToken({
+      kid: current.keycloak.importedSigningKid,
+      claims: validClaims,
+    });
+    const readsBeforeControl = current.owningDispatches();
+    const accepted = await callCoreDirectory(current, control);
+    expect(accepted.status).toBe(200);
+    expect(JSON.stringify(accepted.body)).toContain(current.workspace.projectId);
+    expect(current.owningDispatches()).toBe(readsBeforeControl + 1);
+
+    for (const audience of [undefined, 'untrusted-audience']) {
+      const claims = { ...validClaims };
+      if (audience === undefined) delete claims.aud;
+      else claims.aud = audience;
+      const invalid = current.keycloak.mintAccessToken({
+        kid: current.keycloak.importedSigningKid,
+        claims,
+      });
+      const readsBeforeRejection = current.owningDispatches();
+      const audienceRejected = await callCoreDirectory(current, invalid);
+      expect(audienceRejected.status).toBe(401);
+      expect(audienceRejected.body.error).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
+      expect(current.owningDispatches()).toBe(readsBeforeRejection);
+      expect(JSON.stringify(audienceRejected.body)).not.toContain(current.workspace.projectId);
+    }
   }, 60_000);
 
   it('rejects an access token whose iss is not the configured realm issuer (401, no owning read)', async () => {
@@ -602,14 +599,14 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     const before = current.owningDispatches();
     const rejected = await callCoreDirectory(current, foreign);
     expect(rejected.status).toBe(401);
-    expect(rejected.body.code).toBe('AUTHENTICATION_REQUIRED');
+    expect(rejected.body.error).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
     expect(current.owningDispatches()).toBe(before);
     expect(JSON.stringify(rejected.body)).not.toContain(current.workspace.projectId);
   }, 60_000);
 
   it('rejects a callback carrying a mismatched iss with 400, zero session and zero Core calls', async () => {
     const current = activeStack();
-    const login = await fetch(`${current.bffOrigin}/bff/auth/login?returnTo=/workbench`, {
+    const login = await fetch(`${current.bffOrigin}/bff/auth/login?returnTo=/custody`, {
       redirect: 'manual',
     });
     expect(login.status).toBe(302);
@@ -652,7 +649,6 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     const cookieHeader = { cookie: `${SESSION_COOKIE}=${sessionCookieValue}` };
     const readDirectory = async (csrf: string): Promise<Response> =>
       fetch(`${current.bffOrigin}${DIRECTORY_PATH}`, {
-        method: 'POST',
         headers: {
           accept: 'application/json',
           'content-type': 'application/json',
@@ -660,7 +656,6 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
           origin: current.webOrigin,
           'x-csrf-token': csrf,
         },
-        body: JSON.stringify(directoryQueryBody()),
       });
 
     const sessionBefore = await readJsonRecord(
@@ -708,6 +703,7 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     );
     expect(sessionAfter.accessState).toBe('ALLOWED');
     expect(sessionAfter.expiresAt).toBe(sessionBefore.expiresAt);
+    current.advanceClock(-REFRESH_CLOCK_ADVANCE_MS);
     console.log(
       `controlled-keycloak refresh:  Keycloak access token rotated for sid ${String(
         refreshed.sid,
@@ -734,7 +730,7 @@ describe('workspace controlled-Keycloak acceptance #266 (real Keycloak, real pro
     const rejected = await callCoreDirectory(current, retiredToken);
     const jwksUsed = current.jwksFetches() - jwksBefore;
     expect(rejected.status).toBe(401);
-    expect(rejected.body.code).toBe('AUTHENTICATION_REQUIRED');
+    expect(rejected.body.error).toMatchObject({ code: 'AUTHENTICATION_REQUIRED' });
     expect(current.owningDispatches()).toBe(dispatchesBefore);
     // Unknown kid: at most one bounded JWKS refresh, never a key lookup storm.
     expect(jwksUsed).toBeLessThanOrEqual(1);

@@ -129,12 +129,12 @@ IM-DG-002 的物理版本与 digest 已落地，权威定义在 `tools/persisten
 
 | 组件 | 锁定值 |
 |---|---|
-| PostgreSQL 镜像 | `docker.io/library/postgres:18.6@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6` |
+| PostgreSQL 镜像 | `docker.io/library/postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4` |
 | Flyway CLI 镜像 | `docker.io/flyway/flyway:11.20.3@sha256:01605f443e1a891b3762f66e66d92403c33b6e0c29099ad550af94b6c1cbc3c1` |
 | `pg` | 8.23.0 |
 | Kysely | 0.29.5 |
 | testcontainers / `@testcontainers/postgresql` | 12.1.0 |
 
-PostgreSQL 摘要于 2026-10-21 同步官方同版本重建及后续多架构索引更新，2026-10-22 再次更新索引摘要；amd64/arm64 的 PostgreSQL 版本仍为 18.6、Dockerfile 源码修订仍为 `e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc`。首次重建更新了基础系统镜像；后续索引更新保留这两个执行平台的镜像摘要（amd64 `sha256:977087…`、arm64 `sha256:a8be76…`），仅更新其他架构。仍使用 `tag@digest`、实时标签与摘要绑定、实际服务端版本及完整持久化门禁校验。
+PostgreSQL 摘要于 2026-10-21 同步官方同版本重建及后续多架构索引更新，2026-10-22 再次更新索引摘要；2026-10-28 Docker Hub 再次把 `18.6` 指向新索引后重新固定。当前索引仍为 PostgreSQL 18.6、Dockerfile 源码修订 `e00e1bd34ec5c8a8e7ad89b273b3d42efaf6d5bc`；除 riscv64 外的平台镜像随官方 Debian trixie-slim 基础镜像重建，amd64/arm64 摘要分别变为 `sha256:f4b419…`、`sha256:9a7499…`。仍使用 `tag@digest`、实时标签与摘要绑定、实际服务端版本及完整持久化门禁校验。
 
 Migration 目录布局、版本区间与命名规则见 `migrations/README.md`。单一 Gate 命令为 `pnpm persistence:gate`（已并入 `pnpm verify`），本地操作说明见 [`../im-02-workitem-issues/runbook-wi-01.md`](../archive/im-02-workitem-issues/runbook-wi-01.md)。Testcontainers 通过只证明测试容器行为；生产 PostgreSQL 仍为 `NOT RUN`。

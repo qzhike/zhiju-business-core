@@ -7,6 +7,12 @@ const criticalCases = JSON.parse(
   readFileSync(new URL('./critical-cases.json', import.meta.url), 'utf8'),
 );
 
+export function assertCriticalCaseFiles(discoveredFiles) {
+  const missing = Object.keys(criticalCases).filter((file) => !discoveredFiles.includes(file));
+  if (missing.length)
+    throw new Error(`critical persistence file inventory failed: missing=${missing.join(',')}`);
+}
+
 export function assertCriticalCaseExecution(root, modules, expectedFiles) {
   if (
     !criticalCases ||

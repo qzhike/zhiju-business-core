@@ -6,6 +6,8 @@
 
 2026-10-20 范围校正：当前 MVP 产品范围以 [可用闭环](../mvp/usable-loop.md)为准；[Core 缩编重构方案](../mvp/core-refactoring-plan.md)是待审查的技术提案。用户已确认产品边界并授权规划落盘，未授权业务实现。既有七模块、接口和数据库仍按原实现解释；不能将新范围写成已交付，也不能把下文旧 MVP 的飞书、长期企业平台或通用执行链重新作为新闭环前置。
 
+2026-10-31 验证范围校正：用户已确认移除退出 MVP 业务链的旧平台专用数据库测试；当前 full 的持久化范围改为独立 MVP 与仍复用的访问保护，具体见 [验证基准 §2.1.1](08-verification-baseline.md#211-配置化验证目标与-ci-路由)。旧实现与契约不变，旧测试结果仅保留历史含义；重新接入旧能力前恢复适用验证。
+
 本文固定存放于 `.vibe/high-level-docs/HL-Spec.md`，是本项目的产品与工程冻结基准。Agent 从根目录 `AGENTS.md` 进入，按角色与任务读取本文相关章节；本文负责说明产品目标、冻结规则、文档权威关系、阅读路径和变更纪律，不重复展开各领域的详细 Schema。
 
 2026-10-22 B1 技术增量已获人类技术批准：见 [B1 前置设计](../mvp/b1-design.md)、[MVP01 Spec](../module-specs/Module-Spec-MVP01-DocumentDelivery.md)及[Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。它提出独立 MVP composition、DocumentDelivery Owner、新数据/身份边界及有限 API；以下七模块、统一 Envelope、Enterprise RLS 等旧实现规则继续有效。新应用的明确例外只在 B1 已列出的 owning 增量范围内批准，已完成独立设计复审；实施仍按对应 Issue 与验证门禁进行，不是对旧平台的静默豁免。

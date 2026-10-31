@@ -2,7 +2,10 @@ import { performance } from 'node:perf_hooks';
 // Vitest 4 reporter events stream before the final summary, including hooks.
 import { setInterval, clearInterval } from 'node:timers';
 import pg from 'pg';
-import { assertCriticalCaseExecution } from './critical-case-inventory.mjs';
+import {
+  assertCriticalCaseExecution,
+  assertCriticalCaseFiles,
+} from './critical-case-inventory.mjs';
 import {
   discoverPersistenceFiles,
   partitionFiles,
@@ -99,6 +102,8 @@ export default class PersistenceProgressReporter {
       return;
     }
     const allFiles = discoverPersistenceFiles(this.root);
+    // A partition must not silently forget a registered file deleted from disk.
+    assertCriticalCaseFiles(allFiles);
     const expected = partition ? partitionFiles(allFiles, partition) : allFiles;
     assertCriticalCaseExecution(this.root, modules, partition ? expected : undefined);
     assertPersistenceFileExecution(this.root, modules, expected);

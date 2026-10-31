@@ -5,8 +5,13 @@
 import { join } from 'node:path';
 
 export const POSTGRES_IMAGE_TAG = '18.6';
+// 2026-10-28: re-pinned after Docker Hub retagged 18.6. This index keeps the
+// PostgreSQL source revision e00e1bd3 and version 18.6; non-riscv64 platforms
+// were rebuilt on the current Debian trixie-slim base by the official image
+// pipeline. The previous pin was
+// sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6.
 export const POSTGRES_IMAGE_DIGEST =
-  'sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6';
+  'sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4';
 export const POSTGRES_REPOSITORY = 'docker.io/library/postgres';
 
 export const FLYWAY_IMAGE_TAG = '11.20.3';

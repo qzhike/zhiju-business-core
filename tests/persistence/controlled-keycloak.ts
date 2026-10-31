@@ -34,7 +34,7 @@ import {
   CONTROLLED_KEYCLOAK_IMAGE,
   CONTROLLED_KEYCLOAK_VERSION_TAG,
 } from '../../tools/persistence/baseline.mjs';
-import { SUBJECT_EXTERNAL_ID, reserveLoopbackPort } from './trusted-http-fixtures.js';
+import { SUBJECT_EXTERNAL_ID, reserveLoopbackPort } from './oidc-fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
