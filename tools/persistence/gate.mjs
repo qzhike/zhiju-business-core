@@ -1,7 +1,8 @@
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath, URL } from 'node:url';
 import { selectPersistenceRun, persistenceRunEnvironment } from './partitions.mjs';
 import { migrationHistorySql, verifyMigrationNoop } from './migration-noop.mjs';
-// IM-02 WI-01 persistence gate: one version-locked command that starts the
+// MVP persistence gate: one version-locked command that starts the
 // pinned PostgreSQL 18.6 container, verifies the image digest, runs Flyway
 // migrations, executes the persistence tests, prints diagnostics and always
 // tears the container down. Usage: `pnpm persistence:gate`.
@@ -20,7 +21,13 @@ import {
 } from './baseline.mjs';
 import { flywayVersion, runFlyway } from './flyway.mjs';
 import { configureDockerHostFromCurrentContext, docker, dockerInspectImage } from './docker.mjs';
-import { historicalProviderResultSeedSql } from './provider-result-upgrade-fixture.mjs';
+
+const mvpMigrationOptions = {
+  migrationsDir: fileURLToPath(
+    new URL('../../modules/document-delivery/migrations/', import.meta.url),
+  ),
+  locations: 'filesystem:/flyway/sql',
+};
 
 function log(message) {
   process.stdout.write(`[persistence-gate] ${message}\n`);
@@ -50,11 +57,6 @@ async function query(containerId, sql) {
     '-c',
     sql,
   ]);
-}
-
-async function seedHistoricalProviderResultData(containerId) {
-  await query(containerId, historicalProviderResultSeedSql());
-  log('seeded synthetic V6002 historical Provider Result rows');
 }
 
 const selection = selectPersistenceRun(process.argv.slice(2), process.cwd());
@@ -168,30 +170,16 @@ async function main() {
     }
     log(`flyway version: ${flywayVersionLine.trim()}`);
 
-    await timed('migration through V6002', () =>
+    await timed('MVP empty database migration', () =>
       runFlyway(pg.containerId, {
-        command: 'migrate',
-        database: pg.database,
-        username: pg.username,
-        password: pg.password,
-        target: '6002',
-      }),
-    );
-    log('flyway migrate (empty database through V6002) completed');
-
-    await timed('historical Provider Result seed', () =>
-      seedHistoricalProviderResultData(pg.containerId),
-    );
-
-    await timed('historical forward migration', () =>
-      runFlyway(pg.containerId, {
+        ...mvpMigrationOptions,
         command: 'migrate',
         database: pg.database,
         username: pg.username,
         password: pg.password,
       }),
     );
-    log('flyway migrate (V6003/V6004 historical Provider Result upgrade) completed');
+    log('flyway migrate (DocumentDelivery only; no legacy module schemas) completed');
 
     await timed('persistence tests', () =>
       runVitest({
@@ -209,6 +197,7 @@ async function main() {
       () => query(pg.containerId, migrationHistorySql),
       () =>
         runFlyway(pg.containerId, {
+          ...mvpMigrationOptions,
           command: 'migrate',
           database: pg.database,
           username: pg.username,
@@ -218,6 +207,7 @@ async function main() {
     log(`second migrate: ${noPendingLine}`);
 
     const info = await runFlyway(pg.containerId, {
+      ...mvpMigrationOptions,
       command: 'info',
       database: pg.database,
       username: pg.username,

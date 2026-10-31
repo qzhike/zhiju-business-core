@@ -30,7 +30,7 @@ describe('persistence partition coverage and mode boundaries', () => {
   it('rejects deleted fixed files, duplicate assignment and empty partitions', () => {
     expect(() =>
       partitionFiles(
-        files.filter((file) => !file.endsWith('/initial-context.test.ts')),
+        files.filter((file) => !file.endsWith('/mvp-document-delivery.test.ts')),
         '3',
       ),
     ).toThrow('missing fixed');
@@ -57,7 +57,10 @@ describe('persistence partition coverage and mode boundaries', () => {
         files: partitionFiles(files, partition),
       });
     const focused = selectPersistenceRun(
-      ['--test-file=tests/persistence/initial-context.test.ts', '--test-name-pattern=example'],
+      [
+        '--test-file=tests/persistence/mvp-document-delivery.test.ts',
+        '--test-name-pattern=example',
+      ],
       root,
     );
     expect(focused.kind).toBe('focused');
@@ -77,7 +80,7 @@ describe('persistence partition coverage and mode boundaries', () => {
   });
 
   it.each([
-    ['--partition=1', '--test-file=tests/persistence/initial-context.test.ts'],
+    ['--partition=1', '--test-file=tests/persistence/mvp-document-delivery.test.ts'],
     ['--partition=1', '--test-name-pattern=foo'],
     ['--partition=1', '--diagnostics'],
     ['--partition=1', '--partition=1'],

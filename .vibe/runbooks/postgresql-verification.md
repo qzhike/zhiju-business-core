@@ -20,8 +20,8 @@ vibe verify full --json
 
 ## 结果与清理
 
-当前 [gate.mjs](../../tools/persistence/gate.mjs) 校验 PostgreSQL/Flyway 基线，迁移到 V6002、注入脱敏历史 Provider Result 测试行，再验证 V6003/V6004 升级；运行 persistence tests，执行第二次无待应用迁移检查，并在清理路径删除测试容器。
+当前 [gate.mjs](../../tools/persistence/gate.mjs) 校验 PostgreSQL/Flyway 基线，只从 `modules/document-delivery/migrations` 迁移独立 MVP schema，不准备旧七模块或历史 Provider Result；运行五个 MVP persistence 入口（含真实受控 Keycloak），执行第二次无待应用迁移检查，并在清理路径删除测试容器。
 
 版本与镜像 tag/digest 只以 [baseline.mjs](../../tools/persistence/baseline.mjs) 为执行权威，不在此复制易过期摘要。检查最终 gate 结果和 `postgres container removed`；失败时保留原始错误与清理结果，不把一轮成功或历史测试数量当作下一轮通过证明。
 
-该流程只证明 disposable PostgreSQL 和本地技术行为。生产、真实 Provider/Feishu、公开 HTTP、独立业务/人工验收另行取证，未执行则为 `NOT RUN`。旧专题手工探测尚未逐份重验，见 [文档索引](../README.md)。
+本轮 `full` 不再包含已退出 MVP 的旧平台专用数据库回归；旧模块重新接入前须恢复适用测试。该流程只证明 disposable PostgreSQL 和受控本地 HTTP/Browser/Keycloak 技术行为。生产、真实 Provider/Feishu、公开 HTTP、独立业务/人工验收另行取证，未执行则为 `NOT RUN`。旧专题手工探测尚未逐份重验，见 [文档索引](../README.md)。
