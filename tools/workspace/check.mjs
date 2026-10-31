@@ -193,6 +193,7 @@ try {
       'tests/workspace/playwright.config.ts',
       '--grep',
       'production',
+      '--workers=1',
     ],
     { WORKSPACE_TEST_URL: origin },
   );

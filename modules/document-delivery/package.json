@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@zhiju/shared-kernel": "workspace:*",
+    "fs-ext": "2.1.1",
     "pg": "8.23.0",
     "saxes": "6.0.0"
   },
   "devDependencies": {
+    "@types/fs-ext": "2.0.3",
     "@types/pg": "8.15.5"
   }
 }

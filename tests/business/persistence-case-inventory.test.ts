@@ -13,7 +13,7 @@ const persistenceConfig = join(root, 'vitest.persistence.config.ts');
 const criticalFile = 'tests/persistence/mvp-controlled-keycloak.test.ts';
 
 it.each([
-  ['complete', 'critical inventory passed: files=5; tests=34'],
+  ['complete', 'critical inventory passed: files=5; tests=44'],
   ['missing-file', `missing file: ${criticalFile}`],
   ['missing-case', 'expected exactly one case, found 0:'],
   ['duplicate', 'expected exactly one case, found 2:'],
@@ -23,9 +23,9 @@ it.each([
   ['skipped', 'case did not pass (skipped):'],
   ['failed', 'case did not pass (failed):'],
   ['focused', 'critical inventory not checked: focused diagnostic only'],
-  ['partition-1', 'critical inventory passed: files=1; tests=21'],
+  ['partition-1', 'critical inventory passed: files=1; tests=30'],
   ['partition-2', 'critical inventory passed: files=1; tests=7'],
-  ['partition-3', 'critical inventory passed: files=3; tests=6'],
+  ['partition-3', 'critical inventory passed: files=3; tests=7'],
   ['partition-2-missing-file', `missing file: ${criticalFile}`],
   ['partition-2-missing-case', 'expected exactly one case, found 0:'],
   ['partition-3-missing-file', 'persistence file inventory failed:'],

@@ -77,9 +77,11 @@ CI 的 `select` 先按相同 base-to-head 风险路由选择目标；`checks` �
 
 Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与应用依赖边界反例，以及实际构建匿名开发制品的受控 Chromium 旅程，接入 `code/full` 的普通检查。CI 为该检查安装锁定 Playwright 的 Chromium；它不替代真实 OIDC/业务 HTTP/Runner、Windows/macOS Chrome/Edge 支持矩阵、生产或独立人工验收。生成的匿名截图保持本地忽略，执行证据进入 Issue/PR。
 
+Workspace 浏览器验证默认使用 4 个 worker，保持 `fullyParallel: false`：开发制品测试文件之间并行，同一文件内顺序执行。`workspace:check` 的生产检查显式使用 1 个 worker。每例继续使用独立 BrowserContext；跨文件可变资源须隔离，真实剪贴板场景保留在同一文件内串行执行。该调度调整保留完整用例、断言、视口与可访问性组合，既有超时和零重试策略不变；不能把缩小用例集合或跳过失败算作提速。
+
 #### 2.1.2 批次交付第一阶段
 
-本节落实[已批准的批次设计](../decisions/batch-integration-ci.md)。共享 Vibe 只解释项目声明的阶段；本项目以仓库变量 `VIBE_BATCH_DELIVERY_ENABLED` 精确等于 `true` 为远端启用条件。缺失或 `false` 保持 §2.1.1 路由，非法值拒绝准入。设计批准、本地实现和本地验证不等于 GitHub 已启用。本轮不修改仓库变量、分支保护或其他 GitHub 设置。
+本节落实[已批准的批次设计](../decisions/batch-integration-ci.md)。共享 Vibe 只解释项目声明的阶段；本项目以仓库变量 `VIBE_BATCH_DELIVERY_ENABLED` 精确等于 `true` 为远端启用条件。缺失或 `false` 保持 §2.1.1 路由，非法值拒绝准入。设计批准、本地实现和本地验证不等于 GitHub 已启用。2026-10-23 用户已授权第一阶段远端启用及平台验收，main/batch 保护和变量已配置；本次修订时平台验收仍进行中，最终批次与合入后 main full 尚待收口。该日期快照及最终执行证据见 [批次 PR #316](https://github.com/qzhike/zhiju-business-core/pull/316)，实际路由仍以远端变量及生效保护为准。
 
 启用后，普通业务、UI 与紧急修复 PR 均先进入同仓库的 `batch/<goal>`；`<goal>` 使用小写字母、数字和分隔单词的连字符，可以只有一个子 PR。子 PR 完整累计 diff 仅含严格文档时为 `docs`，包含明确业务源代码、业务测试或 migration 路径时为 `code`，同时仍须执行 Issue 本阶段约定的事务、权限等聚焦检查。工程配置、依赖、构建、验证策略、未知和混合工程路径保留 `full`。允许路径由 `select-target.mts` 维护，不能为省略验证放宽路径。直接进入 main 的普通业务 PR 即使 full 通过也不准入；严格独立文档是例外，启用前有限的工程引导 PR 仍走旧规则 full。
 
@@ -93,7 +95,19 @@ Workspace 工程外壳的独立 Web/BFF 构建、生产安全拒绝、TS/TSX 与
 
 正式 `.vibe/reviews/pr-<number>/Review.md` 在冻结最终候选前记录语义发现、处置、阶段与目标；最终 SHA/检查确认留在 PR review/comment 中，不为回填成功日志产生新提交。实质发现和修复仍更新文档、重新审查并验证受影响候选。子任务进入集成分支不等于产品目标交付；main 与其必需 post-merge full 完成后才按授权更新真实交付事实。本地尚无 PR 时不伪造编号或预写正式批准。
 
-配置目标 `delivery` 用于路由、准入、累计 diff、候选漂移、取消与证据来源的聚焦回归；验证策略改动仍必须执行 `full`。启用顺序为：先以变量关闭状态交付工作流并验证真实 check 名称；为 main 配置实际主干准入与对应验证检查、up-to-date 和必需审查，为 batch 配置实际子 PR 验证与审查；验证保护及重定向负例后才设置变量为 `true`。检查名称以真实 GitHub 运行读取结果为准，不能仅凭本地 job id 宣称设置正确。此平台验收留待另行授权，不以本地测试替代。
+配置目标 `delivery` 用于路由、准入、累计 diff、候选漂移、取消与证据来源的聚焦回归；验证策略改动仍必须执行 `full`。启用顺序为：先以变量关闭状态交付工作流并验证真实 check 名称；为 main 配置实际主干准入与对应验证检查、up-to-date 和必需审查，为 batch 配置实际子 PR 验证与审查；验证保护及重定向负例后才设置变量为 `true`。检查名称以真实 GitHub 运行读取结果为准，不能仅凭本地 job id 宣称设置正确。已授权的平台验收必须完成实际运行及负例核验，不以本地测试或仅启用变量替代；单人审查的承载方式与平台自动门禁按下述约束区分。
+
+#### 远端启用操作约束
+
+远端保护以 GitHub 实际匹配到的规则为准：main 的必需检查是 `verification / verify` 与 `main-admission`，batch 子 PR 的必需检查是 `verify`；检查来源绑定 GitHub Actions，不接受同名的其他来源。两类目标都要求 PR、当前基线验证及未解决对话清零，不配置管理员或应用旁路，第一阶段使用普通 merge commit。
+
+项目按用户确认的单人开发方式执行审查：独立 Agent 审查、正式 Review 文档与人的合入授权仍然必需，人的授权可来自当前会话并在 PR 中记录其范围。GitHub 不支持作者正式批准自己的 PR，因此 main 和 batch 的 `required_approving_review_count=0`、`require_last_push_approval=false`；不要求第二个账户，不伪造 formal approval。平台自动执行 PR、CI 与基线门禁；Agent 审查和人的授权由交付流程核对，不能声称 GitHub 自动强制了这两项。候选、目标或基线变化后仍须重新判断审查和授权适用性，不将旧结论直接沿用到新组合。
+
+普通 `batch/<goal>` 的起点必须是已完成 main full 的精确 main 修订。main full 失败后的专用单 PR 恢复批次保留上述窄例外：记录故障修订与最近已验证基线，不扩展业务，恢复候选合入前后仍须 full。batch 创建豁免状态检查仅用于建立合法起点，不能夹带未经审查的变更；后续更新仍须经 PR、阶段检查与审查。GitHub 规则无法证明创建来源，执行者与独立 Reviewer 必须核对普通或恢复批次的起点身份及范围。活跃批次禁止删除和强推；批次交付后，清理仅对获授权的确切已完成分支处理，不为清理撤销其他批次保护。
+
+启用变量不会自动重跑既有 PR。切换前逐一核对已有 main PR 的必需检查、当前候选和新门禁适用性；旧的关闭模式成功不能作为启用后业务直达 main 的证据。未纳入本次迁移范围的业务 PR 保持阻挡，另行确认批次和验收归属后再改 base，不自动搬运其他执行上下文的工作。
+
+若平台验收暴露阻塞，先将 `VIBE_BATCH_DELIVERY_ENABLED` 设为 `false` 并回读，保留 main/batch 保护及必需检查；按实际失败范围恢复与复验，不能用删除 ruleset、增加旁路或放宽测试来恢复交付。成功、失败及回退证据记录在实际试点 PR，正式 Review 仍按本节既有规则收口。
 
 ### 2.2 Unit
 

@@ -1,6 +1,6 @@
 import { newUuidV7, sha256CanonicalJson, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 
-import { acquireExclusiveLock } from './custody/locks.js';
+import { acquireExclusiveLock, type ExclusiveLock } from './custody/locks.js';
 import { StoreIntegrityError, type MvpFileStore, type StoredObject } from './custody/file-store.js';
 import {
   attemptLockPath,
@@ -49,6 +49,7 @@ import type {
   CreateProjectInput,
   WriteIntent,
   WriteOutcome,
+  BatchState,
 } from './persistence/repository.js';
 
 export interface MvpServiceOptions {
@@ -385,13 +386,19 @@ export class MvpService {
       payload,
       payloadHash: payloadHash('mvp.recover_input_batch', projectId, batchId, payload),
     };
-    const result = await this.#repository.recover(identity.ownerId, identity.authEpoch, intent, {
-      projectId,
-      batchId,
-      expectedBatchVersion,
-      action,
-      attemptId,
-    });
+    const result = await this.#repository.recover(
+      identity.ownerId,
+      identity.authEpoch,
+      intent,
+      {
+        projectId,
+        batchId,
+        expectedBatchVersion,
+        action,
+        attemptId,
+      },
+      (state) => this.#guardRecovery(state, action),
+    );
     if (result.replayed) return result;
     if (action === 'RECONCILE') {
       await this.#reconcile(identity, projectId, batchId);
@@ -420,6 +427,59 @@ export class MvpService {
     return result;
   }
 
+  /** Prove old writers stopped while the repository holds the batch CAS lock. */
+  async #guardRecovery(state: BatchState, action: RecoveryAction): Promise<() => Promise<void>> {
+    const locks: ExclusiveLock[] = [];
+    const release = async (): Promise<void> => {
+      const results = await Promise.allSettled(locks.map((lock) => lock.release()));
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
+    };
+    try {
+      for (const attempt of state.attempts) {
+        const lock = await acquireExclusiveLock(
+          attemptLockPath(this.#store.root, attempt.attemptId),
+        );
+        if (lock === null) fail('RECOVERY_NOT_ALLOWED');
+        locks.push(lock);
+      }
+      let completeOriginal = false;
+      let completeStaged = false;
+      for (const attempt of state.attempts.filter((item) => item.kind === 'UPLOAD')) {
+        const staged = await this.#store.inspectStaged(stagingObjectKey(attempt.attemptId));
+        if (
+          staged?.sha256 === state.batch.zipSha256 &&
+          staged.byteLength === state.batch.declaredBytes
+        )
+          completeStaged = true;
+        const inspected = await this.#store.inspect(
+          originalObjectKey(
+            state.batch.ownerId,
+            state.batch.projectId,
+            state.batch.batchId,
+            attempt.attemptId,
+          ),
+        );
+        if (inspected !== null) {
+          if (
+            inspected.sha256 !== state.batch.zipSha256 ||
+            inspected.byteLength !== state.batch.declaredBytes
+          )
+            fail('STORAGE_INTEGRITY_ERROR');
+          completeOriginal = true;
+        }
+      }
+      if (action === 'RETRY_UPLOAD' && (completeOriginal || completeStaged))
+        fail('RECOVERY_NOT_ALLOWED');
+      if (action === 'CONTINUE_EXTRACTION' && !completeOriginal) fail('RECOVERY_NOT_ALLOWED');
+      return release;
+    } catch (error) {
+      await release();
+      if (error instanceof StoreIntegrityError) fail('STORAGE_INTEGRITY_ERROR');
+      throw error;
+    }
+  }
+
   async #reconcile(identity: SessionIdentity, projectId: string, batchId: string): Promise<void> {
     const state = await this.#repository.readBatchState(identity.ownerId, projectId, batchId);
     if (state.batch.manifestId !== undefined) return;
@@ -436,6 +496,17 @@ export class MvpService {
       let inspected: StoredObject | null;
       try {
         inspected = await this.#store.inspect(objectKey);
+        if (inspected === null) {
+          const stagedKey = stagingObjectKey(upload.attemptId);
+          const staged = await this.#store.inspectStaged(stagedKey);
+          if (
+            staged?.sha256 === state.batch.zipSha256 &&
+            staged.byteLength === state.batch.declaredBytes
+          ) {
+            await this.#store.publishStaged(stagedKey, objectKey);
+            inspected = await this.#store.inspect(objectKey);
+          }
+        }
       } catch (error) {
         if (error instanceof StoreIntegrityError) fail('STORAGE_INTEGRITY_ERROR');
         throw error;

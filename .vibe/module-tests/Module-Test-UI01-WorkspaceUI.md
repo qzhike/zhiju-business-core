@@ -125,6 +125,8 @@ reviewer and timestamp
 
 `full` 包含既有 Core 普通与 PostgreSQL 回归，以及 `workspace:check` 的两个独立应用构建、生产 bundle/HTTP 拒绝、生产 fixture mode 注入、开发制品生产服务拒绝和实际构建应用 Chromium 旅程。新增普通测试覆盖安全 Markdown 与 TS/TSX/manifest 的允许及禁止反例；CI 安装精确 Playwright Chromium。
 
+浏览器调度遵循[验证基准](../high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由)：开发制品使用 4 个 worker 按文件并行，文件内串行；生产检查保持 1 个 worker。独立 BrowserContext、真实剪贴板的文件内顺序、完整视口/可访问性组合、既有超时和零重试策略保持不变。提速证据必须同时确认完整用例集合与通过结果，不能仅比较耗时。
+
 开发浏览器场景覆盖 1440×900 桌面、360×800 窄屏及 320 CSS px reflow、默认不选、缺必要信息保留选择、显式整份确认、精确报告/请求、刷新/Back/Forward、迟到版本提示、加载/空/失败恢复、键盘/焦点与报告/范围页 axe 诊断。截图仅为合成资料。所有执行结果、exact revision、实际浏览器版本与未执行项在 Issue #252/PR 保存，不在此新增执行日志。
 
 真实 OIDC、公开业务 HTTP、Runner、生产、Windows/macOS 最近两版 Chrome/Edge 支持矩阵、完整 WCAG AA 与独立人工业务验收仍为 `NOT RUN`。旧真实 UI-E/UI-S/UI-A/UI-M、D14 及 UI-ENG-002–008 场景不由外壳演示代替。
@@ -444,7 +446,7 @@ PR #309 独立审查 R1–R4 的回归已并入上述矩阵：未决最终确认
 
 ## 缩编 MVP：B1 真实托管 UI 验收索引（已批准设计）
 
-对应 [B1 UI 接线](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpb1-真实项目与资料托管接线已批准设计)。共享用户出口及故障矩阵由 [MVP01 Test](Module-Test-MVP01-DocumentDelivery.md)拥有；以下不复制另一份业务测试集合。展示模型自动化见 `apps/workspace-web/src/custody/model.test.ts`；真实浏览器登录、上传、刷新、停启与人工内容验收仍为 `NOT RUN`。
+对应 [B1 UI 接线](../module-specs/Module-Spec-UI01-WorkspaceUI.md#缩编-mvpb1-真实项目与资料托管接线已批准设计)。共享用户出口及故障矩阵由 [MVP01 Test](Module-Test-MVP01-DocumentDelivery.md)拥有；以下不复制另一份业务测试集合。展示模型自动化见 `apps/workspace-web/src/custody/model.test.ts`；真实浏览器登录、上传、刷新和停启已有受控自动化及隔离本机技术证据，具体覆盖与剩余边界以 MVP01 Test 为准；正式来源人工内容验收仍为 `NOT RUN`。
 
 | UI 观察 | Owning 场景 | 通过条件 |
 |---|---|---|

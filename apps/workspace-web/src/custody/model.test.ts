@@ -5,12 +5,27 @@ import {
   parseBatch,
   parseBatchDetail,
   parseEntryPage,
+  parseProject,
+  parseProjectList,
   parseSession,
   stableFingerprint,
   statusLabel,
 } from './model.js';
 
 describe('MVP custody UI model', () => {
+  it('reads project summaries without inventing detail-only batch fields', () => {
+    const summary = {
+      projectId: '0199a000-0000-7000-8000-000000000001',
+      customerName: '客户',
+      title: '资料项目',
+      createdAt: '2026-10-22T00:00:00.000Z',
+      version: 3,
+    };
+    expect(parseProjectList({ items: [summary] })).toEqual({ items: [summary] });
+    expect(parseProject(summary)).toBeNull();
+    expect(parseProject({ ...summary, lastBatchNo: 1 })).toMatchObject({ lastBatchNo: 1 });
+  });
+
   it('generates UUIDv7 identifiers accepted by the server', () => {
     const value = newUuidV7();
     expect(value).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);

@@ -181,6 +181,7 @@ export async function readOrCreateSecrets(config) {
     if (error.code !== 'ENOENT') throw error;
   }
   const token = () => randomBytes(32).toString('hex');
+  const { newUuidV7 } = await import('@zhiju/shared-kernel');
   const secrets = {
     instanceId: config.instanceId,
     createdAt: new Date().toISOString(),
@@ -193,7 +194,7 @@ export async function readOrCreateSecrets(config) {
     cursorKey: token(),
     username: 'mvp-operator',
     subjectId: randomUUID(),
-    boardServiceId: randomUUID(),
+    boardServiceId: newUuidV7(),
     storeId: randomUUID(),
   };
   await writePrivateJson(filename, secrets, true);
@@ -207,6 +208,9 @@ export function validateSecrets(config, secrets) {
   if (
     secrets.username !== 'mvp-operator' ||
     !/^[0-9a-f-]{36}$/u.test(secrets.subjectId ?? '') ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
+      secrets.boardServiceId ?? '',
+    ) ||
     !/^[0-9a-f-]{36}$/u.test(secrets.storeId ?? '') ||
     !Number.isFinite(Date.parse(secrets.createdAt))
   )

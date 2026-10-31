@@ -373,9 +373,9 @@ vibe verify full --json
 - 记录对应修订、目标、macOS/CPU 架构、浏览器实际版本、Docker context、成功/失败范围及剩余缺口。证据进入对应 GitHub Issue/PR，不在本 runbook 累积每次运行日志。
 - 本目标可以证明已有登录、权限隔离、精确内容与下载的受控技术行为；完整客户业务、真实 Runner、跨设备草稿和独立顾问验收仍分别取证。
 
-## 10. 下一精简 MVP 的 B1 本机联调设计（尚未实现）
+## 10. 精简 MVP 的 B1 独立本机实例
 
-该实例与前述现有 A/B 环境并列，技术选择见 [部署安全基线 B1](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#mvp-b1-独立本机实例已批准设计)。本节是实施要求，不提供尚不存在的启动命令；现有 `env:b:*` 不能据此当作新 MVP 初始化器。
+该实例与前述现有 A/B 环境并列，技术选择见 [部署安全基线 B1](../implementation-milestone-plan-v0.1/Deployment-Security-Baseline-v0.1.md#mvp-b1-独立本机实例已批准设计)。本节对应 `tools/mvp-environment` 的已实现入口；现有 `env:b:*` 仍只管理旧 B，不能当作新 MVP 初始化器。
 
 ### 10.1 配置与初始化交付要求
 
@@ -384,7 +384,7 @@ vibe verify full --json
 1. 初始化前输出只读资源计划，核对当前 Docker context、配置非秘密摘要、端口占用、目标根/卷/database 是否为本实例；与旧 A/B 冲突即停止，不抢端口或覆盖目录。秘密及客户名称、说明、文件路径不进入资源报告。
 2. 经实际初始化授权后，仅建立该计划中的专用 PostgreSQL/Keycloak 容器与持久卷、库/角色、文件根和安装标记，导入专用 realm/client 与操作者已核对的唯一身份绑定。使用当前已固定镜像，不改变旧服务和系统配置。安装中断按同一身份续接，不能再次建一个看似成功的空实例。
 3. 初始化完成读回 installation、schema revision、root/store identity 与绑定；运行时缺配置/错库/错根/版本不符 fail closed。配置相同的再次初始化为核对/补完，不重复 seed 或替换绑定。新配置、新身份及未知残留必须人工检查后按管理操作处理。
-4. 实际入口为仓库根目录的 `pnpm mvp:init`、`pnpm mvp:start`、`pnpm mvp:status`、`pnpm mvp:stop`；配置默认写入 `config/mvp.local.json`，私有数据、密钥、安装标记、文件根与登录信息写入 `.local/mvp/`（均已被 Git 忽略）。初始化创建独立 PostgreSQL/Keycloak 容器、持久卷、`zhiju_mvp` 数据库、`document_delivery` schema、文件根身份与唯一 operator binding；`start` 只启动本实例 Core/BFF/Web，`stop` 停止本实例进程与容器并保留卷和文件。重复 `init` 会核对既有安装/绑定/文件根身份，不覆盖密钥、绑定或数据库。本轮未实际执行初始化，以下命令的示例输出和回退证据仍为 `NOT RUN`。
+4. 实际入口为仓库根目录的 `pnpm mvp:init`、`pnpm mvp:start`、`pnpm mvp:status`、`pnpm mvp:stop`；配置默认写入 `config/mvp.local.json`，私有数据、密钥、安装标记、文件根与登录信息写入 `.local/mvp/`（均已被 Git 忽略）。初始化创建独立 PostgreSQL/Keycloak 容器、持久卷、`zhiju_mvp` 数据库、`document_delivery` schema、文件根身份与唯一 operator binding；`start` 只启动本实例 Core/BFF/Web，`stop` 停止本实例进程与容器并保留卷和文件。重复 `init` 会核对既有安装/绑定/文件根身份，不覆盖密钥、绑定或数据库。已在独立 B1 实例执行初始化、重复初始化及 stop/init/start 持久读回；逐次执行证据绑定候选修订进入 Issue/PR，不在本文复制运行日志。实际内容验收继续由 B1-14 拥有。
 
 ### 10.2 B1 实际试走与回退
 
@@ -393,3 +393,32 @@ vibe verify full --json
 保存非敏感的项目/批次/manifest/source 身份及摘要；停止本实例应用与容器但保留卷/文件，再启动、重登并从浏览器读回相同数据和字节。进程重启与文件/数据库故障分别取证；通过技术检查不等于内容理解或 Runner 接通。测试清理仅针对显式一次性测试资源，实际输入与持久化实例不得自动清空。
 
 回退时停止且只停止本实例已登记的进程/容器，保留本实例数据，再使用原 A/B 入口；检查旧端口/卷/目录未变。不能 `down -v`、删除文件根、改全局 Docker context 或用新库覆盖旧库。容量、权限或身份故障保持明确错误；恢复既有业务数据须有独立证据，不能用重新初始化空库替代。
+
+
+### 10.3 操作顺序与真实资料试走
+
+在该实例所属工作树执行；首次启动先安装锁定依赖并 `pnpm build`，不得使用 fixture 制品：
+
+```sh
+pnpm mvp:init
+pnpm mvp:start
+pnpm mvp:status
+# 本次试走结束或需要保留数据回退时：
+pnpm mvp:stop
+```
+
+默认入口为 `http://127.0.0.1:3300/custody`，其余默认端口为 BFF 3301、Core 3302、Keycloak 3380、PostgreSQL 55433；全部只监听 loopback。凭据只读本工作树 `.local/mvp/login.txt`，不贴入公共记录。`RUNNING` 是进程/容器状态，验收还须实际登录并读回业务数据。实例数据绑定工作树中的真实文件根；保留 `.local/mvp/` 的工作树不能作为普通临时检出删除或移动。
+
+本机锁依赖固定版本 `fs-ext` 的原生构建；安装需要 Python 及 C/C++ 构建工具（macOS Command Line Tools，Linux 对应工具链）。不跳过构建来启动缺失互斥保障的 Core。升级锁实现时必须先正常停止该 B1 实例，再安装、构建和启动新修订；不支持同一实例的新旧 Core 并行运行。锁目录中的 `.lock` 文件是稳定 inode，不因看似闲置而删除；崩溃后的内核锁释放及 socket 恢复由实现处理。
+
+初始化器生成 BFF 接受的 UUIDv7 服务标识。旧失败初始化若保存了 UUIDv4 服务标识，会明确报 `MVP_SECRETS_INVALID`；不要删除 `secrets.json` 重建。须由获授权的管理操作先备份，再仅修复不承担业务授权的 `boardServiceId`，保留其他秘密、操作者绑定及 store/instance 身份，随后重新验证登录。正常重复 init 不自动轮换它们。
+
+真实试走按以下顺序进行：
+
+1. 在私有目录准备初次/补充 ZIP，原文件字节不改写；可用匿名来源 ID 命名 ZIP 条目，私有映射保留原路径、bytes/hash。准备完成不等于已上传或已验收。
+2. 登录、创建真实试走项目、上传初次包，逐条核对清单、数量、接受与限制理由；下载原包和已接纳条目核对字节。
+3. 上传补充包，再分别查看旧/新批次；刷新、退出并重登，从项目列表回到同一项目。不得把列表加载失败显示为空项目成功。
+4. 在 Agent 协助下核对原请求恢复和仅本实例的 stop/start；保存项目/批次/请求/manifest/source 身份及摘要，再重登读回。不要换键/新建项目来掩盖原请求不确定状态，不清空数据。
+5. 用户确认操作可完成、限制可理解、已明确看到“分析未接入”，记录反馈与精确修订。真实 MD/XLSX 未提供时保留待补，合成结构样本不替代三格式真实资料的 B1-14。
+
+人工试走未完成时，批次收口 PR 可以准备并完成自动化及独立技术审查，但不能据此宣称完整 B1 已验收、关闭产品目标或合入 main。单人 GitHub 批准方式不替代独立 Agent 审查；main 合入后仍需独立 full，第二阶段证据复用保持未启用。

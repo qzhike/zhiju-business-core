@@ -138,13 +138,15 @@ current authorization/session, metadata, byte limits and stream cancellation.
 The browser verifies complete length and SHA-256 before offering the attachment.
 Tickets and content are not stored in browser persistence.
 
-`workspace-built-browser.test.ts` includes the controlled #279 journey through
+The retired `workspace-built-browser.test.ts` covered the controlled #279 journey through
 real PostgreSQL, synthetic OIDC HTTP, Core/BFF and the production SPA. It traverses
 36 changes in 9 chapters, retains one unsaved note, inspects all 12 table columns,
 and downloads the same registered bytes twice. On that live route, feedback
 submission, durable drafts, suggestions and approval stay unavailable (inputs
 preserved, operations listed); `tests/workspace/review.spec.ts` covers the same
-component's adapter-driven states. Production integrations, the full Windows/macOS
+component's adapter-driven states. This legacy database journey is no longer part
+of the current `full` gate; see the [current verification scope](../../.vibe/high-level-docs/08-verification-baseline.md#211-配置化验证目标与-ci-路由).
+Production integrations, the full Windows/macOS
 Chrome/Edge matrix and independent Human content acceptance remain NOT RUN.
 
 The shared analysis experience lives in `src/analysis`: exact report presentation,

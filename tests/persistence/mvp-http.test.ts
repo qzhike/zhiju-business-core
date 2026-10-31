@@ -1,9 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { symlink, unlink } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import fastify, { type FastifyInstance } from '../../apps/api/node_modules/fastify/fastify.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { newUuidV7 } from '@zhiju/shared-kernel';
+import { openMvpFileStore, attemptLockPath } from '../../modules/document-delivery/src/index.js';
 import { registerMvpTransport } from '../../apps/api/src/mvp/http.js';
 import { createMvpCoreRuntime, type MvpCoreRuntime } from '../../apps/api/src/mvp/runtime.js';
 import { FakeOidcProvider } from '../../apps/workspace-bff/src/testing/fake-oidc.js';
@@ -33,6 +37,7 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
   let origin = '';
   let accessToken = '';
   let trustHash = '';
+  let runtimeEnv: NodeJS.ProcessEnv;
   const sessionBinding = randomBytes(32).toString('base64url');
 
   beforeAll(async () => {
@@ -96,7 +101,7 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
     };
     const rawTrust = JSON.stringify(trust);
     trustHash = createHash('sha256').update(rawTrust, 'utf8').digest('hex');
-    runtime = await createMvpCoreRuntime({
+    runtimeEnv = {
       NODE_ENV: 'test',
       ZHIJU_MVP_INSTANCE_ID: fixture.instanceId,
       ZHIJU_MVP_DATABASE_URL: fixture.databaseUrl,
@@ -106,7 +111,8 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
       ZHIJU_MVP_CURSOR_KEY: '44'.repeat(32),
       ZHIJU_MVP_TRUST_CONFIG: rawTrust,
       ZHIJU_MVP_CORE_PORT: '3399',
-    });
+    };
+    runtime = await createMvpCoreRuntime(runtimeEnv);
     server = fastify({ logger: false });
     registerMvpTransport(server, runtime);
     await server.listen({ host: '127.0.0.1', port: 0 });
@@ -125,6 +131,47 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
       // beforeAll may have failed before the synthetic provider started.
     }
   }, 60_000);
+
+  it('excludes another Core before startup recovery and releases ownership after shutdown', async () => {
+    await expect(createMvpCoreRuntime(runtimeEnv)).rejects.toThrow('MVP_INSTANCE_IN_USE');
+    if (server === undefined || runtime === undefined) throw new Error('runtime missing');
+    const alias = join(tmpdir(), `mvp-parent-alias-${newUuidV7()}`);
+    await symlink(dirname(fixture.storeRoot), alias);
+    try {
+      const aliasRoot = join(alias, basename(fixture.storeRoot));
+      const aliasStore = await openMvpFileStore({
+        root: aliasRoot,
+        expected: fixture.store.identity,
+      });
+      expect(aliasStore.root).toBe(runtime.store.root);
+      const attemptId = newUuidV7();
+      expect(attemptLockPath(aliasStore.root, attemptId)).toBe(
+        attemptLockPath(runtime.store.root, attemptId),
+      );
+      await expect(
+        createMvpCoreRuntime({ ...runtimeEnv, ZHIJU_MVP_STORE_ROOT: aliasRoot }),
+      ).rejects.toThrow('MVP_INSTANCE_IN_USE');
+    } finally {
+      await unlink(alias);
+    }
+    await server.close();
+    await runtime.close();
+    const unavailable = new URL(fixture.databaseUrl);
+    unavailable.pathname = '/missing_mvp_lock_test_database';
+    await expect(
+      createMvpCoreRuntime({
+        ...runtimeEnv,
+        ZHIJU_MVP_DATABASE_URL: unavailable.href,
+      }),
+    ).rejects.toBeDefined();
+    runtime = await createMvpCoreRuntime(runtimeEnv);
+    server = fastify({ logger: false });
+    registerMvpTransport(server, runtime);
+    await server.listen({ host: '127.0.0.1', port: 0 });
+    const address = server.server.address();
+    if (address === null || typeof address === 'string') throw new Error('no server address');
+    origin = `http://127.0.0.1:${address.port}`;
+  });
 
   async function mintAccessToken(): Promise<string> {
     const verifier = randomBytes(48).toString('base64url');
