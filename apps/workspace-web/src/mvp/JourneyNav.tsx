@@ -1,22 +1,7 @@
 import { MockControls } from '../fixtures/control-slot.js';
 import { useContext } from 'react';
-import { Link } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { MvpHandoffContext } from '../fixtures/handoff.js';
-
-const base = '/projects/MVP-U1-PROJECT';
-const primary = [
-  { id: 'work', label: '当前工作', path: `${base}/work` },
-  { id: 'files', label: '全部文件', path: `${base}/files` },
-  { id: 'history', label: '历史记录', path: `${base}/history` },
-] as const;
-const oldSteps = [
-  { id: 'overview', label: '项目概览（阅读）', path: `${base}/overview` },
-  { id: 'intake', label: '资料（阅读）', path: `${base}/intake` },
-  { id: 'analysis', label: '分析与澄清', path: `${base}/analysis/U1-REPORT-01` },
-  { id: 'scope', label: '修改范围', path: `${base}/startup/U1-REPORT-02` },
-  { id: 'results', label: '处理结果（阅读）', path: `${base}/results` },
-  { id: 'delivery', label: '交付（阅读）', path: `${base}/delivery` },
-] as const;
 
 export interface JourneyReviewStage {
   id: 'MANUAL' | 'PROCEDURES' | 'RULES';
@@ -37,19 +22,30 @@ export function JourneyNav({
   scopeEnabled: boolean;
   reviewStages?: readonly JourneyReviewStage[] | undefined;
 }) {
+  const base = `/projects/${encodeURIComponent(useParams().projectId ?? 'MVP-U1-PROJECT')}`;
+  const primary = [
+    { id: 'work', label: '当前工作', path: `${base}/work` },
+    { id: 'history', label: '历史记录', path: `${base}/history` },
+  ] as const;
+  const oldSteps = [
+    { id: 'overview', label: '项目概览（阅读）', path: `${base}/overview` },
+    { id: 'intake', label: '资料（阅读）', path: `${base}/intake` },
+    { id: 'analysis', label: '分析与澄清', path: `${base}/analysis/U1-REPORT-01` },
+    { id: 'scope', label: '修改范围', path: `${base}/startup/U1-REPORT-02` },
+    { id: 'results', label: '处理结果（阅读）', path: `${base}/results` },
+    { id: 'delivery', label: '交付（阅读）', path: `${base}/delivery` },
+  ] as const;
+
   const handoff = useContext(MvpHandoffContext);
   const u3Stages = handoff?.u3Stages ?? [];
   const primaryCurrent =
-    current === 'results'
-      ? 'files'
-      : current === 'rework' || current === 'recovery'
+    current === 'files' || current === 'results'
+      ? undefined
+      : current === 'history' || current === 'rework' || current === 'recovery'
         ? 'history'
         : 'work';
   return (
     <nav className="journey-nav" aria-label="项目导航">
-      <p className="muted">
-        同一项目 MVP-U1-PROJECT · 当前工作 / 全部文件 / 历史记录；页面访问不改变阶段完成状态。
-      </p>
       <ol>
         {primary.map((step) => (
           <li key={step.id}>

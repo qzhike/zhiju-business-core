@@ -1,3 +1,4 @@
+import { Button } from '../components/ui/button.js';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router';
@@ -48,21 +49,21 @@ export function FixtureMockPanel({ children }: { children: ReactNode }) {
                 <h2>Mock 控制</h2>
                 <p>仅用于演练 · 当前页面</p>
               </div>
-              <button
+              <Button
                 ref={closeButton}
                 type="button"
                 onClick={close}
                 aria-label="收起 Mock 控制面板"
               >
                 收起
-              </button>
+              </Button>
             </div>
             <p className="mock-panel-note">
               场景与回执只影响模拟会话。收起面板可审核主页面；刷新重置。
             </p>
             <div className="mock-panel-body" ref={setTarget} />
           </section>
-          <button
+          <Button
             ref={trigger}
             className="mock-panel-trigger"
             type="button"
@@ -74,7 +75,7 @@ export function FixtureMockPanel({ children }: { children: ReactNode }) {
             }}
           >
             <span aria-hidden="true">{open ? '−' : '+'}</span> Mock 控制
-          </button>
+          </Button>
         </aside>,
         document.body,
       )}

@@ -1,3 +1,9 @@
+import { useProjectTemplates } from './project-session.js';
+import { Alert } from '../components/ui/alert.js';
+import { Card } from '../components/ui/card.js';
+import { Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U1_ADAPTER_ONLY: isolated U1 rehearsal adapter; never imported by
 // the production entry. Explicit events drive state; no timers or network calls.
@@ -29,25 +35,10 @@ import { MvpHandoffContext } from './handoff.js';
 import {
   u1FormatRules,
   u1InitialBatch,
-  u1PlanOne,
-  u1Project,
-  u1ReportOne,
-  u1ReportTwo,
   u1SimulatedProblemEntries,
   u1SupplementBatch,
 } from './u1-data.js';
 
-const reports: Record<string, AnalysisReport> = {
-  'U1-REPORT-01': u1ReportOne,
-  'U1-REPORT-02': u1ReportTwo,
-};
-const projects: readonly IntakeProject[] = [
-  {
-    id: u1Project.id,
-    title: u1Project.title,
-    customer: { id: u1Project.enterpriseId, name: u1Project.customerLabel, code: u1Project.code },
-  },
-];
 const analysisNotices: Record<string, string> = {
   received: '仅记录合成意见；未调用 Runner，未关闭事项或批准文件。',
   failed: '演示场景复核失败，原报告与原提交保留。',
@@ -124,7 +115,20 @@ interface U1State {
 }
 const Context = createContext<U1State | null>(null);
 export function FixtureU1Provider({ children }: { children: ReactNode }) {
-  const [batches, setBatches] = useState([u1InitialBatch]);
+  const { u1Project, u1ReportOne, u1ReportTwo, u1PlanOne } = useProjectTemplates();
+  const reports: Record<string, AnalysisReport> = {
+    'U1-REPORT-01': u1ReportOne,
+    'U1-REPORT-02': u1ReportTwo,
+  };
+  const [batches, setBatches] = useState([
+    u1Project.id === 'MVP-U1-PROJECT'
+      ? u1InitialBatch
+      : {
+          ...u1InitialBatch,
+          label: '合成示例资料（非本地 ZIP 解析结果）',
+          zipName: '体系文件示例资料.zip',
+        },
+  ]);
   const [batchState, setBatchState] = useState<InputBatchState | null>(null);
   const [supplementSubmitted, setSupplementSubmitted] = useState(false);
   const [problemEntries, setProblemEntries] = useState(false);
@@ -440,6 +444,7 @@ export function useU1() {
   return state;
 }
 export function FixtureU1Overview() {
+  const { u1Project } = useProjectTemplates();
   const state = useU1();
   const handoff = useContext(MvpHandoffContext);
   const params = useParams();
@@ -545,6 +550,14 @@ export function FixtureU1Overview() {
   );
 }
 export function FixtureU1Intake() {
+  const { u1Project } = useProjectTemplates();
+  const projects: readonly IntakeProject[] = [
+    {
+      id: u1Project.id,
+      title: u1Project.title,
+      customer: { id: u1Project.enterpriseId, name: u1Project.customerLabel, code: u1Project.code },
+    },
+  ];
   const state = useU1();
   const params = useParams();
   if (params.projectId !== u1Project.id) return <Missing />;
@@ -575,15 +588,15 @@ export function FixtureU1Intake() {
               <details className="fixture-options" open>
                 <summary>U1 资料演示控制</summary>
                 <p>显式事件驱动批次和失败条目；不读取本地 ZIP，不用计时器推断分析完成。</p>
-                <button disabled={state.supplementSubmitted} onClick={state.submitSupplement}>
+                <Button disabled={state.supplementSubmitted} onClick={state.submitSupplement}>
                   {state.supplementSubmitted ? '补充批次已提交' : '演示：提交补充批次'}
-                </button>{' '}
-                <button disabled={state.problemEntries} onClick={state.showProblemEntries}>
+                </Button>{' '}
+                <Button disabled={state.problemEntries} onClick={state.showProblemEntries}>
                   {state.problemEntries ? '失败条目已展示' : '演示：加入失败与不支持条目'}
-                </button>
-                <label>
+                </Button>
+                <Label>
                   批次状态
-                  <select
+                  <NativeSelect
                     value={state.batchState ?? ''}
                     onChange={(event) => {
                       state.setBatchState((event.target.value || null) as InputBatchState | null);
@@ -595,8 +608,8 @@ export function FixtureU1Intake() {
                     <option value="WAITING">已接收 · 等待分析</option>
                     <option value="FAILED">存在失败条目</option>
                     <option value="UNKNOWN">接收结果待核验</option>
-                  </select>
-                </label>
+                  </NativeSelect>
+                </Label>
               </details>
             </MockControls>
             <p>
@@ -611,6 +624,11 @@ export function FixtureU1Intake() {
   );
 }
 export function FixtureU1Analysis() {
+  const { u1Project, u1ReportOne, u1ReportTwo } = useProjectTemplates();
+  const reports: Record<string, AnalysisReport> = {
+    'U1-REPORT-01': u1ReportOne,
+    'U1-REPORT-02': u1ReportTwo,
+  };
   const state = useU1();
   const params = useParams();
   const navigate = useNavigate();
@@ -634,11 +652,13 @@ export function FixtureU1Analysis() {
           analysisReportId="U1-REPORT-01"
           scopeEnabled={acknowledged}
         />
-        <section className="panel" role="status">
-          <h1 tabIndex={-1}>第 2 版分析尚未到达</h1>
-          <p>先在第 1 版记录客户答复或补充说明；页面不会用空状态生成第 2 版。</p>
-          <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-01`}>返回第 1 版</Link>
-        </section>
+        <Card asChild>
+          <section className="panel" role="status">
+            <h1 tabIndex={-1}>第 2 版分析尚未到达</h1>
+            <p>先在第 1 版记录客户答复或补充说明；页面不会用空状态生成第 2 版。</p>
+            <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-01`}>返回第 1 版</Link>
+          </section>
+        </Card>
       </div>
     );
   }
@@ -672,17 +692,21 @@ export function FixtureU1Analysis() {
         }
         updateNotice={
           report.version === 1 && state.reportTwoAvailable && !acknowledged ? (
-            <div className="notice" role="status">
-              第 2 版分析已到达，当前仍是第 1 版；旧报告、意见和草稿保留。
-              <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`} onClick={switchToTwo}>
-                主动查看第 2 版
-              </Link>
-            </div>
+            <Alert asChild variant="warning">
+              <div className="notice" role="status">
+                第 2 版分析已到达，当前仍是第 1 版；旧报告、意见和草稿保留。
+                <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`} onClick={switchToTwo}>
+                  主动查看第 2 版
+                </Link>
+              </div>
+            </Alert>
           ) : report.version === 2 && !acknowledged ? (
-            <div className="notice" role="status">
-              第 2 版尚未核对。查看本轮变化后再进入修改范围，避免把未核对内容当作计划依据。
-              <button onClick={state.acknowledgeReportTwo}>标记已核对第 2 版</button>
-            </div>
+            <Alert asChild variant="warning">
+              <div className="notice" role="status">
+                第 2 版尚未核对。查看本轮变化后再进入修改范围，避免把未核对内容当作计划依据。
+                <Button onClick={state.acknowledgeReportTwo}>标记已核对第 2 版</Button>
+              </div>
+            </Alert>
           ) : undefined
         }
         roundSummary={report.version === 2 ? report.summary : undefined}
@@ -701,7 +725,7 @@ export function FixtureU1Analysis() {
             <details className="fixture-options" open>
               <summary>U1 分析演示控制</summary>
               <p>固定合成答复；不上传或分析附件，不调用 Runner。刷新清理本页内存。</p>
-              <select
+              <NativeSelect
                 aria-label="分析回执场景"
                 value={state.analysisScenario}
                 onChange={(event) => {
@@ -710,8 +734,8 @@ export function FixtureU1Analysis() {
               >
                 <option value="received">收到合成意见</option>
                 <option value="failed">失败</option>
-              </select>
-              <button
+              </NativeSelect>
+              <Button
                 disabled={historical || report.version !== 1}
                 onClick={() => {
                   const customerContext = contextFor(report, 'CUSTOMER');
@@ -730,7 +754,7 @@ export function FixtureU1Analysis() {
                 }}
               >
                 带入固定客户答复（成功场景）
-              </button>
+              </Button>
             </details>
           </MockControls>
         }
@@ -739,6 +763,7 @@ export function FixtureU1Analysis() {
   );
 }
 export function FixtureU1Plan() {
+  const { u1Project } = useProjectTemplates();
   const state = useU1();
   const params = useParams();
   const navigate = useNavigate();
@@ -747,11 +772,13 @@ export function FixtureU1Plan() {
     return (
       <div>
         <JourneyNav current="scope" analysisReportId={state.viewedReportId} scopeEnabled={false} />
-        <section className="panel" role="status">
-          <h1 tabIndex={-1}>先核对第 2 版分析</h1>
-          <p>修改范围以第 2 版分析及其输入依据为准；未核对前不展示可确认的计划。</p>
-          <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>返回核对第 2 版分析</Link>
-        </section>
+        <Card asChild>
+          <section className="panel" role="status">
+            <h1 tabIndex={-1}>先核对第 2 版分析</h1>
+            <p>修改范围以第 2 版分析及其输入依据为准；未核对前不展示可确认的计划。</p>
+            <Link to={`/projects/${u1Project.id}/analysis/U1-REPORT-02`}>返回核对第 2 版分析</Link>
+          </section>
+        </Card>
       </div>
     );
   }
@@ -768,16 +795,18 @@ export function FixtureU1Plan() {
         revisions={state.revisions[plan.planId] ?? []}
         notice={
           latestPlan !== undefined && plan.planId !== latestPlan.planId ? (
-            <div className="notice" role="status">
-              新计划已到达，当前仍是第 {plan.version} 版。
-              <button
-                onClick={() => {
-                  state.selectPlan(latestPlan.planId);
-                }}
-              >
-                查看第 {latestPlan.version} 版
-              </button>
-            </div>
+            <Alert asChild variant="warning">
+              <div className="notice" role="status">
+                新计划已到达，当前仍是第 {plan.version} 版。
+                <Button
+                  onClick={() => {
+                    state.selectPlan(latestPlan.planId);
+                  }}
+                >
+                  查看第 {latestPlan.version} 版
+                </Button>
+              </div>
+            </Alert>
           ) : undefined
         }
         generation={{
@@ -821,9 +850,9 @@ export function FixtureU1Plan() {
             <details className="fixture-options" open>
               <summary>U1 范围演示控制</summary>
               <p>确认回执由显式场景决定；不调用 Core，不用计时器推断执行完成。</p>
-              <label>
+              <Label>
                 确认回执场景
-                <select
+                <NativeSelect
                   value={state.planScenario}
                   onChange={(event) => {
                     state.setPlanScenario(event.target.value);
@@ -834,24 +863,24 @@ export function FixtureU1Plan() {
                   <option value="failed">失败</option>
                   <option value="unknown">UNKNOWN</option>
                   <option value="mismatch">错上下文回执</option>
-                </select>
-              </label>
-              <button
+                </NativeSelect>
+              </Label>
+              <Button
                 disabled={plan.state !== 'PENDING' && plan.state !== 'UNKNOWN'}
                 onClick={() => {
                   state.simulatePlanReceipt(plan.planId);
                 }}
               >
                 模拟原请求回执到达
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!confirmed || plan.supersededBy !== undefined}
                 onClick={() => {
                   state.expandPlan(plan.planId, false);
                 }}
               >
                 模拟新计划到达（不切换当前视图）
-              </button>
+              </Button>
             </details>
           </MockControls>
         }

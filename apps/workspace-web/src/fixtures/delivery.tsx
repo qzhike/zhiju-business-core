@@ -1,3 +1,6 @@
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button } from '../components/ui/button.js';
 import { MockControls } from './control-slot.js';
 // Isolated synthetic events and bytes. Never a production release/export adapter.
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
@@ -239,9 +242,9 @@ export function FixtureDelivery() {
             <p>{marker} · 仅内存，不接 Core/Runner/生产受控导出。</p>
             <p>确认调用数：{calls}</p>
             <div>
-              <label>
+              <Label>
                 确认回执
-                <select
+                <NativeSelect
                   value={outcome}
                   onChange={(event) => {
                     setOutcome(event.target.value as typeof outcome);
@@ -259,11 +262,11 @@ export function FixtureDelivery() {
                   ].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
-              </label>
-              <label>
+                </NativeSelect>
+              </Label>
+              <Label>
                 原意图查询结果
-                <select
+                <NativeSelect
                   value={readOutcome}
                   onChange={(event) => {
                     setReadOutcome(event.target.value as typeof readOutcome);
@@ -279,11 +282,11 @@ export function FixtureDelivery() {
                   ].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
-              </label>
-              <label>
+                </NativeSelect>
+              </Label>
+              <Label>
                 下载观察
-                <select
+                <NativeSelect
                   value={downloadOutcome}
                   onChange={(event) => {
                     setDownloadOutcome(event.target.value);
@@ -299,11 +302,11 @@ export function FixtureDelivery() {
                   ].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
-              </label>
-              <label>
+                </NativeSelect>
+              </Label>
+              <Label>
                 交付读取场景
-                <select
+                <NativeSelect
                   value={phase}
                   onChange={(event) => {
                     setPhase(event.target.value as typeof phase);
@@ -312,9 +315,9 @@ export function FixtureDelivery() {
                   {['AVAILABLE', 'LOADING', 'ERROR', 'EXPIRED', 'UNAVAILABLE'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
-              </label>
-              <button
+                </NativeSelect>
+              </Label>
+              <Button
                 onClick={() => {
                   const intent = [...intents.values()].at(-1);
                   if (intent && pending.current) {
@@ -324,8 +327,8 @@ export function FixtureDelivery() {
                 }}
               >
                 返回待核实回执
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({
                     ...prior,
@@ -343,8 +346,8 @@ export function FixtureDelivery() {
                 }}
               >
                 模拟手册新版本
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({
                     ...prior,
@@ -364,8 +367,8 @@ export function FixtureDelivery() {
                 }}
               >
                 模拟程序资格失效
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({
                     ...prior,
@@ -374,29 +377,29 @@ export function FixtureDelivery() {
                 }}
               >
                 移除手册观察
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({ ...prior, completeness: 'PARTIAL' }));
                 }}
               >
                 模拟部分读取
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({ ...prior, completeness: 'STALE' }));
                 }}
               >
                 模拟陈旧读取
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({ ...prior, files: [] }));
                 }}
               >
                 模拟空清单
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setData((prior) => ({
                     ...prior,
@@ -410,35 +413,35 @@ export function FixtureDelivery() {
                 }}
               >
                 带入 200 份文件
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   availability('EXPIRED');
                 }}
               >
                 模拟包许可过期
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   availability('UNAVAILABLE');
                 }}
               >
                 模拟包不可下载
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   availability('FAILED');
                 }}
               >
                 模拟包校验失败
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   availability('AVAILABLE');
                 }}
               >
                 恢复同一包可下载
-              </button>
+              </Button>
             </div>
           </details>
         </MockControls>

@@ -1,8 +1,58 @@
 .intake-page {
-  max-height: calc(100dvh - 170px);
-  overflow-y: auto;
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
   padding: 3px;
   overflow-wrap: anywhere;
+}
+.intake-page .panel {
+  padding: clamp(16px, 3vw, 32px);
+}
+.intake-create-page {
+  max-width: 760px;
+}
+.intake-page .intake-create {
+  max-width: none;
+}
+.intake-submission > summary {
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.intake-submission[open] .file-brief {
+  margin-block: 16px;
+}
+.intake-identity {
+  margin-top: 16px;
+}
+.intake-receipt [role='status']:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+.intake-form-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.intake-customer-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.intake-project-status {
+  margin: 0 0 20px;
+  color: var(--muted-foreground);
+}
+.intake-continuation {
+  margin-block: 24px;
+  padding-block: 20px;
+  border-block: 1px solid var(--line);
+}
+.intake-page .upload-zone {
+  background: var(--soft);
+  border-color: var(--line);
+  padding: 20px;
+}
+.intake-page .upload-zone h2 {
+  font-size: 18px;
 }
 .customer-field {
   position: relative;
@@ -64,10 +114,8 @@
   gap: 12px;
 }
 .intake-batch {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--soft);
-  padding: 12px;
+  border-top: 1px solid var(--line);
+  padding-block: 16px;
 }
 .intake-batch header {
   display: flex;
@@ -84,7 +132,7 @@
 }
 .batch-count,
 .batch-next {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 .format-rules {
@@ -110,7 +158,7 @@
 }
 .batch-entries caption {
   text-align: left;
-  color: var(--muted);
+  color: var(--muted-foreground);
   padding-bottom: 4px;
 }
 .batch-entries th,
@@ -122,7 +170,7 @@
 }
 .batch-entries td small {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .batch-entries tr[data-state='FAILED'] td,
 .batch-entries tr[data-state='UNSUPPORTED'] td {

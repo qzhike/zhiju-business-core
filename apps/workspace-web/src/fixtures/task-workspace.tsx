@@ -1,9 +1,27 @@
+import { useProjectPaths, useProjectTemplates } from './project-session.js';
+import { Alert } from '../components/ui/alert.js';
+import { Badge } from '../components/ui/badge.js';
+import { Card } from '../components/ui/card.js';
+import { Stepper } from '../components/ui/stepper.js';
+import { Button, buttonVariants } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { Textarea } from '../components/ui/textarea.js';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '../components/ui/table.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 import { MockControls } from './control-slot.js';
 // DEVELOPMENT_TASK_WORKSPACE_ADAPTER_ONLY: task-driven M1 rehearsal workspace.
 // It reuses the in-memory U1/U2/U3 fixtures and never calls Core or Runner.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Missing } from '../shell.js';
+import { SafeMarkdown } from '../App.js';
 import { JourneyNav } from '../mvp/JourneyNav.js';
 import {
   activeSubmission,
@@ -15,7 +33,6 @@ import {
 } from '../mvp/review-model.js';
 import { planActionLabels, planLevelLabels, type PlanFile, type PlanView } from '../plan/model.js';
 import { inputEntryLabels } from '../intake/model.js';
-import { u1Project, u1ReportOne, u1ReportTwo } from './u1-data.js';
 import { useU1 } from './u1.js';
 import {
   emptySession,
@@ -30,15 +47,7 @@ import { useResults } from './results.js';
 import { u2VersionLabel } from './u2-data.js';
 import './task-workspace.css';
 
-const projectId = u1Project.id;
-const base = `/projects/${projectId}`;
-const workPath = `${base}/work`;
 const stages: readonly MvpStageId[] = ['MANUAL', 'PROCEDURES', 'RULES'];
-type StageNumber = 1 | 2 | 3;
-
-function stageNumber(stage: MvpStageId): StageNumber {
-  return stage === 'MANUAL' ? 1 : stage === 'PROCEDURES' ? 2 : 3;
-}
 
 function stageFiles(plan: PlanView, stage: MvpStageId): PlanFile[] {
   return planStageFiles(plan, stage);
@@ -104,7 +113,7 @@ function latestVersion(session: StageSession, fileId: string): string | undefine
   return session.files[fileId]?.versions.at(-1);
 }
 
-function fileDetailHref(roundId: string, fileId: string): string {
+function fileDetailHref(base: string, roundId: string, fileId: string): string {
   return `${base}/results/${encodeURIComponent(roundId)}/${encodeURIComponent(fileId)}`;
 }
 
@@ -448,49 +457,36 @@ function StepProgress({ infos, task }: { infos: readonly StageInfo[]; task: Task
       ? stages.length - 1
       : -1;
   return (
-    <section className="panel task-progress" aria-label="三个业务阶段当前进度">
-      <h2>三个业务阶段</h2>
-      <ol className="task-steps">
-        {infos.map((info, index) => {
-          const state = info.upstreamChanged
+    <section className="panel task-progress" aria-label="业务解读">
+      <h2>业务解读</h2>
+      <Stepper
+        className="task-steps mt-3"
+        aria-label="业务阶段进度"
+        currentStepId={currentIndex >= 0 ? stages[currentIndex] : undefined}
+        steps={infos.map((info) => ({
+          id: info.stage,
+          title: mvpStageLabel(info.stage),
+          state: info.upstreamChanged
             ? 'ATTENTION'
             : info.finalization && !info.newerThanFinal
               ? 'COMPLETE'
               : info.hasCandidate
                 ? 'CURRENT'
-                : info.ready.ready
-                  ? 'UPCOMING'
-                  : 'UPCOMING';
-          return (
-            <li
-              key={info.stage}
-              data-state={state}
-              aria-current={index === currentIndex ? 'step' : undefined}
-            >
-              <span className="task-step-number" aria-hidden="true">
-                {stageNumber(info.stage)}
-              </span>
-              <div>
-                <strong>{mvpStageLabel(info.stage)}</strong>
-                <span className="status-tag">
-                  {info.upstreamChanged
-                    ? '依据已变化，待复核'
-                    : info.finalization && !info.newerThanFinal
-                      ? '已定稿（模拟）'
-                      : info.finalization
-                        ? '有后续改稿'
-                        : info.hasCandidate
-                          ? '待审阅（演示）'
-                          : info.ready.ready
-                            ? '待生成候选'
-                            : '等待前置'}
-                </span>
-                {info.finalization && <small>{info.finalization.finalizationId}</small>}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+                : 'UPCOMING',
+          status: info.upstreamChanged
+            ? '依据已变化，待复核'
+            : info.finalization && !info.newerThanFinal
+              ? '已定稿（模拟）'
+              : info.finalization
+                ? '有后续改稿'
+                : info.hasCandidate
+                  ? '待审阅（演示）'
+                  : info.ready.ready
+                    ? '待生成候选'
+                    : '等待前置',
+          detail: info.finalization?.finalizationId,
+        }))}
+      />
       <p className="muted" role="status">
         {currentIndex >= 0
           ? `当前进度：第 ${currentIndex + 1} 步 · ${mvpStageLabel(stages[currentIndex] ?? 'MANUAL')}`
@@ -523,9 +519,9 @@ function PrimaryAction({ task, onRun }: { task: TaskState; onRun: () => void }) 
     DOWNLOAD: '下载当前文档包',
   };
   return (
-    <button className="button primary" onClick={onRun}>
+    <Button variant="default" onClick={onRun}>
       {label[task.key]}
-    </button>
+    </Button>
   );
 }
 
@@ -540,6 +536,7 @@ function AnalysisPanel({
   setAnswers: (value: string) => void;
   feedback: string;
 }) {
+  const { u1ReportOne } = useProjectTemplates();
   const { u1, plan } = model;
   const entries = u1.batches.flatMap((batch) => batch.entries);
   const containers = entries.filter((entry) => entry.format === 'RAR').length;
@@ -556,13 +553,17 @@ function AnalysisPanel({
       </p>
       <details>
         <summary>查看分析依据与读取限制</summary>
-        <p>{u1ReportOne.summary}</p>
-        <ul>
-          {u1ReportOne.limitations.map((limitation) => (
-            <li key={limitation}>{limitation}</li>
-          ))}
-        </ul>
-        <p className="muted">{u1ReportOne.narrative}</p>
+        <div className="markdown task-analysis-report">
+          <SafeMarkdown>{u1ReportOne.summary}</SafeMarkdown>
+          <ul>
+            {u1ReportOne.limitations.map((limitation) => (
+              <li key={limitation}>
+                <SafeMarkdown>{limitation}</SafeMarkdown>
+              </li>
+            ))}
+          </ul>
+          <SafeMarkdown>{u1ReportOne.narrative}</SafeMarkdown>
+        </div>
       </details>
       {u1.analysisStarted && !u1.analysisReady && u1.clarificationMode !== 'NONE' && (
         <div className="task-clarify">
@@ -570,13 +571,16 @@ function AnalysisPanel({
           <ul>
             {questions.map((question) => (
               <li key={question.id}>
-                <strong>{question.title}</strong> · {question.question}
+                <strong>{question.title}</strong>
+                <div className="markdown">
+                  <SafeMarkdown>{question.question}</SafeMarkdown>
+                </div>
               </li>
             ))}
           </ul>
-          <label>
+          <Label>
             答复
-            <textarea
+            <Textarea
               aria-label="资料问题答复"
               value={answers}
               placeholder="说明四层结构、编号迁移、保留表单及补充资料的处理方式"
@@ -584,14 +588,16 @@ function AnalysisPanel({
                 setAnswers(event.target.value);
               }}
             />
-          </label>
+          </Label>
           <p className="muted">答复只形成合成分析变化；不调用 Runner，也不自动批准保护内容。</p>
         </div>
       )}
       {u1.clarificationMode === 'NONE' && u1.analysisStarted && (
-        <p className="notice" role="status">
-          本轮分析没有必须答复的事项；不强制生成第二版报告。
-        </p>
+        <Alert asChild variant="warning">
+          <p className="notice" role="status">
+            本轮分析没有必须答复的事项；不强制生成第二版报告。
+          </p>
+        </Alert>
       )}
       {u1.analysisReady && (
         <div className="task-scope">
@@ -601,26 +607,30 @@ function AnalysisPanel({
             分别列出修订、新增与保留；确认对象是当前精确计划和输入依据。
           </p>
           <div className="task-table-wrap" role="region" aria-label="拟修改文件" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">文件</th>
-                  <th scope="col">层级</th>
-                  <th scope="col">动作</th>
-                  <th scope="col">影响</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">文件</TableHead>
+                  <TableHead scope="col">层级</TableHead>
+                  <TableHead scope="col">动作</TableHead>
+                  <TableHead scope="col">影响</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {plan.files.map((file) => (
-                  <tr key={file.id}>
-                    <th scope="row">{file.title}</th>
-                    <td>{planLevelLabels[file.level]}</td>
-                    <td>{planActionLabels[file.action]}</td>
-                    <td>{file.impact}</td>
-                  </tr>
+                  <TableRow key={file.id}>
+                    <TableHead scope="row">{file.title}</TableHead>
+                    <TableCell>{planLevelLabels[file.level]}</TableCell>
+                    <TableCell>{planActionLabels[file.action]}</TableCell>
+                    <TableCell>
+                      <div className="markdown">
+                        <SafeMarkdown>{file.impact}</SafeMarkdown>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           {plan.retained.length > 0 && (
             <details>
@@ -628,7 +638,10 @@ function AnalysisPanel({
               <ul>
                 {plan.retained.map((file) => (
                   <li key={file.id}>
-                    <strong>{file.title}</strong> · {file.reason}
+                    <strong>{file.title}</strong>
+                    <div className="markdown">
+                      <SafeMarkdown>{file.reason}</SafeMarkdown>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -643,9 +656,11 @@ function AnalysisPanel({
             </p>
           </details>
           {plan.state !== 'DRAFT' && plan.state !== 'CONFIRMED' && (
-            <p className="notice" role="status">
-              计划状态：{plan.state}。确认未收敛前不能生成；核对或重新确认原意图。
-            </p>
+            <Alert asChild variant="warning">
+              <p className="notice" role="status">
+                计划状态：{plan.state}。确认未收敛前不能生成；核对或重新确认原意图。
+              </p>
+            </Alert>
           )}
         </div>
       )}
@@ -673,6 +688,7 @@ function StagePanel({
   onSubmit: (stage: MvpStageId) => void;
   onFinalize: (stage: MvpStageId) => void;
 }) {
+  const { base } = useProjectPaths();
   const { u2, results } = model;
   const task = model.task;
   const stage = task.stage;
@@ -705,7 +721,7 @@ function StagePanel({
               : '候选、阅读、意见与定稿在同一工作区完成；页面访问不会自动定稿。'}
           </p>
         </div>
-        <span className="status-tag">
+        <Badge className="status-tag">
           {info.upstreamChanged
             ? '依据已变化，待复核'
             : info.finalization && !info.newerThanFinal
@@ -715,55 +731,59 @@ function StagePanel({
                 : info.roundSaved.length > 0 && !info.submitted
                   ? '有未提交意见'
                   : '待审阅（演示）'}
-        </span>
+        </Badge>
       </div>
       {info.roundId && (
         <p>
-          <Link className="button" to={`${base}/results/${encodeURIComponent(info.roundId)}`}>
+          <Link
+            className={buttonVariants({ variant: 'outline' })}
+            to={`${base}/results/${encodeURIComponent(info.roundId)}`}
+          >
             查看本轮结果总览
           </Link>
         </p>
       )}
       {!info.hasCandidate && info.lastUnresolved && (
-        <div className="notice" role="status">
-          <p>{info.lastUnresolved.message}</p>
-          <div className="task-actions">
-            <button className="button" onClick={() => u2.reconcileGeneration(stage)}>
-              核对原生成请求
-            </button>
-            {(info.lastUnresolved.status === 'FAILED' ||
-              info.lastUnresolved.status === 'MISMATCH') && (
-              <button className="button primary" onClick={() => u2.retryGeneration(stage)}>
-                重新生成本阶段
-              </button>
-            )}
+        <Alert asChild variant="warning">
+          <div className="notice" role="status">
+            <p>{info.lastUnresolved.message}</p>
+            <div className="task-actions">
+              <Button onClick={() => u2.reconcileGeneration(stage)}>核对原生成请求</Button>
+              {(info.lastUnresolved.status === 'FAILED' ||
+                info.lastUnresolved.status === 'MISMATCH') && (
+                <Button variant="default" onClick={() => u2.retryGeneration(stage)}>
+                  重新生成本阶段
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        </Alert>
       )}
       {info.unviewed && (
-        <p className="notice" role="status">
-          新稿已到达；当前阅读版本、意见与旧定稿保持不变。
-          <button
-            className="button"
-            onClick={() => {
-              u2.viewLatest(stage);
-            }}
-          >
-            显式查看新稿
-          </button>
-        </p>
+        <Alert asChild variant="warning">
+          <p className="notice" role="status">
+            新稿已到达；当前阅读版本、意见与旧定稿保持不变。
+            <Button
+              onClick={() => {
+                u2.viewLatest(stage);
+              }}
+            >
+              显式查看新稿
+            </Button>
+          </p>
+        </Alert>
       )}
       <div className="task-table-wrap" role="region" aria-label="本阶段需审阅文件" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">文件</th>
-              <th scope="col">当前阅读版本</th>
-              <th scope="col">本轮结果</th>
-              <th scope="col">详情</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">文件</TableHead>
+              <TableHead scope="col">当前阅读版本</TableHead>
+              <TableHead scope="col">本轮结果</TableHead>
+              <TableHead scope="col">详情</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {info.files.map((file) => {
               const viewed = versionForFile(info.session, file.id);
               const latest = latestVersion(info.session, file.id);
@@ -776,27 +796,27 @@ function StagePanel({
                       ? `新稿 ${u2VersionLabel(latest)} 待查看`
                       : `候选 ${u2VersionLabel(latest)}`;
               return (
-                <tr key={file.id}>
-                  <th scope="row">
+                <TableRow key={file.id}>
+                  <TableHead scope="row">
                     {file.title}
                     <small>
                       {planLevelLabels[file.level]} · {planActionLabels[file.action]}
                     </small>
-                  </th>
-                  <td>{viewed ? u2VersionLabel(viewed) : '—'}</td>
-                  <td>{state}</td>
-                  <td>
+                  </TableHead>
+                  <TableCell>{viewed ? u2VersionLabel(viewed) : '—'}</TableCell>
+                  <TableCell>{state}</TableCell>
+                  <TableCell>
                     {viewed && info.roundId ? (
-                      <Link to={fileDetailHref(info.roundId, file.id)}>查看</Link>
+                      <Link to={fileDetailHref(base, info.roundId, file.id)}>查看</Link>
                     ) : (
                       '—'
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       {info.versionId && (
         <div className="task-opinions">
@@ -810,11 +830,11 @@ function StagePanel({
             const key = opinionKey(info.roundId, file.id, version);
             const value = results.drafts[key] ?? results.saved[key]?.text ?? '';
             return (
-              <label key={file.id} className="task-opinion">
+              <Label key={file.id} className="task-opinion">
                 <span>
                   {file.title} · {u2VersionLabel(version)}
                 </span>
-                <textarea
+                <Textarea
                   aria-label={`${file.title} 本轮意见`}
                   value={value}
                   placeholder="记录对这份文件的意见；留空不提交"
@@ -826,12 +846,12 @@ function StagePanel({
                     );
                   }}
                 />
-              </label>
+              </Label>
             );
           })}
           <div className="task-actions">
-            <button
-              className="button primary"
+            <Button
+              variant="default"
               disabled={!canSubmit}
               onClick={() => {
                 onSubmit(stage);
@@ -840,7 +860,7 @@ function StagePanel({
               {info.submitted
                 ? '本轮意见已提交'
                 : `提交 ${info.roundSaved.length} 条意见并生成下一稿`}
-            </button>
+            </Button>
             <span className="muted" role="status">
               {results.receipt ||
                 (model.active
@@ -874,12 +894,14 @@ function StagePanel({
           </p>
         )}
         {info.upstreamChanged && (
-          <p className="notice" role="status">
-            上游依据已变化；旧定稿仍保留，需明确核对当前完整集合后重新确认。
-          </p>
+          <Alert asChild variant="warning">
+            <p className="notice" role="status">
+              上游依据已变化；旧定稿仍保留，需明确核对当前完整集合后重新确认。
+            </p>
+          </Alert>
         )}
         {finalizeNeedsAck && (
-          <label className="task-warning">
+          <Label className="task-warning">
             <input
               type="checkbox"
               checked={acknowledged}
@@ -889,11 +911,10 @@ function StagePanel({
             />
             本轮有 {info.roundSaved.length}{' '}
             条未提交意见；我已知悉它们不会进入定稿依据，仍要继续核对定稿。
-          </label>
+          </Label>
         )}
         <div className="task-actions">
-          <button
-            className="button"
+          <Button
             disabled={
               !info.ready.ready ||
               info.viewed.length !== info.files.length ||
@@ -906,7 +927,7 @@ function StagePanel({
             }}
           >
             {info.finalization ? '按当前依据重新确认完整集合' : '确认本阶段完整集合（模拟）'}
-          </button>
+          </Button>
           {info.finalization && (
             <span className="muted" role="status">
               已定稿：{info.finalization.finalizationId}
@@ -946,17 +967,15 @@ function RecoveryPanel({
       </ul>
       <p role="status">{recovery.note}</p>
       <div className="task-actions">
-        <button className="button primary" disabled={!recovery.canRetry} onClick={recovery.retry}>
+        <Button variant="default" disabled={!recovery.canRetry} onClick={recovery.retry}>
           仅重试已知失败文件
-        </button>
-        <button className="button" disabled={!recovery.canQuery} onClick={recovery.query}>
+        </Button>
+        <Button disabled={!recovery.canQuery} onClick={recovery.query}>
           核对原重试请求
-        </button>
+        </Button>
         {execution.retry.onReceipt && (
           <MockControls>
-            <button className="button" onClick={execution.retry.onReceipt}>
-              模拟原重试回执到达
-            </button>
+            <Button onClick={execution.retry.onReceipt}>模拟原重试回执到达</Button>
           </MockControls>
         )}
       </div>
@@ -1023,40 +1042,42 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
         </div>
       </dl>
       {delivery.blockers.length > 0 && (
-        <div className="error" role="alert">
-          <strong>当前不能确认最终交付</strong>
-          <ul>
-            {delivery.blockers.map((blocker) => (
-              <li key={blocker}>{blocker}</li>
-            ))}
-          </ul>
-        </div>
+        <Alert asChild variant="warning">
+          <div className="error" role="alert">
+            <strong>当前不能确认最终交付</strong>
+            <ul>
+              {delivery.blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          </div>
+        </Alert>
       )}
       <h3>待交付精确清单</h3>
       {delivery.proposal.members.length === 0 ? (
         <p role="status">尚无可用精确版本；请先完成三阶段定稿。</p>
       ) : (
         <div className="task-table-wrap" role="region" aria-label="待交付精确清单" tabIndex={0}>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">文件</th>
-                <th scope="col">阶段</th>
-                <th scope="col">精确版本</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">文件</TableHead>
+                <TableHead scope="col">阶段</TableHead>
+                <TableHead scope="col">精确版本</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {delivery.proposal.members.map((member) => (
-                <tr key={member.fileId}>
-                  <th scope="row">{member.title}</th>
-                  <td>{member.stage}</td>
-                  <td>
+                <TableRow key={member.fileId}>
+                  <TableHead scope="row">{member.title}</TableHead>
+                  <TableCell>{member.stage}</TableCell>
+                  <TableCell>
                     {member.versionLabel} · {member.versionId}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       {packagingUnresolved && delivery.state.packagingFrozen && (
@@ -1091,26 +1112,26 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
           <>
             {(delivery.state.packagingStatus === 'UNKNOWN' ||
               delivery.state.packagingStatus === 'MISMATCH') && (
-              <button className="button primary" onClick={delivery.actions.queryPackaging}>
+              <Button variant="default" onClick={delivery.actions.queryPackaging}>
                 核对原打包请求
-              </button>
+              </Button>
             )}
             {delivery.state.packagingStatus === 'FAILED' && (
-              <button className="button primary" onClick={delivery.actions.retryPackaging}>
+              <Button variant="default" onClick={delivery.actions.retryPackaging}>
                 重试同一冻结清单
-              </button>
+              </Button>
             )}
             {delivery.state.packagingStatus === 'PENDING' && (
-              <button className="button primary" disabled>
+              <Button variant="default" disabled>
                 正在打包…
-              </button>
+              </Button>
             )}
           </>
         )}
         {!packagingUnresolved && !delivery.state.frozen && (
           <>
-            <button
-              className="button primary"
+            <Button
+              variant="default"
               disabled={
                 delivery.blockers.length > 0 ||
                 delivery.state.confirmStatus === 'PENDING' ||
@@ -1120,25 +1141,21 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
               onClick={delivery.actions.confirmAndPackage}
             >
               确认交付清单并生成文档包
-            </button>
+            </Button>
             {(delivery.state.confirmStatus === 'PENDING' ||
               delivery.state.confirmStatus === 'UNKNOWN' ||
               delivery.state.confirmStatus === 'MISMATCH') && (
-              <button className="button" onClick={delivery.actions.reconcileConfirmation}>
-                核对原最终确认请求
-              </button>
+              <Button onClick={delivery.actions.reconcileConfirmation}>核对原最终确认请求</Button>
             )}
             {delivery.state.confirmStatus === 'MISMATCH' && (
-              <button className="button" onClick={delivery.actions.endConfirmation}>
-                结束原确认请求并重新核对
-              </button>
+              <Button onClick={delivery.actions.endConfirmation}>结束原确认请求并重新核对</Button>
             )}
           </>
         )}
         {delivery.state.frozen && !delivery.state.packageAvailable && (
           <>
-            <button
-              className="button primary"
+            <Button
+              variant="default"
               disabled={delivery.state.packagingStatus === 'PENDING'}
               onClick={delivery.actions.retryPackaging}
             >
@@ -1148,25 +1165,23 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
                     delivery.state.packagingStatus === 'MISMATCH'
                   ? '核对原打包请求'
                   : '打包已冻结清单'}
-            </button>
+            </Button>
             {(delivery.state.packagingStatus === 'UNKNOWN' ||
               delivery.state.packagingStatus === 'MISMATCH') && (
-              <button className="button" onClick={delivery.actions.queryPackaging}>
-                重新查询原打包请求
-              </button>
+              <Button onClick={delivery.actions.queryPackaging}>重新查询原打包请求</Button>
             )}
           </>
         )}
         {delivery.state.currentPackage && delivery.state.packageAvailable && (
-          <button
-            className="button primary"
+          <Button
+            variant="default"
             onClick={() => {
               const pkg = delivery.state.currentPackage;
               if (pkg) delivery.actions.download(pkg);
             }}
           >
             下载 Markdown ZIP（合成）
-          </button>
+          </Button>
         )}
       </div>
       {delivery.state.currentPackage && (
@@ -1189,15 +1204,14 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
               包可用（模拟）
             </p>
             <p>该包对应旧冻结清单；当前 proposal 已变化，需重新确认后才能形成新的当前交付。</p>
-            <button
-              className="button"
+            <Button
               onClick={() => {
                 const pkg = delivery.state.packagingPackage;
                 if (pkg) delivery.actions.download(pkg);
               }}
             >
               下载历史 ZIP
-            </button>
+            </Button>
           </div>
         )}
       {delivery.state.packages.length > 0 && (
@@ -1207,14 +1221,13 @@ function DeliveryPanel({ model }: { model: ReturnType<typeof useProjectModel> })
             {delivery.state.packages.map((pkg) => (
               <li key={pkg.id}>
                 {pkg.id} · {pkg.createdAt} · {pkg.frozen.members.length} 份文件{' '}
-                <button
-                  className="button"
+                <Button
                   onClick={() => {
                     delivery.actions.download(pkg);
                   }}
                 >
                   下载
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -1234,9 +1247,9 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
       <details className="fixture-options task-dev">
         <summary>演练与诊断</summary>
         <p>正常旅程不需要打开这些控件；回执、候选和故障注入只用于开发诊断。</p>
-        <label>
+        <Label>
           分析澄清场景
-          <select
+          <NativeSelect
             value={u1.clarificationMode}
             onChange={(event) => {
               u1.setClarificationMode(event.target.value as 'QUESTIONS' | 'NONE');
@@ -1244,11 +1257,11 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
           >
             <option value="QUESTIONS">需要答复 2 个问题</option>
             <option value="NONE">无需答复 · 不生成第二版</option>
-          </select>
-        </label>
-        <label>
+          </NativeSelect>
+        </Label>
+        <Label>
           范围确认场景
-          <select
+          <NativeSelect
             value={u1.planScenario}
             onChange={(event) => {
               u1.setPlanScenario(event.target.value);
@@ -1259,11 +1272,11 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
             <option value="failed">失败</option>
             <option value="unknown">UNKNOWN</option>
             <option value="mismatch">错上下文回执</option>
-          </select>
-        </label>
-        <label>
+          </NativeSelect>
+        </Label>
+        <Label>
           当前阶段生成场景
-          <select
+          <NativeSelect
             value={session.generationScene}
             onChange={(event) => {
               u2.update(stage, (current) => ({
@@ -1278,13 +1291,13 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
             <option value="unknown">UNKNOWN</option>
             <option value="failed">失败</option>
             <option value="mismatch">错上下文回执</option>
-          </select>
-        </label>
+          </NativeSelect>
+        </Label>
         <fieldset>
           <legend>交付场景</legend>
-          <label>
+          <Label>
             确认回执
-            <select
+            <NativeSelect
               value={u3.deliveryApi.state.confirmScene}
               onChange={(event) => {
                 u3.deliveryApi.actions.configure({
@@ -1299,11 +1312,11 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
               <option value="failed">失败</option>
               <option value="mismatch">错绑回执</option>
               <option value="changed">确认前依据变化</option>
-            </select>
-          </label>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Label>
             打包结果
-            <select
+            <NativeSelect
               value={u3.deliveryApi.state.packagingScene}
               onChange={(event) => {
                 u3.deliveryApi.actions.configure({
@@ -1316,10 +1329,10 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
               <option value="FAILED">打包失败</option>
               <option value="UNKNOWN">待核验</option>
               <option value="MISMATCH">错绑清单</option>
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
         </fieldset>
-        <label>
+        <Label>
           <input
             type="checkbox"
             checked={u3.recovery.visible}
@@ -1328,28 +1341,30 @@ function DevControls({ model }: { model: ReturnType<typeof useProjectModel> }) {
             }}
           />
           显示执行恢复区（合成失败批次）
-        </label>
-        <button
+        </Label>
+        <Button
           onClick={() => {
             u2.simulateManualRefinalization();
           }}
           disabled={!u2.manualFinalization}
         >
           模拟质量手册重新定稿（上游依据变化）
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => {
             u1.expandPlan(plan.planId);
           }}
         >
           扩大范围：新增变更通知单（演示）
-        </button>
+        </Button>
       </details>
     </MockControls>
   );
 }
 
 export function FixtureCurrentWork() {
+  const { projectId } = useProjectPaths();
+  const { u1Project } = useProjectTemplates();
   const params = useParams();
   const model = useProjectModel();
   const { u1, u2, results } = model;
@@ -1487,44 +1502,36 @@ export function FixtureCurrentWork() {
   };
 
   return (
-    <div className="task-workspace">
+    <Card className="task-workspace p-4 sm:p-6">
+      <div className="page-head">
+        <div>
+          <h1 tabIndex={-1}>{u1Project.title}</h1>
+          <p className="eyebrow">
+            {u1Project.customerLabel} · {u1Project.code} · {projectId}
+          </p>
+        </div>
+      </div>
+      <StepProgress infos={model.infos} task={task} />
       <JourneyNav
         current="work"
         analysisReportId={u1.viewedReportId}
         scopeEnabled={u1.analysisReady}
         reviewStages={u2.reviewStages}
       />
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">
-            {u1Project.customerLabel} · {u1Project.code} · {projectId}
-          </p>
-          <h1 tabIndex={-1}>当前工作</h1>
-          <p className="muted">从项目事实进入当前任务；阅读、意见、定稿与恢复都在同一工作区。</p>
-        </div>
-      </div>
-      <div className="demo" role="note">
-        环境 A · 当前工作演练 ·
-        资料、候选、回执、定稿与交付包均为合成状态；仅保留本次会话内存，刷新重置。
-      </div>
+      <p className="muted task-view-description">
+        从项目事实进入当前任务；阅读、意见、定稿与恢复都在同一工作区。
+      </p>
       <section className="panel task-next" aria-label="当前任务">
         <p className="eyebrow">当前状态</p>
         <h2>{task.title}</h2>
         <p>{task.reason}</p>
         <div className="task-actions">
           <PrimaryAction task={task} onRun={runPrimary} />
-          <Link className="button" to={`${base}/files`}>
-            查看全部文件
-          </Link>
-          <Link className="button" to={`${base}/history`}>
-            查看历史记录
-          </Link>
         </div>
         <p className="muted" role="status">
           {feedback || '页面访问不会自动推进阶段；主要操作才会驱动模拟状态。'}
         </p>
       </section>
-      <StepProgress infos={model.infos} task={task} />
       {(task.key === 'START_ANALYSIS' ||
         task.key === 'CLARIFY' ||
         task.key === 'SCOPE' ||
@@ -1551,7 +1558,7 @@ export function FixtureCurrentWork() {
       <RecoveryPanel model={model} enabled={model.recovery.visible} />
       <DeliveryPanel model={model} />
       <DevControls model={model} />
-    </div>
+    </Card>
   );
 }
 
@@ -1573,6 +1580,7 @@ interface InventoryRow {
 }
 
 function useInventory(model: ReturnType<typeof useProjectModel>, filter: string) {
+  const { base } = useProjectPaths();
   const { u1, plan, infos } = model;
   const currentStage = model.task.stage ?? infos.find((info) => !info.finalization)?.stage;
   const currentInfo = infos.find((info) => info.stage === currentStage);
@@ -1602,7 +1610,9 @@ function useInventory(model: ReturnType<typeof useProjectModel>, filter: string)
         pending:
           entry.state === 'FAILED' || entry.state === 'UNSUPPORTED' || entry.state === 'LIMITED',
         involved: stage === currentStage,
-        ...(stage && info?.versionId ? { detailHref: fileDetailHref(info.roundId, entry.id) } : {}),
+        ...(stage && info?.versionId
+          ? { detailHref: fileDetailHref(base, info.roundId, entry.id) }
+          : {}),
       });
     }
   }
@@ -1634,7 +1644,9 @@ function useInventory(model: ReturnType<typeof useProjectModel>, filter: string)
       finalization: finalized ? u2VersionLabel(finalized) : '未定稿',
       pending: !retained && !finalized,
       involved: stage === currentStage,
-      ...(latest && info?.versionId ? { detailHref: fileDetailHref(info.roundId, file.id) } : {}),
+      ...(latest && info?.versionId
+        ? { detailHref: fileDetailHref(base, info.roundId, file.id) }
+        : {}),
     });
   }
   for (const file of plan.retained) {
@@ -1677,6 +1689,8 @@ function useInventory(model: ReturnType<typeof useProjectModel>, filter: string)
 }
 
 export function FixtureAllFiles() {
+  const { projectId, workPath } = useProjectPaths();
+  const { u1Project } = useProjectTemplates();
   const params = useParams();
   const model = useProjectModel();
   const [filter, setFilter] = useState('ALL');
@@ -1684,33 +1698,35 @@ export function FixtureAllFiles() {
   if (params.projectId !== projectId) return <Missing />;
   const unresolved = model.infos.filter((info) => info.lastUnresolved);
   return (
-    <div className="task-workspace">
+    <Card className="task-workspace p-4 sm:p-6">
+      <div className="page-head">
+        <div>
+          <p className="eyebrow">
+            {u1Project.customerLabel} · {u1Project.code} · {projectId}
+          </p>
+          <h1 tabIndex={-1}>{u1Project.title}</h1>
+        </div>
+      </div>
       <JourneyNav
         current="files"
         analysisReportId={model.u1.viewedReportId}
         scopeEnabled={model.u1.analysisReady}
         reviewStages={model.u2.reviewStages}
       />
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">
-            {u1Project.customerLabel} · {u1Project.code} · {projectId}
-          </p>
-          <h1 tabIndex={-1}>全部文件</h1>
-          <p className="muted">
-            完整清单保留批次、容器、成员、预期与新增；不因当前任务聚焦而丢弃输入。
-          </p>
-        </div>
-      </div>
+      <p className="muted task-view-description">
+        完整清单保留批次、容器、成员、预期与新增；不因当前任务聚焦而丢弃输入。
+      </p>
       <div className="demo" role="note">
         环境 A · 全部文件演练 · 状态来自同一份合成会话；刷新重置。
       </div>
       <section className="panel task-cross" aria-label="影响当前工作的阻断">
         <h2>影响当前工作的阻断</h2>
         {unresolved.length === 0 && !model.active && model.delivery.blockers.length === 0 ? (
-          <p className="notice" role="status">
-            当前没有已知的跨阶段执行阻断。
-          </p>
+          <Alert asChild variant="warning">
+            <p className="notice" role="status">
+              当前没有已知的跨阶段执行阻断。
+            </p>
+          </Alert>
         ) : (
           <ul>
             {unresolved.map((info) => (
@@ -1727,7 +1743,7 @@ export function FixtureAllFiles() {
             ))}
           </ul>
         )}
-        <Link className="button primary" to={workPath}>
+        <Link className={buttonVariants({ variant: 'default' })} to={workPath}>
           返回当前工作
         </Link>
       </section>
@@ -1751,7 +1767,7 @@ export function FixtureAllFiles() {
                 ['PENDING', '待处理'],
               ] as const
             ).map(([id, label]) => (
-              <button
+              <Button
                 key={id}
                 aria-pressed={filter === id}
                 onClick={() => {
@@ -1759,82 +1775,91 @@ export function FixtureAllFiles() {
                 }}
               >
                 {label}
-              </button>
+              </Button>
             ))}
           </nav>
         </div>
         <div className="task-table-wrap" role="region" aria-label="完整文件清单" tabIndex={0}>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">文件 / 来源</th>
-                <th scope="col">层级/阶段</th>
-                <th scope="col">读取</th>
-                <th scope="col">本轮结果</th>
-                <th scope="col">候选</th>
-                <th scope="col">人工定稿</th>
-                <th scope="col">详情</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">文件 / 来源</TableHead>
+                <TableHead scope="col">层级/阶段</TableHead>
+                <TableHead scope="col">读取</TableHead>
+                <TableHead scope="col">本轮结果</TableHead>
+                <TableHead scope="col">候选</TableHead>
+                <TableHead scope="col">人工定稿</TableHead>
+                <TableHead scope="col">详情</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {inventory.rows.map((row) => (
-                <tr
+                <TableRow
                   key={row.id}
                   data-kind={row.kind}
                   data-pending={row.pending ? 'true' : undefined}
                 >
-                  <th scope="row">
+                  <TableHead scope="row">
                     {row.title}
                     <small>{row.source}</small>
-                  </th>
-                  <td>{row.levelLabel}</td>
-                  <td>{row.reading}</td>
-                  <td>{row.outcome}</td>
-                  <td>{row.candidate ?? '—'}</td>
-                  <td>{row.finalization}</td>
-                  <td>{row.detailHref ? <Link to={row.detailHref}>查看</Link> : '—'}</td>
-                </tr>
+                  </TableHead>
+                  <TableCell>{row.levelLabel}</TableCell>
+                  <TableCell>{row.reading}</TableCell>
+                  <TableCell>{row.outcome}</TableCell>
+                  <TableCell>{row.candidate ?? '—'}</TableCell>
+                  <TableCell>{row.finalization}</TableCell>
+                  <TableCell>
+                    {row.detailHref ? <Link to={row.detailHref}>查看</Link> : '—'}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {inventory.rows.length === 0 && (
             <p role="status">当前筛选没有文件；完整清单与选择保留。</p>
           )}
         </div>
       </section>
-    </div>
+    </Card>
   );
 }
 
 export function FixtureHistory() {
+  const { projectId, base, workPath } = useProjectPaths();
+  const { u1Project, u1ReportOne, u1ReportTwo } = useProjectTemplates();
   const params = useParams();
   const model = useProjectModel();
   if (params.projectId !== projectId) return <Missing />;
   return (
-    <div className="task-workspace">
+    <Card className="task-workspace p-4 sm:p-6">
+      <div className="page-head">
+        <div>
+          <h1 tabIndex={-1}>{u1Project.title}</h1>
+          <p className="eyebrow">
+            {u1Project.customerLabel} · {u1Project.code} · {projectId}
+          </p>
+        </div>
+      </div>
+      <StepProgress infos={model.infos} task={model.task} />
       <JourneyNav
         current="history"
         analysisReportId={model.u1.viewedReportId}
         scopeEnabled={model.u1.analysisReady}
         reviewStages={model.u2.reviewStages}
       />
-      <div className="page-head">
-        <div>
-          <p className="eyebrow">
-            {u1Project.customerLabel} · {u1Project.code} · {projectId}
-          </p>
-          <h1 tabIndex={-1}>历史记录</h1>
-          <p className="muted">固定轮次、尝试、定稿与交付包；查看历史不改变项目当前任务。</p>
-        </div>
-      </div>
+      <p className="muted task-view-description">
+        固定轮次、尝试、定稿与交付包；查看历史不改变项目当前任务。
+      </p>
       <div className="demo" role="note">
         环境 A · 历史记录只读演练 · 历史身份与版本固定；刷新重置本次会话。
       </div>
       <section className="panel task-history-head">
-        <p className="notice" role="status">
-          正在查看历史记录；当前任务与本次阅读分开。
-        </p>
-        <Link className="button primary" to={workPath}>
+        <Alert asChild variant="warning">
+          <p className="notice" role="status">
+            正在查看历史记录；当前任务与本次阅读分开。
+          </p>
+        </Alert>
+        <Link className={buttonVariants({ variant: 'default' })} to={workPath}>
           返回当前工作
         </Link>
       </section>
@@ -1913,20 +1938,19 @@ export function FixtureHistory() {
             {model.delivery.state.packages.map((pkg) => (
               <li key={pkg.id}>
                 {pkg.id} · {pkg.createdAt} · {pkg.frozen.members.length} 份文件{' '}
-                <button
-                  className="button"
+                <Button
                   onClick={() => {
                     model.delivery.actions.download(pkg);
                   }}
                 >
                   下载
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
         )}
         <p className="muted">后续改稿或新包不改变历史包成员与字节。</p>
       </section>
-    </div>
+    </Card>
   );
 }

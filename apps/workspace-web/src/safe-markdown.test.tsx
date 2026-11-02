@@ -3,6 +3,30 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SafeMarkdown } from './App.js';
 
 describe('Workspace content boundary', () => {
+  it('renders Markdown structure with keyboard-accessible code blocks and GFM tables', () => {
+    const html = renderToStaticMarkup(
+      <SafeMarkdown>
+        {[
+          '## Analysis',
+          '**Important** and *additional* details.',
+          '- First\n- Second',
+          '> Source note',
+          '| File | Status |\n| --- | --- |\n| Manual | Pending |',
+          '```text\nexact-version\n```',
+        ].join('\n\n')}
+      </SafeMarkdown>,
+    );
+    expect(html).toContain('<h2>Analysis</h2>');
+    expect(html).toContain('<strong>Important</strong>');
+    expect(html).toContain('<em>additional</em>');
+    expect(html).toContain('<li>First</li>');
+    expect(html).toContain('<blockquote>');
+    expect(html).toContain('<table tabindex="0">');
+    expect(html).toContain('<th>File</th>');
+    expect(html).toContain('<td>Manual</td>');
+    expect(html).toContain('<pre tabindex="0"><code class="language-text">exact-version');
+  });
+
   it('suppresses raw HTML, active links and external images while preserving readable text', () => {
     const html = renderToStaticMarkup(
       <SafeMarkdown>

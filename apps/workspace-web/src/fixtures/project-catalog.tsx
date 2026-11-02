@@ -1,7 +1,22 @@
+import { useProjectPaths, projectPaths } from './project-session.js';
+import { useFixtureIntake } from './intake.js';
+import { Button } from '../components/ui/button.js';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '../components/ui/table.js';
+import { Label } from '../components/ui/label.js';
+import { Input } from '../components/ui/input.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 // DEVELOPMENT_U1_ADAPTER_ONLY / DEVELOPMENT_U2_ADAPTER_ONLY: the shared project
 // document catalog reads only the isolated U1/U2 rehearsal adapters. It is
 // presentation state; originals stay read-only and no file content is fetched.
 import {
+  Fragment,
   createContext,
   useContext,
   useEffect,
@@ -11,19 +26,23 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router';
+import {
+  Navigate,
+  Link,
+  Outlet,
+  useLocation,
+  useMatch,
+  useNavigate,
+  useParams,
+} from 'react-router';
 import { inputEntryLabels, type InputBatch } from '../intake/model.js';
 import { planActionLabels, planLevelLabels, type PlanFile, type PlanView } from '../plan/model.js';
 import { fileVersionScope, type MvpStageId } from '../mvp/review-model.js';
-import { u1Project } from './u1-data.js';
 import { useU1 } from './u1.js';
 import { emptySession, planStageFiles, sessionKey, useU2, type StageSession } from './u2.js';
 import { u2RevisionBytes, u2VersionLabel } from './u2-data.js';
 import './project-catalog.css';
 import './project-file-browser.css';
-
-const projectId = u1Project.id;
-const base = `/projects/${projectId}`;
 
 type CatalogView = 'ORIGINALS' | 'REVISED';
 type OriginalFilter = 'ALL' | 'ISSUES' | 'CONTAINER';
@@ -49,7 +68,6 @@ interface CatalogState {
   search: Record<CatalogView, string>;
   filter: Record<CatalogView, OriginalFilter | RevisedFilter>;
   selected: Record<CatalogView, string | undefined>;
-  scroll: Record<CatalogView, number>;
   sort: Record<CatalogView, SortState>;
   collapsed: Record<CatalogView, string[]>;
 }
@@ -60,7 +78,6 @@ interface CatalogApi extends CatalogState {
   setFilter: (view: CatalogView, value: OriginalFilter | RevisedFilter) => void;
   clear: (view: CatalogView) => void;
   select: (view: CatalogView, key: string) => void;
-  rememberScroll: (view: CatalogView, top: number) => void;
   autoReview: (fileId: string) => void;
   setSort: (view: CatalogView, sort: SortState) => void;
   toggleExpanded: (view: CatalogView, key: string) => void;
@@ -74,7 +91,6 @@ const initialState: CatalogState = {
   search: { ORIGINALS: '', REVISED: '' },
   filter: { ORIGINALS: 'ALL', REVISED: 'ALL' },
   selected: { ORIGINALS: undefined, REVISED: undefined },
-  scroll: { ORIGINALS: 0, REVISED: 0 },
   sort: {
     ORIGINALS: { field: 'NAME', direction: 'ASC' },
     REVISED: { field: 'NAME', direction: 'ASC' },
@@ -107,9 +123,6 @@ export function FixtureCatalogProvider({ children }: { children: ReactNode }) {
     },
     select: (view, key) => {
       setState((current) => ({ ...current, selected: { ...current.selected, [view]: key } }));
-    },
-    rememberScroll: (view, top) => {
-      setState((current) => ({ ...current, scroll: { ...current.scroll, [view]: top } }));
     },
     autoReview: (fileId) => {
       setState((current) => ({
@@ -200,6 +213,19 @@ interface CatalogData {
 }
 
 const levelOrder: readonly PlanFile['level'][] = ['MANUAL', 'PROCEDURE', 'RULE', 'RECORD'];
+const categoryLabels: Record<PlanFile['level'], string> = {
+  MANUAL: '1 - 质量手册',
+  PROCEDURE: '2 - 控制程序',
+  RULE: '3 - 管理制度',
+  RECORD: '4 - 记录表单',
+};
+const originalDirectoryLevels: Readonly<Record<string, PlanFile['level']>> = {
+  质量手册: 'MANUAL',
+  程序文件: 'PROCEDURE',
+  控制程序: 'PROCEDURE',
+  管理制度: 'RULE',
+  记录表单: 'RECORD',
+};
 
 function stageOfLevel(level: PlanFile['level']): MvpStageId {
   return level === 'MANUAL' ? 'MANUAL' : level === 'PROCEDURE' ? 'PROCEDURES' : 'RULES';
@@ -339,6 +365,7 @@ function revisionFinalization(
 }
 
 function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof useU2>): CatalogData {
+  const { base } = projectPaths(u1.currentPlan.projectId);
   const plan = u2.plan;
   const plans = u1.plans.length > 0 ? u1.plans : [plan];
   const retained = new Set(plan.retained.map((item) => item.id));
@@ -493,12 +520,24 @@ function revisedCounterparts(file: PlanFile | undefined, data: CatalogData): Ori
 }
 
 export function FixtureProjectWorkspace() {
+  const { projectId, base } = useProjectPaths();
+  const intake = useFixtureIntake();
   const params = useParams();
   const location = useLocation();
+  const fileReview = useMatch('/projects/:projectId/results/:roundId/:fileId') !== null;
   if (params.projectId !== projectId) return <Outlet />;
-  const currentWork = location.pathname === `${base}/work`;
+  if (projectId.startsWith('DEMO-CREATED-')) {
+    if (location.pathname === `${base}/intake`) return <Outlet />;
+    const receipt = intake.receipts.get(projectId)?.at(-1);
+    if (receipt?.stage !== 'WAITING' || intake.entered.get(projectId) !== receipt.input.id)
+      return <Navigate to={`${base}/intake`} replace />;
+  }
+  const equalColumns =
+    location.pathname === `${base}/work` || location.pathname === `${base}/history`;
   return (
-    <div className={`project-workspace${currentWork ? ' is-current-work' : ''}`}>
+    <div
+      className={`project-workspace${equalColumns ? ' has-equal-columns' : ''}${fileReview ? ' is-file-review' : ''}`}
+    >
       <ProjectCatalog />
       <div className="project-workspace-main">
         <Outlet />
@@ -508,13 +547,13 @@ export function FixtureProjectWorkspace() {
 }
 
 function ProjectCatalog() {
+  const { base } = useProjectPaths();
   const u1 = useU1();
   const u2 = useU2();
   const catalog = useCatalog();
   const location = useLocation();
   const navigate = useNavigate();
   const data = useMemo(() => buildCatalogData(u1, u2), [u1, u2]);
-  const list = useRef<HTMLDivElement>(null);
   const reviewApplied = useRef(false);
   const [chooser, setChooser] = useState<string | undefined>(undefined);
   const currentWork = location.pathname === `${base}/work`;
@@ -539,13 +578,6 @@ function ProjectCatalog() {
     reviewApplied.current = true;
     catalog.autoReview(selected);
   }, [catalog, data.revised, stage, target, u2.plan, u2.sessions]);
-
-  const scroll = useRef(catalog.scroll);
-  scroll.current = catalog.scroll;
-  useEffect(() => {
-    const node = list.current;
-    if (node) node.scrollTop = scroll.current[view];
-  }, [view]);
 
   const openOriginal = (row: OriginalRow) => {
     const roundId = u1.reportTwoAvailable ? 'ANALYSIS-2' : 'ANALYSIS-1';
@@ -608,26 +640,6 @@ function ProjectCatalog() {
     );
   });
   const filtered = search.trim().length > 0 || filter !== 'ALL';
-  const selected = catalog.selected[view];
-  const selectedOriginal = data.originals.find((row) => row.key === selected);
-  const selectedRevision = data.revised.find((row) => row.fileId === selected);
-  const counterpart = selectedOriginal
-    ? originalCounterparts(selectedOriginal.entryId, u2.plan, data)
-    : undefined;
-  const originalOptions = selectedRevision
-    ? revisedCounterparts(data.planFile(selectedRevision.fileId), data)
-    : [];
-
-  const selectOriginal = (row: OriginalRow) => {
-    catalog.select('ORIGINALS', row.key);
-    setChooser(undefined);
-    openOriginal(row);
-  };
-  const selectRevised = (row: RevisedRow, version: RevisionVersion, exact = false) => {
-    catalog.select('REVISED', row.fileId);
-    setChooser(undefined);
-    openRevision(row, version, exact);
-  };
   const switchOriginal = (row: OriginalRow) => {
     catalog.choose('ORIGINALS');
     catalog.select('ORIGINALS', row.key);
@@ -646,26 +658,24 @@ function ProjectCatalog() {
       <div className="project-catalog-head">
         <p className="eyebrow">项目文档</p>
         <div className="project-catalog-types" role="group" aria-label="文档类型">
-          <button
+          <Button
             type="button"
             aria-pressed={view === 'ORIGINALS'}
             onClick={() => {
-              if (list.current) catalog.rememberScroll(view, list.current.scrollTop);
               catalog.choose('ORIGINALS');
             }}
           >
             客户原始文档
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             aria-pressed={view === 'REVISED'}
             onClick={() => {
-              if (list.current) catalog.rememberScroll(view, list.current.scrollTop);
               catalog.choose('REVISED');
             }}
           >
             修订文档
-          </button>
+          </Button>
         </div>
         <p className="project-catalog-counts" role="status">
           {view === 'ORIGINALS'
@@ -673,9 +683,9 @@ function ProjectCatalog() {
             : `修订文档 ${data.revised.length} 份 · 版本 ${data.versionCount} · 已定稿 ${data.finalizationCount}`}
         </p>
         <div className="project-catalog-tools">
-          <label>
+          <Label>
             搜索名称或编号
-            <input
+            <Input
               type="search"
               value={search}
               placeholder={view === 'ORIGINALS' ? '名称 / 路径 / 编号' : '名称 / 层级'}
@@ -683,10 +693,10 @@ function ProjectCatalog() {
                 catalog.setSearch(view, event.target.value);
               }}
             />
-          </label>
-          <label>
+          </Label>
+          <Label>
             文档筛选
-            <select
+            <NativeSelect
               value={filter}
               onChange={(event) => {
                 catalog.setFilter(view, event.target.value as OriginalFilter | RevisedFilter);
@@ -704,10 +714,10 @@ function ProjectCatalog() {
                   <option value="FINALIZED">已定稿</option>
                 </>
               )}
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
           {filtered ? (
-            <button
+            <Button
               type="button"
               className="project-catalog-clear"
               onClick={() => {
@@ -715,192 +725,56 @@ function ProjectCatalog() {
               }}
             >
               清除筛选
-            </button>
+            </Button>
           ) : null}
         </div>
-        {currentWork && (
-          <div className="project-browser-tools">
-            <label>
-              排序
-              <select
-                value={catalog.sort[view].field}
-                onChange={(event) => {
-                  catalog.setSort(view, {
-                    ...catalog.sort[view],
-                    field: event.target.value as SortField,
-                  });
-                }}
-              >
-                <option value="NAME">名称</option>
-                <option value="MODIFIED">最后修改时间</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => {
+        <div className="project-browser-tools">
+          <Label>
+            排序
+            <NativeSelect
+              value={catalog.sort[view].field}
+              onChange={(event) => {
                 catalog.setSort(view, {
                   ...catalog.sort[view],
-                  direction: catalog.sort[view].direction === 'ASC' ? 'DESC' : 'ASC',
+                  field: event.target.value as SortField,
                 });
               }}
             >
-              {catalog.sort[view].direction === 'ASC' ? '升序 ↑' : '降序 ↓'}
-            </button>
-            <span className="project-browser-timezone">时间 UTC+08:00（模拟）</span>
-          </div>
-        )}
+              <option value="NAME">名称</option>
+              <option value="MODIFIED">最后修改时间</option>
+            </NativeSelect>
+          </Label>
+          <Button
+            type="button"
+            onClick={() => {
+              catalog.setSort(view, {
+                ...catalog.sort[view],
+                direction: catalog.sort[view].direction === 'ASC' ? 'DESC' : 'ASC',
+              });
+            }}
+          >
+            {catalog.sort[view].direction === 'ASC' ? '升序 ↑' : '降序 ↓'}
+          </Button>
+          <span className="project-browser-timezone">时间 UTC+08:00（模拟）</span>
+        </div>
         <Link className="project-catalog-detail" to={`${base}/files`}>
           清单明细
         </Link>
       </div>
-      <div className="project-catalog-list" ref={list}>
-        {currentWork ? (
-          <FileBrowserList
-            data={data}
-            plan={u2.plan}
-            originals={visibleOriginals}
-            revised={visibleRevised}
-            openOriginal={openOriginal}
-            openRevision={openRevision}
-            switchOriginal={switchOriginal}
-            switchRevision={switchRevision}
-            chooser={chooser}
-            setChooser={setChooser}
-          />
-        ) : view === 'ORIGINALS' ? (
-          <>
-            {data.batches.map((batch) => {
-              const rows = visibleOriginals.filter((row) => row.batchId === batch.id);
-              if (rows.length === 0) return null;
-              return (
-                <section key={batch.id} aria-label={batch.label}>
-                  <h3>{batch.label}</h3>
-                  <p className="project-catalog-source">{batch.zipName}</p>
-                  <ul>
-                    {rows.map((row) => (
-                      <li key={row.key} className={row.member ? 'is-member' : undefined}>
-                        <button
-                          type="button"
-                          aria-current={catalog.selected.ORIGINALS === row.key ? 'true' : undefined}
-                          onClick={() => {
-                            selectOriginal(row);
-                          }}
-                        >
-                          <span className="project-catalog-title">{row.name}</span>
-                          <small>{row.path}</small>
-                          <span className="project-catalog-meta">
-                            {row.format} · {row.reading}
-                            {row.container ? ' · 容器' : ''}
-                            {row.retained ? ' · 沿用原件' : ''}
-                          </span>
-                        </button>
-                        {catalog.selected.ORIGINALS === row.key && (
-                          <ProvenanceOriginal
-                            row={row}
-                            counterparts={counterpart}
-                            chooser={chooser === row.key}
-                            onChoose={() => {
-                              setChooser(row.key);
-                            }}
-                            onSwitch={switchRevision}
-                          />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              );
-            })}
-            {visibleOriginals.length === 0 && (
-              <p className="project-catalog-empty">没有符合条件的原始文档。</p>
-            )}
-          </>
-        ) : (
-          <>
-            {data.revised.length === 0 ? (
-              <div className="project-catalog-empty" role="status">
-                <p>尚未生成修订文档。</p>
-                <p>
-                  计划中的预计/新增文件仍留在当前工作与清单明细中，不计为已生成修订；沿用原件仍在客户原始文档。
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    catalog.choose('ORIGINALS');
-                  }}
-                >
-                  查看客户原始文档
-                </button>
-              </div>
-            ) : (
-              levelOrder.map((level) => {
-                const rows = visibleRevised.filter((row) => row.level === level);
-                if (rows.length === 0) return null;
-                return (
-                  <section key={level} aria-label={planLevelLabels[level]}>
-                    <h3>{planLevelLabels[level]}</h3>
-                    <ul>
-                      {rows.map((row) => (
-                        <li key={row.fileId}>
-                          <button
-                            type="button"
-                            aria-current={
-                              catalog.selected.REVISED === row.fileId ? 'true' : undefined
-                            }
-                            onClick={() => {
-                              selectRevised(row, row.latest);
-                            }}
-                          >
-                            <span className="project-catalog-title">{row.title}</span>
-                            <small>
-                              {row.newFile ? '新增文件' : row.actionLabel} · {row.statusLabel}
-                            </small>
-                          </button>
-                          {catalog.selected.REVISED === row.fileId && (
-                            <>
-                              <ProvenanceRevised
-                                row={row}
-                                options={originalOptions}
-                                chooser={chooser === `revised:${row.fileId}`}
-                                onChoose={() => {
-                                  setChooser(`revised:${row.fileId}`);
-                                }}
-                                onSwitch={switchOriginal}
-                              />
-                              <details className="project-catalog-versions">
-                                <summary>版本与来源（{row.versions.length}）</summary>
-                                <ul>
-                                  {row.versions.map((version) => (
-                                    <li key={`${version.roundId}:${version.versionId}`}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          selectRevised(row, version, true);
-                                        }}
-                                      >
-                                        {version.label} · {version.stateLabel}
-                                      </button>
-                                      <small>
-                                        {version.planLabel} · {version.roundId}
-                                      </small>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </details>
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })
-            )}
-            {data.revised.length > 0 && visibleRevised.length === 0 && (
-              <p className="project-catalog-empty">没有符合条件的修订文档。</p>
-            )}
-          </>
-        )}
+      <div className="project-catalog-list">
+        <FileBrowserList
+          data={data}
+          plan={u2.plan}
+          originals={visibleOriginals}
+          revised={visibleRevised}
+          inlineVersions={currentWork}
+          openOriginal={openOriginal}
+          openRevision={openRevision}
+          switchOriginal={switchOriginal}
+          switchRevision={switchRevision}
+          chooser={chooser}
+          setChooser={setChooser}
+        />
       </div>
       <p className="project-catalog-note">
         目录覆盖整个项目；阅读历史轮次不改变该轮固定输入与结果。原件只读，修订文档按精确版本绑定候选、定稿和历史。
@@ -925,7 +799,7 @@ interface BrowserRow {
   secondary?: string;
   open?: () => void;
   info: BrowserInfo;
-  children?: BrowserRow[];
+  children?: BrowserRow[] | undefined;
 }
 
 const timePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/u;
@@ -982,10 +856,11 @@ function originalDocumentRow(
   };
 }
 
-function originalTree(
+function originalBatchTree(
   data: CatalogData,
   rows: readonly OriginalRow[],
   openOriginal: (row: OriginalRow) => void,
+  category: string,
 ): BrowserRow[] {
   // Keep container ancestry when a member matches a filter, and put each
   // nested member under exactly one container instead of duplicating it as a
@@ -1010,7 +885,7 @@ function originalTree(
       directories.set(directory, [...(directories.get(directory) ?? []), row]);
     }
     const children = [...directories.entries()].map(([directory, entries]) => ({
-      key: `${batch.id}:dir:${directory}`,
+      key: `${category}:${batch.id}:dir:${directory}`,
       kind: 'FOLDER' as const,
       label: directory,
       info: { kind: 'ORIGINAL' as const },
@@ -1018,7 +893,7 @@ function originalTree(
     }));
     return [
       {
-        key: batch.id,
+        key: `${category}:${batch.id}`,
         kind: 'FOLDER' as const,
         label: batch.label,
         info: { kind: 'ORIGINAL' as const },
@@ -1028,19 +903,49 @@ function originalTree(
   });
 }
 
+function originalTree(
+  data: CatalogData,
+  rows: readonly OriginalRow[],
+  openOriginal: (row: OriginalRow) => void,
+): BrowserRow[] {
+  const categoryOf = (row: OriginalRow) => originalDirectoryLevels[row.path.split('/')[0] ?? ''];
+  const groups: BrowserRow[] = levelOrder.map((level) => ({
+    key: `level:${level}`,
+    kind: 'FOLDER',
+    label: categoryLabels[level],
+    info: { kind: 'ORIGINAL' },
+    children: originalBatchTree(
+      data,
+      rows.filter((row) => categoryOf(row) === level),
+      openOriginal,
+      level,
+    ),
+  }));
+  const other = rows.filter((row) => categoryOf(row) === undefined);
+  if (other.length > 0)
+    groups.push({
+      key: 'level:OTHER',
+      kind: 'FOLDER',
+      label: '其他资料',
+      info: { kind: 'ORIGINAL' },
+      children: originalBatchTree(data, other, openOriginal, 'OTHER'),
+    });
+  return groups;
+}
+
 function revisionTree(
   data: CatalogData,
   rows: readonly RevisedRow[],
   openRevision: (row: RevisedRow, version: RevisionVersion, exact: boolean) => void,
+  inlineVersions: boolean,
 ): BrowserRow[] {
   return levelOrder.flatMap((level) => {
     const documents = rows.filter((row) => row.level === level);
-    if (documents.length === 0) return [];
     return [
       {
         key: `level:${level}`,
         kind: 'FOLDER' as const,
-        label: planLevelLabels[level],
+        label: categoryLabels[level],
         info: { kind: 'REVISION' as const },
         children: documents.map((row): BrowserRow => ({
           key: row.fileId,
@@ -1053,18 +958,20 @@ function revisionTree(
             openRevision(row, row.latest, false);
           },
           info: { kind: 'REVISION', revision: row, version: row.latest },
-          children: row.versions.map((version) => ({
-            key: `${row.fileId}:${version.roundId}`,
-            kind: 'DOCUMENT',
-            label: version.label,
-            state: version.stateLabel,
-            metadata: version.metadata,
-            secondary: `${version.planLabel} · ${formatBytes(version.metadata.bytes)}`,
-            open: () => {
-              openRevision(row, version, true);
-            },
-            info: { kind: 'REVISION', revision: row, version },
-          })),
+          children: inlineVersions
+            ? row.versions.map((version) => ({
+                key: `${row.fileId}:${version.roundId}`,
+                kind: 'DOCUMENT',
+                label: version.label,
+                state: version.stateLabel,
+                metadata: version.metadata,
+                secondary: `${version.planLabel} · ${formatBytes(version.metadata.bytes)}`,
+                open: () => {
+                  openRevision(row, version, true);
+                },
+                info: { kind: 'REVISION', revision: row, version },
+              }))
+            : undefined,
         })),
       },
     ];
@@ -1075,6 +982,7 @@ function FileBrowserList({
   data,
   originals,
   revised,
+  inlineVersions,
   plan,
   openOriginal,
   openRevision,
@@ -1087,6 +995,7 @@ function FileBrowserList({
   plan: PlanView;
   originals: readonly OriginalRow[];
   revised: readonly RevisedRow[];
+  inlineVersions: boolean;
   openOriginal: (row: OriginalRow) => void;
   openRevision: (row: RevisedRow, version: RevisionVersion, exact: boolean) => void;
   switchOriginal: (row: OriginalRow) => void;
@@ -1101,7 +1010,7 @@ function FileBrowserList({
   const tree =
     view === 'ORIGINALS'
       ? originalTree(data, originals, openOriginal)
-      : revisionTree(data, revised, openRevision);
+      : revisionTree(data, revised, openRevision, inlineVersions);
   const infoMap = new Map<string, BrowserInfo>();
   const collect = (rows: BrowserRow[]) => {
     for (const row of rows) {
@@ -1115,7 +1024,12 @@ function FileBrowserList({
     REVISED: undefined,
   });
   const selectedKey = catalog.selected[view];
-  const selectedRowKey = infoKeys[view] ?? selectedKey;
+  const selectedRowKey =
+    infoKeys[view] &&
+    (infoMap.get(infoKeys[view])?.revision?.fileId ??
+      infoMap.get(infoKeys[view])?.original?.key) === selectedKey
+      ? infoKeys[view]
+      : selectedKey;
   const selectedInfo = selectedRowKey ? infoMap.get(selectedRowKey) : undefined;
   const filtered = catalog.search[view].trim().length > 0 || catalog.filter[view] !== 'ALL';
   const selectedOriginal = selectedInfo?.original;
@@ -1127,97 +1041,129 @@ function FileBrowserList({
     ? revisedCounterparts(data.planFile(selectedRevision.fileId), data)
     : [];
 
-  const renderRows = (rows: BrowserRow[], depth: number): ReactNode =>
-    sortBrowserRows(rows, sort).map((row) => (
-      <div
-        className="browser-row"
-        key={row.key}
-        style={{ '--browser-depth': depth } as CSSProperties}
-      >
-        {row.kind === 'FOLDER' ? (
-          <div className="browser-folder-line">
-            <button
-              type="button"
-              className="browser-folder"
-              aria-expanded={!collapsed.has(row.key)}
-              onClick={() => {
-                catalog.toggleExpanded(view, row.key);
-              }}
-            >
-              <span aria-hidden="true">{!collapsed.has(row.key) ? '−' : '+'}</span> {row.label}
-            </button>
-            <span className="browser-time">不适用</span>
-            <span className="browser-author">不适用</span>
-          </div>
-        ) : (
-          <div
-            className="browser-document"
-            data-selected={selectedRowKey === row.key ? 'true' : undefined}
-          >
-            <div className="browser-line">
-              {row.children ? (
-                <button
+  const selectInfo = (row: BrowserRow) => {
+    setInfoKeys((current) => ({ ...current, [view]: row.key }));
+    if (row.info.kind === 'ORIGINAL' && row.info.original)
+      catalog.select('ORIGINALS', row.info.original.key);
+    else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
+  };
+  const renderRows = (rows: BrowserRow[], depth: number, sortSiblings = true): ReactNode =>
+    (sortSiblings ? sortBrowserRows(rows, sort) : rows).map((row) => (
+      <Fragment key={row.key}>
+        <TableRow
+          className={`browser-row ${row.kind === 'FOLDER' ? 'browser-folder-line' : 'browser-document'}`}
+          data-depth={depth}
+          data-directory={row.info.original?.path.split('/')[0]}
+          data-selected={row.kind === 'DOCUMENT' && selectedRowKey === row.key ? 'true' : undefined}
+          style={{ '--browser-depth': depth } as CSSProperties}
+        >
+          {row.kind === 'FOLDER' ? (
+            <TableCell colSpan={4}>
+              <div className="browser-line">
+                <Button
                   type="button"
-                  className="browser-expander"
+                  variant="ghost"
+                  size="content"
+                  className="browser-folder justify-start text-xs"
                   aria-expanded={!collapsed.has(row.key)}
-                  aria-label={`${collapsed.has(row.key) ? '展开' : '收起'} ${row.label}`}
+                  disabled={row.children?.length === 0}
                   onClick={() => {
                     catalog.toggleExpanded(view, row.key);
                   }}
                 >
-                  {!collapsed.has(row.key) ? '−' : '+'}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="browser-name"
-                aria-label={
-                  row.info.kind === 'ORIGINAL'
-                    ? `${row.label} ${row.info.original?.path ?? ''} ${
-                        row.info.original?.format ?? ''
-                      } · ${row.info.original?.reading ?? ''}${
-                        row.info.original?.retained ? ' · 沿用原件' : ''
-                      }`
-                    : row.info.version && row.info.version !== row.info.revision?.latest
-                      ? `${row.label} · ${row.state ?? ''}`
-                      : `${row.label} ${row.info.revision?.actionLabel ?? ''} · ${row.state ?? ''}`
-                }
-                onClick={() => {
-                  setInfoKeys((current) => ({ ...current, [view]: row.key }));
-                  if (row.info.kind === 'ORIGINAL' && row.info.original)
-                    catalog.select('ORIGINALS', row.info.original.key);
-                  else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
-                  row.open?.();
-                }}
-              >
-                {row.label}
-              </button>
-              <span className="browser-time">{row.metadata?.modifiedAt ?? '未提供'}</span>
-              <span className="browser-author">{row.metadata?.modifiedBy ?? '未提供'}</span>
-            </div>
-            <div className="browser-subline">
-              <span>{row.state}</span>
-              <span>{row.secondary}</span>
-              <button
-                type="button"
-                className="browser-info"
-                aria-pressed={selectedRowKey === row.key}
-                onClick={() => {
-                  setInfoKeys((current) => ({ ...current, [view]: row.key }));
-                  if (row.info.kind === 'ORIGINAL' && row.info.original)
-                    catalog.select('ORIGINALS', row.info.original.key);
-                  else if (row.info.revision) catalog.select('REVISED', row.info.revision.fileId);
-                }}
-              >
-                文件信息
-              </button>
-            </div>
-          </div>
-        )}
-        {!collapsed.has(row.key) && row.children ? (
-          <div className="browser-children">{renderRows(row.children, depth + 1)}</div>
-        ) : null}
-      </div>
+                  <span className="browser-toggle" aria-hidden="true">
+                    {collapsed.has(row.key) ? '▸' : '▾'}
+                  </span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" />
+                  </svg>
+                  {row.label}
+                </Button>
+                {row.children?.length === 0 && (
+                  <span className="browser-empty-group">暂无文档</span>
+                )}
+              </div>
+            </TableCell>
+          ) : (
+            <>
+              <TableCell>
+                <div className="browser-line">
+                  {row.children?.length ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="content"
+                      className="browser-expander text-xs"
+                      aria-expanded={!collapsed.has(row.key)}
+                      aria-label={`${collapsed.has(row.key) ? '展开' : '收起'} ${row.label}`}
+                      onClick={() => {
+                        catalog.toggleExpanded(view, row.key);
+                      }}
+                    >
+                      {collapsed.has(row.key) ? '▸' : '▾'}
+                    </Button>
+                  ) : (
+                    <span className="browser-toggle" aria-hidden="true" />
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="content"
+                    className="browser-name justify-start text-xs"
+                    aria-label={
+                      row.info.kind === 'ORIGINAL'
+                        ? `${row.label} ${row.info.original?.path ?? ''} ${row.info.original?.format ?? ''} · ${row.info.original?.reading ?? ''}${row.info.original?.retained ? ' · 沿用原件' : ''}`
+                        : row.info.version && row.info.version !== row.info.revision?.latest
+                          ? `${row.label} · ${row.state ?? ''}`
+                          : `${row.label} ${row.info.revision?.actionLabel ?? ''} · ${row.state ?? ''}`
+                    }
+                    onClick={() => {
+                      selectInfo(row);
+                      row.open?.();
+                    }}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M14 3H5v18h14V8ZM14 3v5h5M8 12h8M8 16h6" />
+                    </svg>
+                    {row.label}
+                  </Button>
+                </div>
+                <div className="browser-subline">{row.secondary}</div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="content"
+                  className="browser-info justify-start text-xs"
+                  aria-pressed={selectedRowKey === row.key}
+                  onClick={() => {
+                    selectInfo(row);
+                  }}
+                >
+                  文件信息
+                </Button>
+              </TableCell>
+              <TableCell className="browser-state">{row.state}</TableCell>
+              <TableCell className="browser-time">{row.metadata?.modifiedAt ?? '未提供'}</TableCell>
+              <TableCell className="browser-author">
+                {row.metadata?.modifiedBy ?? '未提供'}
+              </TableCell>
+            </>
+          )}
+        </TableRow>
+        {!collapsed.has(row.key) && row.children ? renderRows(row.children, depth + 1) : null}
+      </Fragment>
     ));
 
   return (
@@ -1229,12 +1175,24 @@ function FileBrowserList({
             }）`
           : '全项目范围'}
       </p>
-      <div className="browser-header" aria-hidden="true">
-        <span>名称 / 版本与状态</span>
-        <span>最后修改时间</span>
-        <span>修改人</span>
+      <div className="project-file-table-scroll" role="region" aria-label="文件表格" tabIndex={0}>
+        <Table className="project-file-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">名称</TableHead>
+              <TableHead scope="col">版本 / 状态</TableHead>
+              <TableHead scope="col">最后修改时间</TableHead>
+              <TableHead scope="col">修改人</TableHead>
+            </TableRow>
+          </TableHeader>
+          {tree.map((group) => (
+            <TableBody key={group.key} aria-label={group.label}>
+              {renderRows([group], 0, false)}
+            </TableBody>
+          ))}
+        </Table>
       </div>
-      {tree.length === 0 ? (
+      {(view === 'ORIGINALS' ? originals.length === 0 : revised.length === 0) && (
         <p className="project-catalog-empty">
           {view === 'ORIGINALS'
             ? data.originals.length === 0
@@ -1244,20 +1202,18 @@ function FileBrowserList({
               ? '尚未生成修订文档。'
               : '没有符合条件的修订文档。'}
         </p>
-      ) : (
-        renderRows(tree, 0)
       )}
       {view === 'REVISED' && data.revised.length === 0 ? (
         <div className="project-catalog-empty" role="status">
           <p>计划中的预计/新增文件仍留在当前工作与清单明细中，不计为已生成修订。</p>
-          <button
+          <Button
             type="button"
             onClick={() => {
               catalog.choose('ORIGINALS');
             }}
           >
             查看客户原始文档
-          </button>
+          </Button>
         </div>
       ) : null}
       {selectedInfo?.kind === 'ORIGINAL' && selectedOriginal ? (
@@ -1349,6 +1305,28 @@ function FileBrowserList({
             }}
             onSwitch={switchOriginal}
           />
+          {!inlineVersions && (
+            <details className="project-catalog-versions">
+              <summary>版本与来源（{selectedRevision.versions.length}）</summary>
+              <ul>
+                {selectedRevision.versions.map((version) => (
+                  <li key={`${version.roundId}:${version.versionId}`}>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        openRevision(selectedRevision, version, true);
+                      }}
+                    >
+                      {version.label} · {version.stateLabel}
+                    </Button>
+                    <small>
+                      {version.planLabel} · {version.roundId}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       ) : null}
     </>
@@ -1382,15 +1360,17 @@ function ProvenanceOriginal({
   if (counterparts.produced.length === 1) {
     const [row2] = counterparts.produced;
     return row2 ? (
-      <button
+      <Button
         type="button"
-        className="project-catalog-link-action"
+        variant="ghost"
+        size="content"
+        className="project-catalog-link-action justify-start text-xs"
         onClick={() => {
           onSwitch(row2);
         }}
       >
         查看关联修订文档
-      </button>
+      </Button>
     ) : null;
   }
   return (
@@ -1398,7 +1378,7 @@ function ProvenanceOriginal({
       {chooser ? (
         <div role="group" aria-label="选择关联修订文档">
           {counterparts.produced.map((entry) => (
-            <button
+            <Button
               key={entry.fileId}
               type="button"
               onClick={() => {
@@ -1406,13 +1386,19 @@ function ProvenanceOriginal({
               }}
             >
               {entry.title} · {entry.latest.label}
-            </button>
+            </Button>
           ))}
         </div>
       ) : (
-        <button type="button" className="project-catalog-link-action" onClick={onChoose}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="content"
+          className="project-catalog-link-action justify-start text-xs"
+          onClick={onChoose}
+        >
           查看关联修订文档（{counterparts.produced.length}）
-        </button>
+        </Button>
       )}
       {counterparts.planned.length > 0 && (
         <p className="muted">尚未生成：{counterparts.planned.join('、')}。</p>
@@ -1443,15 +1429,17 @@ function ProvenanceRevised({
   if (options.length === 1) {
     const [original] = options;
     return original ? (
-      <button
+      <Button
         type="button"
-        className="project-catalog-link-action"
+        variant="ghost"
+        size="content"
+        className="project-catalog-link-action justify-start text-xs"
         onClick={() => {
           onSwitch(original);
         }}
       >
         查看对应原件
-      </button>
+      </Button>
     ) : null;
   }
   return (
@@ -1459,7 +1447,7 @@ function ProvenanceRevised({
       {chooser ? (
         <div role="group" aria-label="选择对应原件">
           {options.map((entry) => (
-            <button
+            <Button
               key={entry.key}
               type="button"
               onClick={() => {
@@ -1467,13 +1455,19 @@ function ProvenanceRevised({
               }}
             >
               {entry.name}
-            </button>
+            </Button>
           ))}
         </div>
       ) : (
-        <button type="button" className="project-catalog-link-action" onClick={onChoose}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="content"
+          className="project-catalog-link-action justify-start text-xs"
+          onClick={onChoose}
+        >
           查看对应原件（{options.length}）
-        </button>
+        </Button>
       )}
     </div>
   );

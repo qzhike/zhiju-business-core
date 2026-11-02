@@ -87,26 +87,24 @@ test('workbench candidate and report updates preserve focus, input, original car
   await expect(page).toHaveURL(reportUrl);
 });
 
-test('workbench restores the bounded reading position after opening a precise work entry', async ({
+test('workbench restores the page reading position after opening a precise work entry', async ({
   page,
 }) => {
   await page.goto('/workbench');
   const list = page.getByRole('region', { name: '需要你工作列表', exact: true });
   await expect(list).toBeVisible();
-  await list.evaluate((element) => {
-    element.scrollTop = 100;
-  });
-  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(100);
+  expect(await list.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
   const link = page
     .getByRole('article', { name: '体系文件升级 · 文件进度', exact: true })
     .getByRole('link', { name: '检查文件' });
   await link.focus();
-  const position = await list.evaluate((element) => element.scrollTop);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const position = await page.evaluate(() => window.scrollY);
   await link.press('Enter');
   await expect(page.getByRole('heading', { name: '检查文件' })).toBeVisible();
   await page.goBack();
   await expect(link).toBeFocused();
-  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(position);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(position);
 });
 
 test('workbench built viewport matrix, keyboard navigation and negative states', async ({
@@ -126,6 +124,11 @@ test('workbench built viewport matrix, keyboard navigation and negative states',
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
+    for (const list of await page.locator('.wb-card-scroll:visible').all()) {
+      expect(await list.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(
+        true,
+      );
+    }
     await expect(page.getByLabel('筛选项目')).toBeVisible();
     if (width > 700) expect(await page.locator('.wb-board > section:visible').count()).toBe(3);
     else {

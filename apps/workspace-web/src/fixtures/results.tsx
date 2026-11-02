@@ -1,3 +1,25 @@
+import { useProjectPaths, useProjectTemplates } from './project-session.js';
+import { Alert } from '../components/ui/alert.js';
+import { Card } from '../components/ui/card.js';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from '../components/ui/dialog.js';
+import { Badge } from '../components/ui/badge.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button, buttonVariants } from '../components/ui/button.js';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '../components/ui/table.js';
 // DEVELOPMENT_RESULTS_ADAPTER_ONLY: isolated M1 results workspace. It reads the
 // same in-memory U1/U2 rehearsal state and never calls Core or Runner.
 import {
@@ -24,8 +46,8 @@ import { inputEntryLabels } from '../intake/model.js';
 import { mvpStageLabels, type MvpStageId } from '../mvp/review-model.js';
 import { JourneyNav } from '../mvp/JourneyNav.js';
 import { Missing } from '../shell.js';
-import { u1Project, u1ReportOne, u1ReportTwo } from './u1-data.js';
 import { useU1 } from './u1.js';
+import { adoptLatestVersions } from './u3-data.js';
 import { useMvpActivity } from './activity.js';
 import {
   emptySession,
@@ -44,9 +66,6 @@ import {
   u2VersionsFor,
 } from './u2-data.js';
 import './results.css';
-
-const projectId = u1Project.id;
-const resultsPath = `/projects/${projectId}/results`;
 
 type ResultStage = 'ANALYSIS' | MvpStageId;
 type ResultFilter = 'ALL' | 'STAGE' | 'ROUND' | 'PENDING';
@@ -269,11 +288,13 @@ function roundVersionSet(round: ResultRound): FileVersionRef[] {
   });
 }
 
-function detailHref(roundId: string, fileId: string): string {
+function detailHref(resultsPath: string, roundId: string, fileId: string): string {
   return `${resultsPath}/${encodeURIComponent(roundId)}/${encodeURIComponent(fileId)}`;
 }
 
 function useResultsData(requestedRoundId?: string) {
+  const { projectId, resultsPath } = useProjectPaths();
+  const { u1ReportOne, u1ReportTwo } = useProjectTemplates();
   const u1 = useU1();
   const u2 = useU2();
   const results = useResults();
@@ -462,7 +483,7 @@ function useResultsData(requestedRoundId?: string) {
           !laterSupplement &&
           (entry.state === 'LIMITED' || entry.state === 'FAILED' || entry.state === 'UNSUPPORTED'),
         involved,
-        detailHref: detailHref(round.id, entry.id),
+        detailHref: detailHref(resultsPath, round.id, entry.id),
       });
     }
   }
@@ -520,7 +541,7 @@ function useResultsData(requestedRoundId?: string) {
       issues,
       pending: !retained && (issues > 0 || (currentStageRound && !candidate)),
       involved: round.stage === 'ANALYSIS' || currentStageRound,
-      detailHref: detailHref(round.id, file.id),
+      detailHref: detailHref(resultsPath, round.id, file.id),
     } satisfies InventoryRow;
   });
   const rows = [...uploaded, ...planned];
@@ -570,6 +591,8 @@ function useResultsData(requestedRoundId?: string) {
 }
 
 export function FixtureResultsOverview() {
+  const { projectId } = useProjectPaths();
+  const { u1Project, u1ReportTwo } = useProjectTemplates();
   const params = useParams();
   const activity = useMvpActivity();
   const data = useResultsData(params.roundId);
@@ -643,195 +666,206 @@ export function FixtureResultsOverview() {
         环境 A · 处理结果演练 · 本轮结论、文件清单、候选与意见均为合成页面状态；不调用 Core 或
         Runner。
       </div>
-      <section className="panel results-controls" aria-label="结果类型与轮次">
-        <label>
-          结果类型
-          <select
-            aria-label="结果类型"
-            value={round.stage}
-            onChange={(event) => {
-              results.setStage(event.target.value as ResultStage);
-            }}
-          >
-            {stageOptions.map((stage) => (
-              <option key={stage} value={stage}>
-                {stage === 'ANALYSIS' ? '整体分析' : `阶段修订 · ${mvpStageLabels[stage]}`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          轮次
-          <select
-            aria-label="轮次"
-            value={round.id}
-            onChange={(event) => {
-              results.setRound(event.target.value);
-            }}
-          >
-            {data.stageRoundsForStage.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="muted">
-          {round.stage === 'ANALYSIS'
-            ? `分析报告 ${round.reportId}`
-            : `阶段操作 ${mvpStageLabels[round.stage]}`}
-        </span>
-      </section>
-      <section className="panel results-summary" aria-label="本轮结果">
-        <h2>本轮结果</h2>
-        <p>{round.summary}</p>
-        {data.stageRoundsForStage
-          .slice(data.stageRoundsForStage.findIndex((entry) => entry.id === round.id) + 1)
-          .map((entry) => (
-            <p className="notice" role="status" key={entry.id}>
-              有新轮次可查看：{entry.label}。当前阅读与筛选保持不变。
-              <button
-                className="button"
-                onClick={() => {
-                  results.setRound(entry.id);
-                }}
-              >
-                查看 {entry.label}
-              </button>
-            </p>
-          ))}
-        {round.blockers.length > 0 ? (
-          <ul className="results-blockers">
-            {round.blockers.map((blocker) => (
-              <li key={blocker}>{blocker}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="notice" role="status">
-            本轮没有已知阻断；阅读、评论和确认仍是不同动作。
-          </p>
-        )}
-        <div className="results-actions">
-          <Link className="button primary" to={round.next.href}>
-            {round.next.label}
-          </Link>
-          <button className="button" disabled={!canSubmit} onClick={submitRound}>
-            {data.roundSubmitted ? '本轮意见已提交' : '提交本轮意见并生成下一稿（模拟）'}
-          </button>
-          <span className="muted" role="status">
-            {firstDefined(
-              planBlockedReason,
-              results.receipt,
-              data.roundSubmitted
-                ? '本轮意见已登记；返回阶段审阅可显式演练下一轮候选。'
-                : data.activeRequestId
-                  ? `已有待处理修改请求 ${data.activeRequestId}；请先核对原请求。`
-                  : `已保存 ${savedCount} 条文件意见`,
-            )}
+      <Card asChild>
+        <section className="panel results-controls" aria-label="结果类型与轮次">
+          <Label>
+            结果类型
+            <NativeSelect
+              aria-label="结果类型"
+              value={round.stage}
+              onChange={(event) => {
+                results.setStage(event.target.value as ResultStage);
+              }}
+            >
+              {stageOptions.map((stage) => (
+                <option key={stage} value={stage}>
+                  {stage === 'ANALYSIS' ? '整体分析' : `阶段修订 · ${mvpStageLabels[stage]}`}
+                </option>
+              ))}
+            </NativeSelect>
+          </Label>
+          <Label>
+            轮次
+            <NativeSelect
+              aria-label="轮次"
+              value={round.id}
+              onChange={(event) => {
+                results.setRound(event.target.value);
+              }}
+            >
+              {data.stageRoundsForStage.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </Label>
+          <span className="muted">
+            {round.stage === 'ANALYSIS'
+              ? `分析报告 ${round.reportId}`
+              : `阶段操作 ${mvpStageLabels[round.stage]}`}
           </span>
-        </div>
-      </section>
-      <section className="panel results-inventory" aria-label="完整文件清单">
-        <div className="results-inventory-head">
-          <div>
-            <h2>完整文件清单</h2>
-            <p className="muted">
-              项目上传文件 {counts.uploaded} · 容器 {counts.containers} · 预期/计划{' '}
-              {counts.expected} · 计划新增 {counts.newFiles} · 保留 {counts.retained} · 本轮涉及{' '}
-              {counts.involved} · 待处理 {counts.pending}
-            </p>
-          </div>
-          <nav className="results-filters" aria-label="文件筛选">
-            {(
-              [
-                ['ALL', '全部文件'],
-                ['STAGE', '本阶段'],
-                ['ROUND', '本轮涉及'],
-                ['PENDING', '待处理'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                aria-pressed={results.filter === id}
-                onClick={() => {
-                  results.setFilter(id);
-                }}
-              >
-                {label}
-              </button>
+        </section>
+      </Card>
+      <Card asChild>
+        <section className="panel results-summary" aria-label="本轮结果">
+          <h2>本轮结果</h2>
+          <p>{round.summary}</p>
+          {data.stageRoundsForStage
+            .slice(data.stageRoundsForStage.findIndex((entry) => entry.id === round.id) + 1)
+            .map((entry) => (
+              <Alert asChild variant="warning">
+                <p className="notice" role="status" key={entry.id}>
+                  有新轮次可查看：{entry.label}。当前阅读与筛选保持不变。
+                  <Button
+                    onClick={() => {
+                      results.setRound(entry.id);
+                    }}
+                  >
+                    查看 {entry.label}
+                  </Button>
+                </p>
+              </Alert>
             ))}
-          </nav>
-        </div>
-        <div className="results-table" role="region" aria-label="文件清单" tabIndex={0}>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">文件 / 来源</th>
-                <th scope="col">层级/阶段</th>
-                <th scope="col">读取</th>
-                <th scope="col">本轮结果</th>
-                <th scope="col">候选</th>
-                <th scope="col">人工定稿</th>
-                <th scope="col">问题</th>
-                <th scope="col">详情</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((row) => (
-                <tr
-                  key={row.id}
-                  data-kind={row.kind}
-                  data-pending={row.pending ? 'true' : undefined}
+          {round.blockers.length > 0 ? (
+            <ul className="results-blockers">
+              {round.blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          ) : (
+            <Alert asChild variant="warning">
+              <p className="notice" role="status">
+                本轮没有已知阻断；阅读、评论和确认仍是不同动作。
+              </p>
+            </Alert>
+          )}
+          <div className="results-actions">
+            <Link className={buttonVariants({ variant: 'default' })} to={round.next.href}>
+              {round.next.label}
+            </Link>
+            <Button disabled={!canSubmit} onClick={submitRound}>
+              {data.roundSubmitted ? '本轮意见已提交' : '提交本轮意见并生成下一稿（模拟）'}
+            </Button>
+            <span className="muted" role="status">
+              {firstDefined(
+                planBlockedReason,
+                results.receipt,
+                data.roundSubmitted
+                  ? '本轮意见已登记；返回阶段审阅可显式演练下一轮候选。'
+                  : data.activeRequestId
+                    ? `已有待处理修改请求 ${data.activeRequestId}；请先核对原请求。`
+                    : `已保存 ${savedCount} 条文件意见`,
+              )}
+            </span>
+          </div>
+        </section>
+      </Card>
+      <Card asChild>
+        <section className="panel results-inventory" aria-label="完整文件清单">
+          <div className="results-inventory-head">
+            <div>
+              <h2>完整文件清单</h2>
+              <p className="muted">
+                项目上传文件 {counts.uploaded} · 容器 {counts.containers} · 预期/计划{' '}
+                {counts.expected} · 计划新增 {counts.newFiles} · 保留 {counts.retained} · 本轮涉及{' '}
+                {counts.involved} · 待处理 {counts.pending}
+              </p>
+            </div>
+            <nav className="results-filters" aria-label="文件筛选">
+              {(
+                [
+                  ['ALL', '全部文件'],
+                  ['STAGE', '本阶段'],
+                  ['ROUND', '本轮涉及'],
+                  ['PENDING', '待处理'],
+                ] as const
+              ).map(([id, label]) => (
+                <Button
+                  key={id}
+                  aria-pressed={results.filter === id}
+                  onClick={() => {
+                    results.setFilter(id);
+                  }}
                 >
-                  <th scope="row">
-                    <span className={row.depth > 0 ? 'results-row-member' : undefined}>
-                      {row.title}
-                    </span>
-                    <small>{row.source}</small>
-                  </th>
-                  <td>{row.levelLabel}</td>
-                  <td>{row.reading}</td>
-                  <td>{row.outcome}</td>
-                  <td>{row.candidate ?? '—'}</td>
-                  <td>{row.finalization}</td>
-                  <td>{row.issues > 0 ? `${row.issues} 项待核对` : '—'}</td>
-                  <td>
-                    <Link
-                      to={row.detailHref}
-                      onClick={() => {
-                        results.setRound(round.id);
-                        results.setScrollY(window.scrollY);
-                      }}
-                    >
-                      查看
-                    </Link>
-                  </td>
-                </tr>
+                  {label}
+                </Button>
               ))}
-            </tbody>
-          </table>
-          {data.rows.length === 0 && <p role="status">当前筛选没有文件；完整清单与选择保留。</p>}
-        </div>
-      </section>
-      <section className="panel results-history" aria-label="本轮讨论与意见">
-        <h2>本轮讨论与意见</h2>
-        <p className="muted">
-          文件意见在详情保存，回到本页汇总提交；项目/阶段意见在阶段审阅页分别记录。保存与提交都不等于阶段定稿或最终交付。
-        </p>
-        {savedCount === 0 ? (
-          <p role="status">尚未保存文件意见。</p>
-        ) : (
-          <ul>
-            {Object.entries(results.saved)
-              .filter(([key]) => key.startsWith(`${round.id}:`))
-              .map(([key, entry]) => (
-                <li key={key}>
-                  {entry.label} · {entry.text}
-                </li>
-              ))}
-          </ul>
-        )}
-      </section>
+            </nav>
+          </div>
+          <div className="results-table" role="region" aria-label="文件清单" tabIndex={0}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">文件 / 来源</TableHead>
+                  <TableHead scope="col">层级/阶段</TableHead>
+                  <TableHead scope="col">读取</TableHead>
+                  <TableHead scope="col">本轮结果</TableHead>
+                  <TableHead scope="col">候选</TableHead>
+                  <TableHead scope="col">人工定稿</TableHead>
+                  <TableHead scope="col">问题</TableHead>
+                  <TableHead scope="col">详情</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-kind={row.kind}
+                    data-pending={row.pending ? 'true' : undefined}
+                  >
+                    <TableHead scope="row">
+                      <span className={row.depth > 0 ? 'results-row-member' : undefined}>
+                        {row.title}
+                      </span>
+                      <small>{row.source}</small>
+                    </TableHead>
+                    <TableCell>{row.levelLabel}</TableCell>
+                    <TableCell>{row.reading}</TableCell>
+                    <TableCell>{row.outcome}</TableCell>
+                    <TableCell>{row.candidate ?? '—'}</TableCell>
+                    <TableCell>{row.finalization}</TableCell>
+                    <TableCell>{row.issues > 0 ? `${row.issues} 项待核对` : '—'}</TableCell>
+                    <TableCell>
+                      <Link
+                        to={row.detailHref}
+                        onClick={() => {
+                          results.setRound(round.id);
+                          results.setScrollY(window.scrollY);
+                        }}
+                      >
+                        查看
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {data.rows.length === 0 && <p role="status">当前筛选没有文件；完整清单与选择保留。</p>}
+          </div>
+        </section>
+      </Card>
+      <Card asChild>
+        <section className="panel results-history" aria-label="本轮讨论与意见">
+          <h2>本轮讨论与意见</h2>
+          <p className="muted">
+            文件意见在详情保存，回到本页汇总提交；项目/阶段意见在阶段审阅页分别记录。保存与提交都不等于阶段定稿或最终交付。
+          </p>
+          {savedCount === 0 ? (
+            <p role="status">尚未保存文件意见。</p>
+          ) : (
+            <ul>
+              {Object.entries(results.saved)
+                .filter(([key]) => key.startsWith(`${round.id}:`))
+                .map(([key, entry]) => (
+                  <li key={key}>
+                    {entry.label} · {entry.text}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+      </Card>
       <p className="muted">
         当前查看 {round.label}；历史轮次不改变项目当前进度。文件详情返回会恢复本页轮次、筛选和位置。
       </p>
@@ -861,11 +895,16 @@ function ReviewMarkdown({ text }: { text: string }) {
 }
 
 export function FixtureResultsDetail() {
+  const { projectId, resultsPath } = useProjectPaths();
+  const { u1Project, u1ReportOne, u1ReportTwo } = useProjectTemplates();
   const params = useParams();
   const [search] = useSearchParams();
   const [mode, setMode] = useState<'CUMULATIVE' | 'ROUND'>(
     search.get('mode') === 'ROUND' ? 'ROUND' : 'CUMULATIVE',
   );
+  const [reviewingRound, setReviewingRound] = useState<string | null>(null);
+  const reviewTrigger = useRef<HTMLButtonElement>(null);
+  const reviewReceipt = useRef<HTMLParagraphElement>(null);
   const data = useResultsData(params.roundId);
   if (params.projectId !== projectId || !params.roundId || !params.fileId) return <Missing />;
   if (data?.round.id !== params.roundId) return <Missing />;
@@ -899,8 +938,38 @@ export function FixtureResultsDetail() {
           row.fileId,
           mode === 'ROUND' ? previousVersion(row.fileId, round.versionId) : null,
           round.versionId,
+          { enterpriseId: u1Project.enterpriseId, projectId },
         )
       : undefined;
+  const latestVersion = round.session?.files[row.fileId]?.versions.at(-1);
+  const newerRound =
+    latestVersion && latestVersion !== row.versionId
+      ? data.rounds.find(
+          (entry) =>
+            entry.stage === round.stage &&
+            entry.planKey === round.planKey &&
+            entry.versionId === latestVersion,
+        )
+      : undefined;
+  const finalized =
+    round.session?.finalization?.files.some(
+      (ref) => ref.fileId === row.fileId && ref.versionId === row.versionId,
+    ) ?? false;
+  const historicallyFinalized =
+    round.session?.finalizationHistory.some((entry) =>
+      entry.finalization.files.some(
+        (ref) => ref.fileId === row.fileId && ref.versionId === row.versionId,
+      ),
+    ) ?? false;
+  const versionStatus = dataForReview
+    ? finalized
+      ? '阶段定稿'
+      : historicallyFinalized
+        ? '历史定稿'
+        : '候选稿 · 未定稿'
+    : planFile
+      ? '计划项 · 无本轮候选'
+      : '来源文件';
   const opinion: ReviewOpinionModel = {
     context: `${row.title} · ${round.label} · ${row.versionId}`,
     draft: {
@@ -932,7 +1001,7 @@ export function FixtureResultsDetail() {
       selectedId: key,
       note: '文件意见绑定当前文件、轮次和精确版本。',
     },
-    submitBlocked: '在结果总览汇总提交；文件详情只保存意见。',
+    submitBlocked: '在侧栏核对本轮全部意见后提交，生成下一稿。',
     unavailable: ['真实草稿、提交、Runner 候选与批准尚未接入；本页只保留当前会话内存。'],
   };
   const workspace: ReviewWorkspaceInput | undefined = dataForReview
@@ -974,55 +1043,89 @@ export function FixtureResultsDetail() {
       }
     : undefined;
   return (
-    <div className="results-page results-detail-page">
+    <Card className="results-page results-detail-page">
+      <header className="results-detail-head">
+        <div className="results-detail-context">
+          <Link to={back}>← 返回结果总览</Link>
+          <span>{u1Project.title}</span>
+        </div>
+        <h1 tabIndex={-1}>{row.title}</h1>
+        <p className="muted">{round.label}</p>
+        <div className="results-detail-status" aria-label="当前阅读版本">
+          <Badge variant={finalized ? 'default' : 'secondary'}>{versionStatus}</Badge>
+          <span>
+            {row.versionId} · {row.levelLabel}
+          </span>
+          {(Boolean(newerRound) || !planEligible) && dataForReview && (
+            <Badge variant="outline">历史版本</Badge>
+          )}
+        </div>
+      </header>
       <JourneyNav
         current="results"
         analysisReportId={u1ReportTwo.reportId}
         scopeEnabled
         reviewStages={u2.reviewStages}
       />
-      <div className="results-detail-head">
-        <Link to={back}>← 返回结果总览</Link>
-        <p className="eyebrow">
-          {round.label} · {row.levelLabel} · {row.versionId}
-        </p>
-        <h1 tabIndex={-1}>{row.title}</h1>
-        <p className="muted">
-          {planFile?.action === 'CREATE'
-            ? '无客户原件，按已确认计划形成候选。'
-            : '原件为只读来源，候选为新版本。'}
-        </p>
-      </div>
-      <div className="demo" role="note">
-        环境 A · 文件详情演练 · 差异、候选与意见为合成页面状态；刷新重置。
-      </div>
+      {newerRound && dataForReview && (
+        <div className="results-detail-new-version" role="status">
+          <div>
+            <strong>有新稿可查看 · {newerRound.versionId}</strong>
+            <p>当前仍在阅读 {row.versionId}，此版本的意见保留在原轮次。</p>
+          </div>
+          <Link
+            className={buttonVariants({ variant: 'outline' })}
+            to={detailHref(resultsPath, newerRound.id, row.fileId)}
+            onClick={() => {
+              if (
+                round.stage !== 'ANALYSIS' &&
+                round.plan.planId === u2.plan.planId &&
+                round.plan.version === u2.plan.version
+              ) {
+                u2.update(round.stage, (current) => adoptLatestVersions(current, [row.fileId]));
+              }
+            }}
+          >
+            查看新稿
+          </Link>
+        </div>
+      )}
       {planFile ? (
         <section className="panel results-detail-basis" aria-label="文件依据与精确版本">
-          <div className="results-detail-meta">
-            <label>
-              比较方式
-              <select
-                aria-label="比较方式"
-                value={mode}
-                onChange={(event) => {
-                  setMode(event.target.value as 'CUMULATIVE' | 'ROUND');
-                }}
-              >
-                <option value="CUMULATIVE">累计变化 · 初始底稿 → 本轮</option>
-                <option value="ROUND">本轮变化 · 上一轮 → 本轮</option>
-              </select>
-            </label>
-            <span>
-              精确版本：
-              {mode === 'ROUND'
-                ? (previousVersion(row.fileId, row.versionId) ?? '初始底稿')
-                : '初始底稿'}{' '}
-              → {row.versionId}
-            </span>
-            <span>本轮结果：{row.outcome}</span>
-          </div>
+          {dataForReview && (
+            <div className="results-detail-meta">
+              <Label>
+                比较方式
+                <NativeSelect
+                  aria-label="比较方式"
+                  value={mode}
+                  onChange={(event) => {
+                    setMode(event.target.value as 'CUMULATIVE' | 'ROUND');
+                  }}
+                >
+                  <option value="CUMULATIVE">累计变化 · 初始底稿 → 本轮</option>
+                  <option value="ROUND">本轮变化 · 上一轮 → 本轮</option>
+                </NativeSelect>
+              </Label>
+              <span>
+                精确版本：
+                {mode === 'ROUND'
+                  ? (previousVersion(row.fileId, row.versionId) ?? '初始底稿')
+                  : '初始底稿'}{' '}
+                → {row.versionId}
+              </span>
+            </div>
+          )}
           <details>
             <summary>查看来源、限制与精确引用</summary>
+            <p>
+              {planFile.action === 'CREATE'
+                ? '无客户原件，按已确认计划形成候选。'
+                : '原件为只读来源，候选为新版本。'}
+            </p>
+            <p>
+              文件 {row.fileId} · 轮次 {round.id} · 版本 {row.versionId} · 本轮结果：{row.outcome}
+            </p>
             <p>
               来源：{meta && meta.sourceIds.length > 0 ? meta.sourceIds.join('、') : '无'}；模板：
               {meta && meta.templateIds.length > 0 ? meta.templateIds.join('、') : '无'}。
@@ -1031,9 +1134,10 @@ export function FixtureResultsDetail() {
               {meta && meta.limitations.length > 0 ? meta.limitations.join(' ') : '无额外说明。'}
             </p>
             <p>
-              计划动作：{planActionLabels[planFile.action]}；层级：{planLevelLabels[planFile.level]}
-              。
+              计划动作：{planActionLabels[planFile.action]}；层级：
+              {planLevelLabels[planFile.level]}。
             </p>
+            <p>当前为模拟阅读与意见；内容保留在本次会话内存，刷新重置。未登记真实下载表示。</p>
           </details>
         </section>
       ) : (
@@ -1049,7 +1153,7 @@ export function FixtureResultsDetail() {
               <li key={limitation}>{limitation}</li>
             ))}
           </ul>
-          <Link className="button" to={back}>
+          <Link className={buttonVariants({ variant: 'outline' })} to={back}>
             返回结果总览
           </Link>
         </section>
@@ -1073,20 +1177,15 @@ export function FixtureResultsDetail() {
                         : '该文件没有所选轮次的实际候选；请查看来源或阶段审阅中的候选状态。'}
           </p>
           <p>尚无候选内容；不根据其他轮次或文件补齐。</p>
-          <Link className="button" to={back}>
+          <Link className={buttonVariants({ variant: 'outline' })} to={back}>
             返回结果总览
           </Link>
         </section>
       )}
       {planFile && dataForReview && (
         <>
-          <details className="results-detail-rehearsal">
-            <summary>演练与精确引用详情</summary>
-            <p>
-              文件 {row.fileId} · 轮次 {round.id} · 版本 {row.versionId} · 比较 {mode}
-            </p>
-          </details>
           <MarkdownReviewPage
+            key={key}
             data={dataForReview}
             busy={false}
             directoryStatus=""
@@ -1107,73 +1206,141 @@ export function FixtureResultsDetail() {
                 results.saveDraft(key, `${row.title} · ${round.label}`);
               },
             }}
+            opinionFooter={
+              <section className="results-detail-next" aria-label="本轮意见核对入口">
+                <p className="muted">
+                  本轮 {roundSaved.length} 条意见 · {data.roundFiles.length} 份文件
+                </p>
+                <div className="results-actions">
+                  <Button
+                    ref={reviewTrigger}
+                    variant="default"
+                    disabled={
+                      round.stage === 'ANALYSIS' ||
+                      !planEligible ||
+                      roundSaved.length === 0 ||
+                      !data.roundComplete ||
+                      data.roundSubmitted ||
+                      Boolean(data.activeRequestId)
+                    }
+                    onClick={() => {
+                      setReviewingRound(key);
+                    }}
+                  >
+                    {data.roundSubmitted ? '本轮意见已提交' : '核对本轮意见'}
+                  </Button>
+                  <Link
+                    className={buttonVariants({ variant: 'outline' })}
+                    to={`/projects/${projectId}/work`}
+                  >
+                    返回当前工作核对定稿
+                  </Link>
+                </div>
+                <p
+                  className="muted results-round-status"
+                  role="status"
+                  tabIndex={-1}
+                  ref={reviewReceipt}
+                >
+                  {results.receipt ||
+                    (data.roundSubmitted
+                      ? '本轮意见已登记；新稿到达后需显式查看。'
+                      : '核对全部意见后提交；提交不会直接定稿。')}
+                </p>
+              </section>
+            }
             workspace={workspace ?? {}}
           />
-          <section className="panel results-detail-next" aria-label="本轮意见与定稿">
-            <h2>本轮意见与定稿</h2>
-            <p className="muted">
-              意见编辑即保留在本次会话内存并绑定 {round.label} · {row.versionId}
-              ；提交与定稿仍是不同动作。
-            </p>
-            {roundSaved.length === 0 ? (
-              <p role="status">本轮尚未保留意见。</p>
-            ) : (
+          <Dialog
+            open={reviewingRound === key}
+            onOpenChange={(open) => {
+              if (!open) setReviewingRound(null);
+            }}
+          >
+            <DialogContent
+              className="results-round-review"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (reviewTrigger.current && !reviewTrigger.current.disabled) {
+                  reviewTrigger.current.focus({ preventScroll: true });
+                } else {
+                  reviewReceipt.current?.focus({ preventScroll: true });
+                  reviewReceipt.current?.scrollIntoView({ block: 'nearest' });
+                }
+              }}
+            >
+              <DialogTitle>核对本轮意见</DialogTitle>
+              <DialogDescription>
+                {round.label} · {roundSaved.length}{' '}
+                条意见。确认后提交以下完整文件版本集合的本轮意见并生成下一稿；不会直接定稿。
+              </DialogDescription>
+              <h3>本轮文件与版本 · {data.roundFiles.length} 份</h3>
               <ul>
-                {roundSaved.map(([savedKey, entry]) => (
-                  <li key={savedKey}>
-                    {entry.label} · {entry.text}
+                {data.roundFiles.map((file) => (
+                  <li key={file.fileId}>
+                    {round.plan.files.find((item) => item.id === file.fileId)?.title ?? file.fileId}{' '}
+                    · {file.versionId}
                   </li>
                 ))}
               </ul>
-            )}
-            <div className="results-actions">
-              <button
-                className="button primary"
-                disabled={
-                  round.stage === 'ANALYSIS' ||
-                  !planEligible ||
-                  roundSaved.length === 0 ||
-                  !data.roundComplete ||
-                  data.roundSubmitted ||
-                  Boolean(data.activeRequestId)
-                }
-                onClick={() => {
-                  if (round.stage === 'ANALYSIS' || !round.planKey) return;
-                  const manualFinalizationId = sessionFor(round.plan, 'MANUAL', u2.sessions)
-                    .finalization?.finalizationId;
-                  const procedureFinalizationId = sessionFor(round.plan, 'PROCEDURES', u2.sessions)
-                    .finalization?.finalizationId;
-                  const rulesFinalizationId = sessionFor(round.plan, 'RULES', u2.sessions)
-                    .finalization?.finalizationId;
-                  results.submitRound({
-                    planKey: round.planKey,
-                    planId: round.plan.planId,
-                    planVersion: round.plan.version,
-                    projectId,
-                    stage: round.stage,
-                    text: roundSaved.map(([, entry]) => `${entry.label}：${entry.text}`).join('\n'),
-                    files: data.roundFiles,
-                    ...(manualFinalizationId ? { manualFinalizationId } : {}),
-                    ...(procedureFinalizationId ? { procedureFinalizationId } : {}),
-                    ...(round.stage === 'RULES' && rulesFinalizationId
-                      ? { rulesFinalizationId }
-                      : {}),
-                  });
-                }}
-              >
-                {data.roundSubmitted ? '本轮意见已提交' : '核对并提交本轮意见并生成下一稿'}
-              </button>
-              <Link className="button" to={`/projects/${projectId}/work`}>
-                返回当前工作核对定稿
-              </Link>
-            </div>
-            <p className="muted" role="status">
-              {results.receipt ||
-                (data.roundSubmitted
-                  ? '本轮意见已登记；新稿到达后需显式查看。'
-                  : '提交不会直接定稿，也不会替代完整集合确认。')}
-            </p>
-          </section>
+              <h3>全部意见 · {roundSaved.length} 条</h3>
+              <ul className="results-detail-opinions">
+                {roundSaved.map(([savedKey, entry]) => (
+                  <li key={savedKey}>
+                    <strong>{entry.label}</strong>
+                    <p>{entry.text}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="results-actions">
+                <DialogClose asChild>
+                  <Button>返回编辑</Button>
+                </DialogClose>
+                <Button
+                  variant="default"
+                  disabled={
+                    round.stage === 'ANALYSIS' ||
+                    !planEligible ||
+                    roundSaved.length === 0 ||
+                    !data.roundComplete ||
+                    data.roundSubmitted ||
+                    Boolean(data.activeRequestId)
+                  }
+                  onClick={() => {
+                    if (round.stage === 'ANALYSIS' || !round.planKey) return;
+                    const manualFinalizationId = sessionFor(round.plan, 'MANUAL', u2.sessions)
+                      .finalization?.finalizationId;
+                    const procedureFinalizationId = sessionFor(
+                      round.plan,
+                      'PROCEDURES',
+                      u2.sessions,
+                    ).finalization?.finalizationId;
+                    const rulesFinalizationId = sessionFor(round.plan, 'RULES', u2.sessions)
+                      .finalization?.finalizationId;
+                    results.submitRound({
+                      planKey: round.planKey,
+                      planId: round.plan.planId,
+                      planVersion: round.plan.version,
+                      projectId,
+                      stage: round.stage,
+                      text: roundSaved
+                        .map(([, entry]) => `${entry.label}：${entry.text}`)
+                        .join('\n'),
+                      files: data.roundFiles,
+                      ...(manualFinalizationId ? { manualFinalizationId } : {}),
+                      ...(procedureFinalizationId ? { procedureFinalizationId } : {}),
+                      ...(round.stage === 'RULES' && rulesFinalizationId
+                        ? { rulesFinalizationId }
+                        : {}),
+                    });
+                    setReviewingRound(null);
+                  }}
+                >
+                  {data.roundSubmitted ? '本轮意见已提交' : '核对并提交本轮意见并生成下一稿'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
       {planFile && round.stage === 'ANALYSIS' && analysisReport && (
@@ -1192,7 +1359,7 @@ export function FixtureResultsDetail() {
             <summary>查看报告说明</summary>
             <ReviewMarkdown text={analysisReport.narrative} />
           </details>
-          <Link className="button" to={back}>
+          <Link className={buttonVariants({ variant: 'outline' })} to={back}>
             返回结果总览
           </Link>
         </section>
@@ -1200,6 +1367,6 @@ export function FixtureResultsDetail() {
       {planFile && round.stage !== 'ANALYSIS' && !dataForReview && (
         <p className="muted">来源读取限制和候选失败原因保留在清单与执行恢复中。</p>
       )}
-    </div>
+    </Card>
   );
 }

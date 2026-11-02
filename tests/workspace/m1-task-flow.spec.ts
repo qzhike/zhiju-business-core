@@ -1,3 +1,4 @@
+import { closeOpinionDrawer, submitDetailRound } from './review-helpers.js';
 import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 
@@ -6,7 +7,8 @@ const work = `${base}/work`;
 
 async function startProject(page: Page) {
   await page.goto(work);
-  await expect(page.getByRole('heading', { level: 1, name: '当前工作' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
+  await expect(page.locator('.journey-nav a[aria-current="page"]')).toHaveText('当前工作');
   await page.getByRole('button', { name: '开始分析资料' }).click();
   await page
     .getByLabel('资料问题答复')
@@ -18,6 +20,11 @@ async function startProject(page: Page) {
 async function confirmScope(page: Page) {
   await page.getByRole('button', { name: '确认范围并生成质量手册初稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('审阅本轮质量手册');
+  const stepper = page.getByRole('list', { name: '业务阶段进度' });
+  await expect(stepper.locator('[aria-current="step"]')).toContainText('质量手册');
+  await expect(stepper.locator('[data-state="CURRENT"]')).toHaveCount(1);
+  await expect(stepper.locator('[data-state="UPCOMING"]')).toHaveCount(2);
+  await expect(stepper.locator('[data-state="COMPLETE"]')).toHaveCount(0);
 }
 
 async function submitRound(page: Page, label: string, text: string, expectedNext: string) {
@@ -50,7 +57,7 @@ async function completeToDelivery(page: Page, rulesRounds: 1 | 2 = 2) {
   await page.getByRole('button', { name: '打开意见与处理' }).click();
   await page.locator('#markdown-note').fill('质量手册第一轮意见：保留客户质量目标与职责。');
   await expect(page.locator('.markdown-draft-state')).toContainText('已保留在本次会话内存');
-  await page.getByRole('button', { name: '核对并提交本轮意见并生成下一稿' }).click();
+  await submitDetailRound(page);
   await expect(page.getByText(/已提交本轮意见并登记模拟修改请求 U2-REV-/u)).toBeVisible();
   await page.getByRole('link', { name: '返回当前工作核对定稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('质量手册有新稿可查看');
@@ -97,6 +104,87 @@ async function completeToDelivery(page: Page, rulesRounds: 1 | 2 = 2) {
   await finalizeStage(page, '核对最终交付清单');
 }
 
+for (const width of [1440, 360]) {
+  test(`file review keeps exact drafts through two rounds and returns to full-stage finalization at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await startProject(page);
+    await confirmScope(page);
+    await page
+      .locator('.task-stage')
+      .getByRole('link', { name: '查看', exact: true })
+      .first()
+      .click();
+    const detail = page.locator('.results-detail-page');
+    await expect(detail).toHaveAttribute('data-slot', 'card');
+    await expect(detail.locator('[data-slot="card"]')).toHaveCount(0);
+    await expect(detail.locator('h1')).toHaveCount(1);
+    await expect(page.locator('.results-detail-status')).toContainText('候选稿 · 未定稿');
+    await expect(page.locator('.results-detail-basis details')).not.toHaveAttribute('open');
+    await expect(page.getByRole('button', { name: '提交并修改', exact: true })).toHaveCount(0);
+    await expect(page.locator('.markdown-opinion')).toBeHidden();
+    await page.getByRole('button', { name: '对此处提意见' }).click();
+    await expect(page.locator('#markdown-note')).toBeFocused();
+    await expect(page.locator('#markdown-note')).toHaveValue(/精确版本/u);
+
+    for (const version of [1, 2]) {
+      const feedback = `质量手册第 ${version} 轮：保留客户质量目标，补充记录编号映射。`;
+      await page.locator('#markdown-note').fill(feedback);
+      await closeOpinionDrawer(page);
+      await page.getByLabel('比较方式').selectOption('ROUND');
+      if (!(await page.locator('#markdown-note').isVisible()))
+        await page.getByRole('button', { name: '打开意见与处理' }).click();
+      await expect(
+        page.getByText(`精确版本：${version === 1 ? '初始底稿' : 'V1'} → V${version}`),
+      ).toBeVisible();
+      await expect(page.locator('#markdown-note')).toHaveValue(feedback);
+      await submitDetailRound(page);
+      await expect(page.locator('.results-detail-new-version')).toContainText(
+        `有新稿可查看 · V${version + 1}`,
+      );
+      await expect(page).toHaveURL(
+        new RegExp(`/results/MANUAL-V${version}%40U1-PLAN-01-v1/F-MANUAL$`, 'u'),
+      );
+      await expect(page.locator('.results-detail-status')).toContainText('历史版本');
+      await expect(page.locator('#markdown-note')).toHaveValue(feedback);
+      await expect(page.getByRole('button', { name: '本轮意见已提交' })).toBeDisabled();
+      await closeOpinionDrawer(page);
+      await page.getByRole('link', { name: '查看新稿', exact: true }).click();
+      await expect(page).toHaveURL(
+        new RegExp(`/results/MANUAL-V${version + 1}%40U1-PLAN-01-v1/F-MANUAL$`, 'u'),
+      );
+      await expect(page.locator('.results-detail-status')).not.toContainText('历史版本');
+      await expect(page.locator('.markdown-opinion')).toBeHidden();
+      await page.getByRole('button', { name: '打开意见与处理' }).click();
+      await expect(page.locator('#markdown-note')).toHaveValue('');
+      await expect(page.locator('.results-detail-next')).not.toContainText(feedback);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+    await page.goBack();
+    await page.getByRole('button', { name: '打开意见与处理' }).click();
+    await expect(page.locator('#markdown-note')).toHaveValue(/第 2 轮/u);
+    await page.getByRole('link', { name: '返回当前工作核对定稿' }).click();
+    await expect(page.locator('.task-stage')).toContainText('第 3 版候选');
+    await expect(page.locator('.task-next h2')).toHaveText('审阅本轮质量手册');
+    await finalizeStage(page, '生成控制程序初稿');
+    await page
+      .getByRole('navigation', { name: '项目导航' })
+      .getByRole('link', { name: '历史记录', exact: true })
+      .click();
+    await page.getByRole('link', { name: /质量手册 · 第 3 版候选/u }).click();
+    await page
+      .locator('.results-table tr[data-kind="EXPECTED"]', { hasText: '质量手册' })
+      .getByRole('link', { name: '查看', exact: true })
+      .first()
+      .click();
+    await expect(page.locator('.results-detail-status')).toContainText('阶段定稿');
+    await expect(page.locator('.results-detail-status')).not.toContainText('未定稿');
+  });
+}
+
 test('task workspace completes the approved journey and preserves exact versions', async ({
   page,
 }) => {
@@ -109,17 +197,51 @@ test('task workspace completes the approved journey and preserves exact versions
   await expect(card).toContainText('资料 1 批');
   await card.getByRole('link', { name: '进入当前工作' }).click();
   await expect(page).toHaveURL(/\/projects\/MVP-U1-PROJECT\/work$/u);
+  const stepper = page.getByRole('list', { name: '业务阶段进度' });
+  await expect(stepper.getByRole('listitem')).toHaveCount(3);
+  await expect(stepper.locator('[data-slot="stepper-title"]')).toHaveText([
+    '质量手册',
+    '控制程序',
+    '管理制度及记录表单',
+  ]);
+  await expect(stepper.locator('[aria-current="step"]')).toHaveCount(0);
+  await expect(stepper.locator('[data-state="UPCOMING"]')).toHaveCount(3);
+  await expect(stepper.getByRole('button')).toHaveCount(0);
+  await expect(stepper.getByRole('link')).toHaveCount(0);
   const projectNav = page.getByRole('navigation', { name: '项目导航' });
+  await expect(projectNav.locator('a[aria-current="page"]')).toHaveText('当前工作');
   await expect(projectNav.getByRole('link', { name: '当前工作', exact: true })).toBeVisible();
-  await expect(projectNav.getByRole('link', { name: '全部文件', exact: true })).toBeVisible();
+  await expect(projectNav.getByRole('link', { name: '全部文件', exact: true })).toHaveCount(0);
   await expect(projectNav.getByRole('link', { name: '历史记录', exact: true })).toBeVisible();
   await expect(projectNav.getByRole('link', { name: '项目概览', exact: true })).toHaveCount(0);
   await expect(projectNav.getByRole('link', { name: '资料', exact: true })).toHaveCount(0);
   await expect(projectNav.getByRole('link', { name: '处理结果', exact: true })).toHaveCount(0);
   await expect(projectNav.getByRole('link', { name: '交付', exact: true })).toHaveCount(0);
+  await expect(page.locator('.task-next').getByRole('link', { name: '查看全部文件' })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('.task-next').getByRole('link', { name: '查看历史记录' })).toHaveCount(
+    0,
+  );
+
+  const analysis = page.getByRole('region', { name: '分析与范围' });
+  await analysis.getByText('查看分析依据与读取限制', { exact: true }).click();
+  await expect(analysis.getByRole('heading', { name: '读取与判断边界', level: 2 })).toBeVisible();
+  await expect(analysis.getByRole('heading', { name: '主要判断', level: 2 })).toBeVisible();
+  await expect(
+    analysis.locator('.task-analysis-report > ul').last().getByRole('listitem'),
+  ).toHaveCount(4);
+  await expect(analysis.locator('.task-analysis-report')).not.toContainText('## ');
 
   await completeToDelivery(page);
 
+  await expect(stepper.locator('[data-state="COMPLETE"]')).toHaveCount(3);
+  await expect(stepper.locator('[data-slot="stepper-indicator"] svg')).toHaveCount(3);
+  await expect(stepper.locator('[data-slot="stepper-status"]')).toHaveText([
+    '已定稿（模拟）',
+    '已定稿（模拟）',
+    '已定稿（模拟）',
+  ]);
   await expect(page.locator('.task-delivery tbody tr')).toHaveCount(6);
   await expect(page.locator('.task-delivery tbody')).toContainText('第 3 版候选 · V3');
   await expect(page.locator('.task-delivery tbody')).toContainText('第 2 版候选 · V2');
@@ -133,9 +255,13 @@ test('task workspace completes the approved journey and preserves exact versions
   await page.getByRole('button', { name: '下载 Markdown ZIP（合成）' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/SYNTHETIC\.zip$/u);
+  const completedProgress = await stepper.getByRole('listitem').allTextContents();
 
-  await projectNav.getByRole('link', { name: '全部文件', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: '全部文件' })).toBeVisible();
+  await page.getByRole('link', { name: '清单明细', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(`${base}/files`);
+  await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
+  await expect(projectNav.locator('a[aria-current="page"]')).toHaveCount(0);
   await expect(page.locator('.task-inventory-head p')).toContainText('上传成员 12');
   await expect(page.locator('.task-inventory-head p')).toContainText('容器 1');
   await expect(page.locator('.task-inventory-head p')).toContainText('预期/计划 4');
@@ -148,13 +274,25 @@ test('task workspace completes the approved journey and preserves exact versions
   await expect(page.locator('.task-filters button[aria-pressed="true"]')).toHaveText('待处理');
 
   await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: '历史记录' })).toBeVisible();
+  await expect(page).toHaveURL(`${base}/history`);
+  await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
+  await expect(page.getByRole('region', { name: '业务解读', exact: true })).toHaveCount(1);
+  await expect(stepper.getByRole('listitem')).toHaveText(completedProgress);
+  await expect(stepper.locator('[data-state="COMPLETE"]')).toHaveCount(3);
+  await expect(projectNav.locator('a[aria-current="page"]')).toHaveText('历史记录');
+  await page.goBack();
+  await expect(page).toHaveURL(`${base}/files`);
+  await expect(page.locator('.task-inventory')).toBeVisible();
+  await expect(projectNav.locator('a[aria-current="page"]')).toHaveCount(0);
+  await page.goForward();
+  await expect(projectNav.locator('a[aria-current="page"]')).toHaveText('历史记录');
   await expect(page.getByText(/正在查看历史记录/u)).toBeVisible();
   await expect(page.getByRole('link', { name: /质量手册 · 第 3 版候选/u })).toBeVisible();
   await expect(page.locator('main')).toContainText('U3-PKG-01');
   await expect(page.getByRole('link', { name: '返回当前工作' }).first()).toBeVisible();
   await page.getByRole('link', { name: '返回当前工作' }).first().click();
   await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
+  await expect(stepper.getByRole('listitem')).toHaveText(completedProgress);
   expect(errors).toEqual([]);
 });
 
@@ -218,6 +356,15 @@ test('upstream re-finalization marks downstream stages for review in current wor
     page.getByRole('button', { name: '模拟质量手册重新定稿（上游依据变化）' }).click(),
   );
   await expect(page.locator('.task-next h2')).toHaveText('控制程序依据已变化，需复核');
+  const stepper = page.getByRole('list', { name: '业务阶段进度' });
+  await expect(stepper.locator('[aria-current="step"]')).toContainText('控制程序');
+  await expect(stepper.locator('[data-state="ATTENTION"]')).toHaveCount(2);
+  await expect(
+    stepper.locator('[data-state="ATTENTION"] [data-slot="stepper-indicator"]'),
+  ).toHaveText(['!', '!']);
+  await expect(stepper.locator('[data-state="ATTENTION"] [data-slot="stepper-status"]')).toHaveText(
+    ['依据已变化，待复核', '依据已变化，待复核'],
+  );
   await page.getByRole('button', { name: '核对并重新定稿' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('管理制度及记录表单依据已变化，需复核');
   await page.getByRole('button', { name: '核对并重新定稿' }).click();
@@ -332,7 +479,7 @@ test('later finalization requires a new delivery confirmation and keeps the old 
     .click();
   await page.getByRole('button', { name: '打开意见与处理' }).click();
   await page.locator('#markdown-note').fill('第三阶段后续意见：核对更新跟踪。');
-  await page.getByRole('button', { name: '核对并提交本轮意见并生成下一稿' }).click();
+  await submitDetailRound(page);
   await expect(page.getByText(/已提交本轮意见并登记模拟修改请求/u)).toBeVisible();
   await page.getByRole('link', { name: '返回当前工作核对定稿' }).click();
 
@@ -352,6 +499,22 @@ test('later finalization requires a new delivery confirmation and keeps the old 
   await expect(page.locator('.task-next h2')).toHaveText('文档包已生成（模拟）');
   await expect(page.locator('.task-delivery')).toContainText('U3-PKG-02');
   await expect(page.locator('.task-delivery')).toContainText('U3-PKG-01');
+  await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
+  await page.getByRole('link', { name: /管理制度及记录表单 · 第 2 版候选/u }).click();
+  await page
+    .locator('.results-table tr[data-kind="NEW"]', { hasText: '外来文件管理规定' })
+    .getByRole('link', { name: '查看' })
+    .click();
+  await expect(page.locator('.results-detail-status')).toContainText('历史定稿');
+  await expect(page.locator('.results-detail-status')).not.toContainText('未定稿');
+  await projectNav.getByRole('link', { name: '历史记录', exact: true }).click();
+  await page.getByRole('link', { name: /管理制度及记录表单 · 第 1 版候选/u }).click();
+  await page
+    .locator('.results-table tr[data-kind="NEW"]', { hasText: '外来文件管理规定' })
+    .getByRole('link', { name: '查看' })
+    .click();
+  await expect(page.locator('.results-detail-status')).toContainText('候选稿 · 未定稿');
+  await expect(page.locator('.results-detail-status')).not.toContainText('历史定稿');
 });
 
 test('unknown packaging request survives a later finalization', async ({ page }) => {
@@ -380,7 +543,7 @@ test('unknown packaging request survives a later finalization', async ({ page })
     .click();
   await page.getByRole('button', { name: '打开意见与处理' }).click();
   await page.locator('#markdown-note').fill('打包待核验期间的后续意见。');
-  await page.getByRole('button', { name: '核对并提交本轮意见并生成下一稿' }).click();
+  await submitDetailRound(page);
   await expect(page.getByText(/已提交本轮意见并登记模拟修改请求/u)).toBeVisible();
   await page.getByRole('link', { name: '返回当前工作核对定稿' }).click();
   await page.getByRole('button', { name: '查看新稿', exact: true }).click();

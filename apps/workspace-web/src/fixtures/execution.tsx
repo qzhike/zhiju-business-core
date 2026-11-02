@@ -1,3 +1,7 @@
+import { Alert } from '../components/ui/alert.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button } from '../components/ui/button.js';
 import { MockControls } from './control-slot.js';
 // Explicit development events only. No timers, business requests or browser persistence.
 import { createContext, useContext, useState, type ReactNode } from 'react';
@@ -186,9 +190,9 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
               合成回执与进度，不表示真实业务成功 · {fixtureMarker} · 仅内存，不模拟自动成功
             </p>
             <div>
-              <label>
+              <Label>
                 读取场景
-                <select
+                <NativeSelect
                   value={phase}
                   onChange={(event) => {
                     setPhase(event.target.value as NonNullable<ExecutionPageProps['phase']>);
@@ -198,11 +202,11 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                   <option value="ERROR">读取失败</option>
                   <option value="EXPIRED">访问失效</option>
                   <option value="LOADING">等待读取</option>
-                </select>
-              </label>
-              <label>
+                </NativeSelect>
+              </Label>
+              <Label>
                 重试回执
-                <select
+                <NativeSelect
                   value={outcome}
                   onChange={(event) => {
                     setOutcome(event.target.value as typeof outcome);
@@ -212,11 +216,11 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                   <option value="HOLD">等待回执</option>
                   <option value="ACCEPTED">已接收</option>
                   <option value="MISMATCH">错文件回执</option>
-                </select>
-              </label>
-              <label>
+                </NativeSelect>
+              </Label>
+              <Label>
                 原请求查询结果
-                <select
+                <NativeSelect
                   value={queryOutcome}
                   onChange={(event) => {
                     setQueryOutcome(event.target.value as typeof queryOutcome);
@@ -224,24 +228,24 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 >
                   <option value="UNKNOWN">仍待核验</option>
                   <option value="ACCEPTED">已接收等待安排</option>
-                </select>
-              </label>
-              <button
+                </NativeSelect>
+              </Label>
+              <Button
                 onClick={() => {
                   for (const release of adapter.pending.values()) release('UNKNOWN');
                 }}
               >
                 返回待核验重试回执
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   for (const release of adapter.pending.values()) release('ACCEPTED');
                 }}
               >
                 返回已接收重试回执
-              </button>
+              </Button>
               <p className="muted">已记录重试意图：{adapter.intents.size}</p>
-              <button
+              <Button
                 onClick={() => {
                   const files = Array.from({ length: 40 }, (_, index) =>
                     file(
@@ -260,8 +264,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 带入长清单示例
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!current}
                 onClick={() => {
                   if (!current) return;
@@ -277,8 +281,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 模拟本轮实际处理
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!first || !current}
                 onClick={() => {
                   if (first)
@@ -296,8 +300,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 模拟首份候选到达
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!second}
                 onClick={() => {
                   if (second)
@@ -311,16 +315,16 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 模拟第二份失败
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!second}
                 onClick={() => {
                   if (second) change(second, { retryAllowed: false });
                 }}
               >
                 模拟撤回重试许可
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={!second}
                 onClick={() => {
                   if (second)
@@ -332,8 +336,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 模拟迟到信息
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   adapter.add({
                     ...initial,
@@ -349,8 +353,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 带入已确认后轮示例
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   adapter.update(requestId, (round) => ({
                     ...round,
@@ -373,8 +377,8 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 模拟前轮新候选到达
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   adapter.add({
                     ...initial,
@@ -386,7 +390,7 @@ export function FixtureExecution({ data }: { data: WorkspaceData }) {
                 }}
               >
                 带入空范围示例
-              </button>
+              </Button>
             </div>
           </details>
         </MockControls>
@@ -495,9 +499,11 @@ export function FixtureExecutionReview() {
   const approved = fixture.memory.approved.has(path);
   return (
     <>
-      <p className="notice">
-        仅开发合成候选 · 无真实正文接纳、保存、批准或交付；示例 Hash 不是业务证明。
-      </p>
+      <Alert asChild variant="warning">
+        <p className="notice">
+          仅开发合成候选 · 无真实正文接纳、保存、批准或交付；示例 Hash 不是业务证明。
+        </p>
+      </Alert>
       <Link to={memory.candidateReturns.get(path) ?? roundPath(source)}>返回本轮文件进度</Link>
       <Link to="/review-workspace">查看多处修改示例</Link>
       <MarkdownReviewPage
@@ -617,7 +623,7 @@ export function FixtureExecutionReview() {
       <MockControls>
         <details className="execution-controls">
           <summary>候选到达演示事件</summary>
-          <button
+          <Button
             onClick={() => {
               fixture.memory.candidates.add(path);
               adapter.update(source.requestId, (round) => ({
@@ -641,14 +647,14 @@ export function FixtureExecutionReview() {
             }}
           >
             模拟阅读期间新候选到达
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               fixture.applyApprovalReceipt(path);
             }}
           >
             返回批准的选定回执
-          </button>
+          </Button>
         </details>
       </MockControls>
     </>

@@ -1,0 +1,66 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 14px;
+  --text-lg: 18px;
+}
+
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #243247;
+  --card: #ffffff;
+  --card-foreground: #243247;
+  --popover: #ffffff;
+  --popover-foreground: #243247;
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-foreground: #ffffff;
+  --secondary: #eef2f7;
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --muted-foreground: #526176;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
+  --destructive: #b42332;
+  --border: #dfe6ef;
+  --input: #b9c6d8;
+  --ring: #2563eb;
+  --radius: 10px;
+  --ink: var(--foreground);
+  --line: var(--border);
+  --soft: var(--accent);
+  --bg: var(--background);
+  --green: #26735a;
+  --amber: #805113;
+  font:
+    14px/1.65 -apple-system,
+    BlinkMacSystemFont,
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+}

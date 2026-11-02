@@ -62,7 +62,7 @@
   margin: 4px 0 10px;
 }
 .execution-file small {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .execution-file p {
   margin: 8px 0;

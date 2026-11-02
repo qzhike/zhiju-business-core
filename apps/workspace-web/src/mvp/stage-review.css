@@ -28,7 +28,7 @@
 
 .stage-basis li span,
 .stage-upstream li span {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .stage-set table {
@@ -96,7 +96,7 @@
 }
 
 .stage-finalization-result dt {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .stage-finalization-result dd {
@@ -105,7 +105,7 @@
 }
 
 .stage-next {
-  border-left: 4px solid var(--purple);
+  border-left: 4px solid var(--primary);
 }
 
 .markdown-opinion-scope {
@@ -115,7 +115,7 @@
 }
 
 .markdown-opinion-scope small {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .markdown-history ol {
@@ -137,11 +137,11 @@
 }
 
 .markdown-history li small {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .journey-locked {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-weight: 400;
 }
 
@@ -166,7 +166,7 @@
 
 .stage-controls legend {
   padding: 0 6px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 @media (max-width: 760px) {

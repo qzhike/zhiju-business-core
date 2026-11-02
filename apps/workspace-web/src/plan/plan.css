@@ -43,7 +43,7 @@
 }
 .plan-prose dt {
   font-weight: 600;
-  color: var(--purple);
+  color: var(--primary);
   font-size: 13px;
 }
 .plan-prose dd {
@@ -73,7 +73,7 @@
 }
 .plan-file-detail dd {
   margin: 0;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .plan-retained {
   margin-top: 12px;
@@ -156,7 +156,7 @@
 }
 .plan-history button[aria-current='true'] {
   background: var(--soft);
-  border-color: var(--purple);
+  border-color: var(--primary);
 }
 @media (max-width: 760px) {
   .plan-page {

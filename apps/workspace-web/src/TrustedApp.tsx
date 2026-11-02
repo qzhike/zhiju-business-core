@@ -1,3 +1,6 @@
+import { Alert } from './components/ui/alert.js';
+import { Card } from './components/ui/card.js';
+import { Button, buttonVariants } from './components/ui/button.js';
 // Trusted Human workspace shell (production entry).
 //
 // Replaces the anonymous-fixture-only production path with the real journey:
@@ -170,7 +173,7 @@ export function TrustedApp() {
         ) : (
           <span className="muted">
             {principal.displayName ?? principal.principalId} · 已登录
-            <button onClick={logout}>退出登录</button>
+            <Button onClick={logout}>退出登录</Button>
           </span>
         )}
       </header>
@@ -404,20 +407,24 @@ export function TrustedApp() {
 
 function LoadingPanel() {
   return (
-    <section className="panel" role="status">
-      <h1 tabIndex={-1}>正在加载工作空间</h1>
-      <p>正在确认当前会话与授权范围…</p>
-    </section>
+    <Card asChild>
+      <section className="panel" role="status">
+        <h1 tabIndex={-1}>正在加载工作空间</h1>
+        <p>正在确认当前会话与授权范围…</p>
+      </section>
+    </Card>
   );
 }
 
 function LogoutPanel() {
   return (
-    <section className="panel" role="status">
-      <h1 tabIndex={-1}>正在退出登录</h1>
-      <p>已清除本标签页的会话身份与受保护内容，正在等待服务端完成退出与撤销…</p>
-      <p className="muted">退出完成前不会显示任何项目、看板或会话摘要</p>
-    </section>
+    <Card asChild>
+      <section className="panel" role="status">
+        <h1 tabIndex={-1}>正在退出登录</h1>
+        <p>已清除本标签页的会话身份与受保护内容，正在等待服务端完成退出与撤销…</p>
+        <p className="muted">退出完成前不会显示任何项目、看板或会话摘要</p>
+      </section>
+    </Card>
   );
 }
 
@@ -434,38 +441,52 @@ function AccessGate({
 }) {
   if (probe.state === 'DENIED') {
     return (
-      <section className="panel error" role="alert">
-        <h1 tabIndex={-1}>没有可访问的工作空间</h1>
-        <p>当前身份已认证但没有可用的企业关联，不能进入任何一个 Project。</p>
-        <p className="muted">ACCESS_DENIED · 如需授权请联系管理员，本页不会重复尝试登录。</p>
-      </section>
+      <Card asChild>
+        <Alert asChild variant="warning">
+          <section className="panel error" role="alert">
+            <h1 tabIndex={-1}>没有可访问的工作空间</h1>
+            <p>当前身份已认证但没有可用的企业关联，不能进入任何一个 Project。</p>
+            <p className="muted">ACCESS_DENIED · 如需授权请联系管理员，本页不会重复尝试登录。</p>
+          </section>
+        </Alert>
+      </Card>
     );
   }
   if (probe.state === 'UNAVAILABLE') {
     return (
-      <section className="panel error" role="alert">
-        <h1 tabIndex={-1}>工作空间暂不可用</h1>
-        <p>登录与公开业务服务尚未接入，暂不能执行业务操作。请联系管理员确认配置。</p>
-        <p className="muted">{probe.code}</p>
-        <button onClick={onRetry}>重试加载</button>
-      </section>
+      <Card asChild>
+        <Alert asChild variant="warning">
+          <section className="panel error" role="alert">
+            <h1 tabIndex={-1}>工作空间暂不可用</h1>
+            <p>登录与公开业务服务尚未接入，暂不能执行业务操作。请联系管理员确认配置。</p>
+            <p className="muted">{probe.code}</p>
+            <Button onClick={onRetry}>重试加载</Button>
+          </section>
+        </Alert>
+      </Card>
     );
   }
   const expired = probe.state === 'SESSION_EXPIRED';
   return (
-    <section className="panel error" role="alert">
-      <h1 tabIndex={-1}>{callbackFailed ? '登录未完成' : expired ? '需要重新登录' : '需要登录'}</h1>
-      <p>
-        登录与公开业务服务尚未接入当前浏览器会话。
-        {expired ? '会话已过期，请重新登录后继续。' : '请使用企业账号登录后继续。'}
-      </p>
-      {callbackFailed && <p>本次登录未完成，未建立任何会话；请重新发起登录。</p>}
-      <p>
-        <a className="button primary" href={signInHref(returnTo)}>
-          使用企业账号登录
-        </a>
-      </p>
-      <p className="muted">{expired ? 'UI_SESSION_EXPIRED' : 'UI_REAUTH_REQUIRED'}</p>
-    </section>
+    <Card asChild>
+      <Alert asChild variant="warning">
+        <section className="panel error" role="alert">
+          <h1 tabIndex={-1}>
+            {callbackFailed ? '登录未完成' : expired ? '需要重新登录' : '需要登录'}
+          </h1>
+          <p>
+            登录与公开业务服务尚未接入当前浏览器会话。
+            {expired ? '会话已过期，请重新登录后继续。' : '请使用企业账号登录后继续。'}
+          </p>
+          {callbackFailed && <p>本次登录未完成，未建立任何会话；请重新发起登录。</p>}
+          <p>
+            <a className={buttonVariants({ variant: 'default' })} href={signInHref(returnTo)}>
+              使用企业账号登录
+            </a>
+          </p>
+          <p className="muted">{expired ? 'UI_SESSION_EXPIRED' : 'UI_REAUTH_REQUIRED'}</p>
+        </section>
+      </Alert>
+    </Card>
   );
 }

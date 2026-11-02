@@ -106,8 +106,8 @@ describe('bounded review workspace boundaries', () => {
     expect(html).toContain('本页未提交的意见');
     expect(html).toContain('服务器个人草稿与提交并修改尚未接入。');
     expect(html).toContain('批准能力尚未接入。');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled');
-    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
+    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
     // The shared project catalog is the file column; the reader no longer
     // renders a duplicate round-only directory.
     expect(html).toContain('markdown-review-layout without-files');
@@ -124,8 +124,8 @@ describe('bounded review workspace boundaries', () => {
       opinionActions: { onSubmit: () => undefined },
     });
     expect(stale).toContain('当前阅读版本已被新候选替代');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(stale)?.[0]).toContain('disabled');
-    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(stale)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(stale)?.[0]).toContain('disabled=""');
+    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(stale)?.[0]).toContain('disabled=""');
     const suggestion = {
       name: '改稿.md',
       text: '# 合成改稿',
@@ -150,7 +150,7 @@ describe('bounded review workspace boundaries', () => {
         },
       },
     });
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(exception)?.[0]).not.toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(exception)?.[0]).not.toContain('disabled=""');
   });
   it('holds approval while an unsent draft exists and states it honestly', () => {
     const html = markup({
@@ -162,7 +162,7 @@ describe('bounded review workspace boundaries', () => {
       opinionActions: { onSubmit: () => undefined, onApprove: () => undefined },
     });
     expect(html).toContain('还有未提交的意见或改稿');
-    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
   });
   it('shows the owning denominator instead of the loaded page and disables files without a candidate', () => {
     const html = markup({
@@ -226,7 +226,7 @@ describe('bounded review workspace boundaries', () => {
     expect(html.indexOf('提交结果待核验')).toBeLessThan(html.indexOf('id="markdown-note"'));
     expect(html).toContain('已提交的原意见');
     expect(html).toContain('核验期间不能重复提交');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
     expect(html).toContain('重新查询');
   });
   it('never approves while a submission is being reconciled', () => {
@@ -246,7 +246,7 @@ describe('bounded review workspace boundaries', () => {
         },
       },
     });
-    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>检查完成并批准<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
   });
   it('keeps an unresolved location binding and its kind visible', () => {
     const removed: Change = {
@@ -287,7 +287,7 @@ describe('bounded review workspace boundaries', () => {
       },
     });
     expect(blocked).toContain('请先明确选择改稿的基准版本');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(blocked)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(blocked)?.[0]).toContain('disabled=""');
     const selected = markup({
       opinionActions: { onSubmit: () => undefined, onAttachSuggestion: () => undefined },
       opinion: {
@@ -301,7 +301,7 @@ describe('bounded review workspace boundaries', () => {
     });
     expect(selected).toContain('基准 第 1 版');
     expect(selected).toContain('提交时最新版本 第 2 版');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(selected)?.[0]).not.toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(selected)?.[0]).not.toContain('disabled=""');
   });
   it('states the opinion scope, keeps save distinct from submit and blocks a second batch', () => {
     const html = markup({
@@ -329,9 +329,9 @@ describe('bounded review workspace boundaries', () => {
     expect(html).toContain('阶段 质量手册');
     expect(html).toContain('保存意见草稿（模拟）');
     expect(html).toContain('本项目已有待回执的修改请求');
-    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled');
+    expect(/<button[^>]*>提交并修改<\/button>/u.exec(html)?.[0]).toContain('disabled=""');
     expect(/<button[^>]*>保存意见草稿（模拟）<\/button>/u.exec(html)?.[0]).not.toContain(
-      'disabled',
+      'disabled=""',
     );
   });
   it('hides per-file approval for stage-finalization journeys but keeps append-only history', () => {

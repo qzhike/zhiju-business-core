@@ -171,6 +171,9 @@ async function recheckAndConfirm(page: Page) {
   await expect(dialog).toContainText('质量手册 · 第');
   await dialog.getByRole('button', { name: '确认并冻结清单' }).click();
   await expect(page.getByRole('heading', { name: '清单已冻结（模拟）' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: '最终确认', exact: true }).getByRole('status'),
+  ).toBeFocused();
 }
 
 async function downloadBytes(page: Page, button: Locator) {
@@ -569,6 +572,7 @@ test('unresolved final confirmation survives list operations and navigation', as
   await page.getByRole('button', { name: '确认最终交付清单（模拟）' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: '确认并冻结清单' }).click();
   const originalId = requestId(await page.getByText(/原请求 U3-FINAL-/u).textContent());
+  await expect(page.getByRole('region', { name: '最终确认', exact: true })).toBeFocused();
   await expect(page.getByRole('checkbox', { name: '选择 质量手册' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '重新核对当前清单（模拟）' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '确认最终交付清单（模拟）' })).toBeDisabled();

@@ -1,3 +1,8 @@
+import { useFixtureIntake } from './intake.js';
+import { stageLabels } from '../intake/model.js';
+import { Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 import { MockControls } from './control-slot.js';
 // Isolated development adapter. It never performs business requests or saves data.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -222,6 +227,8 @@ export function FixtureWorkbenchProvider({ children }: { children: ReactNode }) 
 }
 
 export function FixtureWorkbench() {
+  const intake = useFixtureIntake();
+  const created = intake.projects.filter((project) => project.id.startsWith('DEMO-CREATED-'));
   const state = useContext(BoardContext);
   if (!state) throw new Error('DEVELOPMENT_WORKBENCH_ADAPTER_MISSING');
   const handoff = useContext(MvpHandoffContext);
@@ -231,15 +238,37 @@ export function FixtureWorkbench() {
   const mode = state.mode;
   const unavailable = mode === 'denied' || mode === 'expired' || mode === 'error';
   const loading = mode === 'loading';
-  const projectViews: readonly ProjectView[] = projects.map((project) =>
-    project.projectId === u1.projectId
-      ? {
-          ...project,
-          status: handoff?.projectStatus ?? project.status,
-          progress: handoff?.projectProgress ?? project.progress,
-        }
-      : project,
-  );
+  const progressFor = (id: string) => {
+    const receipt = intake.receipts.get(id)?.at(-1);
+    if (receipt?.stage === 'WAITING') return intake.progress.get(id);
+    return {
+      status: receipt ? stageLabels[receipt.stage] : '准备首轮资料',
+      detail: '首轮资料尚未就绪',
+      reason: '先完成资料准备，再进入分析与修订。',
+    };
+  };
+  const projectViews: readonly ProjectView[] = [
+    ...projects.map((project) =>
+      project.projectId === u1.projectId
+        ? {
+            ...project,
+            status: handoff?.projectStatus ?? project.status,
+            progress: handoff?.projectProgress ?? project.progress,
+          }
+        : project,
+    ),
+    ...created.map((project): ProjectView => ({
+      key: `project:${project.customer.id}/${project.id}`,
+      enterpriseId: project.customer.id,
+      projectId: project.id,
+      name: `${project.customer.name} · ${project.title}`,
+      title: project.title,
+      code: project.customer.code,
+      status: progressFor(project.id)?.status ?? '会话演练',
+      version: 1,
+      progress: progressFor(project.id)?.detail ?? '首轮资料已接收',
+    })),
+  ];
   const mvpNext = handoff?.next;
   const mvpCard: WorkCard = {
     id: 'wb-u1',
@@ -254,7 +283,17 @@ export function FixtureWorkbench() {
       destination: { kind: 'work', projectId: u1.projectId },
     },
   };
-  const cards = [mvpCard, ...state.cards];
+  const createdCards: WorkCard[] = created.map((project) => ({
+    id: `created-${project.id}`,
+    projectKey: `project:${project.customer.id}/${project.id}`,
+    title: `${project.title} · 当前任务`,
+    group: progressFor(project.id)?.status === '正在打包' ? 'running' : 'attention',
+    status: progressFor(project.id)?.status ?? '会话演练',
+    reason: progressFor(project.id)?.reason ?? '返回本项目继续处理。',
+    context: progressFor(project.id)?.detail ?? project.customer.name,
+    action: { label: '进入当前工作', destination: { kind: 'work', projectId: project.id } },
+  }));
+  const cards = [...createdCards, mvpCard, ...state.cards];
   return (
     <Workbench
       key={selectedKey ?? 'all'}
@@ -285,7 +324,7 @@ export function FixtureWorkbench() {
             ? '正在等待读取 · 演示'
             : mode === 'empty'
               ? '完整空结果 · 演示'
-              : '已显示 3 个项目 · 完整合成场景',
+              : `已显示 ${projectViews.length} 个项目 · 会话演练`,
         ...(unavailable || loading
           ? {
               action: {
@@ -317,16 +356,16 @@ export function FixtureWorkbench() {
           <details className="wb-controls">
             <summary>演示控制</summary>
             <div>
-              <button
+              <Button
                 onClick={() => {
                   state.setMode(mode === 'empty' ? 'mixed' : 'empty');
                 }}
               >
                 {mode === 'empty' ? '查看匿名示例' : '查看空工作台'}
-              </button>
-              <label>
+              </Button>
+              <Label>
                 页面状态
-                <select
+                <NativeSelect
                   value={mode}
                   onChange={(event) => {
                     state.setMode(event.target.value);
@@ -345,24 +384,24 @@ export function FixtureWorkbench() {
                       {label}
                     </option>
                   ))}
-                </select>
-              </label>
-              <button
+                </NativeSelect>
+              </Label>
+              <Button
                 disabled={state.pending}
                 onClick={() => {
                   state.schedule('candidate');
                 }}
               >
                 延迟返回一份候选
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={state.pending}
                 onClick={() => {
                   state.schedule('report');
                 }}
               >
                 延迟返回新报告
-              </button>
+              </Button>
               <span role="status">
                 {state.pending
                   ? '等待合成更新；可继续输入或打开其他页面'

@@ -55,14 +55,14 @@
 }
 .analysis-card-title strong {
   font-size: 24px;
-  color: var(--purple);
+  color: var(--primary);
   font-variant-numeric: tabular-nums;
 }
 .analysis-card-title small {
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .analysis-card p {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 .analysis-card ul {
@@ -117,11 +117,11 @@
 }
 .analysis-list-row small {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-top: 4px;
 }
 .analysis-list-row button[aria-current] {
-  color: var(--purple);
+  color: var(--primary);
   background: var(--soft);
 }
 .analysis-item h2 {
@@ -149,7 +149,7 @@
   max-height: 25vh;
   overflow: auto;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--purple);
+  border-left: 3px solid var(--primary);
   background: white;
   border-radius: 10px;
   padding: 12px 18px;
@@ -349,7 +349,7 @@
   cursor: pointer;
 }
 .analysis-actions label:focus-within {
-  outline: 3px solid #7365d3;
+  outline: 3px solid var(--ring);
   outline-offset: 3px;
 }
 .analysis-understanding {
@@ -378,7 +378,7 @@
 .understanding-groups h3 {
   margin: 0 0 4px;
   font-size: 13px;
-  color: var(--purple);
+  color: var(--primary);
 }
 .understanding-groups ul,
 .template-applicability ul {
@@ -441,7 +441,7 @@
 }
 .governance-card small {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-bottom: 6px;
 }
 .governance-actions {

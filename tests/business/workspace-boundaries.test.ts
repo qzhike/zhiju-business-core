@@ -57,6 +57,10 @@ describe('UI-SHELL-004 experience boundaries', () => {
   });
   describe.each([
     { application: 'workspace-web', dependency: 'react', version: '19.3.0' },
+    { application: 'workspace-web', dependency: '@radix-ui/react-slot', version: '1.5.0' },
+    { application: 'workspace-web', dependency: 'class-variance-authority', version: '0.7.1' },
+    { application: 'workspace-web', dependency: 'clsx', version: '2.1.1' },
+    { application: 'workspace-web', dependency: 'tailwind-merge', version: '3.7.0' },
     { application: 'workspace-bff', dependency: 'fastify', version: '5.12.0' },
   ])('$application manifest targets', ({ application, dependency, version }) => {
     const manifest = resolve(`apps/${application}/package.json`);

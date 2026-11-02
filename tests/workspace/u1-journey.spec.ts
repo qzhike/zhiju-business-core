@@ -75,7 +75,8 @@ test('continuous journey keeps one project, explicit versions and return paths',
   await expect(card).toContainText('资料 1 批');
   await card.getByRole('link', { name: '进入当前工作' }).click();
   await expect(page).toHaveURL(`${base}/work`);
-  await expect(page.getByRole('heading', { level: 1, name: '当前工作' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
+  await expect(page.locator('.journey-nav a[aria-current="page"]')).toHaveText('当前工作');
   await rehearsalLink(page, '项目概览（阅读）');
   await expect(page).toHaveURL(overview);
   await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
@@ -321,6 +322,7 @@ test('scope confirmation, in-scope revision and expanded scope behave distinctly
   await expect(page.getByRole('button', { name: '进入质量手册审阅（演示）' })).toBeDisabled();
   await confirmPlan(page);
   await expect(page.locator('.plan-receipt')).toContainText('回执与计划、报告版本和输入依据匹配');
+  await expect(page.locator('.plan-receipt')).toBeFocused();
   await expect(page.locator('.plan-receipt')).toContainText('U1-PLAN-01');
   await expect(page.locator('.plan-receipt')).toContainText('F-MANUAL');
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeEnabled();
@@ -396,6 +398,7 @@ test('PENDING confirmation keeps one request and offers only the same query', as
   );
   await confirmPlan(page);
   await expect(page.getByRole('status').filter({ hasText: '确认请求待回执' })).toBeVisible();
+  await expect(page.getByRole('region', { name: '范围确认与后续操作' })).toBeFocused();
   await expect(page.getByRole('button', { name: '查询同一确认请求' })).toBeVisible();
   await expect(page.getByRole('button', { name: '确认这份修改范围' })).toBeDisabled();
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
@@ -410,6 +413,7 @@ test('FAILED confirmation preserves the plan and allows one explicit retry', asy
   await confirmPlan(page);
   await expect(page.getByRole('alert')).toContainText('确认失败');
   await expect(page.getByRole('button', { name: '重新确认这份计划' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '重新确认这份计划' })).toBeFocused();
   await expect(page.getByRole('button', { name: '进入模拟生成（演示）' })).toBeDisabled();
 });
 

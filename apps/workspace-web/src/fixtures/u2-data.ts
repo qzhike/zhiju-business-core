@@ -1063,12 +1063,15 @@ function buildDocument(
   return { documentId: `${revisionId}-document`, title, units };
 }
 
-function revision(revisionId: string): ReviewContent['revisionRef'] {
+function revision(
+  revisionId: string,
+  scope: ReviewContent['revisionRef']['scope'],
+): ReviewContent['revisionRef'] {
   return {
     kind: 'CONTENT_ADDRESSED',
     objectType: 'artifact.artifact_revision',
     objectId: revisionId,
-    scope: { enterpriseId: 'U1-ENTERPRISE', projectId: 'MVP-U1-PROJECT' },
+    scope,
     contentHash: hash(revisionId),
   };
 }
@@ -1077,8 +1080,9 @@ function content(
   revisionId: string,
   title: string,
   sections: readonly SectionSpec[],
+  scope: ReviewContent['revisionRef']['scope'],
 ): ReviewContent {
-  const ref = revision(revisionId);
+  const ref = revision(revisionId, scope);
   return {
     revisionRef: ref,
     canonicalContentHash: ref.contentHash,
@@ -1215,6 +1219,10 @@ export function u2CandidateComparison(
   fileId: string,
   fromVersionId: string | null,
   toVersionId: string,
+  scope: ReviewContent['revisionRef']['scope'] = {
+    enterpriseId: 'U1-ENTERPRISE',
+    projectId: 'MVP-U1-PROJECT',
+  },
 ): MarkdownReviewData | undefined {
   const meta = u2FileMetas[fileId];
   const toSeed = candidateSeeds[fileId]?.[toVersionId];
@@ -1229,8 +1237,8 @@ export function u2CandidateComparison(
   const beforeId = fromVersionId
     ? (revisionIds[fileId]?.[fromVersionId] ?? `${fileId}-${fromVersionId}`)
     : `${afterId}B`;
-  const before = content(beforeId, `${meta.title} · 比较基线`, beforeSections);
-  const after = content(afterId, `${meta.title} · ${toSeed.versionLabel}`, afterSections);
+  const before = content(beforeId, `${meta.title} · 比较基线`, beforeSections, scope);
+  const after = content(afterId, `${meta.title} · ${toSeed.versionLabel}`, afterSections, scope);
   const { changes, groups } = changesFor(
     before,
     after,
@@ -1259,10 +1267,19 @@ export function u2CandidateComparison(
 }
 
 /** Exact public-safe candidate for one planned file and version. */
-export function u2Candidate(fileId: string, versionId: string): MarkdownReviewData | undefined {
+export function u2Candidate(
+  fileId: string,
+  versionId: string,
+  scope?: ReviewContent['revisionRef']['scope'],
+): MarkdownReviewData | undefined {
   const versions = [...u2VersionsFor(fileId)].sort();
   const index = versions.indexOf(versionId);
-  return u2CandidateComparison(fileId, index > 0 ? (versions[index - 1] ?? null) : null, versionId);
+  return u2CandidateComparison(
+    fileId,
+    index > 0 ? (versions[index - 1] ?? null) : null,
+    versionId,
+    scope,
+  );
 }
 
 /** Exact bytes of the shared Markdown representation used by rehearsal ZIP members. */

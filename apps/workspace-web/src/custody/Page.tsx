@@ -1,3 +1,17 @@
+import { Alert } from '../components/ui/alert.js';
+import { Card } from '../components/ui/card.js';
+import { Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { Input } from '../components/ui/input.js';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '../components/ui/table.js';
+import { Textarea } from '../components/ui/textarea.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -148,42 +162,48 @@ function IntentPanel({
   }, [intent.requestId]);
   if (!compatible) {
     return (
-      <section className="panel error" role="alert">
-        <h2>原请求属于其他实例或身份</h2>
-        <p>本页已清除该恢复标记，不会把它提交到当前身份。</p>
-        <button
-          onClick={() => {
-            onResolved(intent.requestId);
-          }}
-        >
-          清除标记
-        </button>
-      </section>
+      <Card asChild>
+        <Alert asChild variant="warning">
+          <section className="panel error" role="alert">
+            <h2>原请求属于其他实例或身份</h2>
+            <p>本页已清除该恢复标记，不会把它提交到当前身份。</p>
+            <Button
+              onClick={() => {
+                onResolved(intent.requestId);
+              }}
+            >
+              清除标记
+            </Button>
+          </section>
+        </Alert>
+      </Card>
     );
   }
   return (
-    <section className="panel warning" aria-live="polite">
-      <h2>存在未确认的原请求</h2>
-      <p>
-        {intent.operation} · {intent.requestId}
-      </p>
-      <p className="muted">
-        刷新或响应丢失不会自动换用新键；先核对原请求，再决定是否用同一键重试。
-      </p>
-      <button onClick={() => void check()} disabled={state === 'CHECKING'}>
-        核对原请求
-      </button>
-      {state === 'FOUND' && (
-        <button
-          onClick={() => {
-            onResolved(intent.requestId);
-          }}
-        >
-          收起
-        </button>
-      )}
-      {message.length > 0 && <p>{message}</p>}
-    </section>
+    <Card asChild>
+      <section className="panel warning" aria-live="polite">
+        <h2>存在未确认的原请求</h2>
+        <p>
+          {intent.operation} · {intent.requestId}
+        </p>
+        <p className="muted">
+          刷新或响应丢失不会自动换用新键；先核对原请求，再决定是否用同一键重试。
+        </p>
+        <Button onClick={() => void check()} disabled={state === 'CHECKING'}>
+          核对原请求
+        </Button>
+        {state === 'FOUND' && (
+          <Button
+            onClick={() => {
+              onResolved(intent.requestId);
+            }}
+          >
+            收起
+          </Button>
+        )}
+        {message.length > 0 && <p>{message}</p>}
+      </section>
+    </Card>
   );
 }
 
@@ -306,11 +326,17 @@ export function CustodyProjectsPage({ csrfToken, onSessionFailure }: CustodyPage
           </dl>
         )}
       </header>
-      {sessionError !== null && <p className="error">{sessionError}</p>}
+      {sessionError !== null && (
+        <Alert asChild variant="warning">
+          <p className="error">{sessionError}</p>
+        </Alert>
+      )}
       {error !== null && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        <Alert asChild variant="warning">
+          <p className="error" role="alert">
+            {error}
+          </p>
+        </Alert>
       )}
       {intent !== null && session !== null && (
         <IntentPanel
@@ -324,72 +350,72 @@ export function CustodyProjectsPage({ csrfToken, onSessionFailure }: CustodyPage
         />
       )}
       <div className="custody-grid">
-        <section className="panel" aria-labelledby="create-project-title">
-          <h2 id="create-project-title">创建项目</h2>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit();
-            }}
-          >
-            <label>
-              客户名称
-              <input
-                value={customerName}
-                onChange={(event) => {
-                  setCustomerName(event.target.value);
-                }}
-                maxLength={256}
-                required
-              />
-            </label>
-            <label>
-              项目标题
-              <input
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                }}
-                maxLength={256}
-                required
-              />
-            </label>
-            <button
-              className="button primary"
-              type="submit"
-              disabled={submitting || session === null}
+        <Card asChild>
+          <section className="panel" aria-labelledby="create-project-title">
+            <h2 id="create-project-title">创建项目</h2>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submit();
+              }}
             >
-              {submitting ? '正在创建…' : '创建项目'}
-            </button>
-            <p className="muted">不需要旧模板、预设或七模块前置条件。</p>
-          </form>
-        </section>
-        <section className="panel" aria-labelledby="projects-title">
-          <h2 id="projects-title">我的项目</h2>
-          {loading && projects.length === 0 ? (
-            <p role="status">正在读取项目…</p>
-          ) : projects.length === 0 ? (
-            <p className="muted">尚无项目。</p>
-          ) : (
-            <ul className="custody-projects">
-              {projects.map((project) => (
-                <li key={project.projectId}>
-                  <Link to={`/custody/projects/${project.projectId}`}>
-                    <strong>{project.title}</strong>
-                  </Link>
-                  <span className="muted">
-                    {project.customerName} · 版本 {project.version}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {nextCursor !== undefined && (
-            <button onClick={() => void load(nextCursor)} disabled={loading}>
-              加载更多
-            </button>
-          )}
-        </section>
+              <Label>
+                客户名称
+                <Input
+                  value={customerName}
+                  onChange={(event) => {
+                    setCustomerName(event.target.value);
+                  }}
+                  maxLength={256}
+                  required
+                />
+              </Label>
+              <Label>
+                项目标题
+                <Input
+                  value={title}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                  }}
+                  maxLength={256}
+                  required
+                />
+              </Label>
+              <Button variant="default" type="submit" disabled={submitting || session === null}>
+                {submitting ? '正在创建…' : '创建项目'}
+              </Button>
+              <p className="muted">不需要旧模板、预设或七模块前置条件。</p>
+            </form>
+          </section>
+        </Card>
+        <Card asChild>
+          <section className="panel" aria-labelledby="projects-title">
+            <h2 id="projects-title">我的项目</h2>
+            {loading && projects.length === 0 ? (
+              <p role="status">正在读取项目…</p>
+            ) : projects.length === 0 ? (
+              <p className="muted">尚无项目。</p>
+            ) : (
+              <ul className="custody-projects">
+                {projects.map((project) => (
+                  <li key={project.projectId}>
+                    <Link to={`/custody/projects/${project.projectId}`}>
+                      <strong>{project.title}</strong>
+                    </Link>
+                    <span className="muted">
+                      {project.customerName} · 版本 {project.version}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {nextCursor !== undefined && (
+              <Button onClick={() => void load(nextCursor)} disabled={loading}>
+                加载更多
+              </Button>
+            )}
+          </section>
+        </Card>
       </div>
     </section>
   );
@@ -407,32 +433,34 @@ function EntryRows({
   readonly onDownload: (path: string, name: string) => void;
 }) {
   return (
-    <table className="custody-entries">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>路径</th>
-          <th>状态</th>
-          <th>大小</th>
-          <th>说明</th>
-          <th>来源</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="custody-entries">
+      <TableHeader>
+        <TableRow>
+          <TableHead>#</TableHead>
+          <TableHead>路径</TableHead>
+          <TableHead>状态</TableHead>
+          <TableHead>大小</TableHead>
+          <TableHead>说明</TableHead>
+          <TableHead>来源</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {entries.map((entry) => (
-          <tr key={entry.entryId}>
-            <td>{entry.ordinal}</td>
-            <td>
+          <TableRow key={entry.entryId}>
+            <TableCell>{entry.ordinal}</TableCell>
+            <TableCell>
               <span title={entry.normalizedPath}>{entry.normalizedPath}</span>
-            </td>
-            <td>{entry.status}</td>
-            <td>{entry.byteLength === undefined ? '—' : bytes(entry.byteLength)}</td>
-            <td>{entry.reasonCodes.length === 0 ? '—' : entry.reasonCodes.join('、')}</td>
-            <td>
+            </TableCell>
+            <TableCell>{entry.status}</TableCell>
+            <TableCell>{entry.byteLength === undefined ? '—' : bytes(entry.byteLength)}</TableCell>
+            <TableCell>
+              {entry.reasonCodes.length === 0 ? '—' : entry.reasonCodes.join('、')}
+            </TableCell>
+            <TableCell>
               {entry.sourceId === undefined ? (
                 '无可用来源'
               ) : (
-                <button
+                <Button
                   className="link"
                   onClick={() => {
                     onDownload(
@@ -442,13 +470,13 @@ function EntryRows({
                   }}
                 >
                   下载
-                </button>
+                </Button>
               )}
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
@@ -747,23 +775,35 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
             </p>
           )}
         </div>
-        <div className="panel analysis-note">
-          <strong>分析未接入</strong>
-          <span>资料已接收只证明托管，不表示文件已读懂或已分析。</span>
-        </div>
+        <Card asChild>
+          <div className="panel analysis-note">
+            <strong>分析未接入</strong>
+            <span>资料已接收只证明托管，不表示文件已读懂或已分析。</span>
+          </div>
+        </Card>
       </header>
-      {sessionError !== null && <p className="error">{sessionError}</p>}
+      {sessionError !== null && (
+        <Alert asChild variant="warning">
+          <p className="error">{sessionError}</p>
+        </Alert>
+      )}
       {busy.length > 0 && (
         <p role="status" className="muted">
           {busy}
         </p>
       )}
       {error !== null && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        <Alert asChild variant="warning">
+          <p className="error" role="alert">
+            {error}
+          </p>
+        </Alert>
       )}
-      {notice !== null && <p className="notice">{notice}</p>}
+      {notice !== null && (
+        <Alert asChild variant="warning">
+          <p className="notice">{notice}</p>
+        </Alert>
+      )}
       {intent !== null && session !== null && (
         <IntentPanel
           intent={intent}
@@ -776,192 +816,200 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
         />
       )}
       <div className="custody-grid">
-        <section className="panel" aria-labelledby="new-batch-title">
-          <h2 id="new-batch-title">新增资料批次</h2>
-          <p className="muted">
-            首选 ZIP 可包含 DOCX、Markdown 与 XLSX。补充批次追加在旧清单旁，不覆盖此前批次。
-          </p>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitBatch();
-            }}
-          >
-            <label>
-              选择 ZIP
-              <input
-                type="file"
-                accept=".zip,application/zip"
-                onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            {file !== null && (
-              <p className="muted">
-                {file.name} · {bytes(file.size)}
-                {fileDigest === null ? '' : ` · SHA-256 ${fileDigest.slice(0, 16)}…`}
-              </p>
-            )}
-            <label>
-              说明（可选）
-              <textarea
-                value={note}
-                onChange={(event) => {
-                  setNote(event.target.value);
-                }}
-                maxLength={4096}
-                rows={3}
-              />
-            </label>
-            <button
-              className="button primary"
-              type="submit"
-              disabled={file === null || fileDigest === null || project === null || busy.length > 0}
+        <Card asChild>
+          <section className="panel" aria-labelledby="new-batch-title">
+            <h2 id="new-batch-title">新增资料批次</h2>
+            <p className="muted">
+              首选 ZIP 可包含 DOCX、Markdown 与 XLSX。补充批次追加在旧清单旁，不覆盖此前批次。
+            </p>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitBatch();
+              }}
             >
-              登记并上传
-            </button>
-          </form>
-        </section>
-        <section className="panel" aria-labelledby="batches-title">
-          <h2 id="batches-title">批次</h2>
-          {batches.length === 0 ? (
-            <p className="muted">尚无批次。</p>
-          ) : (
-            <ul className="custody-batches">
-              {batches.map((batch) => (
-                <li
-                  key={batch.batchId}
-                  className={selected?.batch.batchId === batch.batchId ? 'active' : ''}
-                >
-                  <button className="link" onClick={() => void refreshDetail(batch.batchId)}>
-                    第 {batch.batchNo} 批 · {batch.originalName}
-                  </button>
-                  <span className="muted">
-                    {statusLabel(batch.status)} · {bytes(batch.declaredBytes)} · v{batch.version}
-                  </span>
-                  {batch.reasonCodes.length > 0 && (
-                    <span className="error small">{batch.reasonCodes.join('、')}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-      {selected !== null && (
-        <section className="panel" aria-labelledby="batch-detail-title">
-          <h2 id="batch-detail-title">
-            批次 {selected.batch.batchNo} · {statusLabel(selected.batch.status)}
-          </h2>
-          <dl className="custody-facts">
-            <dt>原请求</dt>
-            <dd>{selected.batch.originalRequestId ?? '—'}</dd>
-            <dt>原始包</dt>
-            <dd>
-              {selected.batch.originalName} · {bytes(selected.batch.declaredBytes)}
-            </dd>
-            <dt>SHA-256</dt>
-            <dd className="mono">{selected.batch.zipSha256}</dd>
-            <dt>当前尝试</dt>
-            <dd>
-              {selected.batch.currentAttempt === undefined
-                ? '无'
-                : `${selected.batch.currentAttempt.kind} #${selected.batch.currentAttempt.number} · generation ${selected.batch.currentAttempt.generation} · ${selected.batch.currentAttempt.status}`}
-            </dd>
-            {selected.batch.note !== undefined && (
-              <>
-                <dt>说明</dt>
-                <dd>{selected.batch.note}</dd>
-              </>
-            )}
-          </dl>
-          {manifest !== null && (
-            <>
-              <p>
-                已封存清单：共 {manifest.totalEntries} 项，可分析来源 {manifest.acceptedEntries}{' '}
-                项， 受限/不支持 {manifest.limitedEntries} 项。
-              </p>
-              {manifest.acceptedEntries === 0 && (
-                <p className="warning">该安全包没有任何可分析来源；不能显示为可分析资料。</p>
-              )}
-              <p className="mono small">{manifest.manifestHash}</p>
-              <button
-                className="link"
-                onClick={() =>
-                  void download(
-                    `/bff/mvp/v1/projects/${projectId}/batches/${selected.batch.batchId}/sources/${manifest.originalZip.sourceId}/content`,
-                    'original.zip',
-                  )
-                }
-              >
-                下载原包
-              </button>
-            </>
-          )}
-          {selected.permittedActions.length > 0 && (
-            <div className="custody-actions">
-              <h3>允许的恢复动作</h3>
-              <p className="muted">
-                动作来自服务器当前状态，提交时会重新校验原尝试与写者是否已结束。
-              </p>
-              {selected.permittedActions.map((action) => (
-                <button
-                  key={action}
-                  className={action === 'ABANDON' ? 'button danger' : 'button'}
-                  onClick={() => void runRecovery(selected.batch, action)}
-                  disabled={busy.length > 0}
-                >
-                  {actionLabel(action)}
-                </button>
-              ))}
-            </div>
-          )}
-          <h3>尝试历史</h3>
-          <ol className="custody-attempts">
-            {selected.attempts.map((attempt) => (
-              <li key={attempt.attemptId}>
-                {attempt.kind} #{attempt.number} · generation {attempt.generation} ·{' '}
-                {attempt.status}
-                {attempt.endedAt === undefined ? '' : ` · 结束于 ${attempt.endedAt}`}
-              </li>
-            ))}
-          </ol>
-          {entriesPage !== null && (
-            <>
-              <h3>条目清单</h3>
-              {limited.length > 0 && (
+              <Label>
+                选择 ZIP
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
+                />
+              </Label>
+              {file !== null && (
                 <p className="muted">
-                  受限/不支持条目仍保留在清单中，原因：{' '}
-                  {[...new Set(limited.flatMap((entry) => entry.reasonCodes))].join('、')}
+                  {file.name} · {bytes(file.size)}
+                  {fileDigest === null ? '' : ` · SHA-256 ${fileDigest.slice(0, 16)}…`}
                 </p>
               )}
-              <EntryRows
-                projectId={projectId}
-                batchId={selected.batch.batchId}
-                entries={entriesPage.entries}
-                onDownload={(path, name) => void download(path, name)}
-              />
-              {entriesPage.next !== undefined && (
-                <button
+              <Label>
+                说明（可选）
+                <Textarea
+                  value={note}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                  }}
+                  maxLength={4096}
+                  rows={3}
+                />
+              </Label>
+              <Button
+                variant="default"
+                type="submit"
+                disabled={
+                  file === null || fileDigest === null || project === null || busy.length > 0
+                }
+              >
+                登记并上传
+              </Button>
+            </form>
+          </section>
+        </Card>
+        <Card asChild>
+          <section className="panel" aria-labelledby="batches-title">
+            <h2 id="batches-title">批次</h2>
+            {batches.length === 0 ? (
+              <p className="muted">尚无批次。</p>
+            ) : (
+              <ul className="custody-batches">
+                {batches.map((batch) => (
+                  <li
+                    key={batch.batchId}
+                    className={selected?.batch.batchId === batch.batchId ? 'active' : ''}
+                  >
+                    <Button className="link" onClick={() => void refreshDetail(batch.batchId)}>
+                      第 {batch.batchNo} 批 · {batch.originalName}
+                    </Button>
+                    <span className="muted">
+                      {statusLabel(batch.status)} · {bytes(batch.declaredBytes)} · v{batch.version}
+                    </span>
+                    {batch.reasonCodes.length > 0 && (
+                      <span className="error small">{batch.reasonCodes.join('、')}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </Card>
+      </div>
+      {selected !== null && (
+        <Card asChild>
+          <section className="panel" aria-labelledby="batch-detail-title">
+            <h2 id="batch-detail-title">
+              批次 {selected.batch.batchNo} · {statusLabel(selected.batch.status)}
+            </h2>
+            <dl className="custody-facts">
+              <dt>原请求</dt>
+              <dd>{selected.batch.originalRequestId ?? '—'}</dd>
+              <dt>原始包</dt>
+              <dd>
+                {selected.batch.originalName} · {bytes(selected.batch.declaredBytes)}
+              </dd>
+              <dt>SHA-256</dt>
+              <dd className="mono">{selected.batch.zipSha256}</dd>
+              <dt>当前尝试</dt>
+              <dd>
+                {selected.batch.currentAttempt === undefined
+                  ? '无'
+                  : `${selected.batch.currentAttempt.kind} #${selected.batch.currentAttempt.number} · generation ${selected.batch.currentAttempt.generation} · ${selected.batch.currentAttempt.status}`}
+              </dd>
+              {selected.batch.note !== undefined && (
+                <>
+                  <dt>说明</dt>
+                  <dd>{selected.batch.note}</dd>
+                </>
+              )}
+            </dl>
+            {manifest !== null && (
+              <>
+                <p>
+                  已封存清单：共 {manifest.totalEntries} 项，可分析来源 {manifest.acceptedEntries}{' '}
+                  项， 受限/不支持 {manifest.limitedEntries} 项。
+                </p>
+                {manifest.acceptedEntries === 0 && (
+                  <p className="warning">该安全包没有任何可分析来源；不能显示为可分析资料。</p>
+                )}
+                <p className="mono small">{manifest.manifestHash}</p>
+                <Button
+                  className="link"
                   onClick={() =>
-                    void getEntries(
-                      projectId,
-                      selected.batch.batchId,
-                      entriesPage.manifest.manifestId,
-                      entriesPage.next,
-                    ).then((page) => {
-                      setEntriesPage({
-                        ...page,
-                        entries: [...entriesPage.entries, ...page.entries],
-                      });
-                    })
+                    void download(
+                      `/bff/mvp/v1/projects/${projectId}/batches/${selected.batch.batchId}/sources/${manifest.originalZip.sourceId}/content`,
+                      'original.zip',
+                    )
                   }
                 >
-                  加载更多条目
-                </button>
-              )}
-            </>
-          )}
-        </section>
+                  下载原包
+                </Button>
+              </>
+            )}
+            {selected.permittedActions.length > 0 && (
+              <div className="custody-actions">
+                <h3>允许的恢复动作</h3>
+                <p className="muted">
+                  动作来自服务器当前状态，提交时会重新校验原尝试与写者是否已结束。
+                </p>
+                {selected.permittedActions.map((action) => (
+                  <Button
+                    key={action}
+                    className={action === 'ABANDON' ? 'button danger' : 'button'}
+                    onClick={() => void runRecovery(selected.batch, action)}
+                    disabled={busy.length > 0}
+                  >
+                    {actionLabel(action)}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <h3>尝试历史</h3>
+            <ol className="custody-attempts">
+              {selected.attempts.map((attempt) => (
+                <li key={attempt.attemptId}>
+                  {attempt.kind} #{attempt.number} · generation {attempt.generation} ·{' '}
+                  {attempt.status}
+                  {attempt.endedAt === undefined ? '' : ` · 结束于 ${attempt.endedAt}`}
+                </li>
+              ))}
+            </ol>
+            {entriesPage !== null && (
+              <>
+                <h3>条目清单</h3>
+                {limited.length > 0 && (
+                  <p className="muted">
+                    受限/不支持条目仍保留在清单中，原因：{' '}
+                    {[...new Set(limited.flatMap((entry) => entry.reasonCodes))].join('、')}
+                  </p>
+                )}
+                <EntryRows
+                  projectId={projectId}
+                  batchId={selected.batch.batchId}
+                  entries={entriesPage.entries}
+                  onDownload={(path, name) => void download(path, name)}
+                />
+                {entriesPage.next !== undefined && (
+                  <Button
+                    onClick={() =>
+                      void getEntries(
+                        projectId,
+                        selected.batch.batchId,
+                        entriesPage.manifest.manifestId,
+                        entriesPage.next,
+                      ).then((page) => {
+                        setEntriesPage({
+                          ...page,
+                          entries: [...entriesPage.entries, ...page.entries],
+                        });
+                      })
+                    }
+                  >
+                    加载更多条目
+                  </Button>
+                )}
+              </>
+            )}
+          </section>
+        </Card>
       )}
     </section>
   );

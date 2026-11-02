@@ -1,3 +1,6 @@
+import { Card } from '../components/ui/card.js';
+import { Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import type { TrustedProps } from '../workbench/TrustedWorkbench.js';
@@ -454,22 +457,24 @@ export function LivePreparationRequest(props: Props) {
   }
   if (!request || !payload || !customer)
     return (
-      <section className="panel">
-        <h1 tabIndex={-1}>核验原准备请求</h1>
-        <p role="status">{notice}</p>
-        {intake && currentPayload && (
-          <section aria-label="已授权资料回执">
-            <h2>原资料托管状态</h2>
-            <p>
-              {String(currentPayload.originalName)} · {String(custody?.status)}
-            </p>
-            {typeof intake.submittedNote === 'string' && <pre>{intake.submittedNote}</pre>}
-            <p>分析交接：{String(analysis?.status)}</p>
-            <p>准备请求当前不可核验；已授权读取的原资料保留，不执行后续写入。</p>
-          </section>
-        )}
-        <button onClick={refresh}>读取原请求状态</button>
-      </section>
+      <Card asChild>
+        <section className="panel">
+          <h1 tabIndex={-1}>核验原准备请求</h1>
+          <p role="status">{notice}</p>
+          {intake && currentPayload && (
+            <section aria-label="已授权资料回执">
+              <h2>原资料托管状态</h2>
+              <p>
+                {String(currentPayload.originalName)} · {String(custody?.status)}
+              </p>
+              {typeof intake.submittedNote === 'string' && <pre>{intake.submittedNote}</pre>}
+              <p>分析交接：{String(analysis?.status)}</p>
+              <p>准备请求当前不可核验；已授权读取的原资料保留，不执行后续写入。</p>
+            </section>
+          )}
+          <Button onClick={refresh}>读取原请求状态</Button>
+        </section>
+      </Card>
     );
   const project = {
     id: projectId,
@@ -500,95 +505,97 @@ export function LivePreparationRequest(props: Props) {
       controls={
         <>
           {notice && <p role="status">{notice}</p>}
-          <section className="panel">
-            <h2>原请求与接纳回执</h2>
-            <p>
-              请求 {requestId} · {String(request.disposition)} · 权限{' '}
-              {String(record(request.access).status)}
-            </p>
-            <ol>
-              {Object.entries(record(request.steps)).map(([step, value]) => (
-                <li key={step}>
-                  {step} · {String(record(value).status)}
-                </li>
-              ))}
-            </ol>
-            {analysis?.status === 'WAITING_CAPABILITY' && (
-              <p role="status">资料已接收，分析能力暂不可用。</p>
-            )}
-            {analysis?.status === 'UNKNOWN' && (
-              <p role="status">资料接纳结果已保留，分析交接状态待核验。</p>
-            )}
-            {analysis?.status === 'ACCEPTED' && (
-              <p role="status">分析请求已接收，尚无真实执行回执。</p>
-            )}
-            {request.permittedActions instanceof Array &&
-              request.permittedActions.includes('CONTINUE_ORIGINAL') && (
-                <button
-                  disabled={pending}
-                  onClick={() => {
-                    if (pending || !original) return;
-                    setPending(true);
-                    void postPreparationCommand(
-                      original,
-                      props.csrfToken,
-                      lifetime.abort.current.signal,
-                    )
-                      .catch((error: unknown) => {
-                        if (lifetime.current()) failedRead(error);
-                      })
-                      .finally(() => {
-                        if (lifetime.current()) {
-                          setPending(false);
-                          refresh();
-                        }
-                      });
-                  }}
-                >
-                  继续原准备请求
-                </button>
+          <Card asChild>
+            <section className="panel">
+              <h2>原请求与接纳回执</h2>
+              <p>
+                请求 {requestId} · {String(request.disposition)} · 权限{' '}
+                {String(record(request.access).status)}
+              </p>
+              <ol>
+                {Object.entries(record(request.steps)).map(([step, value]) => (
+                  <li key={step}>
+                    {step} · {String(record(value).status)}
+                  </li>
+                ))}
+              </ol>
+              {analysis?.status === 'WAITING_CAPABILITY' && (
+                <p role="status">资料已接收，分析能力暂不可用。</p>
               )}
-            {Array.isArray(custody?.entries) && (
-              <ul aria-label="资料接纳明细">
-                {custody.entries.map((raw, index) => {
-                  const item = record(raw);
-                  return (
-                    <li key={index}>
-                      {typeof item.originalName === 'string' ? item.originalName : '资料项'} ·{' '}
-                      {String(item.status)}
-                      {Array.isArray(item.reasonCodes) ? ` · ${item.reasonCodes.join('、')}` : ''}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {restartAllowed && (
-              <label>
-                {record(intake.uploadState).state === 'ISSUED'
-                  ? '继续原上传（必须为原文件，票据不续期）'
-                  : '重新上传这份 ZIP（仅一次、必须为原文件）'}
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  disabled={pending}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = '';
-                    if (file) void restart(file);
-                  }}
-                />
-              </label>
-            )}
-            {!restartAllowed &&
-              intake &&
-              record(intake.uploadState).restartsUsed === 1 &&
-              ['CLOSED_NO_OBJECT', 'UNKNOWN'].includes(
-                String(record(intake.uploadState).state),
-              ) && <p>重传额度已用尽或状态不确定，请联系受权运维核对原 intake。</p>}
-            <button disabled={pending} onClick={refresh}>
-              读取原请求与 intake 状态
-            </button>
-          </section>
+              {analysis?.status === 'UNKNOWN' && (
+                <p role="status">资料接纳结果已保留，分析交接状态待核验。</p>
+              )}
+              {analysis?.status === 'ACCEPTED' && (
+                <p role="status">分析请求已接收，尚无真实执行回执。</p>
+              )}
+              {request.permittedActions instanceof Array &&
+                request.permittedActions.includes('CONTINUE_ORIGINAL') && (
+                  <Button
+                    disabled={pending}
+                    onClick={() => {
+                      if (pending || !original) return;
+                      setPending(true);
+                      void postPreparationCommand(
+                        original,
+                        props.csrfToken,
+                        lifetime.abort.current.signal,
+                      )
+                        .catch((error: unknown) => {
+                          if (lifetime.current()) failedRead(error);
+                        })
+                        .finally(() => {
+                          if (lifetime.current()) {
+                            setPending(false);
+                            refresh();
+                          }
+                        });
+                    }}
+                  >
+                    继续原准备请求
+                  </Button>
+                )}
+              {Array.isArray(custody?.entries) && (
+                <ul aria-label="资料接纳明细">
+                  {custody.entries.map((raw, index) => {
+                    const item = record(raw);
+                    return (
+                      <li key={index}>
+                        {typeof item.originalName === 'string' ? item.originalName : '资料项'} ·{' '}
+                        {String(item.status)}
+                        {Array.isArray(item.reasonCodes) ? ` · ${item.reasonCodes.join('、')}` : ''}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {restartAllowed && (
+                <Label>
+                  {record(intake.uploadState).state === 'ISSUED'
+                    ? '继续原上传（必须为原文件，票据不续期）'
+                    : '重新上传这份 ZIP（仅一次、必须为原文件）'}
+                  <input
+                    type="file"
+                    accept=".zip,application/zip"
+                    disabled={pending}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) void restart(file);
+                    }}
+                  />
+                </Label>
+              )}
+              {!restartAllowed &&
+                intake &&
+                record(intake.uploadState).restartsUsed === 1 &&
+                ['CLOSED_NO_OBJECT', 'UNKNOWN'].includes(
+                  String(record(intake.uploadState).state),
+                ) && <p>重传额度已用尽或状态不确定，请联系受权运维核对原 intake。</p>}
+              <Button disabled={pending} onClick={refresh}>
+                读取原请求与 intake 状态
+              </Button>
+            </section>
+          </Card>
         </>
       }
     />

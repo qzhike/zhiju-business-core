@@ -64,7 +64,21 @@ React Router 要求 Node >=22.22.0、React/DOM >=19.2.7；jsdom 30 要求 Node ^
 
 ## 3. 组件、浏览器与验收方案（UI-DG-002 提案）
 
-保持现有原型的视觉方向与紧凑布局，抽取颜色、字体、间距、边框、焦点和状态 token；用 Tailwind 和小范围语义组件实现。普通按钮、表格、输入沿用原生元素；Dialog/AlertDialog 使用无样式 Radix 基础，补足可见标题、焦点恢复和确认中的状态，避免引入整套 ERP 组件框架。Radix 提供交互基础，不证明整个产品已可访问。
+保持现有原型的紧凑布局，抽取颜色、字体、间距、边框、焦点和状态 token。2026-10-31 用户批准迁移到 shadcn/ui，并进一步明确主色使用蓝色；组件选择按下方迁移增量执行。Radix 提供交互基础，不证明整个产品已可访问。
+
+### 3.1 shadcn/ui 迁移增量（2026-10-31）
+
+分类：`T2`。用户在当前会话确认迁移计划并授权开始本地实施，随后将主色由紫色修正为蓝色。此批准覆盖以下设计与分阶段实施，不表示自动化、独立审查、人工验收或 Git 交付已经完成。
+
+- 在现有 `apps/workspace-web` 内维护 shadcn/ui 的 Radix 组件源码；保留 React/Vite/Tailwind、Declarative Router、TanStack Query 以及现有业务模型。基础组件位于 `src/components/ui`，不新增共享组件包、表单状态框架或业务 Owner。
+- 统一蓝色主按钮、链接、选中态和焦点；成功、警告、错误保留各自语义颜色及文本。保留中文系统字体、紧凑密度、当前工作 50:50 布局与窄屏查看/反馈范围。2026-10-31 后续布局修正：左侧表格列表和右侧操作区均随内容增高并使用页面纵向滚动，四类分组按固定编号顺序；阅读器内部滚动边界保持。
+- 主题使用 shadcn 语义变量。2026-11-02 用户修正：页面底色统一为白色，保留蓝色主色及业务状态色。旧 `--muted` 的文字用途迁至 `--muted-foreground`，旧紫色引用迁至 `--primary`；旧全局控件规则不得覆盖基础组件，页面 CSS 只保留必要布局、阅读与业务状态样式。
+- 普通按钮、输入、文本框、标签、表格、卡片和状态提示采用统一基础组件；原生 select 使用 NativeSelect 保持值、空项、表单与键盘语义。原生 checkbox、details/summary、树形文件目录和安全 Markdown 的业务结构可以保留，不为统一外观改变事件或状态语义。
+- Dialog/AlertDialog 统一源码入口，保留受控开关、可见标题/描述、焦点恢复、取消、显式精确版本确认、提交锁与失败提示。关闭弹窗不代表提交成功，异步动作不因替换组件自动关闭或重发。
+- 沿用相对 `.js` 源码导入；手动接入并审阅官方组件源码，生成配置只描述应用内目录。新增依赖按实际用途精确锁定并加入 Experience 依赖允许列表，不使用浮动 latest、不放宽私有模块隔离。基础接入涉及依赖及工程检查，验证目标为 `full`。
+- 顺序为基础与工作台试点、当前工作/文件审阅、其余完整用户流程、旧控件样式清理。每个阶段保留可操作页面；最终同时覆盖开发模拟旅程与正式入口，生产构建继续剔除 fixture。迁移不修改业务 Contract、会话/授权、持久化、UNKNOWN 恢复或正式交付判据。
+
+验收由 [UI01 Test 的 UI-SHADCN 场景](../module-tests/Module-Test-UI01-WorkspaceUI.md#shadcnui-迁移验收2026-10-31)拥有。官方来源为 [shadcn/ui](https://ui.shadcn.com/docs)、[Radix 组件](https://ui.shadcn.com/docs/components/radix/button)与 [NativeSelect](https://ui.shadcn.com/docs/components/radix/native-select)；上游更新必须审阅本地定制，不能直接覆盖业务行为。
 
 | 支持/检查项 | 首版口径 |
 |---|---|

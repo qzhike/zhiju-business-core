@@ -1,3 +1,7 @@
+import { useProjectPaths, projectPaths } from './project-session.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button } from '../components/ui/button.js';
 import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U3_ADAPTER_ONLY: isolated rework/recovery/delivery adapter. It
 // consumes the U1/U2 project context, never reads customer files or calls
@@ -58,7 +62,6 @@ import {
 import { MvpActivityContext } from './activity.js';
 import { MvpHandoffContext, type MvpHandoff } from './handoff.js';
 import { FixtureDelivery } from './delivery.js';
-import { u1Project } from './u1-data.js';
 import { u2Candidate, u2VersionLabel, u2VersionsFor } from './u2-data.js';
 import {
   emptySession,
@@ -77,15 +80,6 @@ import {
   u3ExecutionFixedInputs,
   u3ExecutionSeedFiles,
 } from './u3-data.js';
-
-const projectId = u1Project.id;
-const manualPath = `/projects/${projectId}/stages/manual`;
-const proceduresPath = `/projects/${projectId}/stages/procedures`;
-const rulesPath = `/projects/${projectId}/stages/rules`;
-const reworkPath = `/projects/${projectId}/rework`;
-const recoveryPath = `/projects/${projectId}/recovery`;
-const deliveryPath = `/projects/${projectId}/delivery`;
-const scopePath = `/projects/${projectId}/startup/U1-REPORT-02`;
 
 function latestSet(plan: PlanView, stage: MvpStageId, session: StageSession) {
   return planStageFiles(plan, stage).flatMap((file) => {
@@ -145,7 +139,7 @@ interface ExecutionState {
   saveNote: string;
 }
 
-function initialExecution(planId: string, planVersion: number): ExecutionState {
+function initialExecution(projectId: string, planId: string, planVersion: number): ExecutionState {
   const attempt: ExecutionAttempt = {
     attemptId: 'U3-ATTEMPT-01',
     requestId: 'U3-ROUND-01',
@@ -292,7 +286,7 @@ function proposalFor(
       ];
     });
   return {
-    projectId,
+    projectId: plan.projectId,
     planId: plan.planId,
     planVersion: plan.version,
     ...(manual ? { manualFinalizationId: manual.finalizationId } : {}),
@@ -359,6 +353,16 @@ interface U3Api {
 const U3Context = createContext<U3Api | null>(null);
 
 export function FixtureU3Provider({ children }: { children: ReactNode }) {
+  const {
+    projectId,
+    manualPath,
+    proceduresPath,
+    rulesPath,
+    scopePath,
+    reworkPath,
+    recoveryPath,
+    deliveryPath,
+  } = useProjectPaths();
   const u1 = useU1();
   const u2 = useU2();
   const plan = u2.plan;
@@ -371,7 +375,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
   const procedure = u2.procedureFinalization;
   const rules = u2.rulesFinalization;
   const [execution, setExecution] = useState<ExecutionState>(() =>
-    initialExecution(plan.planId, plan.version),
+    initialExecution(projectId, plan.planId, plan.version),
   );
   const [delivery, setDelivery] = useState<DeliveryState>(() => initialDelivery());
   const [recoveryVisible, setRecoveryVisible] = useState(false);
@@ -723,9 +727,9 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       <MockControls>
         <details className="fixture-options" open>
           <summary>U3 执行恢复场景控制（演练）</summary>
-          <label>
+          <Label>
             重试回执场景
-            <select
+            <NativeSelect
               value={execution.retryScene}
               onChange={(event) => {
                 setExecution((current) => ({
@@ -739,11 +743,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
               <option value="unknown">UNKNOWN</option>
               <option value="failed">已知失败</option>
               <option value="mismatch">错尝试/错项目回执</option>
-            </select>
-          </label>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Label>
             意见保存回执
-            <select
+            <NativeSelect
               value={execution.draftScene}
               onChange={(event) => {
                 setExecution((current) => ({
@@ -755,16 +759,16 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
               <option value="SAVED">已保存到本页内存</option>
               <option value="FAILED">保存失败</option>
               <option value="UNKNOWN">保存结果待核验</option>
-            </select>
-          </label>
-          <button
+            </NativeSelect>
+          </Label>
+          <Button
             onClick={() => {
               applyDraftReceipt();
             }}
             disabled={!draftSaveUnresolved(execution.draft)}
           >
             模拟原意见保存回执到达/查询
-          </button>
+          </Button>
           <p className="muted">
             {execution.draft.requestLabel
               ? `原保存请求 ${execution.draft.requestLabel} · ${mvpDraftStateLabels[execution.draft.state]}`
@@ -973,9 +977,9 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
       <MockControls>
         <details className="fixture-options" open>
           <summary>U3 交付场景控制（演练）</summary>
-          <label>
+          <Label>
             确认回执场景
-            <select
+            <NativeSelect
               value={delivery.confirmScene}
               onChange={(event) => {
                 setDelivery((current) => ({
@@ -990,11 +994,11 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
               <option value="failed">失败</option>
               <option value="mismatch">错绑回执</option>
               <option value="changed">确认前版本/依据变化</option>
-            </select>
-          </label>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Label>
             打包回执场景
-            <select
+            <NativeSelect
               value={delivery.packagingScene}
               onChange={(event) => {
                 setDelivery((current) => ({
@@ -1007,23 +1011,23 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
               <option value="FAILED">打包失败</option>
               <option value="UNKNOWN">打包结果待核验</option>
               <option value="MISMATCH">错绑冻结清单</option>
-            </select>
-          </label>
-          <button
+            </NativeSelect>
+          </Label>
+          <Button
             onClick={() => {
               simulateRecordRevision();
             }}
           >
             模拟管理制度及记录表单后续改稿（第 3 版）
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               startNewRound();
             }}
             disabled={!delivery.frozen}
           >
             开始新一轮最终交付确认（保留历史包）
-          </button>
+          </Button>
           <p className="muted">{delivery.note}</p>
         </details>
       </MockControls>
@@ -1056,6 +1060,7 @@ export function FixtureU3Provider({ children }: { children: ReactNode }) {
     currentPackage?.availability === 'AVAILABLE' &&
     currentPackage.frozen.frozenKey === delivery.frozen?.frozenKey;
   const handoff = buildHandoff({
+    projectId,
     reviewStages: u2.reviewStages,
     analysisStarted: u1.analysisStarted,
     analysisReady: u1.analysisReady,
@@ -2059,6 +2064,7 @@ function makePackage(frozen: FrozenDelivery, index: number): DeliveryPackage {
 }
 
 function buildHandoff(input: {
+  projectId: string;
   reviewStages: readonly JourneyReviewStage[];
   analysisStarted: boolean;
   analysisReady: boolean;
@@ -2088,6 +2094,15 @@ function buildHandoff(input: {
   packagingStatus: PackagingStatus;
   packageAvailable: boolean;
 }): MvpHandoff {
+  const {
+    projectId,
+    manualPath,
+    proceduresPath,
+    rulesPath,
+    deliveryPath,
+    reworkPath,
+    recoveryPath,
+  } = projectPaths(input.projectId);
   const planReady = input.planCheck.ready;
   const manualDone = Boolean(input.manual);
   const procedureDone = Boolean(
@@ -2310,6 +2325,7 @@ export function useU3(): U3Api {
 }
 
 export function FixtureU3Rework() {
+  const { projectId } = useProjectPaths();
   const params = useParams();
   const u3 = useU3();
   if (params.projectId !== projectId) return <Missing />;
@@ -2317,6 +2333,7 @@ export function FixtureU3Rework() {
 }
 
 export function FixtureU3Recovery() {
+  const { projectId } = useProjectPaths();
   const params = useParams();
   const u3 = useU3();
   if (params.projectId !== projectId) return <Missing />;
@@ -2324,6 +2341,7 @@ export function FixtureU3Recovery() {
 }
 
 export function FixtureU3Delivery() {
+  const { projectId } = useProjectPaths();
   const params = useParams();
   const u3 = useU3();
   if (params.projectId !== projectId) return <Missing />;
@@ -2332,6 +2350,7 @@ export function FixtureU3Delivery() {
 
 /** Legacy synthetic delivery remains available for its own project only. */
 export function FixtureMvpDeliveryRoute() {
+  const { projectId } = useProjectPaths();
   const params = useParams();
   if (params.projectId === projectId) return <FixtureU3Delivery />;
   if (params.projectId === 'DEMO-PROJECT-01') return <FixtureDelivery />;

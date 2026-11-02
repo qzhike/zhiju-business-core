@@ -17,7 +17,11 @@
     "@radix-ui/react-dialog": "1.2.0",
     "@radix-ui/react-alert-dialog": "1.1.24",
     "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "@radix-ui/react-slot": "1.5.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

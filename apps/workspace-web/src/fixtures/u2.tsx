@@ -1,3 +1,8 @@
+import { useProjectPaths, useFixtureProject } from './project-session.js';
+import { Alert } from '../components/ui/alert.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button } from '../components/ui/button.js';
 import { MockControls } from './control-slot.js';
 // DEVELOPMENT_U2_ADAPTER_ONLY: isolated U2 review adapter. It consumes the U1
 // plan context, never reads customer files or calls Core/Runner, and keeps all
@@ -57,7 +62,6 @@ import {
   type StageFileAvailability,
 } from '../mvp/review-model.js';
 import type { JourneyReviewStage } from '../mvp/JourneyNav.js';
-import { u1Project } from './u1-data.js';
 import { useU1 } from './u1.js';
 import { useMvpActivity } from './activity.js';
 import { MvpHandoffContext, type MvpHandoff } from './handoff.js';
@@ -71,15 +75,6 @@ import {
 } from './u3-data.js';
 import type { ReworkBasisChange, ReworkImpact } from '../mvp/u3-model.js';
 import type { ReviewOpinionScopeOption } from '../review/model.js';
-
-const projectId = u1Project.id;
-const manualPath = `/projects/${projectId}/stages/manual`;
-const proceduresPath = `/projects/${projectId}/stages/procedures`;
-const rulesPath = `/projects/${projectId}/stages/rules`;
-const scopePath = `/projects/${projectId}/startup/U1-REPORT-02`;
-const reworkPath = `/projects/${projectId}/rework`;
-const recoveryPath = `/projects/${projectId}/recovery`;
-const deliveryPath = `/projects/${projectId}/delivery`;
 
 const stageByParam: Record<string, MvpStageId> = {
   manual: 'MANUAL',
@@ -468,6 +463,7 @@ export interface U2Api {
 const U2Context = createContext<U2Api | null>(null);
 
 export function FixtureU2Provider({ children }: { children: ReactNode }) {
+  const { projectId, manualPath, proceduresPath, rulesPath, deliveryPath } = useProjectPaths();
   const u1 = useU1();
   const plan = u1.currentPlan;
   const [sessions, setSessions] = useState<Record<string, StageSession>>({});
@@ -1046,6 +1042,7 @@ export function useU2(): U2Api {
 }
 
 export function FixtureU2Stage() {
+  const { projectId } = useProjectPaths();
   const params = useParams();
   const api = useU2();
   const stage = params.stageId ? stageByParam[params.stageId] : undefined;
@@ -1054,6 +1051,17 @@ export function FixtureU2Stage() {
 }
 
 function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
+  const project = useFixtureProject();
+  const {
+    projectId,
+    manualPath,
+    proceduresPath,
+    rulesPath,
+    scopePath,
+    reworkPath,
+    recoveryPath,
+    deliveryPath,
+  } = useProjectPaths();
   const {
     plan,
     planCheck,
@@ -1087,7 +1095,10 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
   const activeFile = files.find((file) => file.id === activeFileId);
   const activeAvailability = availabilities.find((file) => file.fileId === activeFileId);
   const viewedVersion = activeAvailability?.viewedVersionId;
-  const data = activeFile && viewedVersion ? u2Candidate(activeFile.id, viewedVersion) : undefined;
+  const data =
+    activeFile && viewedVersion
+      ? u2Candidate(activeFile.id, viewedVersion, { enterpriseId: project.enterpriseId, projectId })
+      : undefined;
   const meta = activeFile ? u2FileMetas[activeFile.id] : undefined;
   const summary = activeFile ? u2Summary(activeFile.id) : undefined;
   const scopeCandidates: OpinionScope[] = [
@@ -2346,9 +2357,9 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
         <summary>U2 显式场景控制（演练）</summary>
         <fieldset>
           <legend>候选生成</legend>
-          <label>
+          <Label>
             生成回执场景
-            <select
+            <NativeSelect
               value={session.generationScene}
               onChange={(event) => {
                 const value = event.target.value as StageSession['generationScene'];
@@ -2361,17 +2372,17 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               <option value="unknown">UNKNOWN</option>
               <option value="failed">失败</option>
               <option value="mismatch">错上下文回执</option>
-            </select>
-          </label>
-          <button onClick={queryGeneration} disabled={!session.generationRequest}>
+            </NativeSelect>
+          </Label>
+          <Button onClick={queryGeneration} disabled={!session.generationRequest}>
             重新查询原生成请求
-          </button>
+          </Button>
         </fieldset>
         <fieldset>
           <legend>意见草稿与修改</legend>
-          <label>
+          <Label>
             模拟保存回执
-            <select
+            <NativeSelect
               value={session.saveScene}
               onChange={(event) => {
                 const value = event.target.value as StageSession['saveScene'];
@@ -2381,28 +2392,28 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               <option value="SAVED">已保存到本页内存</option>
               <option value="FAILED">保存失败</option>
               <option value="UNKNOWN">保存结果待核验</option>
-            </select>
-          </label>
-          <button
+            </NativeSelect>
+          </Label>
+          <Button
             onClick={applySaveReceipt}
             disabled={!draftSaveUnresolved(draft) || draft.requestLabel === undefined}
           >
             模拟当前范围原保存回执到达/查询
-          </button>
+          </Button>
           {draft.requestLabel && (
             <p className="muted">
               当前范围原保存请求 {draft.requestLabel} · {mvpDraftStateLabels[draft.state]}
             </p>
           )}
-          <button
+          <Button
             onClick={rebindDraft}
             disabled={!draftBasisChanged(draft, currentBasis) || draftSaveUnresolved(draft)}
           >
             显式将当前草稿绑定到当前依据（模拟）
-          </button>
-          <label>
+          </Button>
+          <Label>
             修改回执场景
-            <select
+            <NativeSelect
               value={session.revisionScene}
               onChange={(event) => {
                 const value = event.target.value as StageSession['revisionScene'];
@@ -2414,21 +2425,21 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               <option value="UNKNOWN">UNKNOWN</option>
               <option value="FAILED">失败</option>
               <option value="MISMATCH">回执错绑</option>
-            </select>
-          </label>
-          <button onClick={receiveRevision} disabled={!myActive}>
+            </NativeSelect>
+          </Label>
+          <Button onClick={receiveRevision} disabled={!myActive}>
             模拟原修订回执到达
-          </button>
-          <button onClick={queryRevision} disabled={!myActive}>
+          </Button>
+          <Button onClick={queryRevision} disabled={!myActive}>
             重新查询原修订请求
-          </button>
+          </Button>
         </fieldset>
         <fieldset>
           <legend>版本与候选</legend>
           {activeAvailability && activeAvailability.versions.length > 0 && (
-            <label>
+            <Label>
               查看当前文件版本
-              <select
+              <NativeSelect
                 value={activeAvailability.viewedVersionId ?? ''}
                 onChange={(event) => {
                   switchVersion(activeAvailability.fileId, event.target.value);
@@ -2439,12 +2450,12 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
                     {u2VersionLabel(versionId)}
                   </option>
                 ))}
-              </select>
-            </label>
+              </NativeSelect>
+            </Label>
           )}
-          <label>
+          <Label>
             候选回执场景
-            <select
+            <NativeSelect
               value={session.candidateScene}
               onChange={(event) => {
                 const value = event.target.value as StageSession['candidateScene'];
@@ -2453,27 +2464,27 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             >
               <option value="matched">匹配当前版本集合</option>
               <option value="mismatch">错绑版本集合</option>
-            </select>
-          </label>
-          <button
+            </NativeSelect>
+          </Label>
+          <Button
             onClick={nextCandidate}
             disabled={!receivedForCurrent || !hasNextVersion || Boolean(active)}
           >
             模拟下一轮候选到达
-          </button>
-          <button onClick={removeFileForRehearsal}>模拟缺少一份文件</button>
-          <button
+          </Button>
+          <Button onClick={removeFileForRehearsal}>模拟缺少一份文件</Button>
+          <Button
             onClick={restoreFileForRehearsal}
             disabled={Object.keys(session.removed).length === 0}
           >
             恢复缺失文件（演示）
-          </button>
+          </Button>
         </fieldset>
         <fieldset>
           <legend>阶段定稿</legend>
-          <label>
+          <Label>
             定稿回执场景
-            <select
+            <NativeSelect
               value={session.finalizationScene}
               onChange={(event) => {
                 const value = event.target.value as StageSession['finalizationScene'];
@@ -2486,36 +2497,36 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
               <option value="failed">失败</option>
               <option value="mismatch">版本集合错绑</option>
               <option value="changed">确认期间版本变化</option>
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
         </fieldset>
         <fieldset>
           <legend>U3 返工与恢复（同一旅程）</legend>
           {stage === 'MANUAL' && session.finalization && (
-            <button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</button>
+            <Button onClick={addLatestStageVersion}>模拟新手册草稿到达（第 3 版）</Button>
           )}
           {stage === 'PROCEDURES' && procedureImpact && (
-            <button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</button>
+            <Button onClick={addLatestStageVersion}>模拟新手册依据下的程序候选到达</Button>
           )}
           {stage === 'RULES' && (
             <>
-              <button
+              <Button
                 onClick={() => {
                   addRulesCandidateVersion('V2');
                 }}
               >
                 模拟第三阶段受影响候选到达（第 2 版）
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   addRulesCandidateVersion('V3');
                 }}
               >
                 模拟第三阶段后续改稿（第 3 版）
-              </button>
+              </Button>
             </>
           )}
-          <button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</button>
+          <Button onClick={adoptLatest}>模拟已核对并采用本阶段全部最新候选</Button>
           <p>
             <Link to={reworkPath}>打开返工与复核</Link> ·{' '}
             <Link to={recoveryPath}>打开执行与恢复</Link> ·{' '}
@@ -2525,17 +2536,19 @@ function StageFixturePage({ stage, api }: { stage: MvpStageId; api: U2Api }) {
             草稿不替换当前定稿；重新定稿保留前任并标记下游待复核；记录复核不是定稿关卡。
           </p>
         </fieldset>
-        <button
+        <Button
           onClick={() => {
             update((current) => ({ ...current, simulatedAnswer: !current.simulatedAnswer }));
           }}
         >
           演练：模拟客户答复（编号按模板）
-        </button>
+        </Button>
         {session.simulatedAnswer && (
-          <p className="notice" role="status">
-            模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
-          </p>
+          <Alert asChild variant="warning">
+            <p className="notice" role="status">
+              模拟客户答复（仅演示）：记录编号按模板占位；不是真实客户决定，未写入定稿依据。
+            </p>
+          </Alert>
         )}
         <p>
           <Link to={manualPath}>演练：直接打开质量手册审阅</Link> ·{' '}

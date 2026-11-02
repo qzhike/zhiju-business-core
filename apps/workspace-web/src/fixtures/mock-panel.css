@@ -16,7 +16,7 @@
 .mock-panel-surface,
 .mock-panel-trigger {
   pointer-events: auto;
-  box-shadow: 0 8px 32px #22202c26;
+  box-shadow: 0 8px 32px #0f172a26;
 }
 
 .mock-panel-surface {
@@ -52,7 +52,7 @@
 .mock-panel-heading p,
 .mock-panel-note {
   margin: 4px 0 0;
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -70,7 +70,7 @@
 
 .mock-panel-body:empty::after {
   content: '当前页面没有额外演练控件。';
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .mock-control-group {

@@ -1,3 +1,4 @@
+import { closeOpinionDrawer } from './review-helpers.js';
 import { test, expect, type Page } from '@playwright/test';
 
 const base = '/projects/MVP-U1-PROJECT';
@@ -18,26 +19,37 @@ async function startToManualReview(page: Page) {
   await expect(page.locator('.task-next h2')).toHaveText('审阅本轮质量手册');
 }
 
+const categories = ['1 - 质量手册', '2 - 控制程序', '3 - 管理制度', '4 - 记录表单'] as const;
+
 async function expandOriginalDirectory(page: Page, label: string) {
-  const batch = catalog(page).getByRole('button', { name: '首轮资料', exact: true });
+  const category =
+    label === '质量手册'
+      ? categories[0]
+      : label === '程序文件'
+        ? categories[1]
+        : label === '管理制度'
+          ? categories[2]
+          : label === '记录表单'
+            ? categories[3]
+            : '其他资料';
+  const group = catalog(page).getByRole('rowgroup', { name: category, exact: true });
+  const root = group.getByRole('button', { name: category, exact: true });
+  if ((await root.getAttribute('aria-expanded')) !== 'true') await root.click();
+  const batch = group.getByRole('button', { name: '首轮资料', exact: true });
   if ((await batch.getAttribute('aria-expanded')) !== 'true') await batch.click();
-  const directory = catalog(page).getByRole('button', { name: label, exact: true });
+  const directory = group.getByRole('button', { name: label, exact: true });
   if ((await directory.getAttribute('aria-expanded')) !== 'true') await directory.click();
 }
 
 function directoryRows(page: Page, label: string) {
-  return page
-    .locator('.browser-row', {
-      has: page.locator('> .browser-folder-line > .browser-folder', { hasText: label }),
-    })
-    .locator('.browser-document .browser-name');
+  return page.locator(`.browser-document[data-directory="${label}"] .browser-name`);
 }
 
 async function namesIn(page: Page, label: string) {
   return directoryRows(page, label).allTextContents();
 }
 
-test('current work splits 50:50 with independent scrolling and a stacked narrow catalog', async ({
+test('current work keeps equal columns with natural-height tables and a stacked narrow catalog', async ({
   page,
 }) => {
   for (const [width, height] of [
@@ -47,7 +59,7 @@ test('current work splits 50:50 with independent scrolling and a stacked narrow 
   ] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(work);
-    await expect(page.locator('.project-workspace')).toHaveClass(/is-current-work/u);
+    await expect(page.locator('.project-workspace')).toHaveClass(/has-equal-columns/u);
     const widths = await page.evaluate(() => {
       const catalogElement = document.querySelector('.project-catalog');
       const mainElement = document.querySelector('.project-workspace-main');
@@ -68,15 +80,43 @@ test('current work splits 50:50 with independent scrolling and a stacked narrow 
     await expect(page.locator('.task-workspace')).toBeVisible();
 
     await expandOriginalDirectory(page, '记录表单');
-    const head = await catalog(page).locator('.project-catalog-head').boundingBox();
     const list = catalog(page).locator('.project-catalog-list');
-    expect(await list.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
-    await list.evaluate((element) => {
-      element.scrollTop = 120;
+    const listHeight = await list.evaluate((element) => ({
+      scroll: element.scrollHeight,
+      client: element.clientHeight,
+      max: getComputedStyle(element).maxHeight,
+    }));
+    expect(listHeight.max).toBe('none');
+    expect(listHeight.scroll - listHeight.client).toBeLessThanOrEqual(1);
+    expect(await catalog(page).evaluate((element) => getComputedStyle(element).maxHeight)).toBe(
+      'none',
+    );
+    expect(await catalog(page).evaluate((element) => getComputedStyle(element).position)).toBe(
+      'static',
+    );
+    const expandedHeight = await catalog(page).evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    await catalog(page).getByRole('button', { name: '4 - 记录表单', exact: true }).click();
+    expect(
+      await catalog(page).evaluate((element) => element.getBoundingClientRect().height),
+    ).toBeLessThan(expandedHeight);
+    await catalog(page).getByRole('button', { name: '4 - 记录表单', exact: true }).click();
+    await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
     });
-    expect(await list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-    const after = await catalog(page).locator('.project-catalog-head').boundingBox();
-    expect(after?.y).toBe(head?.y);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(catalog(page).getByRole('columnheader')).toHaveText([
+      '名称',
+      '版本 / 状态',
+      '最后修改时间',
+      '修改人',
+    ]);
+    expect(
+      await catalog(page)
+        .locator('tbody')
+        .evaluateAll((elements) => elements.map((e) => e.getAttribute('aria-label'))),
+    ).toEqual([...categories, '其他资料']);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -102,7 +142,7 @@ test('current work splits 50:50 with independent scrolling and a stacked narrow 
     await expect(row.locator('.browser-name')).toBeVisible();
     await expect(row.locator('.browser-time')).toHaveText(/2026-10-\d{2} \d{2}:\d{2}/u);
     await expect(row.locator('.browser-author')).not.toBeEmpty();
-    await expect(row.locator('.browser-subline')).toContainText('原件');
+    await expect(row.locator('.browser-state')).toContainText('原件');
     await row.locator('.browser-info').click();
     await expect(page.locator('.project-file-info')).toBeVisible();
     await expect(page.locator('.project-file-info')).toContainText('完整路径');
@@ -117,6 +157,11 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
 }) => {
   await page.goto(work);
   await expandOriginalDirectory(page, '记录表单');
+  const manualGroup = catalog(page).getByRole('rowgroup', { name: '1 - 质量手册', exact: true });
+  await manualGroup.getByRole('button', { name: '首轮资料', exact: true }).click();
+  await expect(manualGroup.locator('.browser-document')).toHaveCount(0);
+  await expect(directoryRows(page, '记录表单')).toHaveCount(6);
+  await manualGroup.getByRole('button', { name: '首轮资料', exact: true }).click();
   const nameAsc = [...(await namesIn(page, '记录表单'))].sort((left, right) =>
     left.localeCompare(right, 'zh-Hans-CN'),
   );
@@ -124,6 +169,11 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
 
   await catalog(page).getByRole('button', { name: '升序 ↑' }).click();
   await expect(namesIn(page, '记录表单')).resolves.toEqual([...nameAsc].reverse());
+  expect(
+    await catalog(page)
+      .locator('tbody')
+      .evaluateAll((elements) => elements.map((e) => e.getAttribute('aria-label'))),
+  ).toEqual([...categories, '其他资料']);
 
   await catalog(page).getByLabel('排序').selectOption('MODIFIED');
   await expect(namesIn(page, '记录表单')).resolves.toEqual([
@@ -174,7 +224,7 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
   await expect(catalog(page).getByLabel('排序')).toHaveValue('MODIFIED');
   await expect(catalog(page).getByRole('button', { name: '降序 ↓' })).toBeVisible();
   await expect(
-    catalog(page).getByRole('button', { name: '记录表单', exact: true }),
+    catalog(page).getByRole('button', { name: '4 - 记录表单', exact: true }),
   ).toHaveAttribute('aria-expanded', 'true');
   await expect(catalog(page).getByLabel('搜索名称或编号')).toHaveValue('');
   await expect(page.locator('.task-next h2')).toHaveText('开始分析资料');
@@ -207,7 +257,13 @@ test('original metadata separates file records, containers, failures and sizes',
   const damaged = page.locator('.browser-document', { hasText: '外来标准清单（损坏）.docx' });
   await expect(damaged.locator('.browser-time')).toHaveText('读取失败');
   await expect(damaged.locator('.browser-author')).toHaveText('读取失败');
-  await expect(page.locator('.browser-folder-line').first()).toContainText('不适用');
+  await expect(page.locator('.browser-folder-line').first().getByRole('cell')).toHaveAttribute(
+    'colspan',
+    '4',
+  );
+  await expect(
+    page.locator('.browser-folder-line').locator('.browser-time, .browser-author'),
+  ).toHaveCount(0);
 });
 
 test('revision metadata binds exact versions while opinions and finalization stay separate', async ({
@@ -219,7 +275,7 @@ test('revision metadata binds exact versions while opinions and finalization sta
   const document = page.locator('.browser-document', { hasText: '质量手册' }).first();
   await expect(document.locator('.browser-time')).toHaveText('2026-10-29 09:20');
   await expect(document.locator('.browser-author')).toHaveText('AI 生成（模拟）');
-  await expect(document.locator('.browser-subline')).toContainText('第 1 版候选 · 当前候选');
+  await expect(document.locator('.browser-state')).toContainText('第 1 版候选 · 当前候选');
   await expect(document.locator('.browser-subline')).toContainText(/· \d+\.\d KB/u);
 
   await page.getByLabel('质量手册 本轮意见').fill('质量手册意见：保留客户质量目标。');
@@ -231,7 +287,7 @@ test('revision metadata binds exact versions while opinions and finalization sta
   const latest = page.locator('.browser-document', { hasText: '质量手册' }).first();
   await expect(latest.locator('.browser-time')).toHaveText('2026-10-29 11:20');
   await expect(latest.locator('.browser-author')).toHaveText('AI 生成（模拟）');
-  await expect(latest.locator('.browser-subline')).toContainText('第 2 版候选 · 当前候选');
+  await expect(latest.locator('.browser-state')).toContainText('第 2 版候选 · 当前候选');
 
   const v1 = page.locator('.browser-document', { hasText: '第 1 版候选' }).first();
   await v1.locator('.browser-info').click();
@@ -242,7 +298,7 @@ test('revision metadata binds exact versions while opinions and finalization sta
 
   await page.getByRole('button', { name: '确认本阶段完整集合（模拟）' }).click();
   await expect(page.locator('.task-next h2')).toHaveText('生成控制程序初稿');
-  await expect(latest.locator('.browser-subline')).toContainText('已定稿');
+  await expect(latest.locator('.browser-state')).toContainText('已定稿');
   await expect(latest.locator('.browser-time')).toHaveText('2026-10-29 11:20');
   await expect(latest.locator('.browser-author')).toHaveText('AI 生成（模拟）');
   await latest.locator('.browser-info').click();
@@ -255,7 +311,12 @@ test('revision metadata binds exact versions while opinions and finalization sta
   await expect(page.locator('.results-detail-head')).toContainText('第 2 版候选');
   await page.getByRole('button', { name: '打开意见与处理' }).click();
   await page.locator('#markdown-note').fill('保留的阅读草稿');
+  await expect(page.locator('.project-catalog')).toBeHidden();
+  await closeOpinionDrawer(page);
+  await page.getByRole('link', { name: '← 返回结果总览' }).click();
   await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
+  await page.goBack();
+  await page.getByRole('button', { name: '打开意见与处理' }).click();
   await expect(page.locator('#markdown-note')).toHaveValue('保留的阅读草稿');
   await expect(page).toHaveURL(/\/results\/MANUAL-V2%40U1-PLAN-01-v1\/F-MANUAL$/u);
 });
@@ -309,15 +370,13 @@ test('archive members appear only under their container and disappear on collaps
   await page.goto(work);
   await expandOriginalDirectory(page, '历史记录');
   await expect(page.locator('.browser-document')).toHaveCount(12);
-  const directory = page.locator('.browser-row', {
-    has: page.locator('> .browser-folder-line > .browser-folder', { hasText: '历史记录' }),
-  });
-  await expect(directory.locator('.browser-document')).toHaveCount(3);
-  const container = directory.locator('.browser-document', { hasText: '变更历史（嵌套 RAR）' });
+  const directory = page.locator('.browser-document[data-directory="历史记录"]');
+  await expect(directory).toHaveCount(3);
+  const container = directory.filter({ hasText: '变更历史（嵌套 RAR）' });
   await expect(container).toBeVisible();
   await container.locator('.browser-expander').click();
-  await expect(directory.locator('.browser-document', { hasText: '变更记录 2024' })).toHaveCount(0);
-  await expect(directory.locator('.browser-document', { hasText: '变更台账 2024' })).toHaveCount(0);
+  await expect(directory.filter({ hasText: '变更记录 2024' })).toHaveCount(0);
+  await expect(directory.filter({ hasText: '变更台账 2024' })).toHaveCount(0);
   await expect(container).toBeVisible();
 });
 

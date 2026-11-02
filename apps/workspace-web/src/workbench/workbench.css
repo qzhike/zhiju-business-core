@@ -21,7 +21,7 @@
   align-items: end;
 }
 .workbench .wb-filters label {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 12px;
   min-width: 0;
 }
@@ -72,8 +72,8 @@
 }
 .workbench .wb-view-switch button[aria-pressed='true'] {
   background: var(--soft);
-  border-color: var(--purple);
-  color: var(--purple);
+  border-color: var(--primary);
+  color: var(--primary);
   font-weight: 600;
 }
 .workbench .wb-project-scroll {
@@ -124,6 +124,9 @@
   margin: 0;
   padding: 0;
 }
+.workbench .wb-project-list > li + li {
+  border-top: 1px solid var(--line);
+}
 .workbench .wb-project-row {
   display: grid;
   max-width: none;
@@ -131,10 +134,6 @@
   gap: 6px 16px;
   align-items: center;
   padding: 8px 0;
-  border-top: 1px solid var(--line);
-}
-.workbench .wb-project-row:first-child {
-  border-top: 0;
 }
 .workbench .wb-project-row h3 {
   font-size: 14px;
@@ -146,11 +145,11 @@
 }
 .workbench .wb-row-status > span {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-progress {
   align-self: center;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-project-card .wb-project-actions {
   margin-top: auto;
@@ -168,7 +167,7 @@
   font-size: 11px;
   padding: 0;
   border: 0;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-project-ref[open] {
   flex-basis: 100%;
@@ -206,7 +205,7 @@
   padding: 0;
 }
 .workbench .wb-coverage {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 12px;
   margin-bottom: 12px;
 }
@@ -267,16 +266,16 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--muted-foreground);
 }
 .workbench .wb-column.wb-attention > h3:before {
   background: var(--amber);
 }
 .workbench .wb-column.wb-running > h3:before {
-  background: var(--purple);
+  background: var(--primary);
 }
 .workbench .wb-column > h3 span {
-  color: var(--muted);
+  color: var(--muted-foreground);
   border-radius: 10px;
   background: white;
   min-width: 22px;
@@ -284,9 +283,6 @@
   font-size: 12px;
 }
 .workbench .wb-card-scroll {
-  max-height: clamp(250px, calc(100dvh - 410px), 620px);
-  overflow-y: auto;
-  scrollbar-gutter: stable;
   padding: 3px;
 }
 .workbench .wb-cards {
@@ -316,7 +312,7 @@
 }
 .workbench .wb-card-project {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-status {
   display: inline-block;
@@ -324,7 +320,7 @@
   padding: 2px 7px;
   border-radius: 4px;
   background: #edf0f5;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-status.wb-attention {
   background: #fff2dc;
@@ -332,7 +328,7 @@
 }
 .workbench .wb-status.wb-running {
   background: var(--soft);
-  color: var(--purple);
+  color: var(--primary);
 }
 .workbench .wb-status.wb-done {
   background: #eaf4ef;
@@ -345,7 +341,7 @@
 .workbench .wb-card .wb-counts {
   margin-top: 12px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-counts strong {
   color: var(--ink);
@@ -357,7 +353,7 @@
 .workbench .wb-card .wb-card-context {
   margin-top: 10px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .workbench .wb-card-actions {
   border-top: 1px solid var(--line);
@@ -377,7 +373,7 @@
 }
 .workbench .wb-empty {
   text-align: center;
-  color: var(--muted);
+  color: var(--muted-foreground);
   padding: 30px 8px;
   font-size: 13px;
 }
@@ -408,7 +404,7 @@
 .wb-route-context {
   margin: 20px 0;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .wb-route-context > div {
   display: flex;
@@ -483,16 +479,13 @@
   }
   .workbench .wb-group-nav button[aria-pressed='true'] {
     background: var(--soft);
-    border-color: var(--purple);
-    color: var(--purple);
+    border-color: var(--primary);
+    color: var(--primary);
   }
   .workbench .wb-board {
     display: block;
   }
   .workbench .wb-board .wb-column[data-active='false'] {
     display: none;
-  }
-  .workbench .wb-card-scroll {
-    max-height: 65dvh;
   }
 }

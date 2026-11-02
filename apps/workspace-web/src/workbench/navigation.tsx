@@ -1,3 +1,4 @@
+import { Card } from '../components/ui/card.js';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { destinationPath, type WorkAction, type WorkGroup } from './model.js';
@@ -101,46 +102,48 @@ export function UnavailablePage({
   const version = query.get('version');
   const item = query.get('item');
   return (
-    <section className="panel" role="status">
-      <p className="eyebrow">页面入口</p>
-      <h1 tabIndex={-1}>{title}</h1>
-      <p>该页面当前不可用。</p>
-      <p>{reason}</p>
-      <p className="muted">此入口未执行上传、保存、运行、批准或交付。</p>
-      <dl className="wb-route-context">
-        {Object.entries(params).map(([key, value]) => (
-          <div key={key}>
-            <dt>
-              {(
-                {
-                  projectId: '项目',
-                  reportId: '报告',
-                  requestId: '原请求',
-                  fileId: '文件',
-                  revisionId: '精确候选',
-                  taskId: '任务',
-                } as Record<string, string>
-              )[key] ?? '引用'}
-            </dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-        {version !== null && /^\d{1,10}$/u.test(version) && (
-          <div>
-            <dt>版本</dt>
-            <dd>{version}</dd>
-          </div>
-        )}
-        {item !== null && /^[A-Za-z0-9_-]{1,64}$/u.test(item) && (
-          <div>
-            <dt>交付项</dt>
-            <dd>{item}</dd>
-          </div>
-        )}
-      </dl>
-      <p>
-        <Link to={memory.returnTo}>{backLabel}</Link>
-      </p>
-    </section>
+    <Card asChild>
+      <section className="panel" role="status">
+        <p className="eyebrow">页面入口</p>
+        <h1 tabIndex={-1}>{title}</h1>
+        <p>该页面当前不可用。</p>
+        <p>{reason}</p>
+        <p className="muted">此入口未执行上传、保存、运行、批准或交付。</p>
+        <dl className="wb-route-context">
+          {Object.entries(params).map(([key, value]) => (
+            <div key={key}>
+              <dt>
+                {(
+                  {
+                    projectId: '项目',
+                    reportId: '报告',
+                    requestId: '原请求',
+                    fileId: '文件',
+                    revisionId: '精确候选',
+                    taskId: '任务',
+                  } as Record<string, string>
+                )[key] ?? '引用'}
+              </dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+          {version !== null && /^\d{1,10}$/u.test(version) && (
+            <div>
+              <dt>版本</dt>
+              <dd>{version}</dd>
+            </div>
+          )}
+          {item !== null && /^[A-Za-z0-9_-]{1,64}$/u.test(item) && (
+            <div>
+              <dt>交付项</dt>
+              <dd>{item}</dd>
+            </div>
+          )}
+        </dl>
+        <p>
+          <Link to={memory.returnTo}>{backLabel}</Link>
+        </p>
+      </section>
+    </Card>
   );
 }

@@ -1,6 +1,26 @@
+import { Alert } from '../components/ui/alert.js';
+import { Badge } from '../components/ui/badge.js';
+import { Card } from '../components/ui/card.js';
+import { buttonVariants, Button } from '../components/ui/button.js';
+import {
+  Table,
+  TableCaption,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '../components/ui/table.js';
 import { MockControls } from '../fixtures/control-slot.js';
-import { useState, type ReactNode } from 'react';
-import * as AlertDialog from '@radix-ui/react-alert-dialog';
+import { useRef, useState, type ReactNode } from 'react';
+import {
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialog,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog.js';
 import { Link } from 'react-router';
 import { MarkdownReviewPage, type MarkdownReviewData } from '../MarkdownReviewPage.js';
 import type {
@@ -158,6 +178,9 @@ export function StageReviewPage({
   controls,
 }: StageReviewPageProps) {
   const [open, setOpen] = useState(false);
+  const confirmTrigger = useRef<HTMLButtonElement>(null);
+  const confirmationPanel = useRef<HTMLElement>(null);
+  const receiptPanel = useRef<HTMLDivElement>(null);
   const missing = files.filter((file) => file.missing);
   const title =
     stage === 'MANUAL'
@@ -193,156 +216,174 @@ export function StageReviewPage({
         Runner，刷新清理本页内存。
       </div>
       {statusMessage && (
-        <p className="notice" role="status">
-          {statusMessage}
-        </p>
+        <Alert asChild variant="warning">
+          <p className="notice" role="status">
+            {statusMessage}
+          </p>
+        </Alert>
       )}
       {!readiness.ready ? (
-        <section className="panel" role="status">
-          <h2>缺少本阶段前置依据</h2>
-          <p>{readiness.reason ?? '当前上下文不足，不能开始本阶段。'}</p>
-          {readiness.returnHref && (
-            <Link className="button primary" to={readiness.returnHref}>
-              {readiness.returnLabel ?? '返回核对前置依据'}
-            </Link>
-          )}
-        </section>
+        <Card asChild>
+          <section className="panel" role="status">
+            <h2>缺少本阶段前置依据</h2>
+            <p>{readiness.reason ?? '当前上下文不足，不能开始本阶段。'}</p>
+            {readiness.returnHref && (
+              <Link className={buttonVariants({ variant: 'default' })} to={readiness.returnHref}>
+                {readiness.returnLabel ?? '返回核对前置依据'}
+              </Link>
+            )}
+          </section>
+        </Card>
       ) : (
         <>
           {rework?.notice && (
-            <p className="notice stage-rework-notice" role="status">
-              {rework.notice}
-            </p>
+            <Alert asChild variant="warning">
+              <p className="notice stage-rework-notice" role="status">
+                {rework.notice}
+              </p>
+            </Alert>
           )}
           {rework?.previous && (
-            <section className="panel stage-rework" aria-label="上游定稿历史">
-              <h2>上游定稿历史</h2>
-              <p className="muted">
-                前一版定稿保留在历史中；只有匹配的新定稿回执才替换当前依据，不覆盖历史。
-              </p>
-              <p>
-                上一版定稿 <strong>{rework.previous.finalizationId}</strong> · 已由{' '}
-                {rework.previous.supersededBy} 替代
-              </p>
-              <ul>
-                {rework.previous.files.map((file) => (
-                  <li key={file.fileId}>
-                    {file.title} · {file.versionLabel}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Card asChild>
+              <section className="panel stage-rework" aria-label="上游定稿历史">
+                <h2>上游定稿历史</h2>
+                <p className="muted">
+                  前一版定稿保留在历史中；只有匹配的新定稿回执才替换当前依据，不覆盖历史。
+                </p>
+                <p>
+                  上一版定稿 <strong>{rework.previous.finalizationId}</strong> · 已由{' '}
+                  {rework.previous.supersededBy} 替代
+                </p>
+                <ul>
+                  {rework.previous.files.map((file) => (
+                    <li key={file.fileId}>
+                      {file.title} · {file.versionLabel}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </Card>
           )}
           {rework?.impact && (
-            <section className="panel stage-rework-impact" aria-label="上游依据变化与下游影响">
-              <h2>上游依据变化与下游影响</h2>
-              <table>
-                <caption>本次变化的上游依据</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">变化来源</th>
-                    <th scope="col">旧依据</th>
-                    <th scope="col">新依据</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rework.impact.changes.map((change) => (
-                    <tr
-                      key={`${change.sourceLabel}:${change.previousBasisId}:${change.newBasisId}`}
-                    >
-                      <th scope="row">{change.sourceLabel}</th>
-                      <td>{change.previousBasisId}</td>
-                      <td>{change.newBasisId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="notice" role="status">
-                本阶段标记“依据已变化，待复核”。影响按阶段保守覆盖，未复核前最终交付保持阻断。
-              </p>
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">受影响文件</th>
-                    <th scope="col">处理</th>
-                    <th scope="col">上游提供理由</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rework.impact.files.map((file) => (
-                    <tr key={file.fileId}>
-                      <th scope="row">{file.title}</th>
-                      <td>{file.actionLabel}</td>
-                      <td>{file.reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted">{rework.impact.note}</p>
-            </section>
+            <Card asChild>
+              <section className="panel stage-rework-impact" aria-label="上游依据变化与下游影响">
+                <h2>上游依据变化与下游影响</h2>
+                <Table>
+                  <TableCaption>本次变化的上游依据</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">变化来源</TableHead>
+                      <TableHead scope="col">旧依据</TableHead>
+                      <TableHead scope="col">新依据</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rework.impact.changes.map((change) => (
+                      <TableRow
+                        key={`${change.sourceLabel}:${change.previousBasisId}:${change.newBasisId}`}
+                      >
+                        <TableHead scope="row">{change.sourceLabel}</TableHead>
+                        <TableCell>{change.previousBasisId}</TableCell>
+                        <TableCell>{change.newBasisId}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <Alert asChild variant="warning">
+                  <p className="notice" role="status">
+                    本阶段标记“依据已变化，待复核”。影响按阶段保守覆盖，未复核前最终交付保持阻断。
+                  </p>
+                </Alert>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col">受影响文件</TableHead>
+                      <TableHead scope="col">处理</TableHead>
+                      <TableHead scope="col">上游提供理由</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rework.impact.files.map((file) => (
+                      <TableRow key={file.fileId}>
+                        <TableHead scope="row">{file.title}</TableHead>
+                        <TableCell>{file.actionLabel}</TableCell>
+                        <TableCell>{file.reason}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <p className="muted">{rework.impact.note}</p>
+              </section>
+            </Card>
           )}
-          <section className="panel stage-basis" aria-label="计划与依据">
-            <h2>计划与依据</h2>
-            <p className="muted">
-              页面只读取本项目的已确认计划；直接打开链接不会补造缺失的计划、输入或上游定稿。
-            </p>
-            <ul>
-              {basis.map((item) => (
-                <li key={`${item.label}:${item.detail}`}>
-                  <strong>{item.label}</strong>
-                  <span>{item.detail}</span>
-                </li>
-              ))}
-            </ul>
-            <h3>上游定稿依据</h3>
-            {upstream.length > 0 ? (
-              <ul className="stage-upstream">
-                {upstream.map((item) => (
+          <Card asChild>
+            <section className="panel stage-basis" aria-label="计划与依据">
+              <h2>计划与依据</h2>
+              <p className="muted">
+                页面只读取本项目的已确认计划；直接打开链接不会补造缺失的计划、输入或上游定稿。
+              </p>
+              <ul>
+                {basis.map((item) => (
                   <li key={`${item.label}:${item.detail}`}>
                     <strong>{item.label}</strong>
                     <span>{item.detail}</span>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="muted">第一阶段没有上游定稿；以已确认计划与输入依据为准。</p>
-            )}
-            {missing.length > 0 && generation.status === 'RECEIVED' && (
-              <p className="notice" role="status">
-                当前缺少文件或版本：{missing.map((file) => file.title).join('、')}
-                ；缺失项不能进入定稿。
-              </p>
-            )}
-          </section>
-          {!review && (
-            <section className="panel stage-generation" aria-label="模拟候选生成">
-              <h2>模拟候选生成</h2>
-              <p>
-                <span className="status-tag">{generationLabels[generation.status]}</span>{' '}
-                {generation.reason}
-              </p>
-              <div className="stage-action-row">
-                <button
-                  className="primary"
-                  disabled={!generation.enabled}
-                  onClick={generation.onGenerate}
-                >
-                  模拟生成本阶段候选
-                </button>
-                {generation.onReceipt &&
-                  (generation.status === 'PENDING' || generation.status === 'UNKNOWN') && (
-                    <MockControls>
-                      <button onClick={generation.onReceipt}>模拟原生成回执到达</button>
-                    </MockControls>
-                  )}
-                {generation.onQuery &&
-                  (generation.status === 'PENDING' ||
-                    generation.status === 'UNKNOWN' ||
-                    generation.status === 'MISMATCH') && (
-                    <button onClick={generation.onQuery}>重新查询原生成请求</button>
-                  )}
-              </div>
+              <h3>上游定稿依据</h3>
+              {upstream.length > 0 ? (
+                <ul className="stage-upstream">
+                  {upstream.map((item) => (
+                    <li key={`${item.label}:${item.detail}`}>
+                      <strong>{item.label}</strong>
+                      <span>{item.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">第一阶段没有上游定稿；以已确认计划与输入依据为准。</p>
+              )}
+              {missing.length > 0 && generation.status === 'RECEIVED' && (
+                <Alert asChild variant="warning">
+                  <p className="notice" role="status">
+                    当前缺少文件或版本：{missing.map((file) => file.title).join('、')}
+                    ；缺失项不能进入定稿。
+                  </p>
+                </Alert>
+              )}
             </section>
+          </Card>
+          {!review && (
+            <Card asChild>
+              <section className="panel stage-generation" aria-label="模拟候选生成">
+                <h2>模拟候选生成</h2>
+                <p>
+                  <Badge className="status-tag">{generationLabels[generation.status]}</Badge>{' '}
+                  {generation.reason}
+                </p>
+                <div className="stage-action-row">
+                  <Button
+                    variant="default"
+                    disabled={!generation.enabled}
+                    onClick={generation.onGenerate}
+                  >
+                    模拟生成本阶段候选
+                  </Button>
+                  {generation.onReceipt &&
+                    (generation.status === 'PENDING' || generation.status === 'UNKNOWN') && (
+                      <MockControls>
+                        <Button onClick={generation.onReceipt}>模拟原生成回执到达</Button>
+                      </MockControls>
+                    )}
+                  {generation.onQuery &&
+                    (generation.status === 'PENDING' ||
+                      generation.status === 'UNKNOWN' ||
+                      generation.status === 'MISMATCH') && (
+                      <Button onClick={generation.onQuery}>重新查询原生成请求</Button>
+                    )}
+                </div>
+              </section>
+            </Card>
           )}
           {review && (
             <MarkdownReviewPage
@@ -356,130 +397,155 @@ export function StageReviewPage({
               workspace={review.workspace}
             />
           )}
-          <section className="panel stage-set" aria-label="本阶段完整文件版本">
-            <h2>本阶段完整文件版本</h2>
-            <p className="muted">
-              阶段定稿确认的是下列完整集合，不按逐文件批准拼装；每个业务阶段整体确认，阶段之间不增加额外审批层。
-            </p>
-            {finalization.status === 'DONE' && (
+          <Card asChild>
+            <section className="panel stage-set" aria-label="本阶段完整文件版本">
+              <h2>本阶段完整文件版本</h2>
               <p className="muted">
-                本表是当前阅读选择；本次冻结的定稿集合见“模拟阶段定稿已完成”。
+                阶段定稿确认的是下列完整集合，不按逐文件批准拼装；每个业务阶段整体确认，阶段之间不增加额外审批层。
               </p>
-            )}
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">文件</th>
-                  <th scope="col">层级</th>
-                  <th scope="col">动作</th>
-                  <th scope="col">当前查看</th>
-                  <th scope="col">最新候选</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map((file) => (
-                  <tr key={file.fileId}>
-                    <th scope="row">{file.title}</th>
-                    <td>{file.levelLabel}</td>
-                    <td>{file.actionLabel}</td>
-                    <td>{file.missing ? '缺失' : file.versionLabel}</td>
-                    <td>{file.latestVersionLabel}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-          <section className="panel stage-finalize" aria-label="阶段定稿">
-            <h2>阶段定稿</h2>
-            {finalization.status === 'DONE' && finalization.result && (
-              <div className="stage-finalization-result" role="status">
-                <h3>模拟阶段定稿已完成</h3>
-                <dl>
-                  <div>
-                    <dt>定稿</dt>
-                    <dd>{finalization.result.finalizationId}</dd>
-                  </div>
-                  <div>
-                    <dt>计划</dt>
-                    <dd>{finalization.result.planLabel}</dd>
-                  </div>
-                  {finalization.result.manualLabel && (
-                    <div>
-                      <dt>手册依据</dt>
-                      <dd>{finalization.result.manualLabel}</dd>
-                    </div>
-                  )}
-                  {finalization.result.procedureLabel && (
-                    <div>
-                      <dt>控制程序依据</dt>
-                      <dd>{finalization.result.procedureLabel}</dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt>冻结版本集合</dt>
-                    <dd>
-                      {finalization.result.files
-                        .map((file) => `${file.title} · ${file.versionLabel}`)
-                        .join('；')}
-                    </dd>
-                  </div>
-                </dl>
+              {finalization.status === 'DONE' && (
                 <p className="muted">
-                  本结果绑定上述冻结版本；之后切换阅读版本不会改写本次定稿。仅本页模拟结果，不是服务器保存、业务批准或
-                  Runner 完成；前一版定稿保留在历史中，受影响下游需重新复核。
+                  本表是当前阅读选择；本次冻结的定稿集合见“模拟阶段定稿已完成”。
                 </p>
-              </div>
-            )}
-            {(finalization.status !== 'DONE' || finalization.refinalize) && (
-              <>
-                <p>{finalization.reason}</p>
-                {finalization.status === 'FAILED' && (
-                  <div className="error" role="alert">
-                    <strong>定稿失败</strong>
-                    <p>原阅读位置、草稿与依据保留；可显式重新发起一次新请求。</p>
-                  </div>
-                )}
-                {(finalization.status === 'PENDING' ||
-                  finalization.status === 'UNKNOWN' ||
-                  finalization.status === 'MISMATCH') && (
-                  <div
-                    className={finalization.status === 'MISMATCH' ? 'error' : 'notice'}
-                    role={finalization.status === 'MISMATCH' ? 'alert' : 'status'}
-                  >
-                    <strong>
-                      {finalization.status === 'PENDING'
-                        ? '定稿请求待回执'
-                        : finalization.status === 'UNKNOWN'
-                          ? '定稿结果待核验'
-                          : '定稿回执不匹配'}
-                    </strong>
-                    <p>只查询原请求；重复点击或页面往返不会创建第二个定稿意图。</p>
-                    {finalization.requestLabel && (
-                      <p className="muted">原请求 {finalization.requestLabel}</p>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">文件</TableHead>
+                    <TableHead scope="col">层级</TableHead>
+                    <TableHead scope="col">动作</TableHead>
+                    <TableHead scope="col">当前查看</TableHead>
+                    <TableHead scope="col">最新候选</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {files.map((file) => (
+                    <TableRow key={file.fileId}>
+                      <TableHead scope="row">{file.title}</TableHead>
+                      <TableCell>{file.levelLabel}</TableCell>
+                      <TableCell>{file.actionLabel}</TableCell>
+                      <TableCell>{file.missing ? '缺失' : file.versionLabel}</TableCell>
+                      <TableCell>{file.latestVersionLabel}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </section>
+          </Card>
+          <Card asChild>
+            <section
+              className="panel stage-finalize"
+              aria-label="阶段定稿"
+              ref={confirmationPanel}
+              tabIndex={-1}
+            >
+              <h2>阶段定稿</h2>
+              {finalization.status === 'DONE' && finalization.result && (
+                <div
+                  className="stage-finalization-result"
+                  role="status"
+                  ref={receiptPanel}
+                  tabIndex={-1}
+                >
+                  <h3>模拟阶段定稿已完成</h3>
+                  <dl>
+                    <div>
+                      <dt>定稿</dt>
+                      <dd>{finalization.result.finalizationId}</dd>
+                    </div>
+                    <div>
+                      <dt>计划</dt>
+                      <dd>{finalization.result.planLabel}</dd>
+                    </div>
+                    {finalization.result.manualLabel && (
+                      <div>
+                        <dt>手册依据</dt>
+                        <dd>{finalization.result.manualLabel}</dd>
+                      </div>
                     )}
-                  </div>
-                )}
-                <div className="stage-action-row">
-                  <AlertDialog.Root open={open} onOpenChange={setOpen}>
-                    <AlertDialog.Trigger asChild>
-                      <button className="primary" disabled={!finalization.canConfirm}>
-                        {finalization.refinalize ? '重新确认' : '确认'}
-                        {finalizationNoun}（模拟）
-                      </button>
-                    </AlertDialog.Trigger>
-                    <AlertDialog.Portal>
-                      <AlertDialog.Overlay className="dialog-overlay" />
-                      <AlertDialog.Content className="dialog-content">
-                        <AlertDialog.Title>
+                    {finalization.result.procedureLabel && (
+                      <div>
+                        <dt>控制程序依据</dt>
+                        <dd>{finalization.result.procedureLabel}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>冻结版本集合</dt>
+                      <dd>
+                        {finalization.result.files
+                          .map((file) => `${file.title} · ${file.versionLabel}`)
+                          .join('；')}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="muted">
+                    本结果绑定上述冻结版本；之后切换阅读版本不会改写本次定稿。仅本页模拟结果，不是服务器保存、业务批准或
+                    Runner 完成；前一版定稿保留在历史中，受影响下游需重新复核。
+                  </p>
+                </div>
+              )}
+              {(finalization.status !== 'DONE' || finalization.refinalize) && (
+                <>
+                  <p>{finalization.reason}</p>
+                  {finalization.status === 'FAILED' && (
+                    <Alert asChild variant="warning">
+                      <div className="error" role="alert">
+                        <strong>定稿失败</strong>
+                        <p>原阅读位置、草稿与依据保留；可显式重新发起一次新请求。</p>
+                      </div>
+                    </Alert>
+                  )}
+                  {(finalization.status === 'PENDING' ||
+                    finalization.status === 'UNKNOWN' ||
+                    finalization.status === 'MISMATCH') && (
+                    <div
+                      className={finalization.status === 'MISMATCH' ? 'error' : 'notice'}
+                      role={finalization.status === 'MISMATCH' ? 'alert' : 'status'}
+                    >
+                      <strong>
+                        {finalization.status === 'PENDING'
+                          ? '定稿请求待回执'
+                          : finalization.status === 'UNKNOWN'
+                            ? '定稿结果待核验'
+                            : '定稿回执不匹配'}
+                      </strong>
+                      <p>只查询原请求；重复点击或页面往返不会创建第二个定稿意图。</p>
+                      {finalization.requestLabel && (
+                        <p className="muted">原请求 {finalization.requestLabel}</p>
+                      )}
+                    </div>
+                  )}
+                  <div className="stage-action-row">
+                    <AlertDialog open={open} onOpenChange={setOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="default"
+                          ref={confirmTrigger}
+                          disabled={!finalization.canConfirm}
+                        >
                           {finalization.refinalize ? '重新确认' : '确认'}
                           {finalizationNoun}（模拟）
-                        </AlertDialog.Title>
-                        <AlertDialog.Description>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent
+                        className="dialog-content"
+                        onCloseAutoFocus={(event) => {
+                          event.preventDefault();
+                          if (confirmTrigger.current && !confirmTrigger.current.disabled)
+                            confirmTrigger.current.focus();
+                          else (receiptPanel.current ?? confirmationPanel.current)?.focus();
+                        }}
+                      >
+                        <AlertDialogTitle>
+                          {finalization.refinalize ? '重新确认' : '确认'}
+                          {finalizationNoun}（模拟）
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
                           一次确认下列完整文件/版本集合；不按逐文件批准拼装。
                           {finalization.refinalize
                             ? '前一版定稿会保留在历史中，本次回执替换当前依据。'
                             : '只生成页面内模拟回执。'}
-                        </AlertDialog.Description>
+                        </AlertDialogDescription>
                         <ul>
                           {finalization.exactSet.map((file) => (
                             <li key={file.fileId}>
@@ -493,11 +559,11 @@ export function StageReviewPage({
                             '无'}
                         </p>
                         <div className="dialog-actions">
-                          <AlertDialog.Cancel asChild>
-                            <button>返回核对</button>
-                          </AlertDialog.Cancel>
-                          <button
-                            className="primary"
+                          <AlertDialogCancel asChild>
+                            <Button>返回核对</Button>
+                          </AlertDialogCancel>
+                          <Button
+                            variant="default"
                             disabled={!finalization.canConfirm}
                             onClick={() => {
                               finalization.onConfirm();
@@ -505,45 +571,47 @@ export function StageReviewPage({
                             }}
                           >
                             确认并生成模拟回执
-                          </button>
+                          </Button>
                         </div>
-                      </AlertDialog.Content>
-                    </AlertDialog.Portal>
-                  </AlertDialog.Root>
-                  {finalization.onReceipt &&
-                    (finalization.status === 'PENDING' || finalization.status === 'UNKNOWN') && (
-                      <MockControls>
-                        <button onClick={finalization.onReceipt}>模拟原定稿回执到达</button>
-                      </MockControls>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    {finalization.onReceipt &&
+                      (finalization.status === 'PENDING' || finalization.status === 'UNKNOWN') && (
+                        <MockControls>
+                          <Button onClick={finalization.onReceipt}>模拟原定稿回执到达</Button>
+                        </MockControls>
+                      )}
+                    {(finalization.status === 'PENDING' ||
+                      finalization.status === 'UNKNOWN' ||
+                      finalization.status === 'MISMATCH') && (
+                      <Button onClick={finalization.onQuery}>重新查询原定稿请求</Button>
                     )}
-                  {(finalization.status === 'PENDING' ||
-                    finalization.status === 'UNKNOWN' ||
-                    finalization.status === 'MISMATCH') && (
-                    <button onClick={finalization.onQuery}>重新查询原定稿请求</button>
-                  )}
-                  {finalization.status === 'FAILED' && (
-                    <button onClick={finalization.onRetry}>重新发起定稿（模拟）</button>
-                  )}
-                  {finalization.status === 'MISMATCH' && finalization.onReset && (
-                    <button onClick={finalization.onReset}>重新核对后重试定稿（模拟）</button>
-                  )}
-                </div>
-              </>
-            )}
-            {(finalization.status !== 'DONE' || finalization.refinalize) && (
-              <p className="muted">
-                定稿按钮在缺文件、版本变化、新候选未核对或有待回执修改时保持不可用。
-              </p>
-            )}
-          </section>
-          {next && (
-            <section className="panel stage-next" aria-label="下一业务阶段">
-              <h2>{next.label}</h2>
-              <p>{next.reason}</p>
-              <Link className="button primary" to={next.href}>
-                {next.label}
-              </Link>
+                    {finalization.status === 'FAILED' && (
+                      <Button onClick={finalization.onRetry}>重新发起定稿（模拟）</Button>
+                    )}
+                    {finalization.status === 'MISMATCH' && finalization.onReset && (
+                      <Button onClick={finalization.onReset}>重新核对后重试定稿（模拟）</Button>
+                    )}
+                  </div>
+                </>
+              )}
+              {(finalization.status !== 'DONE' || finalization.refinalize) && (
+                <p className="muted">
+                  定稿按钮在缺文件、版本变化、新候选未核对或有待回执修改时保持不可用。
+                </p>
+              )}
             </section>
+          </Card>
+          {next && (
+            <Card asChild>
+              <section className="panel stage-next" aria-label="下一业务阶段">
+                <h2>{next.label}</h2>
+                <p>{next.reason}</p>
+                <Link className={buttonVariants({ variant: 'default' })} to={next.href}>
+                  {next.label}
+                </Link>
+              </section>
+            </Card>
           )}
         </>
       )}

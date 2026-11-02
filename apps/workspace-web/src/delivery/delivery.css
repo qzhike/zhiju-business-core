@@ -27,13 +27,13 @@
   border-bottom: 2px solid transparent;
 }
 .delivery-tabs a[aria-current='page'] {
-  color: var(--purple);
-  border-color: var(--purple);
+  color: var(--primary);
+  border-color: var(--primary);
   background: var(--soft);
 }
 .delivery-observation {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .delivery-page .delivery-panel {
   display: flex;
@@ -62,7 +62,7 @@
 }
 .delivery-tools span {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--muted-foreground);
 }
 .delivery-tools select,
 .delivery-controls select {
@@ -102,7 +102,7 @@
 .delivery-file small,
 .delivery-confirm-list small {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 11px;
   margin-top: 5px;
 }
@@ -123,7 +123,7 @@
 .delivery-file input {
   width: 17px;
   height: 17px;
-  accent-color: var(--purple);
+  accent-color: var(--primary);
   margin-top: 3px;
 }
 .delivery-file strong {
@@ -167,7 +167,7 @@
   font-size: 12px;
 }
 .delivery-receipt {
-  border-left: 3px solid var(--purple);
+  border-left: 3px solid var(--primary);
   padding: 10px 14px;
   background: var(--soft);
   font-size: 12px;
@@ -203,7 +203,7 @@
 }
 .delivery-package-link small {
   display: block;
-  color: var(--muted);
+  color: var(--muted-foreground);
   margin-top: 6px;
 }
 .delivery-package-link[aria-current='page'] {

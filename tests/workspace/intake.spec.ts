@@ -28,7 +28,7 @@ test('creation binds a keyboard-selected customer ID and exact project without a
   await withMockControls(page, async () =>
     page.getByRole('button', { name: '带入演示 ZIP 包' }).click(),
   );
-  await page.getByRole('button', { name: '提交并分析' }).click();
+  await page.getByRole('button', { name: '提交资料', exact: true }).click();
   await expect(page.locator('.intake-receipt')).toContainText('等待安排');
   await expect(page.getByRole('link', { name: '查看分析报告', exact: true })).toHaveCount(0);
 });

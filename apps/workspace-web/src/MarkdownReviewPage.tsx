@@ -1,5 +1,28 @@
+import { Alert } from './components/ui/alert.js';
+import { Badge } from './components/ui/badge.js';
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from './components/ui/table.js';
+import { Button } from './components/ui/button.js';
+import { Label } from './components/ui/label.js';
+import { Input } from './components/ui/input.js';
+import { NativeSelect } from './components/ui/native-select.js';
+import { Textarea } from './components/ui/textarea.js';
+import { FullDocumentDiff } from './review/FullDocumentDiff.js';
+import { OpinionPanel, useOpinionLayout } from './review/OpinionPanel.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  Dialog,
+  DialogTitle,
+} from './components/ui/dialog.js';
 import type {
   Change,
   Changes,
@@ -77,38 +100,38 @@ export function CanonicalDocument({
           role="region"
           aria-label="完整表格，可横向滚动"
         >
-          <table>
-            <thead>
+          <Table>
+            <TableHeader>
               {children
                 .filter((row) => row.unitId === children[0]?.unitId)
                 .map((row) => (
-                  <tr key={row.unitId}>
+                  <TableRow key={row.unitId}>
                     {row.childUnitIds.map((id) => {
                       const cell = requiredValue(units.get(id));
                       return (
-                        <th key={id} scope="col">
+                        <TableHead key={id} scope="col">
                           {inline(cell.text ?? '', cell.semanticMetadata.markdown.inlineSpans)}
-                        </th>
+                        </TableHead>
                       );
                     })}
-                  </tr>
+                  </TableRow>
                 ))}
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {children.slice(1).map((row) => (
-                <tr key={row.unitId}>
+                <TableRow key={row.unitId}>
                   {row.childUnitIds.map((id) => {
                     const cell = requiredValue(units.get(id));
                     return (
-                      <td key={id}>
+                      <TableCell key={id}>
                         {inline(cell.text ?? '', cell.semanticMetadata.markdown.inlineSpans)}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       );
     if (unit.unitType === 'SECTION')
@@ -177,6 +200,8 @@ export interface MarkdownReviewPageProps {
   focusReading?: boolean;
   /** Development adapter controls; rendered inside the opinion rail. */
   controls?: ReactNode;
+  /** Exact-round review entry supplied by the results adapter. */
+  opinionFooter?: ReactNode;
 }
 
 /** Shared review surface for the live adapter (#279) and continued page work (#286). */
@@ -191,9 +216,11 @@ export function MarkdownReviewPage({
   onMore,
   focusReading = false,
   controls,
+  opinionFooter,
 }: MarkdownReviewPageProps) {
   const [tab, setTab] = useState<'changes' | 'document' | 'summary'>('changes');
   const [index, setIndex] = useState(0);
+  const [navigationRequest, setNavigationRequest] = useState(0);
   const [pane, setPane] = useState<'document' | 'opinion'>('document');
   const [opinionOpen, setOpinionOpen] = useState(!focusReading);
   const [directoryOpen, setDirectoryOpen] = useState(false);
@@ -205,6 +232,17 @@ export function MarkdownReviewPage({
   const scroll = useRef<HTMLDivElement>(null);
   const note = useRef<HTMLTextAreaElement>(null);
   const stepFocus = useRef(false);
+  const directoryJump = useRef(false);
+  const opinionTrigger = useRef<HTMLElement | null>(null);
+  const { width: reviewWidth, rememberReading } = useOpinionLayout(root, focusReading, opinionOpen);
+  const drawer = reviewWidth < 1000;
+  const changeOpinionOpen = (open: boolean) => {
+    rememberReading();
+    if (open && document.activeElement instanceof HTMLElement)
+      opinionTrigger.current = document.activeElement;
+    setOpinionOpen(open);
+    if (!open) requestAnimationFrame(() => opinionTrigger.current?.focus({ preventScroll: true }));
+  };
   const revisionId = visible.content.revisionRef.objectId;
   const revisionLabel = `版本 ${revisionId.slice(-8)}`;
   const readIdentity = `${visible.content.authoritativeIdentityMap.artifactRef.objectId}:${revisionId}`;
@@ -285,9 +323,10 @@ export function MarkdownReviewPage({
   useLayoutEffect(() => {
     if (!stepFocus.current) return;
     stepFocus.current = false;
+    if (focusReading) return;
     heading.current?.focus({ preventScroll: true });
     scroll.current?.scrollTo({ top: 0 });
-  }, [index, tab]);
+  }, [index, tab, focusReading]);
   // The approved viewport rule keeps approval on the desktop layout.
   useEffect(() => {
     const media = window.matchMedia('(max-width: 900px)');
@@ -313,9 +352,11 @@ export function MarkdownReviewPage({
   };
   const matchCount = visible.changes.entries.filter(matches).length;
   const step = (target: number) => {
+    directoryJump.current = focusReading && directoryOpen;
     setTab('changes');
     setIndex(Math.max(0, Math.min(lastLoaded, target)));
     stepFocus.current = true;
+    setNavigationRequest((request) => request + 1);
   };
   const quote = (change: Change, position: number) => {
     const chapter =
@@ -331,8 +372,9 @@ export function MarkdownReviewPage({
         : `${opinion.draft.text ? `${opinion.draft.text}\n\n` : ''}${reference}\n`,
     );
     setPane('opinion');
+    if (focusReading) changeOpinionOpen(true);
     requestAnimationFrame(() => {
-      note.current?.focus();
+      note.current?.focus({ preventScroll: focusReading });
     });
   };
   const chapterChanges = current
@@ -408,51 +450,65 @@ export function MarkdownReviewPage({
         ? '还有未提交的意见或改稿；请先处理或提交后再批准。'
         : opinion.approval.note;
   const files = workspace?.files;
+  const opinionToggle = focusReading && (
+    <Button
+      type="button"
+      aria-expanded={opinionOpen}
+      onClick={() => {
+        changeOpinionOpen(!opinionOpen);
+      }}
+    >
+      {opinionOpen ? '收起意见与处理' : '打开意见与处理'}
+    </Button>
+  );
   return (
-    <section className="markdown-review" data-pane={pane} ref={root}>
+    <section
+      className="markdown-review"
+      data-pane={pane}
+      data-opinion-layout={
+        focusReading ? (drawer ? 'drawer' : reviewWidth < 1400 ? 'medium' : 'wide') : undefined
+      }
+      data-review-tab={tab}
+      ref={root}
+    >
       <header className="markdown-review-header">
-        <div className="markdown-identity">
-          <h1>{visible.content.document.title}</h1>
-          <p className="markdown-identity-line">
-            {revisionLabel} ·{' '}
-            {visible.content.currentUsability === 'USABLE'
-              ? '可阅读'
-              : '该版本当前不可用于后续业务'}{' '}
-            · 阅读、下载与浏览都不表示批准
-          </p>
-        </div>
-        <div className="markdown-download">
-          <button
-            onClick={() => void download.onDownload()}
-            disabled={!download.hasRepresentation || visible.content.currentUsability !== 'USABLE'}
-          >
-            下载 Markdown
-          </button>
-          <p className="muted">
-            {download.hasRepresentation ? '下载当前阅读版本 · 与阅读和批准分开记录' : download.note}
-          </p>
-          <p className="markdown-download-status" role="status">
-            {download.status}
-          </p>
-        </div>
-        {focusReading && (
-          <div className="markdown-focus-actions">
-            <button
-              type="button"
-              className="button"
-              aria-expanded={opinionOpen}
-              onClick={() => {
-                setOpinionOpen((open) => !open);
-                setPane(opinionOpen ? 'document' : 'opinion');
-              }}
+        {focusReading ? (
+          <h2>正文与差异</h2>
+        ) : (
+          <div className="markdown-identity">
+            <h1>{visible.content.document.title}</h1>
+            <p className="markdown-identity-line">
+              {revisionLabel} ·{' '}
+              {visible.content.currentUsability === 'USABLE'
+                ? '可阅读'
+                : '该版本当前不可用于后续业务'}{' '}
+              · 阅读、下载与浏览都不表示批准
+            </p>
+          </div>
+        )}
+        {(!focusReading || download.hasRepresentation) && (
+          <div className="markdown-download">
+            <Button
+              onClick={() => void download.onDownload()}
+              disabled={
+                !download.hasRepresentation || visible.content.currentUsability !== 'USABLE'
+              }
             >
-              {opinionOpen ? '收起意见与处理' : '打开意见与处理'}
-            </button>
+              下载 Markdown
+            </Button>
+            <p className="muted">
+              {download.hasRepresentation
+                ? '下载当前阅读版本 · 与阅读和批准分开记录'
+                : download.note}
+            </p>
+            <p className="markdown-download-status" role="status">
+              {download.status}
+            </p>
           </div>
         )}
       </header>
       <div className="markdown-mobile-tabs">
-        <button
+        <Button
           onClick={() => {
             setPane('document');
             if (focusReading) setOpinionOpen(false);
@@ -460,8 +516,8 @@ export function MarkdownReviewPage({
           aria-pressed={pane === 'document'}
         >
           查看文档
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => {
             setPane('opinion');
             if (focusReading) setOpinionOpen(true);
@@ -469,7 +525,7 @@ export function MarkdownReviewPage({
           aria-pressed={pane === 'opinion'}
         >
           意见与处理
-        </button>
+        </Button>
       </div>
       <div
         className={`markdown-review-layout${focusReading ? ' focus-reading' : ''}${
@@ -487,9 +543,9 @@ export function MarkdownReviewPage({
                 {files.list.status && <small role="status">{files.list.status}</small>}
               </div>
               {files.actions.onQuery && (
-                <label>
+                <Label>
                   查找文件
-                  <input
+                  <Input
                     type="search"
                     value={files.list.query}
                     onChange={(event) => {
@@ -497,12 +553,12 @@ export function MarkdownReviewPage({
                     }}
                     placeholder="文件名称或编号"
                   />
-                </label>
+                </Label>
               )}
               {files.actions.onStateFilter && (
-                <label>
+                <Label>
                   文件状态
-                  <select
+                  <NativeSelect
                     value={files.list.stateFilter}
                     onChange={(event) => {
                       files.actions.onStateFilter?.(event.target.value as 'ALL' | ReviewFileState);
@@ -514,12 +570,15 @@ export function MarkdownReviewPage({
                         {label}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </NativeSelect>
+                </Label>
               )}
               <div className="markdown-file-list">
                 {files.list.entries.map((entry) => (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="content"
+                    className="items-start"
                     key={entry.fileId}
                     disabled={!files.actions.onSelect || !entry.openable}
                     aria-current={entry.fileId === files.list.currentFileId ? 'true' : undefined}
@@ -534,18 +593,18 @@ export function MarkdownReviewPage({
                     <span className={`markdown-file-state is-${entry.state.toLocaleLowerCase()}`}>
                       {reviewFileStateLabels[entry.state]}
                     </span>
-                  </button>
+                  </Button>
                 ))}
                 {files.list.entries.length === 0 && <p>没有符合条件的文件。</p>}
                 {files.list.nextCursor && (
-                  <button
+                  <Button
                     disabled={files.list.loading}
                     onClick={() => {
                       files.actions.onMore?.();
                     }}
                   >
                     {files.list.loading ? '正在加载文件…' : '继续加载文件'}
-                  </button>
+                  </Button>
                 )}
               </div>
               <small>未加载页不计入分母；列表限定本轮工作范围。</small>
@@ -558,32 +617,33 @@ export function MarkdownReviewPage({
           )}
           <div className="markdown-reader-toolbar">
             <div>
-              <button
+              <Button
                 aria-pressed={tab === 'changes'}
                 onClick={() => {
                   setTab('changes');
                 }}
               >
-                变化详情 · {visible.changes.totalChanges}
-              </button>
-              <button
+                {focusReading ? '全文修订对照' : '变化详情'} · {visible.changes.totalChanges}
+              </Button>
+              <Button
                 aria-pressed={tab === 'document'}
                 onClick={() => {
                   setTab('document');
                 }}
               >
                 完整文件
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-pressed={tab === 'summary'}
                 onClick={() => {
                   setTab('summary');
                 }}
               >
                 摘要与依据
-              </button>
+              </Button>
             </div>
             <span className="muted">逐处查看不代表检查完成</span>
+            {tab !== 'changes' && opinionToggle}
           </div>
           {tab === 'changes' && (
             <nav className="markdown-change-toolbar" aria-label="本文件修改位置">
@@ -592,14 +652,24 @@ export function MarkdownReviewPage({
                 <small>
                   已加载 {visible.changes.entries.length} / {visible.changes.totalChanges} 处
                 </small>
-                <button
+                <Button
                   aria-haspopup="dialog"
                   onClick={() => {
                     setDirectoryOpen(true);
                   }}
                 >
                   查看全部位置 ▤
-                </button>
+                </Button>
+                {opinionToggle}
+                {focusReading && current && (
+                  <Button
+                    onClick={() => {
+                      quote(current, currentPosition);
+                    }}
+                  >
+                    对此处提意见
+                  </Button>
+                )}
               </div>
               {current ? (
                 <div className="markdown-change-current">
@@ -610,7 +680,7 @@ export function MarkdownReviewPage({
                     <strong>{changeTitle(current)}</strong>
                   </span>
                   <div>
-                    <button
+                    <Button
                       aria-label="上一处变化"
                       disabled={currentPosition === 0}
                       onClick={() => {
@@ -618,8 +688,8 @@ export function MarkdownReviewPage({
                       }}
                     >
                       ↑ 上一处
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       aria-label="下一处变化"
                       disabled={currentPosition >= lastLoaded}
                       onClick={() => {
@@ -627,7 +697,7 @@ export function MarkdownReviewPage({
                       }}
                     >
                       下一处 ↓
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -637,23 +707,27 @@ export function MarkdownReviewPage({
           )}
           <div className="markdown-reading-scroll" ref={scroll}>
             {workspace?.recheck && (
-              <p className="notice" role="status">
-                {workspace.recheck}
-              </p>
+              <Alert asChild variant="warning">
+                <p className="notice" role="status">
+                  {workspace.recheck}
+                </p>
+              </Alert>
             )}
             {workspace?.candidate && (
-              <p className="notice" role="status">
-                <strong>{workspace.candidate.label}</strong> {workspace.candidate.note}
-                {workspace.candidate.onSwitch && (
-                  <button
-                    onClick={() => {
-                      workspace.candidate?.onSwitch?.();
-                    }}
-                  >
-                    显式切换并核对引用
-                  </button>
-                )}
-              </p>
+              <Alert asChild variant="warning">
+                <p className="notice" role="status">
+                  <strong>{workspace.candidate.label}</strong> {workspace.candidate.note}
+                  {workspace.candidate.onSwitch && (
+                    <Button
+                      onClick={() => {
+                        workspace.candidate?.onSwitch?.();
+                      }}
+                    >
+                      显式切换并核对引用
+                    </Button>
+                  )}
+                </p>
+              </Alert>
             )}
             {tab === 'document' ? (
               <CanonicalDocument document={visible.content.document} />
@@ -683,6 +757,13 @@ export function MarkdownReviewPage({
               ) : (
                 <p className="muted">本页未提供摘要与依据读取；摘要信息保持不可用。</p>
               )
+            ) : focusReading ? (
+              <FullDocumentDiff
+                data={visible}
+                narrow={narrow || (opinionOpen && !drawer && reviewWidth < 1400)}
+                activeIndex={currentPosition}
+                navigationRequest={navigationRequest}
+              />
             ) : current ? (
               <ChangeView
                 change={current}
@@ -707,15 +788,34 @@ export function MarkdownReviewPage({
                   还有未加载的变化：已显示 {visible.changes.entries.length} 处，共{' '}
                   {visible.changes.totalChanges} 处。
                 </span>
-                <button disabled={busy} onClick={() => void onMore()}>
+                <Button disabled={busy} onClick={() => void onMore()}>
                   {busy ? '正在加载变化…' : directoryStatus ? '重试加载变化' : '继续加载变化'}
-                </button>
+                </Button>
                 {directoryStatus && <span role="status">{directoryStatus}</span>}
               </p>
             )}
           </div>
         </section>
-        <aside className="markdown-opinion" aria-label="本文件意见与处理">
+        <OpinionPanel
+          enabled={focusReading}
+          open={opinionOpen}
+          drawer={drawer}
+          onClose={() => {
+            changeOpinionOpen(false);
+          }}
+          context={opinion.context}
+          excerpt={
+            current ? (
+              <>
+                <strong>{changeTitle(current)}</strong>
+                {current.beforeValue?.text && <p>原文：{current.beforeValue.text}</p>}
+                {current.afterValue?.text && <p>修订：{current.afterValue.text}</p>}
+              </>
+            ) : (
+              <p>本文件暂无文字修改位置。</p>
+            )
+          }
+        >
           {submission && (
             <div className="markdown-submission" role="status" aria-live="polite">
               <strong>
@@ -730,14 +830,14 @@ export function MarkdownReviewPage({
               <p className="muted">{submission.note}</p>
               {submission.querying && <p className="muted">正在只读查询原提交…</p>}
               {submission.status === 'UNKNOWN' && submission.canQuery && (
-                <button
+                <Button
                   disabled={submission.querying}
                   onClick={() => {
                     opinionActions?.onQuerySubmission?.();
                   }}
                 >
                   重新查询
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -766,9 +866,9 @@ export function MarkdownReviewPage({
                     <strong>{suggestion.name}</strong>
                     {suggestion.byteLength !== undefined && ` · ${suggestion.byteLength} 字节`}
                   </p>
-                  <label>
+                  <Label>
                     改稿基准版本（必须明确选择）
-                    <select
+                    <NativeSelect
                       value={suggestion.baseline.selectedId ?? ''}
                       disabled={frozen || !opinionActions?.onSelectBaseline}
                       onChange={(event) => {
@@ -782,8 +882,8 @@ export function MarkdownReviewPage({
                           {option.kind === 'OLDER' ? '（旧基准）' : '（最新版本）'}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </NativeSelect>
+                  </Label>
                   <p className="muted">
                     基准 {baseline ? baseline.label : '尚未选择'} · 提交时最新版本{' '}
                     {suggestion.latestLabel}
@@ -793,18 +893,18 @@ export function MarkdownReviewPage({
                     <pre>{suggestion.text.slice(0, 4000)}</pre>
                   </details>
                   {!frozen && opinionActions?.onRemoveSuggestion && (
-                    <button
+                    <Button
                       onClick={() => {
                         opinionActions.onRemoveSuggestion?.();
                       }}
                     >
                       移除草稿改稿
-                    </button>
+                    </Button>
                   )}
                 </>
               ) : (
                 <>
-                  <label>
+                  <Label>
                     附上 Markdown 改稿（.md / .markdown）
                     <input
                       type="file"
@@ -815,15 +915,15 @@ export function MarkdownReviewPage({
                         event.target.value = '';
                       }}
                     />
-                  </label>
+                  </Label>
                   {!frozen && opinionActions?.onRemoveSuggestion && (
-                    <button
+                    <Button
                       onClick={() => {
                         opinionActions.onRemoveSuggestion?.();
                       }}
                     >
                       移除草稿改稿
-                    </button>
+                    </Button>
                   )}
                 </>
               )}
@@ -835,7 +935,7 @@ export function MarkdownReviewPage({
             </div>
           )}
           {!suggestion && opinionActions?.onAttachSuggestion && !frozen && (
-            <label className="markdown-attach">
+            <Label className="markdown-attach">
               附上 Markdown 改稿
               <input
                 type="file"
@@ -845,13 +945,13 @@ export function MarkdownReviewPage({
                   event.target.value = '';
                 }}
               />
-            </label>
+            </Label>
           )}
           <p className="markdown-opinion-context">针对：{opinion.context}</p>
-          {opinion.scope && (
-            <label className="markdown-opinion-scope">
+          {opinion.scope && (!focusReading || opinion.scope.options.length > 1) && (
+            <Label className="markdown-opinion-scope">
               意见作用范围
-              <select
+              <NativeSelect
                 value={opinion.scope.selectedId}
                 onChange={(event) => {
                   opinionActions?.onSelectScope?.(event.target.value);
@@ -862,12 +962,12 @@ export function MarkdownReviewPage({
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               <small>{opinion.scope.note}</small>
-            </label>
+            </Label>
           )}
-          <label htmlFor="markdown-note">{draftLabel}</label>
-          <textarea
+          <Label htmlFor="markdown-note">{draftLabel}</Label>
+          <Textarea
             id="markdown-note"
             ref={note}
             value={opinion.draft.text}
@@ -885,7 +985,7 @@ export function MarkdownReviewPage({
             {opinion.draft.note && ` · ${opinion.draft.note}`}
           </p>
           {opinionActions?.onSaveDraft && (
-            <button
+            <Button
               disabled={
                 opinion.draft.state === 'SAVING' ||
                 opinion.draft.state === 'UNKNOWN' ||
@@ -896,21 +996,24 @@ export function MarkdownReviewPage({
               }}
             >
               保存意见草稿（模拟）
-            </button>
+            </Button>
           )}
-          <button
-            className="primary"
-            disabled={!canSubmit}
-            onClick={() => {
-              opinionActions?.onSubmit?.();
-            }}
-          >
-            提交并修改
-          </button>
-          {submitBlocker && <p className="muted">{submitBlocker}</p>}
+          {(!focusReading || opinionActions?.onSubmit) && (
+            <Button
+              variant="default"
+              disabled={!canSubmit}
+              onClick={() => {
+                opinionActions?.onSubmit?.();
+              }}
+            >
+              提交并修改
+            </Button>
+          )}
+          {!opinionFooter && submitBlocker && <p className="muted">{submitBlocker}</p>}
+          {opinionFooter}
           {opinion.approval.visible !== false && (
             <>
-              <button
+              <Button
                 disabled={
                   !opinion.approval.available ||
                   submission?.status === 'UNKNOWN' ||
@@ -923,7 +1026,7 @@ export function MarkdownReviewPage({
                 }}
               >
                 检查完成并批准
-              </button>
+              </Button>
               <p className="muted">{approvalNote}</p>
             </>
           )}
@@ -944,7 +1047,7 @@ export function MarkdownReviewPage({
                 {opinion.history.map((entry) => (
                   <li key={entry.id}>
                     <strong>{entry.scopeLabel}</strong>
-                    <span className="status-tag">{entry.status}</span>
+                    <Badge className="status-tag">{entry.status}</Badge>
                     <p>{entry.text}</p>
                     <small>
                       原请求 {entry.requestLabel} · 原依据 {entry.basis}
@@ -958,112 +1061,119 @@ export function MarkdownReviewPage({
             </details>
           )}
           {controls}
-        </aside>
+        </OpinionPanel>
       </div>
-      <Dialog.Root open={directoryOpen} onOpenChange={setDirectoryOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog-content markdown-directory-dialog">
-            <Dialog.Title>全部修改位置 · {visible.changes.totalChanges} 处</Dialog.Title>
-            <Dialog.Description>
-              {visible.content.document.title} · {revisionLabel}
-              ；按章节查找并跳转，不会标记检查完成。
-            </Dialog.Description>
-            <label className="markdown-directory-search">
-              查找位置
-              <input
-                type="search"
-                value={directoryQuery}
-                onChange={(event) => {
-                  setDirectoryQuery(event.target.value);
-                }}
-                placeholder="输入章节、字段或关键词"
-              />
-            </label>
-            <p className="muted" role="status">
-              已加载 {visible.changes.entries.length} / {visible.changes.totalChanges} 处
-              {query && ` · 匹配 ${matchCount} 处`}
-            </p>
-            <div className="markdown-directory">
-              {groups.map((group) => {
-                const entries = visible.changes.entries
-                  .map((change, position) => ({ change, position }))
-                  .filter(
-                    (entry) =>
-                      entry.change.chapterUnitIds.includes(group.unitId) && matches(entry.change),
-                  );
-                if (entries.length === 0) return null;
-                const dialogKey = `dialog:${group.unitId}`;
-                return (
-                  <details
-                    key={group.unitId}
-                    open={chapterState[dialogKey] ?? true}
-                    onToggle={(event) => {
-                      setChapterState({
-                        ...chapterState,
-                        [dialogKey]: event.currentTarget.open,
-                      });
-                    }}
-                  >
-                    <summary>
-                      {group.title}
-                      <span>{entries.length} 处</span>
-                    </summary>
-                    {entries.map((entry) => (
-                      <button
-                        key={entry.change.changeId.digest}
-                        aria-current={entry.position === currentPosition ? 'step' : undefined}
-                        onClick={() => {
-                          setDirectoryOpen(false);
-                          step(entry.position);
-                        }}
-                      >
-                        <span>{entry.position + 1}</span>
-                        <span>{changeTitle(entry.change)}</span>
-                        <small>{kindCopy[entry.change.kind]}</small>
-                        {!changeBinding(visible.content, entry.change).present && (
-                          <small className="markdown-location-missing">位置待核对</small>
-                        )}
-                      </button>
-                    ))}
-                  </details>
-                );
-              })}
-              {visible.changes.entries
+      <Dialog open={directoryOpen} onOpenChange={setDirectoryOpen}>
+        <DialogContent
+          className="dialog-content markdown-directory-dialog"
+          onCloseAutoFocus={(event) => {
+            if (!directoryJump.current) return;
+            directoryJump.current = false;
+            event.preventDefault();
+            const row = root.current?.querySelector<HTMLElement>(
+              '.document-diff-row[data-active="true"]',
+            );
+            row?.focus({ preventScroll: true });
+            row?.scrollIntoView({ block: 'center' });
+          }}
+        >
+          <DialogTitle>全部修改位置 · {visible.changes.totalChanges} 处</DialogTitle>
+          <DialogDescription>
+            {visible.content.document.title} · {revisionLabel}
+            ；按章节查找并跳转，不会标记检查完成。
+          </DialogDescription>
+          <Label className="markdown-directory-search">
+            查找位置
+            <Input
+              type="search"
+              value={directoryQuery}
+              onChange={(event) => {
+                setDirectoryQuery(event.target.value);
+              }}
+              placeholder="输入章节、字段或关键词"
+            />
+          </Label>
+          <p className="muted" role="status">
+            已加载 {visible.changes.entries.length} / {visible.changes.totalChanges} 处
+            {query && ` · 匹配 ${matchCount} 处`}
+          </p>
+          <div className="markdown-directory">
+            {groups.map((group) => {
+              const entries = visible.changes.entries
                 .map((change, position) => ({ change, position }))
                 .filter(
-                  (entry) => entry.change.chapterUnitIds.length === 0 && matches(entry.change),
-                )
-                .map((entry) => (
-                  <button
-                    key={entry.change.changeId.digest}
-                    aria-current={entry.position === currentPosition ? 'step' : undefined}
-                    onClick={() => {
-                      setDirectoryOpen(false);
-                      step(entry.position);
-                    }}
-                  >
-                    <span>{entry.position + 1}</span>
-                    <span>{changeTitle(entry.change)}</span>
-                    <small>未归入章节</small>
-                  </button>
-                ))}
-              {matchCount === 0 && <p>没有找到匹配位置。</p>}
-            </div>
-            {visible.changes.nextCursor && (
-              <>
-                <button disabled={busy} onClick={() => void onMore()}>
-                  {busy ? '正在加载变化…' : directoryStatus ? '重试加载变化' : '继续加载变化'}
-                </button>
-                {directoryStatus && <p role="status">{directoryStatus}</p>}
-              </>
-            )}
-            <Dialog.Close asChild>
-              <button>返回阅读</button>
-            </Dialog.Close>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+                  (entry) =>
+                    entry.change.chapterUnitIds.includes(group.unitId) && matches(entry.change),
+                );
+              if (entries.length === 0) return null;
+              const dialogKey = `dialog:${group.unitId}`;
+              return (
+                <details
+                  key={group.unitId}
+                  open={chapterState[dialogKey] ?? true}
+                  onToggle={(event) => {
+                    setChapterState({
+                      ...chapterState,
+                      [dialogKey]: event.currentTarget.open,
+                    });
+                  }}
+                >
+                  <summary>
+                    {group.title}
+                    <span>{entries.length} 处</span>
+                  </summary>
+                  {entries.map((entry) => (
+                    <Button
+                      key={entry.change.changeId.digest}
+                      aria-current={entry.position === currentPosition ? 'step' : undefined}
+                      onClick={() => {
+                        setDirectoryOpen(false);
+                        step(entry.position);
+                      }}
+                    >
+                      <span>{entry.position + 1}</span>
+                      <span>{changeTitle(entry.change)}</span>
+                      <small>{kindCopy[entry.change.kind]}</small>
+                      {!changeBinding(visible.content, entry.change).present && (
+                        <small className="markdown-location-missing">位置待核对</small>
+                      )}
+                    </Button>
+                  ))}
+                </details>
+              );
+            })}
+            {visible.changes.entries
+              .map((change, position) => ({ change, position }))
+              .filter((entry) => entry.change.chapterUnitIds.length === 0 && matches(entry.change))
+              .map((entry) => (
+                <Button
+                  key={entry.change.changeId.digest}
+                  aria-current={entry.position === currentPosition ? 'step' : undefined}
+                  onClick={() => {
+                    setDirectoryOpen(false);
+                    step(entry.position);
+                  }}
+                >
+                  <span>{entry.position + 1}</span>
+                  <span>{changeTitle(entry.change)}</span>
+                  <small>未归入章节</small>
+                </Button>
+              ))}
+            {matchCount === 0 && <p>没有找到匹配位置。</p>}
+          </div>
+          {visible.changes.nextCursor && (
+            <>
+              <Button disabled={busy} onClick={() => void onMore()}>
+                {busy ? '正在加载变化…' : directoryStatus ? '重试加载变化' : '继续加载变化'}
+              </Button>
+              {directoryStatus && <p role="status">{directoryStatus}</p>}
+            </>
+          )}
+          <DialogClose asChild>
+            <Button>返回阅读</Button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -1105,13 +1215,13 @@ function ChangeView({
         <p className="eyebrow">
           第 {position + 1} / {visible.changes.totalChanges} 处 · {kindCopy[change.kind]}
         </p>
-        <button
+        <Button
           onClick={() => {
             onQuote(change, position);
           }}
         >
           对此处提意见
-        </button>
+        </Button>
       </div>
       <h2 ref={heading} tabIndex={-1}>
         {changeTitle(change)}
@@ -1171,7 +1281,7 @@ function ChangeView({
         >
           <summary>本章节修改位置 · {chapterChanges.length} 处</summary>
           {chapterChanges.map((entry) => (
-            <button
+            <Button
               key={entry.change.changeId.digest}
               aria-current={entry.position === position ? 'step' : undefined}
               onClick={() => {
@@ -1180,7 +1290,7 @@ function ChangeView({
             >
               <span>{entry.position + 1}</span>
               <span>{changeTitle(entry.change)}</span>
-            </button>
+            </Button>
           ))}
           <p className="muted">同章节列表在跳转后保持展开；查看不代表该处检查完成。</p>
         </details>

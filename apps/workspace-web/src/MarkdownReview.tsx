@@ -1,3 +1,5 @@
+import { Card } from './components/ui/card.js';
+import { Button } from './components/ui/button.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownReviewPage, type MarkdownReviewData } from './MarkdownReviewPage.js';
 import { useLocation, useParams } from 'react-router';
@@ -342,28 +344,32 @@ export function MarkdownReview(props: Props) {
   const visible = acceptsResponse(props.guardRef.current, tag) ? loaded : null;
   if (error)
     return (
-      <section className="panel" role="alert">
-        <h1>文件检查</h1>
-        <p>{error}</p>
-        {sessionRequired ? (
-          <button onClick={props.onSessionFailure}>重新检查会话</button>
-        ) : (
-          <button
-            onClick={() => {
-              setReadAttempt((attempt) => attempt + 1);
-            }}
-          >
-            重新读取文件
-          </button>
-        )}
-      </section>
+      <Card asChild>
+        <section className="panel" role="alert">
+          <h1>文件检查</h1>
+          <p>{error}</p>
+          {sessionRequired ? (
+            <Button onClick={props.onSessionFailure}>重新检查会话</Button>
+          ) : (
+            <Button
+              onClick={() => {
+                setReadAttempt((attempt) => attempt + 1);
+              }}
+            >
+              重新读取文件
+            </Button>
+          )}
+        </section>
+      </Card>
     );
   if (!visible || !link)
     return (
-      <section className="panel" aria-busy="true">
-        <h1>文件检查</h1>
-        <p>正在读取已封存的精确版本…</p>
-      </section>
+      <Card asChild>
+        <section className="panel" aria-busy="true">
+          <h1>文件检查</h1>
+          <p>正在读取已封存的精确版本…</p>
+        </section>
+      </Card>
     );
   return (
     <MarkdownReviewPage

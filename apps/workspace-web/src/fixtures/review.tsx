@@ -1,3 +1,7 @@
+import { Alert } from '../components/ui/alert.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Button } from '../components/ui/button.js';
 import { MockControls } from './control-slot.js';
 // Explicit development-only review workspace (#286). Synthetic content only:
 // it never reads customer documents, calls Core/Runner or claims success.
@@ -425,9 +429,9 @@ export function FixtureReviewControls({
           {reviewFixtureMarker}
         </p>
         <div>
-          <label>
+          <Label>
             个人草稿保存回执
-            <select
+            <NativeSelect
               value={memory.draftOutcome}
               onChange={(event) => {
                 memory.draftOutcome = event.target.value as ReviewDraftState;
@@ -439,12 +443,12 @@ export function FixtureReviewControls({
               <option value="CONFLICT">草稿冲突（另一设备）</option>
               <option value="UNKNOWN">保存结果待核验</option>
               <option value="UNAVAILABLE">服务器草稿未接入</option>
-            </select>
-          </label>
-          <button onClick={fixture.applySaveReceipt}>返回草稿保存回执</button>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Button onClick={fixture.applySaveReceipt}>返回草稿保存回执</Button>
+          <Label>
             原提交的查询结果
-            <select
+            <NativeSelect
               value={memory.receiptOutcome}
               onChange={(event) => {
                 memory.receiptOutcome = event.target.value as ReceiptOutcome;
@@ -455,11 +459,11 @@ export function FixtureReviewControls({
               <option value="accepted">已接收，等待安排</option>
               <option value="running">已确认正在修改</option>
               <option value="mismatch">回执上下文不匹配</option>
-            </select>
-          </label>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Label>
             单文件批准回执
-            <select
+            <NativeSelect
               value={memory.approvalOutcome}
               onChange={(event) => {
                 memory.approvalOutcome = event.target.value as ApprovalOutcome;
@@ -470,11 +474,11 @@ export function FixtureReviewControls({
               <option value="accepted">匹配批准成功并进入下一份</option>
               <option value="unknown">批准结果待核验</option>
               <option value="mismatch">错上下文回执</option>
-            </select>
-          </label>
-          <label>
+            </NativeSelect>
+          </Label>
+          <Label>
             下载状态
-            <select
+            <NativeSelect
               value={memory.download}
               onChange={(event) => {
                 memory.download = event.target.value as 'AVAILABLE' | 'UNAVAILABLE';
@@ -483,8 +487,8 @@ export function FixtureReviewControls({
             >
               <option value="AVAILABLE">已登记表示</option>
               <option value="UNAVAILABLE">未提供已登记表示</option>
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
           {extra}
           <p className="muted">
             当前上下文 {contextKey} · 已批准 {memory.approved.size} 份 ·
@@ -541,9 +545,11 @@ export function FixtureReviewWorkspace() {
         </div>
         <p>开发合成场景 · 9 章 / 201 份目录（合成）</p>
       </section>
-      <p className="notice">
-        仅开发合成内容 · 无客户文件、无 Runner、无服务器草稿或批准；下载与批准状态均为演示。
-      </p>
+      <Alert asChild variant="warning">
+        <p className="notice">
+          仅开发合成内容 · 无客户文件、无 Runner、无服务器草稿或批准；下载与批准状态均为演示。
+        </p>
+      </Alert>
       <MarkdownReviewPage
         data={data}
         busy={false}
@@ -671,9 +677,9 @@ export function FixtureReviewWorkspace() {
             contextKey={key}
             extra={
               <>
-                <label>
+                <Label>
                   查看本文件版本
-                  <select
+                  <NativeSelect
                     value={revisionId}
                     onChange={(event) => {
                       memory.revision.set(fileId, event.target.value);
@@ -685,9 +691,9 @@ export function FixtureReviewWorkspace() {
                         第 {index + 1} 版{candidate === latestRevision ? '（最新候选）' : ''}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <button
+                  </NativeSelect>
+                </Label>
+                <Button
                   onClick={() => {
                     memory.candidates.add(key);
                     memory.fileStatus = '新候选已到达（演示）；当前阅读版本保持。';
@@ -695,14 +701,14 @@ export function FixtureReviewWorkspace() {
                   }}
                 >
                   模拟本文件新候选到达
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => {
                     fixture.applyApprovalReceipt(key);
                   }}
                 >
                   返回批准的选定回执
-                </button>
+                </Button>
               </>
             }
           />

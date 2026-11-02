@@ -1,3 +1,6 @@
+import { buttonVariants } from '../components/ui/button.js';
+import { Badge } from '../components/ui/badge.js';
+import { Card } from '../components/ui/card.js';
 import { Link } from 'react-router';
 import { JourneyNav, type JourneyReviewStage } from '../mvp/JourneyNav.js';
 import './overview.css';
@@ -75,72 +78,78 @@ export function ProjectOverviewPage({
       <div className="demo" role="note">
         开发演练项目 · 资料、分析、计划和回执均为合成内容；不调用 Core 或 Runner，刷新清理本页内存。
       </div>
-      <section className="panel overview-next" aria-label="当前下一步">
-        <h2>当前下一步</h2>
-        <p>{next.reason}</p>
-        <Link className="button primary" to={next.href}>
-          {next.label}
-        </Link>
-      </section>
+      <Card asChild>
+        <section className="panel overview-next" aria-label="当前下一步">
+          <h2>当前下一步</h2>
+          <p>{next.reason}</p>
+          <Link className={buttonVariants({ variant: 'default' })} to={next.href}>
+            {next.label}
+          </Link>
+        </section>
+      </Card>
       <div className="overview-grid">
-        <section className="panel" aria-label="三个业务阶段">
-          <h2>三个业务阶段</h2>
-          <p className="muted">页面访问、等待时间或候选数量都不代表阶段完成。</p>
-          <ol className="overview-steps" aria-label="三个业务阶段当前进度">
-            {stages.map((stage, index) => {
-              const state = stageStepState(stage.state);
-              return (
-                <li
-                  key={stage.id}
-                  data-state={state}
-                  aria-current={index === currentStageIndex ? 'step' : undefined}
-                >
-                  <span className="overview-step-number" aria-hidden="true">
-                    {index + 1}
+        <Card asChild>
+          <section className="panel" aria-label="三个业务阶段">
+            <h2>三个业务阶段</h2>
+            <p className="muted">页面访问、等待时间或候选数量都不代表阶段完成。</p>
+            <ol className="overview-steps" aria-label="三个业务阶段当前进度">
+              {stages.map((stage, index) => {
+                const state = stageStepState(stage.state);
+                return (
+                  <li
+                    key={stage.id}
+                    data-state={state}
+                    aria-current={index === currentStageIndex ? 'step' : undefined}
+                  >
+                    <span className="overview-step-number" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <div className="overview-step-body">
+                      <strong>{stage.label}</strong>
+                      <Badge className="status-tag">{stage.state}</Badge>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="overview-progress" role="status">
+              {currentStage
+                ? `当前进度：第 ${currentStageIndex + 1} 步 · ${currentStage.label} · ${currentStage.state}`
+                : '当前进度：尚未开始'}
+            </p>
+            <details className="overview-stage-details">
+              <summary>查看阶段依据与历史</summary>
+              <ul>
+                {stages.map((stage) => (
+                  <li key={stage.id}>
+                    <strong>{stage.label}</strong> · {stage.state}
+                    <p>{stage.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+        </Card>
+        <Card asChild>
+          <section className="panel" aria-label="四个文件层级">
+            <h2>四个文件层级</h2>
+            <p className="muted">层级是文件组织方式，不是串行审批关卡，也不是阶段顺序。</p>
+            <ul className="overview-levels">
+              {levels.map((level) => (
+                <li key={level.id}>
+                  <strong>{level.label}</strong>
+                  <span>
+                    输入 {level.inputCount} · 本轮计划 {level.plannedCount}
                   </span>
-                  <div className="overview-step-body">
-                    <strong>{stage.label}</strong>
-                    <span className="status-tag">{stage.state}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-          <p className="overview-progress" role="status">
-            {currentStage
-              ? `当前进度：第 ${currentStageIndex + 1} 步 · ${currentStage.label} · ${currentStage.state}`
-              : '当前进度：尚未开始'}
-          </p>
-          <details className="overview-stage-details">
-            <summary>查看阶段依据与历史</summary>
-            <ul>
-              {stages.map((stage) => (
-                <li key={stage.id}>
-                  <strong>{stage.label}</strong> · {stage.state}
-                  <p>{stage.detail}</p>
+                  <details>
+                    <summary>查看说明</summary>
+                    <p>{level.detail}</p>
+                  </details>
                 </li>
               ))}
             </ul>
-          </details>
-        </section>
-        <section className="panel" aria-label="四个文件层级">
-          <h2>四个文件层级</h2>
-          <p className="muted">层级是文件组织方式，不是串行审批关卡，也不是阶段顺序。</p>
-          <ul className="overview-levels">
-            {levels.map((level) => (
-              <li key={level.id}>
-                <strong>{level.label}</strong>
-                <span>
-                  输入 {level.inputCount} · 本轮计划 {level.plannedCount}
-                </span>
-                <details>
-                  <summary>查看说明</summary>
-                  <p>{level.detail}</p>
-                </details>
-              </li>
-            ))}
-          </ul>
-        </section>
+          </section>
+        </Card>
       </div>
       <p className="muted">
         当前分析报告 {reportId}

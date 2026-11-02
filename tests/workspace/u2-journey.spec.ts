@@ -88,6 +88,7 @@ async function finalizeStage(page: Page, stage: 'quality' | 'set', versionText: 
   await expect(dialog).toContainText(versionText);
   await dialog.getByRole('button', { name: '确认并生成模拟回执' }).click();
   await expect(page.getByRole('heading', { name: '模拟阶段定稿已完成' })).toBeVisible();
+  await expect(page.locator('.stage-finalization-result')).toBeFocused();
 }
 
 async function switchFileVersion(page: Page, fileTitle: string) {
@@ -429,6 +430,7 @@ test('save, submission and finalization recovery keep one original request', asy
   await expect(
     page.locator('.stage-finalize').getByText('定稿请求待回执', { exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole('region', { name: '阶段定稿', exact: true })).toBeFocused();
   await expect(page.getByRole('button', { name: '确认质量手册定稿（模拟）' })).toBeDisabled();
   await rehearsalLink(page, '项目概览（阅读）');
   await rehearsalLink(page, '质量手册审阅');
@@ -578,7 +580,8 @@ test('desktop and narrow layouts keep reading, opinions, basis and return action
     await expect(page.locator('.stage-basis')).toContainText('输入依据');
     await expect(
       page.locator('.journey-nav').getByRole('link', { name: '全部文件', exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: '清单明细', exact: true })).toBeVisible();
     await expect(page.locator('.stage-set')).toBeVisible();
     if (width <= 900) {
       await page.getByRole('button', { name: '意见与处理' }).click();

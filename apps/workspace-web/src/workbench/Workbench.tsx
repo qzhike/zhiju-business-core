@@ -1,3 +1,10 @@
+import { Card } from '../components/ui/card.js';
+import { Badge } from '../components/ui/badge.js';
+import { Alert } from '../components/ui/alert.js';
+import { buttonVariants, Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Input } from '../components/ui/input.js';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
@@ -161,16 +168,7 @@ export function Workbench({
         <h3>
           {label} <span aria-label={`${items.length} 张已显示卡片`}>{items.length}</span>
         </h3>
-        <div
-          className="wb-card-scroll"
-          data-scroll-region={id}
-          role="region"
-          tabIndex={0}
-          aria-label={`${label}工作列表`}
-          onScroll={(event) => {
-            view.scroll[id] = event.currentTarget.scrollTop;
-          }}
-        >
+        <div className="wb-card-scroll" role="region" aria-label={`${label}工作列表`}>
           <ul className="progress-list wb-cards">
             {items.map((card) => (
               <li key={card.id}>
@@ -206,13 +204,13 @@ export function Workbench({
         </div>
         <div className="wb-actions">
           <WorkLink
-            className="button"
+            className={buttonVariants({ variant: 'outline' })}
             projectKey=""
             action={{ label: '新建项目', destination: { kind: 'new' } }}
           />
           {selected ? (
             <WorkLink
-              className="button primary"
+              className={buttonVariants({ variant: 'default' })}
               projectKey={selected.key}
               action={{
                 label: '提交客户资料',
@@ -220,21 +218,21 @@ export function Workbench({
               }}
             />
           ) : (
-            <button
-              className="primary"
+            <Button
+              variant="default"
               onClick={() => {
                 document.getElementById('wb-project')?.focus();
               }}
             >
               选择项目提交资料
-            </button>
+            </Button>
           )}
         </div>
       </div>
       <div className="wb-filters">
-        <label>
+        <Label>
           筛选项目
-          <select
+          <NativeSelect
             id="wb-project"
             value={selectedKey ?? ''}
             onChange={(event) => {
@@ -247,11 +245,11 @@ export function Workbench({
                 {project.name}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="wb-search">
+          </NativeSelect>
+        </Label>
+        <Label className="wb-search">
           查找工作
-          <input
+          <Input
             type="search"
             value={search}
             placeholder="工作名称、原因或编号"
@@ -260,110 +258,114 @@ export function Workbench({
               setSearch(view.search);
             }}
           />
-        </label>
+        </Label>
         {search && (
-          <button
+          <Button
             onClick={() => {
               view.search = '';
               setSearch('');
             }}
           >
             清除搜索
-          </button>
+          </Button>
         )}
       </div>
-      <section className="panel wb-projects" aria-label="项目进度">
-        <div className="wb-section-head">
-          <div className="wb-section-title">
-            <h2>授权项目</h2>
-            <span className="muted">
-              {directory.state === 'READY' ? directory.detail : '当前授权范围'}
-            </span>
+      <Card asChild>
+        <section className="panel wb-projects" aria-label="项目进度">
+          <div className="wb-section-head">
+            <div className="wb-section-title">
+              <h2>授权项目</h2>
+              <span className="muted">
+                {directory.state === 'READY' ? directory.detail : '当前授权范围'}
+              </span>
+            </div>
+            <div className="wb-view-switch" role="group" aria-label="项目视图">
+              <Button
+                type="button"
+                aria-pressed={projectView === 'cards'}
+                onClick={() => {
+                  switchProjectView('cards');
+                }}
+              >
+                卡片
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={projectView === 'list'}
+                onClick={() => {
+                  switchProjectView('list');
+                }}
+              >
+                列表
+              </Button>
+            </div>
           </div>
-          <div className="wb-view-switch" role="group" aria-label="项目视图">
-            <button
-              type="button"
-              aria-pressed={projectView === 'cards'}
-              onClick={() => {
-                switchProjectView('cards');
-              }}
-            >
-              卡片
-            </button>
-            <button
-              type="button"
-              aria-pressed={projectView === 'list'}
-              onClick={() => {
-                switchProjectView('list');
-              }}
-            >
-              列表
-            </button>
+          <SourceNotice notice={directory} compact />
+          <div
+            className="wb-project-scroll"
+            ref={projectScroll}
+            data-scroll-region="projects"
+            onScroll={(event) => {
+              view.scroll.projects = event.currentTarget.scrollTop;
+            }}
+          >
+            {visibleProjects.length === 0 ? (
+              <p className="wb-empty">
+                {loading
+                  ? '正在读取授权项目…'
+                  : failed
+                    ? '授权项目未能读取，请查看上方提示。'
+                    : '当前授权范围内没有项目。'}
+              </p>
+            ) : projectView === 'cards' ? (
+              <ul className="wb-project-cards" aria-label="授权项目卡片">
+                {visibleProjects.map((project) => (
+                  <li key={project.key}>
+                    <Card asChild>
+                      <article className="work-item wb-project-card" data-project-key={project.key}>
+                        <h3>{project.name}</h3>
+                        <p className="muted">
+                          {project.code} · {project.status}
+                        </p>
+                        <p className="wb-progress">{project.progress}</p>
+                        <ProjectActions
+                          project={project}
+                          selectedKey={selectedKey}
+                          memory={memory}
+                          onSelect={selectProject}
+                        />
+                      </article>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="wb-project-list" aria-label="授权项目列表">
+                {visibleProjects.map((project) => (
+                  <li key={project.key}>
+                    <article className="work-item wb-project-row" data-project-key={project.key}>
+                      <div className="wb-row-identity">
+                        <h3>{project.name}</h3>
+                        <p className="muted">{project.code}</p>
+                      </div>
+                      <div className="wb-row-status">
+                        <span>{project.status}</span>
+                        <p className="wb-progress">{project.progress}</p>
+                      </div>
+                      <ProjectActions
+                        project={project}
+                        selectedKey={selectedKey}
+                        memory={memory}
+                        onSelect={selectProject}
+                      />
+                    </article>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
-        <SourceNotice notice={directory} compact />
-        <div
-          className="wb-project-scroll"
-          ref={projectScroll}
-          data-scroll-region="projects"
-          onScroll={(event) => {
-            view.scroll.projects = event.currentTarget.scrollTop;
-          }}
-        >
-          {visibleProjects.length === 0 ? (
-            <p className="wb-empty">
-              {loading
-                ? '正在读取授权项目…'
-                : failed
-                  ? '授权项目未能读取，请查看上方提示。'
-                  : '当前授权范围内没有项目。'}
-            </p>
-          ) : projectView === 'cards' ? (
-            <ul className="wb-project-cards" aria-label="授权项目卡片">
-              {visibleProjects.map((project) => (
-                <li key={project.key}>
-                  <article className="work-item wb-project-card" data-project-key={project.key}>
-                    <h3>{project.name}</h3>
-                    <p className="muted">
-                      {project.code} · {project.status}
-                    </p>
-                    <p className="wb-progress">{project.progress}</p>
-                    <ProjectActions
-                      project={project}
-                      selectedKey={selectedKey}
-                      memory={memory}
-                      onSelect={selectProject}
-                    />
-                  </article>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ul className="wb-project-list" aria-label="授权项目列表">
-              {visibleProjects.map((project) => (
-                <li key={project.key}>
-                  <article className="work-item wb-project-row" data-project-key={project.key}>
-                    <div className="wb-row-identity">
-                      <h3>{project.name}</h3>
-                      <p className="muted">{project.code}</p>
-                    </div>
-                    <div className="wb-row-status">
-                      <span>{project.status}</span>
-                      <p className="wb-progress">{project.progress}</p>
-                    </div>
-                    <ProjectActions
-                      project={project}
-                      selectedKey={selectedKey}
-                      memory={memory}
-                      onSelect={selectProject}
-                    />
-                  </article>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+        </section>
+      </Card>
       <div className="wb-context">
         <div className="wb-recent">
           <strong>最近访问</strong>
@@ -388,58 +390,64 @@ export function Workbench({
         >
           <summary>更多</summary>
           <p>最近访问仅打开原页面，不发起或继续执行。</p>
-          <button
+          <Button
             onClick={() => {
               void navigate(workbenchPath(null));
             }}
           >
             查看全部授权项目
-          </button>
+          </Button>
         </details>
       </div>
-      <section className="panel wb-board-panel">
-        <h2 className="wb-board-title">{selected ? `项目看板 · ${selected.title}` : '工作看板'}</h2>
-        <p className="wb-coverage">{coverage}</p>
-        <div className="wb-sources">
-          {sources.map((source) => (
-            <SourceNotice key={source.id} notice={source} />
-          ))}
-        </div>
-        {selectedKey !== null && selected === undefined && !loading && (
-          <p className="notice" role="status">
-            该项目未在本次授权目录中找到。请选择当前可见项目或重新读取目录。
-          </p>
-        )}
-        {directory.state === 'EMPTY' && <h3 className="wb-empty">暂无待处理工作</h3>}
-        <nav className="wb-group-nav" aria-label="工作分组">
-          {GROUPS.filter((item) => item.id !== 'done').map((item) => (
-            <button
-              key={item.id}
-              aria-pressed={group === item.id}
-              onClick={() => {
-                view.group = item.id;
-                setGroup(item.id);
-              }}
-            >
-              {item.label} · {filtered.filter((card) => card.group === item.id).length}
-            </button>
-          ))}
-        </nav>
-        <div className="wb-board">
-          {(['attention', 'running', 'waiting'] as const).map(renderGroup)}
-        </div>
-        <details
-          className="wb-completed"
-          open={view.completed}
-          onToggle={(event) => {
-            view.completed = event.currentTarget.open;
-          }}
-        >
-          <summary>已完成 · {filtered.filter((card) => card.group === 'done').length}</summary>
-          <p className="muted">仅对应卡片所述工作，不表示项目已完成、发布或交付。</p>
-          {renderGroup('done')}
-        </details>
-      </section>
+      <Card asChild>
+        <section className="panel wb-board-panel">
+          <h2 className="wb-board-title">
+            {selected ? `项目看板 · ${selected.title}` : '工作看板'}
+          </h2>
+          <p className="wb-coverage">{coverage}</p>
+          <div className="wb-sources">
+            {sources.map((source) => (
+              <SourceNotice key={source.id} notice={source} />
+            ))}
+          </div>
+          {selectedKey !== null && selected === undefined && !loading && (
+            <Alert asChild variant="warning">
+              <p className="notice" role="status">
+                该项目未在本次授权目录中找到。请选择当前可见项目或重新读取目录。
+              </p>
+            </Alert>
+          )}
+          {directory.state === 'EMPTY' && <h3 className="wb-empty">暂无待处理工作</h3>}
+          <nav className="wb-group-nav" aria-label="工作分组">
+            {GROUPS.filter((item) => item.id !== 'done').map((item) => (
+              <Button
+                key={item.id}
+                aria-pressed={group === item.id}
+                onClick={() => {
+                  view.group = item.id;
+                  setGroup(item.id);
+                }}
+              >
+                {item.label} · {filtered.filter((card) => card.group === item.id).length}
+              </Button>
+            ))}
+          </nav>
+          <div className="wb-board">
+            {(['attention', 'running', 'waiting'] as const).map(renderGroup)}
+          </div>
+          <details
+            className="wb-completed"
+            open={view.completed}
+            onToggle={(event) => {
+              view.completed = event.currentTarget.open;
+            }}
+          >
+            <summary>已完成 · {filtered.filter((card) => card.group === 'done').length}</summary>
+            <p className="muted">仅对应卡片所述工作，不表示项目已完成、发布或交付。</p>
+            {renderGroup('done')}
+          </details>
+        </section>
+      </Card>
       {controls}
     </div>
   );
@@ -459,14 +467,14 @@ function ProjectActions({
   const open = memory.projectRefs.has(project.key);
   return (
     <div className="wb-project-actions">
-      <button
+      <Button
         aria-pressed={selectedKey === project.key}
         onClick={() => {
           onSelect(selectedKey === project.key ? null : project.key);
         }}
       >
         {selectedKey === project.key ? '收起看板' : '查看该项目看板'}
-      </button>
+      </Button>
       <WorkLink
         projectKey={project.key}
         action={{
@@ -493,29 +501,31 @@ function ProjectActions({
 
 function WorkItem({ card, project }: { card: WorkCard; project: ProjectView | undefined }) {
   return (
-    <article className="wb-card" aria-label={card.title}>
-      <p className="wb-card-project">{project?.name}</p>
-      <h3>{card.title}</h3>
-      <span className={`wb-status wb-${card.group}`}>{card.status}</span>
-      <p className="wb-reason">{card.reason}</p>
-      {card.counts && (
-        <p className="wb-counts" aria-live="polite">
-          待检查 <strong>{card.counts.review}</strong> 份 <span>·</span> 处理中{' '}
-          <strong>{card.counts.working}</strong> 份
-        </p>
-      )}
-      <p className="wb-card-context">{card.context}</p>
-      <div className="wb-card-actions">
-        <WorkLink id={`work-${card.id}`} projectKey={card.projectKey} action={card.action} />
-        {card.secondaryAction && (
-          <WorkLink
-            id={`work-${card.id}-secondary`}
-            projectKey={card.projectKey}
-            action={card.secondaryAction}
-          />
+    <Card asChild>
+      <article className="wb-card" aria-label={card.title}>
+        <p className="wb-card-project">{project?.name}</p>
+        <h3>{card.title}</h3>
+        <Badge className={`wb-status wb-${card.group}`}>{card.status}</Badge>
+        <p className="wb-reason">{card.reason}</p>
+        {card.counts && (
+          <p className="wb-counts" aria-live="polite">
+            待检查 <strong>{card.counts.review}</strong> 份 <span>·</span> 处理中{' '}
+            <strong>{card.counts.working}</strong> 份
+          </p>
         )}
-      </div>
-    </article>
+        <p className="wb-card-context">{card.context}</p>
+        <div className="wb-card-actions">
+          <WorkLink id={`work-${card.id}`} projectKey={card.projectKey} action={card.action} />
+          {card.secondaryAction && (
+            <WorkLink
+              id={`work-${card.id}-secondary`}
+              projectKey={card.projectKey}
+              action={card.secondaryAction}
+            />
+          )}
+        </div>
+      </article>
+    </Card>
   );
 }
 
@@ -528,7 +538,7 @@ export function SourceNotice({
 }) {
   if (compact && notice.state === 'READY' && !notice.warning && !notice.action) return null;
   return (
-    <div
+    <Alert
       className={`wb-source ${notice.state === 'ERROR' ? 'error' : ''}`}
       role={
         notice.state === 'ERROR'
@@ -542,7 +552,7 @@ export function SourceNotice({
       <p>{notice.detail}</p>
       {notice.observation && <p className="muted">{notice.observation}</p>}
       {notice.warning && <p className="wb-warning">{notice.warning}</p>}
-      {notice.action && <button onClick={notice.action.run}>{notice.action.label}</button>}
-    </div>
+      {notice.action && <Button onClick={notice.action.run}>{notice.action.label}</Button>}
+    </Alert>
   );
 }

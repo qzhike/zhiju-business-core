@@ -1,3 +1,8 @@
+import { useFixtureProject } from './project-session.js';
+import { Alert } from '../components/ui/alert.js';
+import { Button } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 import { MockControls } from './control-slot.js';
 // DEVELOPMENT_ANALYSIS_ADAPTER_ONLY: fixed checked-in examples, no production import.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -209,7 +214,11 @@ function useAdapter() {
 }
 export function FixtureAnalysis() {
   const params = useParams();
-  return params.projectId === 'MVP-U1-PROJECT' ? <FixtureU1Analysis /> : <LegacyFixtureAnalysis />;
+  return params.projectId === useFixtureProject().id ? (
+    <FixtureU1Analysis />
+  ) : (
+    <LegacyFixtureAnalysis />
+  );
 }
 function LegacyFixtureAnalysis() {
   const params = useParams();
@@ -247,18 +256,20 @@ function LegacyFixtureAnalysis() {
       submit={adapter.submit}
       updateNotice={
         adapter.arrived && report.version === 1 ? (
-          <div className="notice" role="status">
-            有新演示报告到达，当前仍是第 1 版。
-            <Link
-              to={`/projects/${report.projectId}/analysis/${secondReportId}`}
-              onClick={adapter.apply}
-            >
-              查看第 2 版
-            </Link>
-            {!search.get('view') && !historical && (
-              <button onClick={openCurrent}>应用更新到当前总览</button>
-            )}
-          </div>
+          <Alert asChild variant="warning">
+            <div className="notice" role="status">
+              有新演示报告到达，当前仍是第 1 版。
+              <Link
+                to={`/projects/${report.projectId}/analysis/${secondReportId}`}
+                onClick={adapter.apply}
+              >
+                查看第 2 版
+              </Link>
+              {!search.get('view') && !historical && (
+                <Button onClick={openCurrent}>应用更新到当前总览</Button>
+              )}
+            </div>
+          </Alert>
         ) : undefined
       }
       roundSummary={report.version === 2 ? report.summary : undefined}
@@ -282,10 +293,10 @@ function LegacyFixtureAnalysis() {
           <details className="fixture-options">
             <summary>分析演示控制</summary>
             <p>固定报告仅用于页面验证，不上传或分析文件；刷新清理本页内存。</p>
-            <button onClick={adapter.arrive}>模拟新报告到达</button>
-            <label>
+            <Button onClick={adapter.arrive}>模拟新报告到达</Button>
+            <Label>
               复核结果
-              <select
+              <NativeSelect
                 value={adapter.scenario}
                 onChange={(event) => {
                   adapter.setScenario(event.target.value);
@@ -296,9 +307,9 @@ function LegacyFixtureAnalysis() {
                 <option value="unavailable">不可用</option>
                 <option value="unknown">UNKNOWN</option>
                 <option value="mismatch">错上下文回执</option>
-              </select>
-            </label>
-            <button
+              </NativeSelect>
+            </Label>
+            <Button
               disabled={
                 historical ||
                 state.context.kind !== 'CUSTOMER' ||
@@ -320,8 +331,8 @@ function LegacyFixtureAnalysis() {
               }}
             >
               带入固定补充示例
-            </button>
-            <button
+            </Button>
+            <Button
               disabled={historical}
               onClick={() => {
                 adapter.update(report.reportId, (previous) => ({
@@ -331,7 +342,7 @@ function LegacyFixtureAnalysis() {
               }}
             >
               重新核对当前报告上下文
-            </button>
+            </Button>
           </details>
         </MockControls>
       }
@@ -340,7 +351,7 @@ function LegacyFixtureAnalysis() {
 }
 export function FixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
   const params = useParams();
-  return params.projectId === 'MVP-U1-PROJECT' ? (
+  return params.projectId === useFixtureProject().id ? (
     <FixtureU1Plan />
   ) : (
     <LegacyFixtureAnalysisStartup data={data} />
@@ -424,12 +435,14 @@ function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
       controls={
         <>
           {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
+            <Alert asChild variant="warning">
+              <p className="error" role="alert">
+                {error}
+              </p>
+            </Alert>
           )}
           {pendingScope && (
-            <button
+            <Button
               onClick={() => {
                 try {
                   const result = data.execution(`DEMO-REQUEST-${pendingScope.intentId}`);
@@ -451,11 +464,11 @@ function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
               }}
             >
               重新查询原请求
-            </button>
+            </Button>
           )}
           <MockControls>
             <div className="fixture-options">
-              <label>
+              <Label>
                 <input
                   type="checkbox"
                   checked={missing}
@@ -464,8 +477,8 @@ function LegacyFixtureAnalysisStartup({ data }: { data: WorkspaceData }) {
                   }}
                 />{' '}
                 演示必要信息缺失
-              </label>
-              <button onClick={adapter.arrive}>模拟新结果到达</button>
+              </Label>
+              <Button onClick={adapter.arrive}>模拟新结果到达</Button>
             </div>
           </MockControls>
         </>

@@ -1,3 +1,4 @@
+import { closeOpinionDrawer } from './review-helpers.js';
 import { withMockControls } from './mock-controls.js';
 import { test, expect, type Page } from '@playwright/test';
 
@@ -6,6 +7,13 @@ const work = `${base}/work`;
 
 function catalog(page: Page) {
   return page.getByRole('navigation', { name: '项目文档' });
+}
+
+async function returnToCatalog(page: Page) {
+  await expect(page.locator('.project-catalog')).toBeHidden();
+  await closeOpinionDrawer(page);
+  await page.getByRole('link', { name: '← 返回结果总览' }).click();
+  await expect(catalog(page)).toBeVisible();
 }
 
 async function startToManualReview(page: Page) {
@@ -77,22 +85,27 @@ test('project catalog stays visible across the page matrix and filters independe
   page,
 }) => {
   const matrix = [
-    { path: work, heading: '当前工作' },
+    { path: work, heading: '变更控制体系文件升级', tab: '当前工作' },
     { path: `${base}/overview`, heading: '变更控制体系文件升级' },
     { path: `${base}/intake`, heading: '准备首轮客户资料' },
     { path: `${base}/analysis/U1-REPORT-01`, heading: '分析总览' },
     { path: `${base}/startup/U1-REPORT-02`, heading: '先核对第 2 版分析' },
     { path: `${base}/stages/manual`, heading: '质量手册审阅' },
-    { path: `${base}/results`, heading: '处理结果' },
+    { path: `${base}/results`, heading: '处理结果', tab: null },
     { path: `${base}/delivery`, heading: '最终交付确认' },
     { path: `${base}/rework`, heading: '返工与复核' },
     { path: `${base}/recovery`, heading: '执行与恢复' },
-    { path: `${base}/files`, heading: '全部文件' },
-    { path: `${base}/history`, heading: '历史记录' },
+    { path: `${base}/files`, heading: '变更控制体系文件升级', tab: null },
+    { path: `${base}/history`, heading: '变更控制体系文件升级', tab: '历史记录' },
   ];
   for (const entry of matrix) {
     await page.goto(entry.path);
     await expect(page.locator('#main h1')).toHaveText(entry.heading);
+    if (entry.tab)
+      await expect(page.locator('.journey-nav a[aria-current="page"]')).toHaveText(entry.tab);
+    if (entry.tab === null)
+      await expect(page.locator('.journey-nav a[aria-current="page"]')).toHaveCount(0);
+    await expect(page.locator('.journey-nav > ol a')).toHaveText(['当前工作', '历史记录']);
     await expect(catalog(page)).toBeVisible();
     await expect(
       catalog(page).getByRole('button', { name: '客户原始文档', exact: true }),
@@ -108,11 +121,11 @@ test('project catalog stays visible across the page matrix and filters independe
     scroll: element.scrollHeight,
     client: element.clientHeight,
   }));
-  expect(sizes.scroll).toBeGreaterThan(sizes.client);
-  await list.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-  });
-  expect(await list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(sizes.scroll - sizes.client).toBeLessThanOrEqual(1);
+  expect(await catalog(page).evaluate((element) => getComputedStyle(element).maxHeight)).toBe(
+    'none',
+  );
+  await expect(catalog(page).getByRole('table')).toBeVisible();
 
   const catalogBox = await catalog(page).boundingBox();
   const mainBox = await page.locator('.project-workspace-main').boundingBox();
@@ -131,14 +144,15 @@ test('project catalog stays visible across the page matrix and filters independe
 
   await catalog(page).getByRole('link', { name: '清单明细' }).click();
   await expect(page).toHaveURL(`${base}/files`);
-  await expect(page.getByRole('heading', { level: 1, name: '全部文件' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
+  await expect(page.locator('.journey-nav a[aria-current="page"]')).toHaveCount(0);
   await expect(catalog(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
 });
 
-test('type switching changes only the list while the reader and task stay intact', async ({
+test('returning from full-width review preserves catalog state, drafts and task', async ({
   page,
 }) => {
   await page.goto(work);
@@ -178,35 +192,40 @@ test('type switching changes only the list while the reader and task stay intact
     .first()
     .click();
   await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
-  const readerHeading = await page.locator('.results-detail-head h1').textContent();
   await page.getByRole('button', { name: '打开意见与处理' }).click();
   await page.locator('#markdown-note').fill('切换文档类型时保留的意见草稿');
   await expect(page.locator('.markdown-draft-state')).toContainText('已保留在本次会话内存');
-
+  await returnToCatalog(page);
+  await expect(
+    catalog(page).getByRole('button', { name: '修订文档', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
-  await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
-  await expect(page.locator('.results-detail-head h1')).toHaveText(readerHeading ?? '');
-  await expect(page.locator('#markdown-note')).toHaveValue('切换文档类型时保留的意见草稿');
 
   await catalog(page)
     .getByRole('button', { name: /^质量手册 DOCX/u })
     .click();
   await expect(page).toHaveURL(`${base}/results/ANALYSIS-2/C01`);
+  await returnToCatalog(page);
   await expect(catalog(page).getByRole('button', { name: '查看关联修订文档' })).toBeVisible();
   await catalog(page).getByRole('button', { name: '查看关联修订文档' }).click();
   await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
+  await returnToCatalog(page);
 
   await expect(catalog(page).getByRole('button', { name: '查看对应原件' })).toBeVisible();
   await catalog(page).getByRole('button', { name: '查看对应原件' }).click();
   await expect(page).toHaveURL(`${base}/results/ANALYSIS-2/C01`);
+  await returnToCatalog(page);
 
   await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
   await catalog(page)
     .getByRole('button', { name: /质量手册 修订 · 第 1 版候选/u })
     .click();
+  await returnToCatalog(page);
   await catalog(page).getByText('版本与来源（1）').click();
-  await catalog(page).getByRole('button', { name: '第 1 版候选 · 当前候选' }).click();
+  await catalog(page).getByRole('button', { name: '第 1 版候选 · 当前候选', exact: true }).click();
   await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
+  await page.getByRole('button', { name: '打开意见与处理' }).click();
+  await expect(page.locator('#markdown-note')).toHaveValue('切换文档类型时保留的意见草稿');
 
   await page
     .getByRole('navigation', { name: '项目导航' })
@@ -268,21 +287,36 @@ test('completed journey exposes new-file provenance and exact version history', 
 
   await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
   await expect(catalog(page).locator('.project-catalog-counts')).toContainText('修订文档 6 份');
+  const expectedGroups = ['1 - 质量手册', '2 - 控制程序', '3 - 管理制度', '4 - 记录表单'];
+  const groupLabels = () =>
+    catalog(page)
+      .locator('tbody')
+      .evaluateAll((elements) => elements.map((e) => e.getAttribute('aria-label')));
+  expect(await groupLabels()).toEqual(expectedGroups);
+  await catalog(page).getByRole('button', { name: '升序 ↑' }).click();
+  expect(await groupLabels()).toEqual(expectedGroups);
+  await catalog(page).getByLabel('排序').selectOption('MODIFIED');
+  expect(await groupLabels()).toEqual(expectedGroups);
   await expect(catalog(page).locator('.project-catalog-counts')).toContainText(/已定稿 [1-9]/u);
 
   await catalog(page)
     .getByRole('button', { name: /^外来文件管理规定/u })
     .click();
+  await returnToCatalog(page);
   await expect(catalog(page).getByText('无客户原件（新增文件）。')).toBeVisible();
 
   await catalog(page)
     .getByRole('button', { name: /^质量手册 修订/u })
     .click();
+  await returnToCatalog(page);
   await catalog(page).getByText('版本与来源（3）').click();
-  await expect(catalog(page).getByRole('button', { name: '第 3 版候选 · 已定稿' })).toBeVisible();
+  await expect(
+    catalog(page).getByRole('button', { name: '第 3 版候选 · 已定稿', exact: true }),
+  ).toBeVisible();
   await catalog(page).getByRole('button', { name: '第 1 版候选 · 历史版本' }).click();
   await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
   await expect(page.locator('.results-detail-head')).toContainText('第 1 版候选');
+  await returnToCatalog(page);
   await expect(catalog(page).getByRole('button', { name: /^质量手册 修订/u })).toBeVisible();
 
   await catalog(page)
@@ -326,19 +360,20 @@ test('narrow layouts keep the catalog above the content without page overflow', 
     .click();
   await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
   await expect(page.locator('.markdown-review-layout')).toBeVisible();
-  // Keep the long original list so independent scrolling is measurable, and
-  // prove the explicit view choice survives the narrow layouts.
+  await returnToCatalog(page);
+  // Keep the long original list and verify natural height and table-only
+  // horizontal scrolling while the explicit view choice survives reflow.
   await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
   for (const width of [360, 320]) {
     await page.setViewportSize({ width, height: 720 });
     await expect(catalog(page)).toBeVisible();
     const catalogBox = await catalog(page).boundingBox();
-    const readerBox = await page.locator('.markdown-review-layout').boundingBox();
+    const readerBox = await page.locator('.results-page').boundingBox();
     expect(catalogBox && readerBox).toBeTruthy();
     if (catalogBox) expect(catalogBox.height).toBeGreaterThan(0);
     const stacked = await page.evaluate(() => {
       const catalogElement = document.querySelector('.project-catalog');
-      const readerElement = document.querySelector('.markdown-review-layout');
+      const readerElement = document.querySelector('.results-page');
       if (!catalogElement || !readerElement) return undefined;
       const list = document.querySelector('.project-catalog-list');
       return {
@@ -353,7 +388,17 @@ test('narrow layouts keep the catalog above the content without page overflow', 
     if (stacked) {
       expect(stacked.catalogBeforeReader).toBe(true);
       expect(stacked.catalogPosition).toBe('static');
-      expect(stacked.listScrolls).toBe(true);
+      expect(stacked.listScrolls).toBe(false);
+      const table = catalog(page).getByRole('region', { name: '文件表格' });
+      const size = await table.evaluate((element) => ({
+        scroll: element.scrollWidth,
+        client: element.clientWidth,
+      }));
+      expect(size.scroll).toBeGreaterThan(size.client);
+      await table.evaluate((element) => {
+        element.scrollLeft = element.scrollWidth;
+      });
+      expect(await table.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
     }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -362,7 +407,7 @@ test('narrow layouts keep the catalog above the content without page overflow', 
     await expect(
       catalog(page).getByRole('button', { name: '客户原始文档', exact: true }),
     ).toHaveAttribute('aria-pressed', 'true');
-    await expect(page).toHaveURL(/\/results\/MANUAL-V1%40U1-PLAN-01-v1\/F-MANUAL$/u);
+    await expect(page).toHaveURL(`${base}/results`);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

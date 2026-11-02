@@ -1,3 +1,4 @@
+import { Button } from '../components/ui/button.js';
 import { usePageChain } from '../trusted/hooks.js';
 import {
   DIRECTORY_OPERATION,
@@ -47,7 +48,7 @@ export function TrustedIntake(props: Omit<TrustedProps, 'selectedKey' | 'onSelec
             {notice.title} · {notice.detail}
           </p>
           {notice.warning && <p>{notice.warning}</p>}
-          {notice.action && <button onClick={notice.action.run}>{notice.action.label}</button>}
+          {notice.action && <Button onClick={notice.action.run}>{notice.action.label}</Button>}
         </div>
       }
     />

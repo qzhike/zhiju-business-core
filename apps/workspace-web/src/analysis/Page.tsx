@@ -1,6 +1,19 @@
+import { Alert } from '../components/ui/alert.js';
+import { Badge } from '../components/ui/badge.js';
+import { Button, buttonVariants } from '../components/ui/button.js';
+import { Label } from '../components/ui/label.js';
+import { Input } from '../components/ui/input.js';
+import { NativeSelect } from '../components/ui/native-select.js';
+import { Textarea } from '../components/ui/textarea.js';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import * as Dialog from '@radix-ui/react-dialog';
+import {
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  Dialog,
+  DialogTitle,
+} from '../components/ui/dialog.js';
 import { SafeMarkdown } from '../App.js';
 import {
   contextFor,
@@ -78,7 +91,7 @@ function UnderstandingPanel({ report }: { report: AnalysisReport }) {
                 <strong>
                   {template.templateId} · {template.title}
                 </strong>
-                <span className="status-tag">
+                <Badge className="status-tag">
                   {template.disposition === 'APPLICABLE'
                     ? '适用'
                     : template.disposition === 'PARTIALLY_APPLICABLE'
@@ -86,7 +99,7 @@ function UnderstandingPanel({ report }: { report: AnalysisReport }) {
                       : template.disposition === 'NOT_APPLICABLE'
                         ? '不适用'
                         : '资料不足'}
-                </span>
+                </Badge>
                 <p>{template.explanation}</p>
                 <small>客户来源：{template.sourceIds.join('、') || '无'}</small>
                 <small>正式模板只读快照；模板条款不作为客户事实。</small>
@@ -158,18 +171,22 @@ function GovernancePanel({
                   {fact.templateIds.join('、') || '无'}
                 </small>
                 {decision ? (
-                  <p className="notice" role="status">
-                    已记录模拟决定：{decision.optionLabel} · 绑定报告第 {decision.reportVersion} 版
-                    · {decision.decisionId}
-                  </p>
+                  <Alert asChild variant="warning">
+                    <p className="notice" role="status">
+                      已记录模拟决定：{decision.optionLabel} · 绑定报告第 {decision.reportVersion}{' '}
+                      版 · {decision.decisionId}
+                    </p>
+                  </Alert>
                 ) : proposal ? (
                   <>
-                    <p className="notice" role="status">
-                      已登记受保护内容变更提议（模拟）；须记录明确决定后才能视为授权，当前仍按只读客户内容展示。
-                    </p>
+                    <Alert asChild variant="warning">
+                      <p className="notice" role="status">
+                        已登记受保护内容变更提议（模拟）；须记录明确决定后才能视为授权，当前仍按只读客户内容展示。
+                      </p>
+                    </Alert>
                     <div className="governance-actions">
                       {fact.options.map((option) => (
-                        <button
+                        <Button
                           key={option.id}
                           title={option.note}
                           onClick={() => {
@@ -177,12 +194,12 @@ function GovernancePanel({
                           }}
                         >
                           记录版本绑定决定：{option.label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <button
+                  <Button
                     onClick={() => {
                       update((current) => ({
                         ...current,
@@ -198,7 +215,7 @@ function GovernancePanel({
                     }}
                   >
                     提议变更受保护内容（模拟）
-                  </button>
+                  </Button>
                 )}
               </article>
             );
@@ -236,14 +253,16 @@ function GovernancePanel({
                   </div>
                 </div>
                 {decision ? (
-                  <p className="notice" role="status">
-                    已记录模拟人工处理决定：{decision.optionLabel} · 绑定报告第{' '}
-                    {decision.reportVersion} 版
-                  </p>
+                  <Alert asChild variant="warning">
+                    <p className="notice" role="status">
+                      已记录模拟人工处理决定：{decision.optionLabel} · 绑定报告第{' '}
+                      {decision.reportVersion} 版
+                    </p>
+                  </Alert>
                 ) : (
                   <div className="governance-actions">
                     {conflict.options.map((option) => (
-                      <button
+                      <Button
                         key={option.id}
                         title={option.note}
                         onClick={() => {
@@ -251,7 +270,7 @@ function GovernancePanel({
                         }}
                       >
                         记录模拟决定：{option.label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -476,7 +495,7 @@ export function AnalysisPage({
           <strong className="waiting-tag">先记录客户答复并核对新报告</strong>
         ) : (
           <Link
-            className="button primary"
+            className={buttonVariants({ variant: 'default' })}
             to={scopeHref ?? `/projects/${report.projectId}/startup/${report.reportId}`}
           >
             核对信息与文件范围 →
@@ -485,15 +504,15 @@ export function AnalysisPage({
       </div>
       {!activeArea && (
         <nav className="analysis-mobile-switch" aria-label="分析阅读与意见视图">
-          <button
+          <Button
             aria-pressed={mobileView === 'report'}
             onClick={() => {
               setMobileView('report');
             }}
           >
             查看报告
-          </button>
-          <button
+          </Button>
+          <Button
             aria-pressed={mobileView === 'composer'}
             onClick={() => {
               focusComposer.current = true;
@@ -501,26 +520,28 @@ export function AnalysisPage({
             }}
           >
             意见与补充
-          </button>
+          </Button>
         </nav>
       )}
       {updateNotice}
       {roundSummary && !activeArea && (
-        <div className="notice" role="status">
-          本轮变化：{roundSummary} 建议已解决仍待核对，不代表正式关闭或文件批准。
-        </div>
+        <Alert asChild variant="warning">
+          <div className="notice" role="status">
+            本轮变化：{roundSummary} 建议已解决仍待核对，不代表正式关闭或文件批准。
+          </div>
+        </Alert>
       )}
       {activeArea && (
         <nav className="analysis-tabs" aria-label="分析详情导航">
-          <button
+          <Button
             onClick={() => {
               navigate();
             }}
           >
             返回分析总览
-          </button>
+          </Button>
           {(Object.keys(areas) as Area[]).map((key) => (
-            <button
+            <Button
               key={key}
               aria-pressed={activeArea === key}
               onClick={() => {
@@ -528,7 +549,7 @@ export function AnalysisPage({
               }}
             >
               {areas[key]}
-            </button>
+            </Button>
           ))}
         </nav>
       )}
@@ -550,13 +571,13 @@ export function AnalysisPage({
                   <div className="analysis-card-title">
                     <small>0{index + 1}</small>
                     <h2>
-                      <button
+                      <Button
                         onClick={() => {
                           navigate(key);
                         }}
                       >
                         {areas[key]}
-                      </button>
+                      </Button>
                     </h2>
                     <strong>{cards[key].count}</strong>
                   </div>
@@ -564,25 +585,25 @@ export function AnalysisPage({
                   <ul>
                     {cards[key].entries.slice(0, 1).map((entry) => (
                       <li key={entry.id}>
-                        <button
+                        <Button
                           onClick={() => {
                             navigate(key, entry.id);
                           }}
                         >
                           {entry.title} <span aria-hidden="true">↗</span>
-                        </button>
+                        </Button>
                       </li>
                     ))}
                   </ul>
                   {key === 'customer' && (
-                    <button
+                    <Button
                       disabled={!requests.length}
                       onClick={() => {
                         openCopy(true);
                       }}
                     >
                       复制全部索取清单
-                    </button>
+                    </Button>
                   )}
                   {key === 'evidence' && <small>来源与检查仅按报告提供内容展示</small>}
                 </section>
@@ -602,20 +623,20 @@ export function AnalysisPage({
                 }));
               }}
             >
-              <label>
+              <Label>
                 查找{areas[activeArea]}
-                <input
+                <Input
                   type="search"
                   value={state.search}
                   onChange={(event) => {
                     update((current) => ({ ...current, search: event.target.value }));
                   }}
                 />
-              </label>
+              </Label>
               {activeArea === 'customer' && (
-                <label>
+                <Label>
                   事项类型
-                  <select
+                  <NativeSelect
                     value={state.category}
                     onChange={(event) => {
                       update((current) => ({ ...current, category: event.target.value }));
@@ -625,8 +646,8 @@ export function AnalysisPage({
                     <option value="MISSING_MATERIAL">本轮未提供</option>
                     <option value="UNREADABLE_MATERIAL">已提供但读取受限</option>
                     <option value="FACT_QUESTION">待确认事实</option>
-                  </select>
-                </label>
+                  </NativeSelect>
+                </Label>
               )}
               {list.length === 0 && (
                 <p role="status">没有符合条件的事项，原选择与未解决事项保留。</p>
@@ -648,7 +669,7 @@ export function AnalysisPage({
                       }}
                     />
                   )}
-                  <button
+                  <Button
                     aria-current={itemId === entry.id ? 'true' : undefined}
                     onClick={() => {
                       navigate(activeArea, entry.id);
@@ -656,20 +677,20 @@ export function AnalysisPage({
                   >
                     {entry.title}
                     <small>{entry.id}</small>
-                  </button>
+                  </Button>
                 </div>
               ))}
               {activeArea === 'customer' && (
                 <div className="analysis-copy-bar">
                   <span>已选 {state.selected.length} 项</span>
-                  <button
+                  <Button
                     disabled={!state.selected.length}
                     onClick={() => {
                       openCopy(false);
                     }}
                   >
                     预览并复制所选
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -684,14 +705,14 @@ export function AnalysisPage({
                 }));
               }}
             >
-              <button
+              <Button
                 className="analysis-back-list"
                 onClick={() => {
                   navigate(activeArea);
                 }}
               >
                 返回清单
-              </button>
+              </Button>
               {customerItem && activeArea === 'customer' ? (
                 <>
                   <h2>{customerItem.title}</h2>
@@ -712,13 +733,13 @@ export function AnalysisPage({
                       {showEvidence(item.evidenceIds)}
                     </section>
                   ))}
-                  <button
+                  <Button
                     onClick={() => {
                       selectContext(contextFor(report, 'CUSTOMER'));
                     }}
                   >
                     {historical ? '查看客户补充草稿' : '补充客户资料'}
-                  </button>
+                  </Button>
                 </>
               ) : judgment && activeArea === 'judgment' ? (
                 <>
@@ -730,13 +751,13 @@ export function AnalysisPage({
                     {judgment.protectedFactIds.join('、')}
                   </p>
                   {showEvidence(judgment.evidenceIds)}
-                  <button
+                  <Button
                     onClick={() => {
                       selectContext(contextFor(report, 'JUDGMENT', judgment.id));
                     }}
                   >
                     {historical ? '查看顾问意见草稿' : '写意见并提交复核'}
-                  </button>
+                  </Button>
                 </>
               ) : file && activeArea === 'files' ? (
                 <>
@@ -761,13 +782,13 @@ export function AnalysisPage({
                         {showEvidence(change.evidenceIds)}
                       </section>
                     ))}
-                  <button
+                  <Button
                     onClick={() => {
                       selectContext(contextFor(report, 'PLAN', file.id));
                     }}
                   >
                     {historical ? '查看文件计划草稿' : '对这项计划提意见'}
-                  </button>
+                  </Button>
                 </>
               ) : activeArea === 'evidence' ? (
                 <>
@@ -804,34 +825,36 @@ export function AnalysisPage({
         <section className="analysis-composer" aria-label="上下文意见与补充">
           <div>
             <h2>{state.context.title}</h2>
-            <button
+            <Button
               onClick={() => {
                 selectContext(contextFor(report, 'CUSTOMER'));
               }}
             >
               {historical ? '查看客户补充草稿' : '切换客户补充'}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 selectContext(contextFor(report, 'PROJECT'));
               }}
             >
               {historical ? '查看项目意见草稿' : '针对整个项目提意见'}
-            </button>
+            </Button>
             <p className="muted">未提交输入仅本次页面会话保留，未保存到服务器。</p>
             <p className="muted">
               普通意见不会改变受保护客户内容；如需变更，必须在“受保护客户内容与模板冲突”区记录显式、版本绑定的模拟决定。
             </p>
           </div>
           {stale && (
-            <div className="error" role="alert">
-              上下文已过期，原草稿保留。请重新核对当前报告，再选择对应事项；旧草稿不会自动改绑。
-              <details>
-                <summary>查看旧草稿</summary>
-                <p>{draft.text}</p>
-                <p>{draft.attachments.join('、')}</p>
-              </details>
-            </div>
+            <Alert asChild variant="warning">
+              <div className="error" role="alert">
+                上下文已过期，原草稿保留。请重新核对当前报告，再选择对应事项；旧草稿不会自动改绑。
+                <details>
+                  <summary>查看旧草稿</summary>
+                  <p>{draft.text}</p>
+                  <p>{draft.attachments.join('、')}</p>
+                </details>
+              </div>
+            </Alert>
           )}
           {state.receipts
             .filter((receipt) => receipt.input.context.key === state.context.key)
@@ -859,9 +882,9 @@ export function AnalysisPage({
                 </details>
               </div>
             ))}
-          <label>
+          <Label>
             说明与意见
-            <textarea
+            <Textarea
               ref={composer}
               readOnly={historical || stale}
               value={draft.text}
@@ -871,9 +894,9 @@ export function AnalysisPage({
               }}
               rows={2}
             />
-          </label>
+          </Label>
           <div className="analysis-actions">
-            <label>
+            <Label>
               附上补充资料（DOCX / Markdown / XLSX / ZIP）
               <input
                 type="file"
@@ -888,10 +911,10 @@ export function AnalysisPage({
                   event.target.value = '';
                 }}
               />
-            </label>
+            </Label>
             <p>{draft.attachments.join('、')}</p>
-            <button
-              className="primary"
+            <Button
+              variant="default"
               disabled={
                 historical ||
                 stale ||
@@ -914,7 +937,7 @@ export function AnalysisPage({
                 : state.context.kind === 'PROJECT'
                   ? '提交项目级意见'
                   : '提交意见并复核'}
-            </button>
+            </Button>
           </div>
           <details>
             <summary>关联报告、事项与依据</summary>
@@ -952,61 +975,56 @@ export function AnalysisPage({
           </p>
         ))}
       </details>
-      <Dialog.Root
+      <Dialog
         open={preview !== null}
         onOpenChange={(open) => {
           if (!open) setPreview(null);
         }}
       >
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content
-            className="dialog-content analysis-copy-dialog"
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              copyTrigger.current?.focus();
+        <DialogContent
+          className="dialog-content analysis-copy-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            copyTrigger.current?.focus();
+          }}
+        >
+          <DialogTitle>客户索取清单预览</DialogTitle>
+          <DialogDescription>可调整措辞后复制，自行发送给客户；复制不关闭事项。</DialogDescription>
+          <Label>
+            复制文本
+            <Textarea
+              ref={copyField}
+              rows={10}
+              value={preview ?? ''}
+              onChange={(event) => {
+                setPreview(event.target.value);
+                setCopyStatus('');
+              }}
+            />
+          </Label>
+          <p role="status">{copyStatus}</p>
+          <Button
+            onClick={() => {
+              void copy();
             }}
           >
-            <Dialog.Title>客户索取清单预览</Dialog.Title>
-            <Dialog.Description>
-              可调整措辞后复制，自行发送给客户；复制不关闭事项。
-            </Dialog.Description>
-            <label>
-              复制文本
-              <textarea
-                ref={copyField}
-                rows={10}
-                value={preview ?? ''}
-                onChange={(event) => {
-                  setPreview(event.target.value);
-                  setCopyStatus('');
-                }}
-              />
-            </label>
-            <p role="status">{copyStatus}</p>
-            <button
+            复制文本
+          </Button>
+          {manual && (
+            <Button
               onClick={() => {
-                void copy();
+                copyField.current?.focus();
+                copyField.current?.select();
               }}
             >
-              复制文本
-            </button>
-            {manual && (
-              <button
-                onClick={() => {
-                  copyField.current?.focus();
-                  copyField.current?.select();
-                }}
-              >
-                选择全部，手动复制
-              </button>
-            )}
-            <Dialog.Close asChild>
-              <button>返回报告</button>
-            </Dialog.Close>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+              选择全部，手动复制
+            </Button>
+          )}
+          <DialogClose asChild>
+            <Button>返回报告</Button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
