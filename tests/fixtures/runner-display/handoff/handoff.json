@@ -1,0 +1,64 @@
+{
+  "formatVersion": "1.0.0",
+  "workspaceRoot": "snapshot",
+  "identity": {
+    "taskId": "SYNTHETIC-TASK",
+    "stageId": "SYNTHETIC-STAGE",
+    "step": "QUALITY_MANUAL",
+    "roundId": "ROUND-002",
+    "roundNumber": 2
+  },
+  "context": {
+    "relativePath": "snapshot/host/context.json",
+    "sha256": "01bc462bbd2fd4773b3f32e12143a60aa2e2b18a777349fb5fc71ef0c5b2a4d7"
+  },
+  "report": {
+    "relativePath": "snapshot/output/round-2/revision-round.json",
+    "sha256": "3a663505401a3434139afcc94e7d70300ac8ae5999c6256ecd2b81559aa54bf9"
+  },
+  "review": {
+    "relativePath": "review-data.json",
+    "sha256": "6c436262bc11398ef3eabb714018eecf30a74abb896fbdc4427a3ef96e3391f1"
+  },
+  "entries": [
+    {
+      "relativePath": "annotations.json",
+      "sha256": "29af3c04b2951be72f653244ff1657ae8a9f9fa4d0d14b25abc7db483aa369bb",
+      "bytes": 420
+    },
+    {
+      "relativePath": "review-data.json",
+      "sha256": "6c436262bc11398ef3eabb714018eecf30a74abb896fbdc4427a3ef96e3391f1",
+      "bytes": 1890
+    },
+    {
+      "relativePath": "snapshot/customer/manual.md",
+      "sha256": "5ef0d16c8bebb78c993186bcdb7d1d330c3f6ae2a18056b74661850c397a9ab0",
+      "bytes": 48
+    },
+    {
+      "relativePath": "snapshot/host/context.json",
+      "sha256": "01bc462bbd2fd4773b3f32e12143a60aa2e2b18a777349fb5fc71ef0c5b2a4d7",
+      "bytes": 610
+    },
+    {
+      "relativePath": "snapshot/output/round-1/manual.md",
+      "sha256": "e906b73ee14574bb74ef7a9fc2265afe5fe870d8de1b571c59e03803768bde1b",
+      "bytes": 52
+    },
+    {
+      "relativePath": "snapshot/output/round-2/manual.md",
+      "sha256": "2e27f8e527413bb8db6c29be9ad43504690637d5f13f728035484ff977885cf9",
+      "bytes": 284
+    },
+    {
+      "relativePath": "snapshot/output/round-2/revision-round.json",
+      "sha256": "3a663505401a3434139afcc94e7d70300ac8ae5999c6256ecd2b81559aa54bf9",
+      "bytes": 1644
+    }
+  ],
+  "annotations": {
+    "relativePath": "annotations.json",
+    "sha256": "29af3c04b2951be72f653244ff1657ae8a9f9fa4d0d14b25abc7db483aa369bb"
+  }
+}

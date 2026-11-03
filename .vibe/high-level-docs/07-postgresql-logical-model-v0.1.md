@@ -36,6 +36,8 @@
 | source_entries | owner_id/project_id/batch_id、entry_id、manifest_id、ordinal、source_id?、source对象元数据/receipt?、entry状态；ordinal在manifest内唯一，ACCEPTED才有完整source；原ZIP源在manifest对应受控对象记录；immutable |
 | custody_events | owner_id/project_id、batch_id?、event_id、attempt_id?、event_type、from/to状态、reason_codes、time、request_id?；项目创建与批次/恢复事实均可记录，attempt须关联batch；append-only，无正文/note/凭据 |
 
+2026-11-03 已批准增量：新增 `V0002__nested_archive_rejection.sql`，允许 `input_batches.policy_version` 保留 `mvp.zip-input@1` 并接收新批次 `@2`；旧 migration、原输入、receipt 与 manifest 不改写。新增 nullable JSONB `rejected_archive_paths`，只允许在嵌套压缩文件导致的 REJECTED 批次保存非空有界字符串数组。拒绝路径、批次状态、错误原因和活动占用释放同事务写入，沿用 owner/project 权限及终态不可变约束；不写入通用事件正文。实际实例升级与部署另行授权。
+
 原ZIP的持久对象记录由 input_batches 的 sealed `original_zip_source` 字段持有，包含 sourceId/sha/length/media/object receipt；manifest 原样引用并核对，不使用尚可变化的staging位置。只有manifest封存事务可将其从技术staging提升为业务来源。所有源、entry、manifest、attempt和request使用复合外键核对相同owner/project/batch，不允许仅凭全局UUID建立跨项目关联。attempt引用的authorization只读，原Request重放不更新epoch；新恢复Request可授权新attempt，不能覆盖原授权历史。Hash保留算法和域版本；完整payload为唯一源，提升字段受CHECK/应用双重校验。
 
 运行角色 `mvp_runtime` 非superuser、非BYPASSRLS、非schema/table owner；迁移/初始化角色独立且不进入应用连接。所有业务表ENABLE/FORCE RLS，以事务内SET LOCAL的owner_id为第一层；project内访问同时绑定已核验project_id。项目目录的专用只读路径只按owner扫描projects，不借目录权限读取所有来源。连接池归还前结束事务，缺上下文fail closed；worker从已提交意图和当前binding取得受限上下文，不能从请求参数选择任意owner。request查找可先通过owner+requestId的有限索引取得其projectId，再绑定project上下文读完整receipt；不得从该索引暴露payload。operator_binding/installation只暴露有限只读解析，运行角色无维护写权。

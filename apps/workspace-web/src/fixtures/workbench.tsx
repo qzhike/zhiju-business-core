@@ -15,6 +15,8 @@ import {
   type WorkCard,
 } from '../workbench/model.js';
 import { MvpHandoffContext } from './handoff.js';
+import { useRunnerFlow } from './runner-flow-session.js';
+import { latestRunnerRound, runnerLabel } from './runner-flow-model.js';
 
 const projects: readonly [ProjectView, ProjectView, ProjectView] = [
   {
@@ -227,6 +229,7 @@ export function FixtureWorkbenchProvider({ children }: { children: ReactNode }) 
 }
 
 export function FixtureWorkbench() {
+  const runner = useRunnerFlow();
   const intake = useFixtureIntake();
   const created = intake.projects.filter((project) => project.id.startsWith('DEMO-CREATED-'));
   const state = useContext(BoardContext);
@@ -248,6 +251,25 @@ export function FixtureWorkbench() {
     };
   };
   const projectViews: readonly ProjectView[] = [
+    ...runner.projects.map((project): ProjectView => {
+      const round = latestRunnerRound(project);
+      return {
+        key: `project:LOCAL-RUNNER/${project.id}`,
+        enterpriseId: 'LOCAL-RUNNER',
+        projectId: project.id,
+        name: `${project.title} · 本地结果`,
+        title: project.title,
+        code: '本地会话',
+        status: runnerLabel(round.status),
+        version: project.rounds.length,
+        progress: `${runnerLabel(round.identity.step)} · 第 ${round.identity.roundNumber} 轮 · ${project.rounds.length} 个已接入结果`,
+        primaryAction: {
+          label: '查看当前工作',
+          destination: { kind: 'work', projectId: project.id },
+        },
+        deliveryAction: null,
+      };
+    }),
     ...projects.map((project) =>
       project.projectId === u1.projectId
         ? {
@@ -293,7 +315,23 @@ export function FixtureWorkbench() {
     context: progressFor(project.id)?.detail ?? project.customer.name,
     action: { label: '进入当前工作', destination: { kind: 'work', projectId: project.id } },
   }));
-  const cards = [...createdCards, mvpCard, ...state.cards];
+  const runnerCards: WorkCard[] = runner.projects.map((project) => {
+    const round = latestRunnerRound(project);
+    return {
+      id: `runner-${project.id}`,
+      projectKey: `project:LOCAL-RUNNER/${project.id}`,
+      title: `${project.title} · 当前工作`,
+      group: round.status === 'REVISING' ? 'running' : 'attention',
+      status: runnerLabel(round.status),
+      reason:
+        round.status === 'WAITING_INPUT'
+          ? '查看本轮待处理问题，核对底稿并准备答复。'
+          : '查看本轮文件与问题，核对内容并记录意见。',
+      context: `${runnerLabel(round.identity.step)} · 第 ${round.identity.roundNumber} 轮 · 本地结果`,
+      action: { label: '进入当前工作', destination: { kind: 'work', projectId: project.id } },
+    };
+  });
+  const cards = [...runnerCards, ...createdCards, mvpCard, ...state.cards];
   return (
     <Workbench
       key={selectedKey ?? 'all'}
@@ -350,7 +388,11 @@ export function FixtureWorkbench() {
             ]
           : []
       }
-      coverage="开发场景 · 各数量由固定合成数据提供，不代表真实服务、运行、批准或项目完成。"
+      coverage={
+        runner.projects.length
+          ? '页面验收 · 工作看板包含合成样例与本地结果；不代表真实执行、批准或项目完成。'
+          : '开发场景 · 各数量由固定合成数据提供，不代表真实服务、运行、批准或项目完成。'
+      }
       controls={
         <MockControls>
           <details className="wb-controls">

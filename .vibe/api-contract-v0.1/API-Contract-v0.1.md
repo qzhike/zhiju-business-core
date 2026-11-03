@@ -19,6 +19,7 @@
 - 错误闭集：400 `INVALID_REQUEST`；401 `AUTHENTICATION_REQUIRED`；403 `INSTANCE_ACCESS_DENIED`；404 `RESOURCE_NOT_FOUND`；409 `IDEMPOTENCY_CONFLICT|TARGET_EXISTS|VERSION_CONFLICT|PROJECT_BUSY|UPLOAD_BUSY|BATCH_SEALED|RECOVERY_NOT_ALLOWED|MANIFEST_NOT_READY|CURSOR_INVALID`；413 `INPUT_LIMIT_EXCEEDED`；422 `INPUT_REJECTED`；503 `DEPENDENCY_UNAVAILABLE|STORAGE_INTEGRITY_ERROR|OUTCOME_UNKNOWN`。分类只表达实际已知原因；网络/存储未知不能伪装422/404。batch内容拒绝也以当前status/reasonCodes持久记录，不只留HTTP错误。
 - Browser只持BFF opaque cookie+CSRF；token只在BFF内存。BFF转发原始access token、服务端session binding和固定trust hash；Core独立验证及实例owner解析。拒绝actor/owner/授权override headers。读写均核对当前会话/Host/可信peer，同源敏感读取，写及流上传额外Origin/CSRF；登出/失权清DOM/cache并忽略旧session迟到结果。
 - 上传不用旧D14 ticket，采用当前认证+精确batch/attempt/generation+声明bytes/hash+独占claim；这些header本身不是权限。Content-Length必需且匹配声明，拒绝Range/Content-Encoding及multipart替换；流总时限5分钟、无数据30秒，沿已有bounded-stream取消/背压语义。超时只描述观察，恢复仍需原写者结束证明。
+- 2026-11-03 已批准的嵌套压缩文件策略增量：新 batch 使用 `mvp.zip-input@2`，成功 manifest 的提取器为 `mvp.input-extractor@2`；旧 `@1` 历史原样读取。`mvp.get_input_batch` 的 data 可附加 `rejectedArchivePaths: string[]`，仅在 `REJECTED` 且原因为 `NESTED_ARCHIVE_NOT_ALLOWED` 时返回，路径非空、按外层 ordinal 排序，最多 1000 项且每项最多 240 UTF-8 bytes；客户端按不可信文本处理。该可选读取字段不改变旧写入 payload、receipt、操作名或 HTTP 路由；缺省表示不适用，不表示扫描通过。精确规则归 MVP01 Spec §8。
 - API shape/version改变通过显式新version与兼容说明；B1没有任意extensions字段。实施须为每个有限route提供request/result/error schema和负例，并验证Web/BFF/Core同一契约；本设计不把描述当成已注册代码。
 
 本文把高层业务 Contract 落到可生成 Schema、Fixture、SDK 和 Handler 骨架的字段级 API，但不绑定传输协议。

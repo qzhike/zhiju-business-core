@@ -16,5 +16,8 @@ config/workspace-e2e.local.json
 # Raw byte-exact Markdown canonicalization inputs/expectations (#270).
 tests/fixtures/markdown/
 
+# Hash-bound local review packages retain CRLF and missing final newlines.
+tests/fixtures/runner-display/handoff/
+
 # Exact upstream v0.2 Runner schema bytes; the analysis basis pins their SHA-256.
 contracts/src/runner-analysis/*.json

@@ -92,8 +92,7 @@ interface InventoryRow {
   versionId: string;
   title: string;
   source: string;
-  depth: number;
-  kind: 'UPLOADED' | 'CONTAINER' | 'MEMBER' | 'EXPECTED' | 'NEW' | 'RETAINED';
+  kind: 'UPLOADED' | 'EXPECTED' | 'NEW' | 'RETAINED';
   levelLabel: string;
   stage?: MvpStageId | undefined;
   reading: string;
@@ -453,8 +452,7 @@ function useResultsData(requestedRoundId?: string) {
   const uploaded: InventoryRow[] = [];
   for (const batch of u1.batches) {
     for (const entry of batch.entries) {
-      const kind: InventoryRow['kind'] =
-        entry.format === 'RAR' ? 'CONTAINER' : entry.id.includes('-') ? 'MEMBER' : 'UPLOADED';
+      const kind = 'UPLOADED' as const;
       const stage = stageOfPath(entry.path);
       const analysis = round.stage === 'ANALYSIS';
       const laterSupplement = round.id === 'ANALYSIS-1' && batch.id === 'U1-BATCH-02';
@@ -467,7 +465,6 @@ function useResultsData(requestedRoundId?: string) {
         versionId: 'SOURCE',
         title: entry.path,
         source: `${batch.label} · ${batch.zipName}`,
-        depth: kind === 'MEMBER' ? 1 : 0,
         kind,
         levelLabel: stage ? mvpStageLabels[stage] : '补充资料',
         ...(stage ? { stage } : {}),
@@ -509,7 +506,6 @@ function useResultsData(requestedRoundId?: string) {
       versionId: versionId ?? 'PLAN',
       title: file.title,
       source: '已确认修改范围',
-      depth: 0,
       kind: retained ? 'RETAINED' : file.action === 'CREATE' ? 'NEW' : 'EXPECTED',
       levelLabel: planLevelLabels[file.level],
       stage,
@@ -551,7 +547,7 @@ function useResultsData(requestedRoundId?: string) {
     if (results.filter === 'ROUND') return row.involved;
     return row.pending;
   });
-  const uploadedFiles = uploaded.filter((row) => row.kind === 'UPLOADED' || row.kind === 'MEMBER');
+  const uploadedFiles = uploaded.filter((row) => row.kind === 'UPLOADED');
   const roundFiles = roundVersionSet(round);
   const roundFileCount =
     round.stage === 'ANALYSIS' ? 0 : planStageFiles(round.plan, round.stage).length;
@@ -573,7 +569,6 @@ function useResultsData(requestedRoundId?: string) {
     allRows: rows,
     counts: {
       uploaded: uploadedFiles.length,
-      containers: uploaded.filter((row) => row.kind === 'CONTAINER').length,
       expected: planned.filter((row) => row.kind === 'EXPECTED').length,
       newFiles: planned.filter((row) => row.kind === 'NEW').length,
       retained: planned.filter((row) => row.kind === 'RETAINED').length,
@@ -767,9 +762,9 @@ export function FixtureResultsOverview() {
             <div>
               <h2>完整文件清单</h2>
               <p className="muted">
-                项目上传文件 {counts.uploaded} · 容器 {counts.containers} · 预期/计划{' '}
-                {counts.expected} · 计划新增 {counts.newFiles} · 保留 {counts.retained} · 本轮涉及{' '}
-                {counts.involved} · 待处理 {counts.pending}
+                项目上传文件 {counts.uploaded} · 预期/计划 {counts.expected} · 计划新增{' '}
+                {counts.newFiles} · 保留 {counts.retained} · 本轮涉及 {counts.involved} · 待处理{' '}
+                {counts.pending}
               </p>
             </div>
             <nav className="results-filters" aria-label="文件筛选">
@@ -815,9 +810,7 @@ export function FixtureResultsOverview() {
                     data-pending={row.pending ? 'true' : undefined}
                   >
                     <TableHead scope="row">
-                      <span className={row.depth > 0 ? 'results-row-member' : undefined}>
-                        {row.title}
-                      </span>
+                      <span>{row.title}</span>
                       <small>{row.source}</small>
                     </TableHead>
                     <TableCell>{row.levelLabel}</TableCell>

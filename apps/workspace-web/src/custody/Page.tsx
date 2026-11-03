@@ -820,7 +820,8 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
           <section className="panel" aria-labelledby="new-batch-title">
             <h2 id="new-batch-title">新增资料批次</h2>
             <p className="muted">
-              首选 ZIP 可包含 DOCX、Markdown 与 XLSX。补充批次追加在旧清单旁，不覆盖此前批次。
+              ZIP 可包含 DOCX、Markdown 与 XLSX，支持普通文件夹。请先解压并移除包内的 RAR、ZIP、7z
+              等压缩文件；发现内层压缩文件时整批拒绝。 补充批次追加在旧清单旁，不覆盖此前批次。
             </p>
             <form
               onSubmit={(event) => {
@@ -884,7 +885,15 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
                       {statusLabel(batch.status)} · {bytes(batch.declaredBytes)} · v{batch.version}
                     </span>
                     {batch.reasonCodes.length > 0 && (
-                      <span className="error small">{batch.reasonCodes.join('、')}</span>
+                      <span className="error small">
+                        {batch.reasonCodes
+                          .map((reason) =>
+                            reason === 'NESTED_ARCHIVE_NOT_ALLOWED'
+                              ? '包含嵌套压缩文件，请整理后重新上传'
+                              : reason,
+                          )
+                          .join('、')}
+                      </span>
                     )}
                   </li>
                 ))}
@@ -921,6 +930,30 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
                 </>
               )}
             </dl>
+            {selected.batch.reasonCodes.includes('NESTED_ARCHIVE_NOT_ALLOWED') && (
+              <Alert variant="warning">
+                <h3>请移除内层压缩文件后重新上传</h3>
+                <p>
+                  资料包包含嵌套压缩文件，已拒绝接纳。请解压需要保留的资料，将文档放入普通文件夹，移除内层压缩文件后重新打包上传。
+                </p>
+                {selected.rejectedArchivePaths !== undefined && (
+                  <ul aria-label="需要移除的压缩文件">
+                    {selected.rejectedArchivePaths.map((path) => (
+                      <li key={path} style={{ overflowWrap: 'anywhere' }}>
+                        {path}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p>整理后的 ZIP 请通过“新增资料批次”上传，本次拒绝记录会保留。</p>
+              </Alert>
+            )}
+            {selected.batch.policyVersion === 'mvp.zip-input@1' &&
+              selected.permittedActions.length > 0 && (
+                <p className="warning">
+                  此批次使用旧版资料检查规则，不能继续上传或提取。请按允许的动作核对原尝试是否结束，再放弃该批次，整理资料后重新上传。
+                </p>
+              )}
             {manifest !== null && (
               <>
                 <p>

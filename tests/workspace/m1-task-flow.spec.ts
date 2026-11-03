@@ -262,12 +262,12 @@ test('task workspace completes the approved journey and preserves exact versions
   await expect(page).toHaveURL(`${base}/files`);
   await expect(page.getByRole('heading', { level: 1, name: '变更控制体系文件升级' })).toBeVisible();
   await expect(projectNav.locator('a[aria-current="page"]')).toHaveCount(0);
-  await expect(page.locator('.task-inventory-head p')).toContainText('上传成员 12');
-  await expect(page.locator('.task-inventory-head p')).toContainText('容器 1');
+  await expect(page.locator('.task-inventory-head p')).toContainText('上传文件 10');
+  await expect(page.locator('[data-kind="CONTAINER"], [data-kind="MEMBER"]')).toHaveCount(0);
   await expect(page.locator('.task-inventory-head p')).toContainText('预期/计划 4');
   await expect(page.locator('.task-inventory-head p')).toContainText('计划新增 2');
   await expect(page.locator('.task-inventory-head p')).toContainText('保留 3');
-  await expect(page.locator('.task-inventory')).toContainText('嵌套 RAR');
+  await expect(page.locator('.task-inventory')).not.toContainText('嵌套 RAR');
   await expect(page.locator('.task-inventory')).toContainText('损坏');
   await expect(page.locator('.task-inventory')).toContainText('外来文件管理规定');
   await page.getByRole('button', { name: '待处理', exact: true }).click();

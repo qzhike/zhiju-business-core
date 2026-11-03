@@ -116,6 +116,10 @@ export function batchRecord(row: Row): BatchRecord {
   const note = nullableStringColumn(row, 'note');
   const manifestId = nullableStringColumn(row, 'manifest_id');
   const originalZipSource = sourceRefFromJson(row.original_zip_source);
+  const rejectedArchivePaths =
+    row.rejected_archive_paths == null
+      ? undefined
+      : reasonCodesColumn(row, 'rejected_archive_paths');
   return {
     batchId: stringColumn(row, 'batch_id'),
     ownerId: stringColumn(row, 'owner_id'),
@@ -136,6 +140,7 @@ export function batchRecord(row: Row): BatchRecord {
     ...(note === undefined ? {} : { note }),
     ...(manifestId === undefined ? {} : { manifestId }),
     ...(originalZipSource === undefined ? {} : { originalZipSource }),
+    ...(rejectedArchivePaths === undefined ? {} : { rejectedArchivePaths }),
   };
 }
 

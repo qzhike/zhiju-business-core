@@ -1,0 +1,75 @@
+.artifact-markdown,
+.artifact-prose {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.artifact-reading-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.artifact-prose {
+  line-height: 1.8;
+}
+.artifact-prose.artifact-summary > p,
+.artifact-prose.artifact-summary > ul,
+.artifact-prose.artifact-summary > ol {
+  margin-block: 1em;
+}
+.artifact-prose.artifact-summary > :first-child {
+  margin-top: 0;
+}
+.artifact-prose.artifact-summary > :last-child {
+  margin-bottom: 0;
+}
+
+.artifact-prose .artifact-table {
+  max-width: 100%;
+  overflow: auto;
+  margin: 16px 0;
+}
+
+.artifact-prose .artifact-table table {
+  display: table;
+  width: max-content;
+  min-width: min(100%, 560px);
+  max-width: none;
+  border-collapse: collapse;
+}
+
+.artifact-table td,
+.artifact-table th {
+  min-width: 5em;
+  max-width: 36em;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.artifact-table th {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.artifact-source,
+.artifact-prose pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted);
+  white-space: pre;
+  overflow-wrap: normal;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.artifact-reading-note,
+.artifact-resource-note {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}

@@ -5,6 +5,7 @@ import { newUuidV7 } from '@zhiju/shared-kernel';
 import { createCursorCodec, type CursorCodec, type CursorScope } from '../domain/cursor.js';
 import { fail } from '../domain/errors.js';
 import { manifestHash, assertManifestEntries } from '../domain/manifest.js';
+import { MVP_INPUT_POLICY_VERSION } from '../domain/policy.js';
 import type {
   AttemptRecord,
   BatchDetail,
@@ -44,7 +45,7 @@ import {
 const PROJECT_COLUMNS =
   'owner_id, project_id, customer_name, title, created_at, version, last_batch_no, active_batch_id';
 const BATCH_COLUMNS =
-  'owner_id, project_id, batch_id, batch_no, kind, original_name, declared_bytes, zip_sha256, note, policy_version, status, generation, version, original_request_id, created_at, manifest_id, reason_codes, original_zip_source, observed_at';
+  'owner_id, project_id, batch_id, batch_no, kind, original_name, declared_bytes, zip_sha256, note, policy_version, status, generation, version, original_request_id, created_at, manifest_id, reason_codes, original_zip_source, observed_at, rejected_archive_paths';
 const ATTEMPT_COLUMNS =
   'owner_id, project_id, batch_id, attempt_id, kind, number, generation, status, process_incarnation, fencing_token, started_at, ended_at, reason_codes, staged_object_receipts, authorization_request_id, authorized_owner_id, authorized_auth_epoch, original_input_sha256';
 const REQUEST_COLUMNS =
@@ -143,6 +144,10 @@ export function permittedActions(
 ): readonly RecoveryAction[] {
   if (['RECEIVED', 'PARTIAL', 'REJECTED', 'ABANDONED'].includes(batch.status)) return [];
   if (batch.manifestId !== undefined) return [];
+  if (batch.policyVersion !== MVP_INPUT_POLICY_VERSION)
+    return ['UNKNOWN', 'RECEIVING', 'EXTRACTING'].includes(batch.status)
+      ? ['RECONCILE']
+      : ['ABANDON'];
   if (batch.status === 'UNKNOWN') return ['RECONCILE'];
   if (batch.status === 'RECEIVING') return ['RECONCILE'];
   if (batch.status === 'STAGED')
@@ -491,6 +496,9 @@ export class MvpRepository {
           : {}),
         ...(manifest === undefined ? {} : { manifest }),
         permittedActions: permittedActions(batch, allAttempts),
+        ...(batch.rejectedArchivePaths === undefined
+          ? {}
+          : { rejectedArchivePaths: batch.rejectedArchivePaths }),
       };
     });
   }
@@ -903,7 +911,7 @@ export class MvpRepository {
           originalName: input.originalName,
           declaredBytes: input.declaredBytes,
           zipSha256: input.zipSha256,
-          policyVersion: 'mvp.zip-input@1',
+          policyVersion: MVP_INPUT_POLICY_VERSION,
           status: 'AWAITING_UPLOAD',
           generation: 1,
           version: 1,
@@ -1000,10 +1008,11 @@ export class MvpRepository {
   ): Promise<{ batch: BatchRecord; attempt: AttemptRecord }> {
     return this.#db.transaction(ownerId, projectId, async (client) => {
       const batch = await this.#lockBatch(client, ownerId, projectId, batchId);
+      if (['RECEIVED', 'PARTIAL', 'REJECTED'].includes(batch.status)) fail('BATCH_SEALED');
+      if (batch.policyVersion !== MVP_INPUT_POLICY_VERSION) fail('RECOVERY_NOT_ALLOWED');
       const attempts = await this.#allAttempts(client, ownerId, projectId, batchId);
       const current = attempts.at(-1);
       if (batch.status === 'RECEIVING') fail('UPLOAD_BUSY');
-      if (['RECEIVED', 'PARTIAL', 'REJECTED'].includes(batch.status)) fail('BATCH_SEALED');
       if (batch.status !== 'AWAITING_UPLOAD') fail('RECOVERY_NOT_ALLOWED');
       if (current === undefined) fail('RECOVERY_NOT_ALLOWED');
       if (
@@ -1057,6 +1066,7 @@ export class MvpRepository {
   ): Promise<{ batch: BatchRecord; attempt: AttemptRecord }> {
     return this.#db.transaction(ownerId, projectId, async (client) => {
       const batch = await this.#lockBatch(client, ownerId, projectId, batchId);
+      if (batch.policyVersion !== MVP_INPUT_POLICY_VERSION) fail('RECOVERY_NOT_ALLOWED');
       const attempts = await this.#allAttempts(client, ownerId, projectId, batchId);
       const current = attempts.at(-1);
       if (batch.status !== 'RECEIVING') fail('RECOVERY_NOT_ALLOWED');
@@ -1257,6 +1267,7 @@ export class MvpRepository {
   ): Promise<AttemptRecord> {
     return this.#db.transaction(ownerId, projectId, async (client) => {
       const batch = await this.#lockBatch(client, ownerId, projectId, batchId);
+      if (batch.policyVersion !== MVP_INPUT_POLICY_VERSION) fail('RECOVERY_NOT_ALLOWED');
       const attempts = await this.#allAttempts(client, ownerId, projectId, batchId);
       const attempt = attempts.find((item) => item.attemptId === attemptId);
       if (attempt === undefined || batch.manifestId !== undefined) fail('RECOVERY_NOT_ALLOWED');
@@ -1330,6 +1341,7 @@ export class MvpRepository {
       throw new Error('manifest does not match its acceptance scope');
     return this.#db.transaction(ownerId, projectId, async (client) => {
       const batch = await this.#lockBatch(client, ownerId, projectId, batchId);
+      if (batch.policyVersion !== MVP_INPUT_POLICY_VERSION) fail('RECOVERY_NOT_ALLOWED');
       const attempts = await this.#allAttempts(client, ownerId, projectId, batchId);
       const attempt = attempts.find((item) => item.attemptId === attemptId);
       if (attempt === undefined || batch.manifestId !== undefined) fail('RECOVERY_NOT_ALLOWED');
@@ -1459,6 +1471,7 @@ export class MvpRepository {
     attemptId: string,
     rejected: boolean,
     reasons: readonly string[],
+    rejectedArchivePaths?: readonly string[],
   ): Promise<BatchRecord> {
     return this.#db.transaction(ownerId, projectId, async (client) => {
       await this.#lockBatch(client, ownerId, projectId, batchId);
@@ -1473,10 +1486,19 @@ export class MvpRepository {
       const batchRow: Record<string, unknown> = (
         await client.query(
           `UPDATE document_delivery.input_batches
-           SET status = $4, version = version + 1, reason_codes = $5::jsonb, observed_at = $6
+           SET status = $4, version = version + 1, reason_codes = $5::jsonb, observed_at = $6,
+               rejected_archive_paths = $7::jsonb
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3
            RETURNING ${BATCH_COLUMNS}`,
-          [ownerId, projectId, batchId, status, JSON.stringify(reasons), at],
+          [
+            ownerId,
+            projectId,
+            batchId,
+            status,
+            JSON.stringify(reasons),
+            at,
+            rejectedArchivePaths === undefined ? null : JSON.stringify(rejectedArchivePaths),
+          ],
         )
       ).rows[0];
       await this.#releaseActive(client, ownerId, projectId, batchId);
@@ -1592,13 +1614,16 @@ export class MvpRepository {
         fail('RECOVERY_NOT_ALLOWED');
       if (project.activeBatchId !== undefined && project.activeBatchId !== input.batchId)
         fail('PROJECT_BUSY');
+      const oldPolicy = batch.policyVersion !== MVP_INPUT_POLICY_VERSION;
+      if (oldPolicy && ['RETRY_UPLOAD', 'CONTINUE_EXTRACTION'].includes(input.action))
+        fail('RECOVERY_NOT_ALLOWED');
       const attempts = await this.#allAttempts(client, ownerId, input.projectId, input.batchId);
       if (
         input.action === 'ABANDON' &&
         ['UNKNOWN', 'RECEIVING', 'EXTRACTING'].includes(batch.status)
       )
         fail('RECOVERY_NOT_ALLOWED');
-      if (input.action !== 'RECONCILE') {
+      if (input.action !== 'RECONCILE' || oldPolicy) {
         release = await guard({ batch, attempts });
       }
       const at = this.#now().toISOString();
@@ -1606,7 +1631,27 @@ export class MvpRepository {
       let nextAttempt: AttemptRecord | undefined = attempts.at(-1);
 
       if (input.action === 'RECONCILE') {
-        if (!['UNKNOWN', 'RECEIVING'].includes(batch.status)) fail('RECOVERY_NOT_ALLOWED');
+        if (!['UNKNOWN', 'RECEIVING', ...(oldPolicy ? ['EXTRACTING'] : [])].includes(batch.status))
+          fail('RECOVERY_NOT_ALLOWED');
+        if (oldPolicy) {
+          await client.query(
+            `UPDATE document_delivery.batch_attempts
+             SET status = 'FAILED', ended_at = $4, reason_codes = '["RECOVERY_REQUIRED"]'::jsonb
+             WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3
+               AND status IN ('PREPARED','RUNNING','UNKNOWN')`,
+            [ownerId, input.projectId, input.batchId, at],
+          );
+          nextBatch = {
+            ...batch,
+            status: 'FAILED',
+            version: batch.version + 1,
+            reasonCodes: ['RECOVERY_REQUIRED'],
+            observedAt: at,
+          };
+          nextAttempt = (
+            await this.#allAttempts(client, ownerId, input.projectId, input.batchId)
+          ).at(-1);
+        }
       } else if (input.action === 'RETRY_UPLOAD') {
         if (!['FAILED', 'AWAITING_UPLOAD'].includes(batch.status)) fail('RECOVERY_NOT_ALLOWED');
         if (batch.originalZipSource !== undefined) fail('RECOVERY_NOT_ALLOWED');
@@ -1738,13 +1783,21 @@ export class MvpRepository {
         });
         nextAttempt = attempt;
       }
-      if (input.action !== 'RECONCILE') {
+      if (input.action !== 'RECONCILE' || oldPolicy) {
         await client.query(
           `UPDATE document_delivery.input_batches
            SET status = $4, generation = $5, version = version + 1,
-               reason_codes = '[]'::jsonb, observed_at = $6
+               reason_codes = $7::jsonb, observed_at = $6
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3`,
-          [ownerId, input.projectId, input.batchId, nextBatch.status, nextBatch.generation, at],
+          [
+            ownerId,
+            input.projectId,
+            input.batchId,
+            nextBatch.status,
+            nextBatch.generation,
+            at,
+            JSON.stringify(oldPolicy && input.action === 'RECONCILE' ? ['RECOVERY_REQUIRED'] : []),
+          ],
         );
       }
       if (input.action === 'ABANDON') {

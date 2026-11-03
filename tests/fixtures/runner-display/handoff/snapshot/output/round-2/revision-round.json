@@ -1,0 +1,62 @@
+{
+  "protocolVersion": "1.0.0",
+  "contextSha256": "01bc462bbd2fd4773b3f32e12143a60aa2e2b18a777349fb5fc71ef0c5b2a4d7",
+  "context": {
+    "protocolVersion": "1.0.0",
+    "taskId": "SYNTHETIC-TASK",
+    "stageId": "SYNTHETIC-STAGE",
+    "step": "QUALITY_MANUAL",
+    "roundId": "ROUND-002",
+    "roundNumber": 2,
+    "files": [
+      {
+        "id": "FILE-1",
+        "title": "合成质量手册",
+        "initial": {
+          "relativePath": "customer/manual.md",
+          "sha256": "5ef0d16c8bebb78c993186bcdb7d1d330c3f6ae2a18056b74661850c397a9ab0"
+        },
+        "current": {
+          "relativePath": "output/round-1/manual.md",
+          "sha256": "e906b73ee14574bb74ef7a9fc2265afe5fe870d8de1b571c59e03803768bde1b"
+        },
+        "readLimitations": []
+      }
+    ]
+  },
+  "summary": "## 本轮报告\n\n合成阅读测试，未取得业务批准。",
+  "status": "WAITING_REVIEW",
+  "files": [
+    {
+      "id": "FILE-1",
+      "state": "DRAFT",
+      "candidate": {
+        "relativePath": "output/round-2/manual.md",
+        "sha256": "2e27f8e527413bb8db6c29be9ad43504690637d5f13f728035484ff977885cf9"
+      },
+      "contentCompleteness": "COMPLETE",
+      "gaps": []
+    }
+  ],
+  "changes": [
+    {
+      "id": "CHANGE-1"
+    }
+  ],
+  "limitations": [],
+  "issues": [
+    {
+      "id": "QUESTION-1",
+      "title": "已缩小范围的请求",
+      "kind": "CLARIFICATION",
+      "fileIds": [
+        "FILE-1"
+      ],
+      "blocking": "NONE",
+      "status": "OPEN",
+      "request": "请重新提供完整材料并确认责任人。",
+      "reason": "材料已读取。",
+      "resolutionDecisionId": null
+    }
+  ]
+}

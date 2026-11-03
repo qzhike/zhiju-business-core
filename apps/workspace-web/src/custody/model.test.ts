@@ -121,6 +121,40 @@ describe('MVP custody UI model', () => {
     expect(page?.manifest.acceptedEntries).toBe(0);
   });
 
+  it('keeps bounded rejection paths as text and rejects malformed detail shapes', () => {
+    const detail = {
+      batch: {
+        batchId: 'batch',
+        projectId: 'project',
+        batchNo: 1,
+        kind: 'INITIAL',
+        originalName: 'input.zip',
+        declaredBytes: 10,
+        zipSha256: 'a'.repeat(64),
+        status: 'REJECTED',
+        version: 3,
+        createdAt: '2026-11-03T00:00:00.000Z',
+        reasonCodes: ['NESTED_ARCHIVE_NOT_ALLOWED'],
+      },
+      attempts: [],
+      permittedActions: [],
+      rejectedArchivePaths: ['dir/<archive>.rar'],
+    };
+    expect(parseBatchDetail(detail)?.rejectedArchivePaths).toEqual(['dir/<archive>.rar']);
+    for (const paths of [
+      null,
+      [],
+      [1],
+      [''],
+      ['界'.repeat(81)],
+      Array.from({ length: 1001 }, () => 'a.zip'),
+    ])
+      expect(parseBatchDetail({ ...detail, rejectedArchivePaths: paths })).toBeNull();
+    expect(
+      parseBatchDetail({ ...detail, batch: { ...detail.batch, status: 'RECEIVED' } }),
+    ).toBeNull();
+  });
+
   it('fingerprints re-entered intent fields stably', async () => {
     const left = await stableFingerprint({ title: 't', customerName: 'c' });
     const right = await stableFingerprint({ customerName: 'c', title: 't' });

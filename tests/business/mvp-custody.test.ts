@@ -7,6 +7,7 @@ import {
 
 import {
   ZipSafetyError,
+  NestedArchiveError,
   createCursorCodec,
   manifestHash,
   noteText,
@@ -68,6 +69,154 @@ function relatedSpreadsheetPart(kind: string, path: string, root: string) {
 }
 
 describe('MVP01 custody safety', () => {
+  it('rejects all nested archives in outer ordinal order before admitting any document', () => {
+    const paths = [
+      '历史/first.RAR',
+      'nested/deeper/package.zip',
+      '<archive>.7z',
+      'part.r00',
+      'split.zip.001',
+    ];
+    const bytes = zipBytes([
+      { name: 'good.md', bytes: markdownBytes() },
+      ...paths.map((name) => ({ name, bytes: textBytes('not opened') })),
+      { name: 'good.docx', bytes: docxBytes() },
+    ]);
+    try {
+      scanInputPackage(bytes);
+      expect.fail('nested archives must reject the package');
+    } catch (error) {
+      expect(error).toBeInstanceOf(NestedArchiveError);
+      expect(error).toMatchObject({ code: 'NESTED_ARCHIVE_NOT_ALLOWED', paths });
+    }
+  });
+
+  it.each([
+    'zipx',
+    '7z.001',
+    'part01.rar',
+    'tar',
+    'gz',
+    'tgz',
+    'bz2',
+    'tbz',
+    'tbz2',
+    'xz',
+    'txz',
+    'zst',
+    'tzst',
+    'lz',
+    'lzma',
+    'lz4',
+    'Z',
+    'cab',
+    'arj',
+    'ace',
+    'lzh',
+    'lha',
+  ])('rejects the archive extension %s without unpacking', (extension) => {
+    expect(
+      codeOf(() =>
+        scanInputPackage(
+          zipBytes([{ name: `docs/backup.${extension}`, bytes: textBytes('archive') }]),
+        ),
+      ),
+    ).toBe('NESTED_ARCHIVE_NOT_ALLOWED');
+  });
+
+  it.each([
+    '526172211a0700',
+    '526172211a070100',
+    '377abcaf271c',
+    '1f8b',
+    '425a68',
+    'fd377a585a00',
+    '28b52ffd',
+    '4d534346',
+  ])('rejects renamed archive magic %s including Office extensions', (magic) => {
+    for (const name of ['notes.md', 'renamed.docx', 'renamed.xlsx', 'unknown.bin']) {
+      expect(
+        codeOf(() => scanInputPackage(zipBytes([{ name, bytes: Buffer.from(magic, 'hex') }]))),
+      ).toBe('NESTED_ARCHIVE_NOT_ALLOWED');
+    }
+  });
+
+  it('rejects renamed ZIP and TAR while preserving ordinary folders and Office documents', () => {
+    const nested = zipBytes([{ name: 'normal.md', bytes: markdownBytes() }]);
+    for (const name of ['notes.md', 'renamed.docx', 'renamed.xlsx']) {
+      expect(
+        codeOf(() =>
+          scanInputPackage(
+            zipBytes([
+              { name: 'good.md', bytes: markdownBytes() },
+              { name, bytes: nested },
+            ]),
+          ),
+        ),
+      ).toBe('NESTED_ARCHIVE_NOT_ALLOWED');
+    }
+    const tar = Buffer.alloc(512);
+    tar.write('ustar', 257);
+    expect(codeOf(() => scanInputPackage(zipBytes([{ name: 'renamed.md', bytes: tar }])))).toBe(
+      'NESTED_ARCHIVE_NOT_ALLOWED',
+    );
+    expect(
+      scanInputPackage(
+        zipBytes([
+          { name: 'archive.rar/', bytes: Buffer.alloc(0) },
+          { name: 'archive.rar/notes.rar.md', bytes: markdownBytes() },
+          { name: 'normal.DOCX', bytes: docxBytes() },
+          { name: 'normal.XLSX', bytes: xlsxBytes() },
+        ]),
+      ).entries.map((entry) => entry.status),
+    ).toEqual(['ACCEPTED', 'ACCEPTED', 'ACCEPTED']);
+  });
+
+  it('reports outer safety failures before exposing archive paths', () => {
+    expect(
+      codeOf(() =>
+        scanInputPackage(
+          zipBytes([
+            { name: 'archive.rar', bytes: textBytes('archive') },
+            { name: '../bad.md', bytes: markdownBytes() },
+          ]),
+        ),
+      ),
+    ).toBe('ZIP_UNSAFE');
+  });
+
+  it('bounds original and normalized paths without rewriting combining characters', () => {
+    const boundaryPath = `${'e\u0301'.repeat(78)}aa.rar`;
+    expect(Buffer.byteLength(boundaryPath)).toBe(240);
+    try {
+      scanInputPackage(zipBytes([{ name: boundaryPath, bytes: textBytes('archive') }]));
+      expect.fail('nested archive must reject the package');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'NESTED_ARCHIVE_NOT_ALLOWED',
+        paths: [boundaryPath],
+      });
+    }
+    for (const name of [
+      `${'e\u0301'.repeat(79)}.rar`,
+      `${'e\u0301'.repeat(100)}.rar`,
+      `${'e\u0301'.repeat(80)}.md`,
+    ]) {
+      expect(Buffer.byteLength(name)).toBeGreaterThan(240);
+      expect(Buffer.byteLength(name.normalize('NFC'))).toBeLessThan(240);
+      expect(
+        codeOf(() =>
+          scanInputPackage(
+            zipBytes([
+              { name: 'normal.md', bytes: markdownBytes() },
+              { name, bytes: textBytes('archive') },
+            ]),
+          ),
+        ),
+      ).toBe('ZIP_UNSAFE');
+    }
+  });
+
   it('admits DOCX, Markdown and XLSX and reports unsupported entries', () => {
     const packageBytes = zipBytes([
       { name: 'readme.md', bytes: markdownBytes() },

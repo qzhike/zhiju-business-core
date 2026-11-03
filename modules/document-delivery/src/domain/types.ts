@@ -66,6 +66,7 @@ export const REASON_CODES = [
   'ZIP_UNSAFE',
   'ZIP_CORRUPT',
   'ZIP_LIMIT_EXCEEDED',
+  'NESTED_ARCHIVE_NOT_ALLOWED',
   'EXTRACTION_FAILED',
   'UPLOAD_INCOMPLETE',
   'STORAGE_INTEGRITY_ERROR',
@@ -148,6 +149,7 @@ export interface ProjectRecord {
 }
 
 export interface BatchRecord {
+  readonly rejectedArchivePaths?: readonly string[];
   readonly batchId: string;
   readonly ownerId: string;
   readonly projectId: string;
@@ -304,6 +306,7 @@ export interface Page<T> {
 }
 
 export interface BatchDetail {
+  readonly rejectedArchivePaths?: readonly string[];
   readonly batch: BatchView;
   readonly attempts: readonly AttemptSummary[];
   readonly nextAttemptCursor?: string;

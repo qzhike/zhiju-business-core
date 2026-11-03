@@ -212,10 +212,12 @@ export function Workbench({
             <WorkLink
               className={buttonVariants({ variant: 'default' })}
               projectKey={selected.key}
-              action={{
-                label: '提交客户资料',
-                destination: { kind: 'intake', projectId: selected.projectId },
-              }}
+              action={
+                selected.primaryAction ?? {
+                  label: '提交客户资料',
+                  destination: { kind: 'intake', projectId: selected.projectId },
+                }
+              }
             />
           ) : (
             <Button
@@ -475,13 +477,17 @@ function ProjectActions({
       >
         {selectedKey === project.key ? '收起看板' : '查看该项目看板'}
       </Button>
-      <WorkLink
-        projectKey={project.key}
-        action={{
-          label: '准备项目交付',
-          destination: { kind: 'delivery', projectId: project.projectId },
-        }}
-      />
+      {project.deliveryAction !== null && (
+        <WorkLink
+          projectKey={project.key}
+          action={
+            project.deliveryAction ?? {
+              label: '准备项目交付',
+              destination: { kind: 'delivery', projectId: project.projectId },
+            }
+          }
+        />
+      )}
       <details
         className="wb-project-ref"
         open={open}

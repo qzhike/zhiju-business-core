@@ -194,17 +194,6 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
     '变更申请单 DOCX',
   ]);
 
-  // Unknown times stay after comparable timestamps in both directions.
-  await expandOriginalDirectory(page, '历史记录');
-  const history = await namesIn(page, '历史记录');
-  expect(history[0]).toContain('变更历史（嵌套 RAR）');
-  expect(history.at(-1)).toMatch(/变更记录 2024|变更台账 2024/u);
-
-  await catalog(page).getByRole('button', { name: '升序 ↑' }).click();
-  const historyDesc = await namesIn(page, '历史记录');
-  expect(historyDesc[0]).toContain('变更历史（嵌套 RAR）');
-  expect(historyDesc.at(-1)).toMatch(/变更记录 2024|变更台账 2024/u);
-
   const infoRow = page.locator('.browser-document', { hasText: '变更申请单 DOCX' });
   await infoRow.locator('.browser-info').click();
   await expect(page).toHaveURL(work);
@@ -222,7 +211,7 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
   await page.goBack();
   await expect(page).toHaveURL(work);
   await expect(catalog(page).getByLabel('排序')).toHaveValue('MODIFIED');
-  await expect(catalog(page).getByRole('button', { name: '降序 ↓' })).toBeVisible();
+  await expect(catalog(page).getByRole('button', { name: '升序 ↑' })).toBeVisible();
   await expect(
     catalog(page).getByRole('button', { name: '4 - 记录表单', exact: true }),
   ).toHaveAttribute('aria-expanded', 'true');
@@ -230,9 +219,7 @@ test('hierarchy, sibling sorting, filename activation and info selection stay in
   await expect(page.locator('.task-next h2')).toHaveText('开始分析资料');
 });
 
-test('original metadata separates file records, containers, failures and sizes', async ({
-  page,
-}) => {
+test('original metadata separates file records, failures and sizes', async ({ page }) => {
   await page.goto(work);
   await expandOriginalDirectory(page, '质量手册');
   const manual = page.locator('.browser-document', { hasText: '质量手册 DOCX' });
@@ -243,15 +230,6 @@ test('original metadata separates file records, containers, failures and sizes',
   await expect(page.locator('.project-file-info')).toContainText('批次提交 2026-10-20 09:10');
   await expect(page.locator('.project-file-info')).toContainText('显示时区 UTC+08:00');
   await expect(page.locator('.project-file-info')).toContainText('初始作者/上传人不替代最后修改者');
-
-  await expandOriginalDirectory(page, '历史记录');
-  const container = page.locator('.browser-document', { hasText: '变更历史（嵌套 RAR）' });
-  await expect(container.locator('.browser-time')).toHaveText('2026-10-16 08:50');
-  for (const name of ['变更记录 2024（RAR 内 DOCX）', '变更台账 2024（RAR 内 DOCX）']) {
-    const member = page.locator('.browser-document', { hasText: name });
-    await expect(member.locator('.browser-time')).toHaveText('未提供');
-    await expect(member.locator('.browser-author')).toHaveText('未提供');
-  }
 
   await expandOriginalDirectory(page, '外来文件');
   const damaged = page.locator('.browser-document', { hasText: '外来标准清单（损坏）.docx' });
@@ -326,7 +304,7 @@ test('counts, retained originals, planned exclusion and project isolation stay t
 }) => {
   await page.goto(work);
   await expect(catalog(page).locator('.project-catalog-counts')).toContainText(
-    '原始文档 11 项 · 容器 1 · 只读',
+    '原始文档 9 项 · 只读',
   );
   await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
   await expect(catalog(page).getByText('尚未生成修订文档。')).toBeVisible();
@@ -334,9 +312,7 @@ test('counts, retained originals, planned exclusion and project isolation stay t
 
   await startToManualReview(page);
   await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
-  await expect(catalog(page).locator('.project-catalog-counts')).toContainText(
-    '原始文档 12 项 · 容器 1',
-  );
+  await expect(catalog(page).locator('.project-catalog-counts')).toContainText('原始文档 10 项');
   await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
   await expect(catalog(page).locator('.project-catalog-counts')).toContainText(
     '修订文档 1 份 · 版本 1',
@@ -364,20 +340,15 @@ test('counts, retained originals, planned exclusion and project isolation stay t
   await expect(page.locator('.project-catalog')).toHaveCount(0);
 });
 
-test('archive members appear only under their container and disappear on collapse', async ({
+test('original files retain folder navigation without archive containers or members', async ({
   page,
 }) => {
   await page.goto(work);
-  await expandOriginalDirectory(page, '历史记录');
-  await expect(page.locator('.browser-document')).toHaveCount(12);
-  const directory = page.locator('.browser-document[data-directory="历史记录"]');
-  await expect(directory).toHaveCount(3);
-  const container = directory.filter({ hasText: '变更历史（嵌套 RAR）' });
-  await expect(container).toBeVisible();
-  await container.locator('.browser-expander').click();
-  await expect(directory.filter({ hasText: '变更记录 2024' })).toHaveCount(0);
-  await expect(directory.filter({ hasText: '变更台账 2024' })).toHaveCount(0);
-  await expect(container).toBeVisible();
+  await expect(page.locator('.browser-document')).toHaveCount(9);
+  await expect(catalog(page)).not.toContainText('嵌套 RAR');
+  await expect(catalog(page).getByRole('option', { name: '容器', exact: true })).toHaveCount(0);
+  await expandOriginalDirectory(page, '记录表单');
+  await expect(page.locator('.browser-document[data-directory="记录表单"]')).toHaveCount(6);
 });
 
 test('version info selection keeps the chosen historical row pressed and parent unselected', async ({

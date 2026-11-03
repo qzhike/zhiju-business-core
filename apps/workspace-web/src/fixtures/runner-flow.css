@@ -1,0 +1,194 @@
+.runner-flow {
+  min-width: 0;
+}
+.runner-flow h1,
+.runner-flow h2,
+.runner-flow h3,
+.runner-flow p,
+.runner-flow dd,
+.runner-flow a {
+  overflow-wrap: anywhere;
+}
+.runner-flow-card > .panel {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.runner-flow-card .task-progress {
+  padding: 16px 0;
+}
+.runner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-block: 12px;
+}
+.runner-actions button,
+.runner-actions a {
+  white-space: normal;
+  height: auto;
+  min-height: 36px;
+}
+.runner-provenance {
+  margin-block: 14px;
+  overflow-wrap: anywhere;
+}
+.runner-provenance dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+}
+.runner-provenance dd {
+  margin: 0;
+}
+.runner-catalog-group h3 {
+  font-size: 14px;
+  margin-block: 12px 6px;
+}
+.runner-catalog-group small,
+.runner-flow-card td small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.runner-catalog-group td,
+.runner-catalog-group th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.runner-issue {
+  border-bottom: 1px solid var(--border);
+}
+.runner-issue:last-child {
+  border-bottom: 0;
+}
+.runner-issue h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.runner-issue-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 14px 8px;
+}
+.runner-issue-filters button[aria-pressed='true'] {
+  background: var(--soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.runner-issue-trigger {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  width: 100%;
+  height: auto;
+  min-height: 56px;
+  padding: 12px 6px;
+  border-radius: 0;
+  text-align: left;
+  white-space: normal;
+}
+.runner-issue-title {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.runner-issue-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.runner-issue-blocking {
+  color: var(--amber);
+}
+.runner-issue-draft {
+  color: var(--primary);
+}
+.runner-issue-chevron {
+  font-size: 18px;
+  color: var(--primary);
+}
+.runner-issue-content {
+  padding: 0 6px 18px;
+}
+.runner-issue-content[hidden] {
+  display: none;
+}
+.runner-issue textarea {
+  margin-top: 8px;
+  min-height: 100px;
+}
+.runner-issue details {
+  margin-bottom: 12px;
+}
+.runner-new-result {
+  margin-block: 16px;
+}
+.runner-reading-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.runner-reading-layout.with-opinion {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+.runner-reading-body {
+  min-width: 0;
+  overflow-anchor: none;
+}
+.runner-flow-file .markdown-change-toolbar {
+  flex-direction: row;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--card);
+  box-shadow: 0 1px 0 var(--border);
+  padding: 10px 0;
+}
+.runner-flow-file .markdown-opinion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: none;
+  overflow: visible;
+}
+.runner-flow-file .review-opinion-panel {
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 0 0 18px;
+}
+.runner-draft-dialog {
+  overflow-wrap: anywhere;
+}
+.runner-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 10px;
+}
+.runner-draft-dialog li {
+  margin-block: 18px;
+}
+.runner-draft-text {
+  white-space: pre-wrap;
+}
+.runner-reading-body .artifact-reading-tools button[aria-pressed='true'],
+.runner-actions button[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--soft);
+  color: var(--primary);
+}

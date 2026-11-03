@@ -62,6 +62,12 @@ React Router 要求 Node >=22.22.0、React/DOM >=19.2.7；jsdom 30 要求 Node ^
 
 升级采用单独可审阅变更：patch/minor 也更新精确锁定并验证受影响链；major 或会话/渲染边界变化独立评估，不自动跟随 latest。安全修复优先处理，不无限冻结旧版。来源核查不是安全扫描、浏览器证明或锁定结果。
 
+### 2.2 本地产物阅读依赖增量（2026-11-03）
+
+用户批准按真实产物展示核对计划修订。新增 `rehype-raw@7.0.0` 与 `rehype-sanitize@6.0.0`，仅服务于 [UI01 本地只读展示适配](../module-specs/Module-Spec-UI01-WorkspaceUI.md#真实产物只读展示适配2026-11-03) 的 `ArtifactMarkdown`：先解析为惰性语法树，再按有限阅读标签/属性白名单清理并由 React 重建；不使用 HTML sink。此例外只供开发环境本地交接包阅读，生产构建排除入口与组件；可信业务页面的 `SafeMarkdown`、Core 结构化解析器及授权内容接口保持原限制。
+
+Experience 依赖许可登记这两个精确依赖，源码检查限制其直接导入位置为该独立阅读组件；其他 Web 源码及 BFF 的导入反例继续拒绝。活动内容、资源加载、超大表格跨度及源码保真由 UI-MVP-M1-036–040 验证。用户明确本次不执行数据库持久化测试，本地执行 `code`；此范围指令不改变仓库一般验证路由，也不表示后续远端交付所需 `full` 已通过。
+
 ## 3. 组件、浏览器与验收方案（UI-DG-002 提案）
 
 保持现有原型的紧凑布局，抽取颜色、字体、间距、边框、焦点和状态 token。2026-10-31 用户批准迁移到 shadcn/ui，并进一步明确主色使用蓝色；组件选择按下方迁移增量执行。Radix 提供交互基础，不证明整个产品已可访问。
@@ -150,7 +156,7 @@ base-uri 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'
 
 样式的 `unsafe-inline` 仅为 Radix/动态布局内联样式兼容，禁止客户 CSS/HTML；脚本无 inline/eval。真实组件若无需该例外可收紧，不能为图省事放开脚本。CSP 最终是否可用须实测。首版不用第三方 analytics、iframe 嵌入或外部字体；Trusted Types 是否必要按实际 sink 评估，不声称已实现。
 
-Markdown 使用 react-markdown + remark-gfm，禁用原始 HTML（skipHtml）、MDX、rehype-raw 和任意 dangerouslySetInnerHTML；定制链接只允许已核验 http/https 或授权的同源引用，默认不加载客户外部图片。Stable location、Diff 和 canonical Hash 来自服务器，Browser 渲染不能产出正式修改证据。链接/下载接口重新授权精确 Revision，短期 URL 不进入日志、长期存储或可分享深链接。
+业务 Markdown 使用 react-markdown + remark-gfm，禁用原始 HTML（skipHtml）、MDX、rehype-raw 和任意 dangerouslySetInnerHTML；本地开发阅读的有限例外见 §2.2，不适用于可信业务页面。定制链接只允许已核验 http/https 或授权的同源引用，默认不加载客户外部图片。Stable location、Diff 和 canonical Hash 来自服务器，Browser 渲染不能产出正式修改证据。链接/下载接口重新授权精确 Revision，短期 URL 不进入日志、长期存储或可分享深链接。
 
 前端/BFF 遥测采用字段 allowlist：安全错误码、correlationId、操作/版本、耗时；不记录 token、auth callback 完整 URL、文件名、客户正文、原始错误对象、下载 URL 或原始 Payload。认证回调 URL 的代理访问日志也必须脱敏。测试 trace/screenshot 用合成或批准的脱敏资料，不能自动上传真实客户内容。
 

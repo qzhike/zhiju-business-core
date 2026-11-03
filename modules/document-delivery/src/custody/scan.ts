@@ -1,5 +1,6 @@
 import type { EntryStatus, ReasonCode } from '../domain/types.js';
 import { classifyEntry, entryMetadata } from './formats.js';
+import { isArchiveFile, NestedArchiveError } from './archives.js';
 import { createScanBudget, parseZipContainer, ZipSafetyError } from './zip.js';
 
 export interface ScannedEntry {
@@ -29,14 +30,23 @@ export function scanInputPackage(bytes: Buffer): ScannedPackage {
   const budget = createScanBudget(bytes.length);
   const container = parseZipContainer(bytes, budget);
   const entries: ScannedEntry[] = [];
+  const rejectedPaths: string[] = [];
   for (const entry of container) {
     if (entry.directory) continue;
+    if (isArchiveFile(entry.originalName, entry.bytes)) {
+      rejectedPaths.push(entry.originalName);
+      continue;
+    }
     const metadata = entryMetadata(entry.bytes);
     let classified;
     try {
       classified = classifyEntry(entry.originalName, entry.bytes, budget);
     } catch (error) {
       if (error instanceof ZipSafetyError) throw error;
+      if (error instanceof NestedArchiveError) {
+        rejectedPaths.push(entry.originalName);
+        continue;
+      }
       classified = {
         status: 'CORRUPT' as const,
         reasonCodes: ['EXTRACTION_FAILED'] as const satisfies readonly ReasonCode[],
@@ -54,5 +64,6 @@ export function scanInputPackage(bytes: Buffer): ScannedPackage {
       ...(classified.status === 'ACCEPTED' ? { content: entry.bytes } : {}),
     });
   }
+  if (rejectedPaths.length > 0) throw new NestedArchiveError(rejectedPaths);
   return { entries };
 }

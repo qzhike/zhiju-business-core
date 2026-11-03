@@ -88,7 +88,9 @@ const server = createServer(async (req, res) => {
     res.writeHead(404).end();
     return;
   }
-  const isPage = page.test(path) && req.headers.accept?.includes('text/html');
+  const isPage =
+    (page.test(path) || (fixture && path === '/runner-output')) &&
+    req.headers.accept?.includes('text/html');
   const isAsset = /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css)$/u.test(path);
   if (!isPage && !isAsset) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('未找到页面或资源');

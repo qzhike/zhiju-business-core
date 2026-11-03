@@ -1,6 +1,6 @@
 # Zhiju Business Core 当前路线
 
-更新：2026-10-26。推进方向从本文件进入；里程碑、checklist 与证据定位统一维护在 [mvp-v1-release](../mvp/mvp-v1-release.md)，不在此重复任务状态。
+更新：2026-11-03。推进方向从本文件进入；里程碑、checklist 与证据定位统一维护在 [mvp-v1-release](../mvp/mvp-v1-release.md)，不在此重复任务状态。
 
 ## Current — 定稿可完整试走的 Web UI
 
@@ -12,7 +12,7 @@
 
 M1 通过后，按 **M2 真实质量手册 → M3 完整业务与 Markdown 包 → M4 bopu 全量验收及发布准备**推进。后端每次围绕一个可观察的用户结果补齐；先复用，再以实际阻塞决定局部替换，不预设整体重写。
 
-本版完成以用户指定的 bopu 完整输入为基线，包含嵌套压缩包内的文档。小样本与 mock 不能代替；不另设“300+ 份”数量门槛。产品细则见 [可用闭环](../mvp/usable-loop.md)，技术与验证规则按 [HL-Spec](../high-level-docs/HL-Spec.md)和 owning Spec/Test 执行。
+本版完成以用户重新整理并确认的 bopu 完整输入为基线。按 2026-11-03 最新决定，上传 ZIP 不允许包含嵌套压缩文件，发现后整包拒绝并要求用户整理重传，不开发嵌套 RAR 解包能力。小样本与 mock 不能代替全量验收；不另设“300+ 份”数量门槛。产品细则见 [可用闭环](../mvp/usable-loop.md)，技术与验证规则按 [HL-Spec](../high-level-docs/HL-Spec.md)和 owning Spec/Test 执行。
 
 ## Later — 依据实际使用决定
 

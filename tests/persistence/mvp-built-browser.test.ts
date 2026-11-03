@@ -484,4 +484,59 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible();
     vitestExpect(project).toMatch(/^\/custody\/projects\//u);
   }, 120_000);
+  it('shows rejected archive paths and accepts a corrected new batch in the built browser', async () => {
+    if (page === undefined) throw new Error('browser page missing');
+    await page.goto(`${webOrigin}/custody`, { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('客户名称').fill('嵌套检查客户');
+    await page.getByLabel('项目标题').fill('嵌套检查项目');
+    await page.getByRole('button', { name: '创建项目' }).click();
+    await expect(page.getByRole('heading', { name: '嵌套检查项目' })).toBeVisible();
+    await expect(page.getByText(/发现内层压缩文件时整批拒绝/)).toBeVisible();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'nested.zip',
+      mimeType: 'application/zip',
+      buffer: zipBytes([
+        { name: '正常.md', bytes: markdownBytes() },
+        { name: '历史/<img onerror=alert(1)>.rar', bytes: textBytes('archive') },
+        { name: '资料/inner.7z', bytes: textBytes('archive') },
+      ]),
+    });
+    await expect(page.getByRole('button', { name: '登记并上传' })).toBeEnabled();
+    await page.getByRole('button', { name: '登记并上传' }).click();
+    await expect(page.getByRole('heading', { name: '请移除内层压缩文件后重新上传' })).toBeVisible({
+      timeout: 45_000,
+    });
+    const paths = page.getByRole('list', { name: '需要移除的压缩文件' });
+    await expect(paths.getByRole('listitem')).toHaveText([
+      '历史/<img onerror=alert(1)>.rar',
+      '资料/inner.7z',
+    ]);
+    await expect(paths.locator('img')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '下载原包' })).toHaveCount(0);
+    await page.reload();
+    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await expect(paths.getByRole('listitem')).toHaveCount(2);
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.screenshot({
+      path: '.local/mvp/nested-archive-policy-e58c4a2/rejection-1024.png',
+      fullPage: true,
+    });
+    vitestExpect(
+      await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),
+    ).toBe(true);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'corrected.zip',
+      mimeType: 'application/zip',
+      buffer: zipBytes([
+        { name: '正常.md', bytes: markdownBytes() },
+        { name: '资料/word.docx', bytes: docxBytes() },
+      ]),
+    });
+    await expect(page.getByRole('button', { name: '登记并上传' })).toBeEnabled();
+    await page.getByRole('button', { name: '登记并上传' }).click();
+    await expect(page.getByText(/已封存清单：共 2 项/)).toBeVisible({ timeout: 45_000 });
+    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await expect(paths.getByRole('listitem')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: '下载原包' })).toHaveCount(0);
+  }, 90_000);
 });

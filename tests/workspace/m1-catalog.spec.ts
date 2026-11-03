@@ -162,9 +162,7 @@ test('returning from full-width review preserves catalog state, drafts and task'
     catalog(page).getByRole('button', { name: '查看客户原始文档', exact: true }),
   ).toBeVisible();
   await catalog(page).getByRole('button', { name: '查看客户原始文档', exact: true }).click();
-  await expect(catalog(page).locator('.project-catalog-counts')).toContainText(
-    '原始文档 11 项 · 容器 1',
-  );
+  await expect(catalog(page).locator('.project-catalog-counts')).toContainText('原始文档 9 项');
 
   await startToManualReview(page);
   await expect(
@@ -178,9 +176,7 @@ test('returning from full-width review preserves catalog state, drafts and task'
     catalog(page).getByRole('button', { name: /质量手册 修订 · 第 1 版候选/u }),
   ).toBeVisible();
   await catalog(page).getByRole('button', { name: '客户原始文档', exact: true }).click();
-  await expect(catalog(page).locator('.project-catalog-counts')).toContainText(
-    '原始文档 12 项 · 容器 1',
-  );
+  await expect(catalog(page).locator('.project-catalog-counts')).toContainText('原始文档 10 项');
   await catalog(page).getByRole('button', { name: '修订文档', exact: true }).click();
   await expect(
     catalog(page).getByRole('button', { name: /质量手册 修订 · 第 1 版候选/u }),
@@ -436,6 +432,6 @@ test('the catalog only exists inside a selected project', async ({ page }) => {
 
   await page.goto(work);
   await expect(catalog(page)).toBeVisible();
-  await expect(catalog(page).locator('.project-catalog-counts')).toContainText('原始文档 11 项');
+  await expect(catalog(page).locator('.project-catalog-counts')).toContainText('原始文档 9 项');
   await expect(page.getByRole('navigation', { name: '主要导航' })).toBeVisible();
 });

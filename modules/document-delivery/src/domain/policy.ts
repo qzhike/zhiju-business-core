@@ -1,12 +1,12 @@
 /**
- * The fixed MVP01 input policy. `mvp.zip-input@1` is written onto every batch
+ * The fixed MVP01 input policy. The current version is written onto every batch
  * at creation, so a later policy cannot retroactively change an old receipt or
  * manifest. Limits are the already-approved D14 cumulative budgets; B1 does not
  * raise them.
  */
 
-export const MVP_INPUT_POLICY_VERSION = 'mvp.zip-input@1';
-export const MVP_EXTRACTOR_VERSION = 'mvp.input-extractor@1';
+export const MVP_INPUT_POLICY_VERSION = 'mvp.zip-input@2';
+export const MVP_EXTRACTOR_VERSION = 'mvp.input-extractor@2';
 
 export const MVP_INPUT_LIMITS = Object.freeze({
   zipBytes: 104857600,
@@ -30,6 +30,7 @@ export const MVP_REJECT_RULES = Object.freeze([
   'PATH_COLLISION',
   'CRC_MISMATCH',
   'ZIP_BOMB',
+  'NESTED_ARCHIVE_NOT_ALLOWED',
 ] as const);
 
 export const MEDIA_TYPES = Object.freeze({

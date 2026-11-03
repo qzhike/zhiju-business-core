@@ -539,8 +539,7 @@ function AnalysisPanel({
   const { u1ReportOne } = useProjectTemplates();
   const { u1, plan } = model;
   const entries = u1.batches.flatMap((batch) => batch.entries);
-  const containers = entries.filter((entry) => entry.format === 'RAR').length;
-  const uploaded = entries.length - containers;
+  const uploaded = entries.length;
   const questions = u1ReportOne.attentionItems.filter(
     (item) => item.kind === 'FACT_QUESTION' && item.audience === 'CUSTOMER',
   );
@@ -548,8 +547,8 @@ function AnalysisPanel({
     <section className="panel task-analysis" aria-label="分析与范围">
       <h2>资料与分析</h2>
       <p className="muted">
-        首轮 {u1.batches.length > 0 ? u1.batches.length : 0} 批 · 上传成员 {uploaded} · 容器{' '}
-        {containers} · 读取及适用范围以合成报告为准。
+        首轮 {u1.batches.length > 0 ? u1.batches.length : 0} 批 · 上传文件 {uploaded} ·
+        读取及适用范围以合成报告为准。
       </p>
       <details>
         <summary>查看分析依据与读取限制</summary>
@@ -1567,7 +1566,7 @@ interface InventoryRow {
   fileId: string;
   title: string;
   source: string;
-  kind: 'UPLOADED' | 'CONTAINER' | 'MEMBER' | 'EXPECTED' | 'NEW' | 'RETAINED';
+  kind: 'UPLOADED' | 'EXPECTED' | 'NEW' | 'RETAINED';
   levelLabel: string;
   stage?: MvpStageId | undefined;
   reading: string;
@@ -1587,8 +1586,7 @@ function useInventory(model: ReturnType<typeof useProjectModel>, filter: string)
   const rows: InventoryRow[] = [];
   for (const batch of u1.batches) {
     for (const entry of batch.entries) {
-      const kind: InventoryRow['kind'] =
-        entry.format === 'RAR' ? 'CONTAINER' : entry.id.includes('-') ? 'MEMBER' : 'UPLOADED';
+      const kind = 'UPLOADED' as const;
       const stage = stageOfPath(entry.path);
       const info = infos.find((item) => item.stage === stage);
       rows.push({
@@ -1671,12 +1669,11 @@ function useInventory(model: ReturnType<typeof useProjectModel>, filter: string)
     if (filter === 'PENDING') return row.pending;
     return filter === 'ALL';
   });
-  const uploaded = rows.filter((row) => row.kind === 'UPLOADED' || row.kind === 'MEMBER');
+  const uploaded = rows.filter((row) => row.kind === 'UPLOADED');
   return {
     rows: filtered,
     counts: {
       uploaded: uploaded.length,
-      containers: rows.filter((row) => row.kind === 'CONTAINER').length,
       expected: rows.filter((row) => row.kind === 'EXPECTED').length,
       newFiles: rows.filter((row) => row.kind === 'NEW').length,
       retained: rows.filter((row) => row.kind === 'RETAINED').length,
@@ -1714,7 +1711,7 @@ export function FixtureAllFiles() {
         reviewStages={model.u2.reviewStages}
       />
       <p className="muted task-view-description">
-        完整清单保留批次、容器、成员、预期与新增；不因当前任务聚焦而丢弃输入。
+        完整清单保留批次、文件、预期与新增；不因当前任务聚焦而丢弃输入。
       </p>
       <div className="demo" role="note">
         环境 A · 全部文件演练 · 状态来自同一份合成会话；刷新重置。
@@ -1752,10 +1749,9 @@ export function FixtureAllFiles() {
           <div>
             <h2>完整文件清单</h2>
             <p className="muted">
-              上传成员 {inventory.counts.uploaded} · 容器 {inventory.counts.containers} · 预期/计划{' '}
-              {inventory.counts.expected} · 计划新增 {inventory.counts.newFiles} · 保留{' '}
-              {inventory.counts.retained} · 待处理 {inventory.counts.pending} · 本轮涉及{' '}
-              {inventory.counts.involved}
+              上传文件 {inventory.counts.uploaded} · 预期/计划 {inventory.counts.expected} ·
+              计划新增 {inventory.counts.newFiles} · 保留 {inventory.counts.retained} · 待处理{' '}
+              {inventory.counts.pending} · 本轮涉及 {inventory.counts.involved}
             </p>
           </div>
           <nav className="task-filters" aria-label="文件筛选">

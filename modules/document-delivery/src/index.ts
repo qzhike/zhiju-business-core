@@ -22,5 +22,6 @@ export {
 } from './custody/file-store.js';
 export { scanInputPackage, type ScannedEntry, type ScannedPackage } from './custody/scan.js';
 export { ZipSafetyError } from './custody/zip.js';
+export { NestedArchiveError } from './custody/archives.js';
 export { attemptLockPath, instanceLockPath } from './custody/keys.js';
 export { acquireExclusiveLock, type ExclusiveLock } from './custody/locks.js';

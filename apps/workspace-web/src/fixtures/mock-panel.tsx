@@ -1,7 +1,7 @@
 import { Button } from '../components/ui/button.js';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { MockControlsTarget } from './control-slot.js';
 import './mock-panel.css';
 
@@ -62,6 +62,7 @@ export function FixtureMockPanel({ children }: { children: ReactNode }) {
               场景与回执只影响模拟会话。收起面板可审核主页面；刷新重置。
             </p>
             <div className="mock-panel-body" ref={setTarget} />
+            <Link to="/runner-output">Runner 产物核对（本地只读）</Link>
           </section>
           <Button
             ref={trigger}

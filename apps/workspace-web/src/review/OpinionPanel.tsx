@@ -21,7 +21,9 @@ export function useOpinionLayout(
     if (!node) return;
     const toolbar = node.querySelector('.markdown-change-toolbar')?.getBoundingClientRect();
     const top = Math.max(0, toolbar?.bottom ?? 0);
-    const rows = node.querySelectorAll<HTMLElement>('.document-diff-row, [data-unit-id]');
+    const rows = node.querySelectorAll<HTMLElement>(
+      '.document-diff-row, [data-unit-id], [data-reading-anchor]',
+    );
     const row = [...rows].find((item) => {
       const box = item.getBoundingClientRect();
       return box.bottom > top && box.top < window.innerHeight;
@@ -30,7 +32,9 @@ export function useOpinionLayout(
       ? 'data-after-line'
       : row?.hasAttribute('data-before-line')
         ? 'data-before-line'
-        : 'data-unit-id';
+        : row?.hasAttribute('data-reading-anchor')
+          ? 'data-reading-anchor'
+          : 'data-unit-id';
     const value = row?.getAttribute(attribute);
     anchor.current =
       row && value
@@ -76,6 +80,7 @@ export function OpinionPanel({
   context,
   excerpt,
   children,
+  stickyTop = 12,
 }: {
   enabled: boolean;
   open: boolean;
@@ -84,13 +89,14 @@ export function OpinionPanel({
   context: string;
   excerpt: ReactNode;
   children: ReactNode;
+  stickyTop?: number;
 }) {
   const rail = useRef<HTMLElement>(null);
   const [fits, setFits] = useState(false);
   useLayoutEffect(() => {
     if (!enabled || !open || drawer || !rail.current) return;
     const update = () => {
-      setFits((rail.current?.offsetHeight ?? Infinity) + 24 <= window.innerHeight);
+      setFits((rail.current?.offsetHeight ?? Infinity) + stickyTop + 12 <= window.innerHeight);
     };
     const observer = new ResizeObserver(update);
     observer.observe(rail.current);
@@ -100,7 +106,7 @@ export function OpinionPanel({
       observer.disconnect();
       window.removeEventListener('resize', update);
     };
-  }, [enabled, open, drawer]);
+  }, [enabled, open, drawer, stickyTop]);
   useLayoutEffect(() => {
     if (enabled && open && !drawer)
       rail.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus({ preventScroll: true });
@@ -110,6 +116,7 @@ export function OpinionPanel({
       className={`markdown-opinion${enabled ? ' review-opinion-panel' : ''}${fits && !drawer ? ' is-sticky' : ''}`}
       aria-label="本文件意见与处理"
       ref={rail}
+      style={enabled && !drawer ? { top: stickyTop } : undefined}
     >
       {enabled && (
         <Button className="review-opinion-close" onClick={onClose}>

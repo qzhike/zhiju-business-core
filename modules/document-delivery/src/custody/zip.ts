@@ -156,6 +156,7 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
     const normalizedPath = originalName.normalize('NFC');
     if (
       !originalName ||
+      Buffer.byteLength(originalName) > MVP_INPUT_LIMITS.pathBytes ||
       Buffer.byteLength(normalizedPath) > MVP_INPUT_LIMITS.pathBytes ||
       /[\x00-\x1f\x7f\\]/u.test(originalName) ||
       /^[/~]|^[A-Za-z]:/u.test(originalName) ||

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { MEDIA_TYPES } from '../domain/policy.js';
 import type { EntryStatus, ReasonCode } from '../domain/types.js';
 import { scanXml, qualified, type XmlTag } from './xml.js';
+import { NestedArchiveError } from './archives.js';
 import { ZipSafetyError, parseZipContainer, type ScanBudget, type ZipEntry } from './zip.js';
 
 export interface ClassifiedEntry {
@@ -408,6 +409,20 @@ function xlsx(entries: readonly ZipEntry[], budget: ScanBudget): ClassifiedEntry
 
 const utf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
+function requireOfficeContainer(name: string, entries: readonly ZipEntry[]): void {
+  const names = new Set(
+    entries.filter((entry) => !entry.directory).map((entry) => entry.normalizedPath),
+  );
+  // Identify the package before full validation so damaged Office parts retain
+  // their document-specific errors, while renamed ordinary ZIPs reject the batch.
+  if (
+    !(names.has('[Content_Types].xml') && names.has('_rels/.rels')) &&
+    !names.has('word/document.xml') &&
+    !names.has('xl/workbook.xml')
+  )
+    throw new NestedArchiveError([name]);
+}
+
 export function classifyEntry(
   originalName: string,
   bytes: Buffer,
@@ -424,11 +439,13 @@ export function classifyEntry(
   if (/\.docx$/iu.test(originalName)) {
     const entries = nestedContainer(bytes, budget);
     if (entries === undefined) return corruptFormat('INVALID_DOCX');
+    requireOfficeContainer(originalName, entries);
     return docx(entries, budget);
   }
   if (/\.xlsx$/iu.test(originalName)) {
     const entries = nestedContainer(bytes, budget);
     if (entries === undefined) return corruptFormat('INVALID_XLSX');
+    requireOfficeContainer(originalName, entries);
     return xlsx(entries, budget);
   }
   return classify('UNSUPPORTED', ['UNSUPPORTED_MEDIA_TYPE']);

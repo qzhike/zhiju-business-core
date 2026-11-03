@@ -154,11 +154,11 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
   await expect(page.locator('.format-rules')).toContainText('旧 XLS 需员工先转换为 XLSX');
   await expect(page.locator('.format-rules')).toContainText('PDF');
   await expect(page.locator('.format-rules')).toContainText('暂不支持');
-  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(12);
-  await expect(page.locator('.batch-entries')).toContainText('嵌套 RAR');
+  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(9);
+  await expect(page.locator('.batch-entries')).not.toContainText('嵌套 RAR');
   await expect(page.locator('.batch-entries')).toContainText('Markdown');
   await expect(page.locator('.batch-entries tr[data-state="FAILED"]')).toContainText('损坏');
-  await expect(page.locator('.format-rules')).toContainText('RAR');
+  await expect(page.locator('.format-rules')).not.toContainText('RAR');
   await expect(page.locator('.batch-questions')).toContainText('U1-Q1');
   await expect(page.locator('.batch-questions')).toContainText('读取受限');
   for (const [value, label] of [
@@ -176,7 +176,7 @@ test('inputs distinguish batches, formats and non-analysis receipts', async ({ p
   await withMockControls(page, async () =>
     page.getByRole('button', { name: '演示：加入失败与不支持条目' }).click(),
   );
-  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(14);
+  await expect(page.locator('.batch-entries tbody tr')).toHaveCount(11);
   await expect(page.locator('main')).not.toContainText('分析报告已就绪');
 });
 

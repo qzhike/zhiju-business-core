@@ -17,6 +17,9 @@ export interface ProjectView {
   status: string;
   version: number;
   progress: string;
+  /** Presentation actions may differ for a locally prepared review session. */
+  primaryAction?: WorkAction;
+  deliveryAction?: WorkAction | null;
 }
 
 export type Destination =

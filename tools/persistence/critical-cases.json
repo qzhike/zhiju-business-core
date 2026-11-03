@@ -1,6 +1,7 @@
 {
   "tests/persistence/mvp-built-browser.test.ts": [
-    "logs in, creates a real project and reads a mixed custody manifest in the built browser"
+    "logs in, creates a real project and reads a mixed custody manifest in the built browser",
+    "shows rejected archive paths and accepts a corrected new batch in the built browser"
   ],
   "tests/persistence/mvp-controlled-keycloak.test.ts": [
     "completes the real Keycloak Authorization Code + PKCE journey through the built SPA",
@@ -41,14 +42,18 @@
     "serializes a concurrent upload claim and rejects a late old generation",
     "reconciles a durable first-upload gap across an epoch change and continues at the current epoch: published",
     "reconciles a durable first-upload gap across an epoch change and continues at the current epoch: staged",
-    "refuses to advance execution under a changed authorization epoch"
+    "refuses to advance execution under a changed authorization epoch",
+    "rejects nested archives in initial and supplement batches and persists their paths across restart",
+    "rolls back nested rejection paths, status and active-slot release together",
+    "blocks old-policy execution and requires ended writers, reconciliation and explicit abandonment"
   ],
   "tests/persistence/mvp-http.test.ts": [
     "excludes another Core before startup recovery and releases ownership after shutdown",
     "authenticates the bound operator and rejects missing technical headers",
     "creates, replays and rejects changed idempotent project intents",
     "rejects unknown queries, duplicate JSON keys and missing idempotency keys",
-    "uploads a three-format package, extracts it and serves exact original bytes"
+    "uploads a three-format package, extracts it and serves exact original bytes",
+    "rejects nested archives through direct HTTP and replays the original creation receipt"
   ],
   "tests/persistence/mvp-postgres-restart.test.ts": [
     "reads the same accepted manifest after a real PostgreSQL stop-start"

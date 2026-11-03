@@ -14,6 +14,19 @@ describe('UI-SHELL-004 experience boundaries', () => {
     'peerDependencies',
     'optionalDependencies',
   ];
+  it.each(['rehype-raw', 'rehype-sanitize'])(
+    'restricts %s to the isolated artifact reader',
+    (name) => {
+      const source = `import plugin from '${name}';`;
+      expect(scanSourceText(file, source)).not.toEqual([]);
+      expect(
+        scanSourceText(resolve('apps/workspace-web/src/review/ArtifactMarkdown.tsx'), source),
+      ).toEqual([]);
+      expect(evaluateImport({ importerKind: 'app:workspace-bff', specifier: name })).not.toEqual(
+        [],
+      );
+    },
+  );
   it.each([
     "import { Repository } from '@zhiju/artifact'; const element = <div />;",
     "export { Repository } from '@zhiju/identity-policy';",

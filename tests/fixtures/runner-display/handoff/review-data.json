@@ -1,0 +1,66 @@
+{
+  "formatVersion": "1.0.0",
+  "identity": {
+    "taskId": "SYNTHETIC-TASK",
+    "stageId": "SYNTHETIC-STAGE",
+    "step": "QUALITY_MANUAL",
+    "roundId": "ROUND-002",
+    "roundNumber": 2
+  },
+  "report": {
+    "relativePath": "snapshot/output/round-2/revision-round.json",
+    "sha256": "3a663505401a3434139afcc94e7d70300ac8ae5999c6256ecd2b81559aa54bf9"
+  },
+  "summary": "## 本轮报告\n\n合成阅读测试，未取得业务批准。",
+  "status": "WAITING_REVIEW",
+  "files": [
+    {
+      "fileId": "FILE-1",
+      "title": "合成质量手册",
+      "state": "DRAFT",
+      "contentCompleteness": "COMPLETE",
+      "gaps": [],
+      "readLimitations": [],
+      "initial": {
+        "relativePath": "snapshot/customer/manual.md",
+        "sha256": "5ef0d16c8bebb78c993186bcdb7d1d330c3f6ae2a18056b74661850c397a9ab0"
+      },
+      "before": {
+        "relativePath": "snapshot/output/round-1/manual.md",
+        "sha256": "e906b73ee14574bb74ef7a9fc2265afe5fe870d8de1b571c59e03803768bde1b"
+      },
+      "after": {
+        "relativePath": "snapshot/output/round-2/manual.md",
+        "sha256": "2e27f8e527413bb8db6c29be9ad43504690637d5f13f728035484ff977885cf9"
+      }
+    }
+  ],
+  "changes": [
+    {
+      "id": "CHANGE-1"
+    }
+  ],
+  "proposals": [],
+  "issues": [
+    {
+      "id": "QUESTION-1",
+      "title": "已缩小范围的请求",
+      "status": "OPEN",
+      "blocking": "NONE",
+      "effectiveRequest": "仅确认当前责任人。",
+      "request": "请重新提供完整材料并确认责任人。",
+      "reason": "材料已读取。",
+      "requestCorrection": {
+        "reason": "保留原请求，仅调整当前请求。",
+        "request": "仅确认当前责任人。",
+        "evidenceIds": []
+      },
+      "kind": "CLARIFICATION",
+      "fileIds": [
+        "FILE-1"
+      ],
+      "resolutionDecisionId": null
+    }
+  ],
+  "limitations": []
+}

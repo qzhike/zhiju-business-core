@@ -222,6 +222,27 @@ const FixtureMvpDeliveryRoute = lazy(() => {
   throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
 });
 const projectId = 'DEMO-PROJECT-01';
+const FixtureRunnerPreview = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/runner-preview.js').then((module) => ({
+      default: module.FixtureRunnerPreview,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureRunnerFlowProvider = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/runner-flow-session.js').then((module) => ({
+      default: module.FixtureRunnerFlowProvider,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
+const FixtureRunnerFlowNotice = lazy(() => {
+  if (__DEV_FIXTURE__)
+    return import('./fixtures/runner-flow-session.js').then((module) => ({
+      default: module.FixtureRunnerFlowNotice,
+    }));
+  throw new Error('UI_DEVELOPMENT_MODE_REQUIRED');
+});
 
 async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
   if (__DEV_FIXTURE__) {
@@ -242,9 +263,11 @@ async function loadWorkspace(signal: AbortSignal): Promise<WorkspaceData> {
 export function App() {
   return __DEV_FIXTURE__ ? (
     <Suspense fallback={null}>
-      <FixtureMockPanel>
-        <FixtureApp />
-      </FixtureMockPanel>
+      <FixtureRunnerFlowProvider>
+        <FixtureMockPanel>
+          <FixtureApp />
+        </FixtureMockPanel>
+      </FixtureRunnerFlowProvider>
     </Suspense>
   ) : (
     <TrustedApp />
@@ -304,7 +327,7 @@ function FixtureApp() {
       {__DEV_FIXTURE__ && (
         <section aria-label="开发样例模式">
           <div className="demo" role="note">
-            开发样例模式 · 合成报告、回执及进度；不上传或读取 ZIP 内容，不调用 Core 或 Runner。
+            <FixtureRunnerFlowNotice />
           </div>
         </section>
       )}
@@ -474,6 +497,10 @@ function FixtureApp() {
                                               <Route
                                                 path="/review-workspace"
                                                 element={<FixtureReviewWorkspace />}
+                                              />
+                                              <Route
+                                                path="runner-output"
+                                                element={<FixtureRunnerPreview />}
                                               />
                                               <Route path="*" element={<Missing />} />
                                             </Routes>

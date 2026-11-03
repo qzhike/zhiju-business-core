@@ -79,10 +79,6 @@
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }
-.results-row-member {
-  padding-left: 18px;
-  display: inline-block;
-}
 .results-table tr[data-pending='true'] {
   background: color-mix(in srgb, var(--amber) 7%, transparent);
 }

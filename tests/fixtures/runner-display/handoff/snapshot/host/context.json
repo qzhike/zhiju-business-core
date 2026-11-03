@@ -1,0 +1,23 @@
+{
+  "protocolVersion": "1.0.0",
+  "taskId": "SYNTHETIC-TASK",
+  "stageId": "SYNTHETIC-STAGE",
+  "step": "QUALITY_MANUAL",
+  "roundId": "ROUND-002",
+  "roundNumber": 2,
+  "files": [
+    {
+      "id": "FILE-1",
+      "title": "合成质量手册",
+      "initial": {
+        "relativePath": "customer/manual.md",
+        "sha256": "5ef0d16c8bebb78c993186bcdb7d1d330c3f6ae2a18056b74661850c397a9ab0"
+      },
+      "current": {
+        "relativePath": "output/round-1/manual.md",
+        "sha256": "e906b73ee14574bb74ef7a9fc2265afe5fe870d8de1b571c59e03803768bde1b"
+      },
+      "readLimitations": []
+    }
+  ]
+}

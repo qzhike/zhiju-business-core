@@ -1,4 +1,5 @@
 import { useProjectPaths, projectPaths } from './project-session.js';
+import { RunnerFlowWorkspace } from './runner-flow-workspace.js';
 import { useFixtureIntake } from './intake.js';
 import { Button } from '../components/ui/button.js';
 import {
@@ -45,7 +46,7 @@ import './project-catalog.css';
 import './project-file-browser.css';
 
 type CatalogView = 'ORIGINALS' | 'REVISED';
-type OriginalFilter = 'ALL' | 'ISSUES' | 'CONTAINER';
+type OriginalFilter = 'ALL' | 'ISSUES';
 type RevisedFilter = 'ALL' | 'CANDIDATE' | 'FINALIZED';
 type RevisionState = 'CANDIDATE' | 'FINALIZED' | 'HISTORY';
 type SortField = 'NAME' | 'MODIFIED';
@@ -165,8 +166,6 @@ interface OriginalRow {
   path: string;
   format: string;
   reading: string;
-  container: boolean;
-  member: boolean;
   damaged: boolean;
   retained: boolean;
   metadata: FileMetadata;
@@ -205,7 +204,6 @@ interface CatalogData {
   batches: { id: string; label: string; zipName: string; rows: OriginalRow[] }[];
   revised: RevisedRow[];
   documentCount: number;
-  containerCount: number;
   versionCount: number;
   finalizationCount: number;
   planFile: (fileId: string) => PlanFile | undefined;
@@ -286,9 +284,6 @@ const originalModification: Record<string, { at: string; by: string }> = {
   C05: { at: '2026-10-17 15:30', by: '文件记录 · 匿名客户（模拟）' },
   C06: { at: '2026-10-18 11:45', by: '示例编辑者（模拟）' },
   C07: { at: '2026-10-18 17:25', by: '文件记录 · 匿名客户（模拟）' },
-  C08: { at: '2026-10-16 08:50', by: '文件记录 · 匿名客户（模拟）' },
-  'C08-R1': { at: '未提供', by: '未提供' },
-  'C08-R2': { at: '未提供', by: '未提供' },
   C09: { at: '2026-10-19 09:35', by: '示例编辑者（模拟）' },
   S01: { at: '2026-10-20 09:25', by: '文件记录 · 匿名客户（模拟）' },
 };
@@ -374,7 +369,6 @@ function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof us
     label: batch.label,
     zipName: batch.zipName,
     rows: batch.entries.map((entry): OriginalRow => {
-      const container = entry.format === 'RAR';
       return {
         key: `${batch.id}:${entry.id}`,
         entryId: entry.id,
@@ -385,8 +379,6 @@ function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof us
         path: entry.path,
         format: entry.format,
         reading: inputEntryLabels[entry.state],
-        container,
-        member: entry.id.includes('-'),
         damaged: entry.state === 'FAILED' || entry.state === 'UNSUPPORTED',
         retained: retained.has(entry.id),
         metadata: originalMetadata(entry),
@@ -482,8 +474,7 @@ function buildCatalogData(u1: ReturnType<typeof useU1>, u2: ReturnType<typeof us
     originals,
     batches,
     revised,
-    documentCount: originals.filter((row) => !row.container).length,
-    containerCount: originals.filter((row) => row.container).length,
+    documentCount: originals.length,
     versionCount: revised.reduce((count, row) => count + row.versions.length, 0),
     finalizationCount: revised.reduce(
       (count, row) =>
@@ -525,6 +516,7 @@ export function FixtureProjectWorkspace() {
   const params = useParams();
   const location = useLocation();
   const fileReview = useMatch('/projects/:projectId/results/:roundId/:fileId') !== null;
+  if (params.projectId?.startsWith('RUNNER-')) return <RunnerFlowWorkspace />;
   if (params.projectId !== projectId) return <Outlet />;
   if (projectId.startsWith('DEMO-CREATED-')) {
     if (location.pathname === `${base}/intake`) return <Outlet />;
@@ -617,7 +609,6 @@ function ProjectCatalog() {
       !row.reading.includes('受限')
     )
       return false;
-    if (view === 'ORIGINALS' && filter === 'CONTAINER' && !row.container) return false;
     const needle = search.trim().toLocaleLowerCase();
     return (
       needle.length === 0 ||
@@ -679,7 +670,7 @@ function ProjectCatalog() {
         </div>
         <p className="project-catalog-counts" role="status">
           {view === 'ORIGINALS'
-            ? `原始文档 ${data.documentCount} 项 · 容器 ${data.containerCount} · 只读`
+            ? `原始文档 ${data.documentCount} 项 · 只读`
             : `修订文档 ${data.revised.length} 份 · 版本 ${data.versionCount} · 已定稿 ${data.finalizationCount}`}
         </p>
         <div className="project-catalog-tools">
@@ -706,7 +697,6 @@ function ProjectCatalog() {
               {view === 'ORIGINALS' ? (
                 <>
                   <option value="ISSUES">读取受限或失败</option>
-                  <option value="CONTAINER">容器</option>
                 </>
               ) : (
                 <>
@@ -833,10 +823,8 @@ function sortBrowserRows(rows: BrowserRow[], sort: SortState): BrowserRow[] {
 
 function originalDocumentRow(
   row: OriginalRow,
-  originals: readonly OriginalRow[],
   openOriginal: (row: OriginalRow) => void,
 ): BrowserRow {
-  const members = originals.filter((entry) => entry.entryId.startsWith(`${row.entryId}-`));
   return {
     key: row.key,
     kind: 'DOCUMENT',
@@ -848,11 +836,6 @@ function originalDocumentRow(
       openOriginal(row);
     },
     info: { kind: 'ORIGINAL', original: row },
-    ...(members.length > 0
-      ? {
-          children: members.map((member) => originalDocumentRow(member, originals, openOriginal)),
-        }
-      : {}),
   };
 }
 
@@ -862,22 +845,8 @@ function originalBatchTree(
   openOriginal: (row: OriginalRow) => void,
   category: string,
 ): BrowserRow[] {
-  // Keep container ancestry when a member matches a filter, and put each
-  // nested member under exactly one container instead of duplicating it as a
-  // directory sibling.
-  const needed = new Set(rows.map((row) => row.entryId));
-  for (const container of data.originals.filter((row) => row.container)) {
-    if (
-      data.originals.some(
-        (member) =>
-          member.entryId.startsWith(`${container.entryId}-`) && needed.has(member.entryId),
-      )
-    )
-      needed.add(container.entryId);
-  }
-  const effective = data.originals.filter((row) => needed.has(row.entryId));
   return data.batches.flatMap((batch) => {
-    const batchRows = effective.filter((row) => row.batchId === batch.id && !row.member);
+    const batchRows = rows.filter((row) => row.batchId === batch.id);
     if (batchRows.length === 0) return [];
     const directories = new Map<string, OriginalRow[]>();
     for (const row of batchRows) {
@@ -889,7 +858,7 @@ function originalBatchTree(
       kind: 'FOLDER' as const,
       label: directory,
       info: { kind: 'ORIGINAL' as const },
-      children: entries.map((row) => originalDocumentRow(row, effective, openOriginal)),
+      children: entries.map((row) => originalDocumentRow(row, openOriginal)),
     }));
     return [
       {
@@ -1171,7 +1140,7 @@ function FileBrowserList({
       <p className="project-browser-scope">
         {filtered
           ? `筛选范围 · ${view === 'ORIGINALS' ? originals.length : revised.length} 个条目（全项目 ${
-              view === 'ORIGINALS' ? data.documentCount + data.containerCount : data.revised.length
+              view === 'ORIGINALS' ? data.documentCount : data.revised.length
             }）`
           : '全项目范围'}
       </p>

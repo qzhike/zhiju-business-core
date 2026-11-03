@@ -1,0 +1,17 @@
+{
+  "formatVersion": "1.0.0",
+  "reportSha256": "3a663505401a3434139afcc94e7d70300ac8ae5999c6256ecd2b81559aa54bf9",
+  "additionalEvidence": [],
+  "changes": [],
+  "issues": [
+    {
+      "issueId": "QUESTION-1",
+      "requestCorrection": {
+        "reason": "保留原请求，仅调整当前请求。",
+        "request": "仅确认当前责任人。",
+        "evidenceIds": []
+      }
+    }
+  ],
+  "proposals": []
+}

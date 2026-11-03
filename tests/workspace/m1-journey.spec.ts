@@ -219,9 +219,9 @@ test('protected content, template conflicts and reading limits require explicit 
   await expect(structure).toContainText('绑定报告第 1 版');
 
   await rehearsalLink(page, '资料（阅读）');
-  await expect(page.locator('.intake-batch')).toContainText('嵌套 RAR');
+  await expect(page.locator('.intake-batch')).not.toContainText('嵌套 RAR');
   await expect(page.locator('.batch-entries tr[data-state="FAILED"]')).toContainText('损坏');
-  await expect(page.locator('.batch-limitations')).toContainText('RAR 成员未解包');
+  await expect(page.locator('.batch-limitations')).toContainText('上传前应移除内层压缩文件');
 
   await page.getByRole('link', { name: '查看分析并记录客户答复' }).click();
   await openAnalysisControls(page);

@@ -8,6 +8,7 @@ import {
   originalObjectKey,
   stagingObjectKey,
 } from './custody/keys.js';
+import { NestedArchiveError } from './custody/archives.js';
 import { scanInputPackage } from './custody/scan.js';
 import { ZipSafetyError } from './custody/zip.js';
 import { fail, MvpError } from './domain/errors.js';
@@ -400,7 +401,7 @@ export class MvpService {
       (state) => this.#guardRecovery(state, action),
     );
     if (result.replayed) return result;
-    if (action === 'RECONCILE') {
+    if (action === 'RECONCILE' && result.data.batch.policyVersion === MVP_INPUT_POLICY_VERSION) {
       await this.#reconcile(identity, projectId, batchId);
       const detail = await this.#repository.getBatchDetail(
         identity.ownerId,
@@ -648,7 +649,12 @@ export class MvpService {
       const state = await this.#repository
         .readBatchState(item.ownerId, item.projectId, item.batchId)
         .catch(() => undefined);
-      if (state === undefined || state.batch.manifestId !== undefined) continue;
+      if (
+        state === undefined ||
+        state.batch.manifestId !== undefined ||
+        state.batch.policyVersion !== MVP_INPUT_POLICY_VERSION
+      )
+        continue;
       const binding = await this.#db.currentBinding(item.ownerId);
       if (
         binding === undefined ||
@@ -800,6 +806,12 @@ export class MvpService {
         receipts,
       );
     } catch (error) {
+      if (error instanceof NestedArchiveError) {
+        await this.#repository
+          .failExtraction(ownerId, projectId, batchId, attemptId, true, [error.code], error.paths)
+          .catch(() => undefined);
+        return;
+      }
       if (error instanceof ZipSafetyError) {
         await this.#repository
           .failExtraction(ownerId, projectId, batchId, attemptId, true, [error.code])

@@ -355,6 +355,253 @@ describe.skipIf(!gateEnabled)('MVP01 document delivery custody (isolated Postgre
     expect(request.operation).toBe('mvp.create_input_batch');
   });
 
+  it('rejects nested archives in initial and supplement batches and persists their paths across restart', async () => {
+    const projectId = await createProject('嵌套压缩拒绝');
+    const paths = ['历史/<archive>.RAR', '资料/inner.zip', `${'e\u0301'.repeat(78)}aa.rar`];
+    const bytes = zipBytes([
+      { name: 'normal.md', bytes: markdownBytes() },
+      ...paths.map((name) => ({ name, bytes: textBytes('archive') })),
+    ]);
+    const { batchId } = await createBatch(projectId, bytes);
+    await upload(projectId, batchId, bytes);
+    const detail = await waitForTerminal(projectId, batchId);
+    expect(detail.batch).toMatchObject({
+      status: 'REJECTED',
+      policyVersion: 'mvp.zip-input@2',
+      reasonCodes: ['NESTED_ARCHIVE_NOT_ALLOWED'],
+    });
+    expect(detail.rejectedArchivePaths).toEqual(paths);
+    expect(detail.manifest).toBeUndefined();
+    expect(detail.permittedActions).toEqual([]);
+    expect(await sourceEntryCount(batchId)).toBe(0);
+    expect(await manifestCount(batchId)).toBe(0);
+    expect((await service.getProject(identity, projectId)).activeBatchId).toBeUndefined();
+    const state = await service.repository.readBatchState(identity.ownerId, projectId, batchId);
+    const quarantined = state.batch.originalZipSource;
+    if (quarantined === undefined) throw new Error('quarantined original missing');
+    await expect(
+      service.readSource(identity, projectId, batchId, quarantined.sourceId),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+    await expect(
+      service.getBatch({ ...identity, ownerId: fixture.owner2 }, projectId, batchId, 20, undefined),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+    await expect(
+      service.getBatch(identity, await createProject('另一项目'), batchId, 20, undefined),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+    const request = await service.getRequest(identity, detail.batch.originalRequestId);
+    const record = await service.repository.getRequestView(
+      identity.ownerId,
+      detail.batch.originalRequestId,
+    );
+    expect(record).toEqual(request);
+    await restartService('nested-rejection-restart');
+    expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(detail);
+    for (const repeats of [79, 100]) {
+      const unsafe = zipBytes([
+        { name: 'normal.md', bytes: markdownBytes() },
+        { name: `${'e\u0301'.repeat(repeats)}.rar`, bytes: textBytes('archive') },
+      ]);
+      const oversized = await createBatch(projectId, unsafe);
+      await upload(projectId, oversized.batchId, unsafe);
+      const rejected = await waitForTerminal(projectId, oversized.batchId);
+      expect(rejected.batch).toMatchObject({ status: 'REJECTED', reasonCodes: ['ZIP_UNSAFE'] });
+      expect(rejected.rejectedArchivePaths).toBeUndefined();
+      expect(rejected.manifest).toBeUndefined();
+      expect(await sourceEntryCount(oversized.batchId)).toBe(0);
+      expect(await manifestCount(oversized.batchId)).toBe(0);
+      expect((await service.getProject(identity, projectId)).activeBatchId).toBeUndefined();
+    }
+    const corrected = zipBytes([
+      { name: 'normal.md', bytes: markdownBytes() },
+      { name: '资料/word.docx', bytes: docxBytes() },
+    ]);
+    const next = await createBatch(projectId, corrected);
+    await upload(projectId, next.batchId, corrected);
+    const accepted = await waitForTerminal(projectId, next.batchId);
+    expect(accepted.batch.status).toBe('RECEIVED');
+    expect(accepted.manifest?.acceptedEntries).toBe(2);
+    expect(accepted.rejectedArchivePaths).toBeUndefined();
+    const supplement = await createBatch(projectId, bytes);
+    await upload(projectId, supplement.batchId, bytes);
+    expect((await waitForTerminal(projectId, supplement.batchId)).rejectedArchivePaths).toEqual(
+      paths,
+    );
+    expect(
+      (await service.getBatch(identity, projectId, next.batchId, 20, undefined)).manifest,
+    ).toEqual(accepted.manifest);
+    expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(detail);
+  });
+
+  it('rolls back nested rejection paths, status and active-slot release together', async () => {
+    const projectId = await createProject('拒绝事务回滚');
+    const bytes = zipBytes([
+      { name: 'normal.md', bytes: markdownBytes() },
+      { name: 'inner.rar', bytes: textBytes('archive') },
+    ]);
+    const { batchId } = await createBatch(projectId, bytes);
+    await withMvpAdmin(async (client) => {
+      await client.query(`CREATE FUNCTION document_delivery.mvp_test_fail_rejection() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected rejection event failure'; END $$`);
+      await client.query(`CREATE TRIGGER mvp_test_fail_rejection BEFORE INSERT ON document_delivery.custody_events
+        FOR EACH ROW WHEN (NEW.batch_id = '${batchId}'::uuid AND NEW.to_status = 'REJECTED')
+        EXECUTE FUNCTION document_delivery.mvp_test_fail_rejection()`);
+    });
+    try {
+      await upload(projectId, batchId, bytes);
+      await service.whenIdle();
+      const failed = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      expect(failed.batch.status).toBe('EXTRACTING');
+      expect(failed.rejectedArchivePaths).toBeUndefined();
+      expect(failed.batch.reasonCodes).toEqual([]);
+      expect((await service.getProject(identity, projectId)).activeBatchId).toBe(batchId);
+      expect(await sourceEntryCount(batchId)).toBe(0);
+      expect(await manifestCount(batchId)).toBe(0);
+    } finally {
+      await withMvpAdmin(async (client) => {
+        await client.query(
+          'DROP TRIGGER mvp_test_fail_rejection ON document_delivery.custody_events',
+        );
+        await client.query('DROP FUNCTION document_delivery.mvp_test_fail_rejection()');
+      });
+    }
+    await restartService('nested-rejection-after-rollback');
+    await service.resumePendingExtractions();
+    expect((await waitForTerminal(projectId, batchId)).rejectedArchivePaths).toEqual(['inner.rar']);
+  });
+
+  it('blocks old-policy execution and requires ended writers, reconciliation and explicit abandonment', async () => {
+    const bytes = zipBytes([{ name: 'legacy.md', bytes: markdownBytes() }]);
+    for (const mode of ['AWAITING_UPLOAD', 'RECEIVING', 'STAGED', 'EXTRACTING', 'UNKNOWN']) {
+      const running = ['RECEIVING', 'EXTRACTING', 'UNKNOWN'].includes(mode);
+      const projectId = await createProject('旧策略恢复');
+      const { batchId } = await createBatch(projectId, bytes);
+      const initial = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      let attempt = initial.batch.currentAttempt;
+      if (attempt === undefined) throw new Error('legacy attempt missing');
+      if (mode !== 'AWAITING_UPLOAD')
+        await service.repository.claimUpload(
+          identity.ownerId,
+          identity.authEpoch,
+          projectId,
+          batchId,
+          attempt.attemptId,
+          attempt.generation,
+        );
+      if (mode === 'STAGED' || mode === 'EXTRACTING') {
+        const key = originalObjectKey(identity.ownerId, projectId, batchId, attempt.attemptId);
+        const stored = await fixture.store.putImmutable(key, bytes, 'application/zip');
+        const completed = await service.repository.completeUpload(
+          identity.ownerId,
+          identity.authEpoch,
+          projectId,
+          batchId,
+          attempt.attemptId,
+          attempt.generation,
+          {
+            objectKey: key,
+            sha256: stored.sha256,
+            byteLength: stored.byteLength,
+            mediaType: 'application/zip',
+          },
+        );
+        attempt = completed.attempt;
+        if (mode === 'EXTRACTING')
+          await service.repository.claimExtraction(
+            identity.ownerId,
+            identity.authEpoch,
+            projectId,
+            batchId,
+            attempt.attemptId,
+            attempt.generation,
+          );
+      }
+      if (mode === 'UNKNOWN')
+        await service.repository.markUploadUnknown(identity.ownerId, projectId, batchId);
+      // Fixture-only conversion; production never changes a batch's fixed policy.
+      await withMvpAdmin(async (client) => {
+        await client.query('BEGIN');
+        try {
+          await client.query(
+            'ALTER TABLE document_delivery.input_batches DISABLE TRIGGER batches_guard',
+          );
+          await client.query(
+            "UPDATE document_delivery.input_batches SET policy_version = 'mvp.zip-input@1' WHERE batch_id = $1",
+            [batchId],
+          );
+          await client.query(
+            'ALTER TABLE document_delivery.input_batches ENABLE TRIGGER batches_guard',
+          );
+          await client.query('COMMIT');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        }
+      });
+      await expect(upload(projectId, batchId, bytes)).rejects.toMatchObject({
+        code: 'RECOVERY_NOT_ALLOWED',
+      });
+      await restartService('old-policy-restart');
+      await service.resumePendingExtractions();
+      let detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      expect(detail.permittedActions).toEqual([running ? 'RECONCILE' : 'ABANDON']);
+      for (const action of ['RETRY_UPLOAD', 'CONTINUE_EXTRACTION'])
+        await expect(
+          service.recover(identity, {
+            requestId: newUuidV7(),
+            projectId,
+            batchId,
+            payload: { expectedBatchVersion: detail.batch.version, action },
+          }),
+        ).rejects.toMatchObject({ code: 'RECOVERY_NOT_ALLOWED' });
+      const lock = await acquireExclusiveLock(
+        attemptLockPath(fixture.store.root, attempt.attemptId),
+      );
+      if (lock === null) throw new Error('test writer lock missing');
+      const input = {
+        requestId: newUuidV7(),
+        projectId,
+        batchId,
+        payload: {
+          expectedBatchVersion: detail.batch.version,
+          action: running ? 'RECONCILE' : 'ABANDON',
+        },
+      };
+      try {
+        await expect(service.recover(identity, input)).rejects.toMatchObject({
+          code: 'RECOVERY_NOT_ALLOWED',
+        });
+      } finally {
+        await lock.release();
+      }
+      await service.recover(identity, input);
+      if (running) {
+        detail = await service.getBatch(identity, projectId, batchId, 20, undefined);
+        expect(detail.batch.status).toBe('FAILED');
+        expect(detail.permittedActions).toEqual(['ABANDON']);
+        expect((await service.getProject(identity, projectId)).activeBatchId).toBe(batchId);
+        await service.recover(identity, {
+          requestId: newUuidV7(),
+          projectId,
+          batchId,
+          payload: { expectedBatchVersion: detail.batch.version, action: 'ABANDON' },
+        });
+      }
+      const historical = await service.getBatch(identity, projectId, batchId, 20, undefined);
+      expect(historical.batch).toMatchObject({
+        status: 'ABANDONED',
+        policyVersion: 'mvp.zip-input@1',
+      });
+      const next = await createBatch(projectId, bytes);
+      await upload(projectId, next.batchId, bytes);
+      expect((await waitForTerminal(projectId, next.batchId)).batch.policyVersion).toBe(
+        'mvp.zip-input@2',
+      );
+      expect(await service.getBatch(identity, projectId, batchId, 20, undefined)).toEqual(
+        historical,
+      );
+    }
+  });
+
   it('rejects an unsafe outer package without creating a manifest', async () => {
     const projectId = await createProject();
     const unsafe = zipBytes([{ name: '../escape.md', bytes: markdownBytes() }]);

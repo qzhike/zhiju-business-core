@@ -96,6 +96,7 @@ export interface CustodyManifest {
 }
 
 export interface CustodyBatchDetail {
+  readonly rejectedArchivePaths?: readonly string[];
   readonly batch: CustodyBatch;
   readonly attempts: readonly CustodyAttempt[];
   readonly manifest: CustodyManifest | null;
@@ -390,12 +391,28 @@ export function parseBatchDetail(value: unknown): CustodyBatchDetail | null {
   const actions = asArray(item.permittedActions);
   if (batch === null || attemptsArray === null || actions === null) return null;
   if (item.manifest !== undefined && manifest === null) return null;
+  const rejectedArchivePaths =
+    item.rejectedArchivePaths === undefined ? undefined : stringArray(item.rejectedArchivePaths);
+  const nestedRejection =
+    batch.status === 'REJECTED' && batch.reasonCodes.includes('NESTED_ARCHIVE_NOT_ALLOWED');
+  if (
+    rejectedArchivePaths === null ||
+    (rejectedArchivePaths !== undefined &&
+      (!nestedRejection ||
+        rejectedArchivePaths.length === 0 ||
+        rejectedArchivePaths.length > 1000 ||
+        rejectedArchivePaths.some(
+          (path) => path.length === 0 || new TextEncoder().encode(path).byteLength > 240,
+        )))
+  )
+    return null;
   const attempts = attemptsArray.map(parseAttempt);
   if (attempts.some((attempt) => attempt === null)) return null;
   return {
     batch,
     attempts: attempts.filter((attempt) => attempt !== null),
     manifest,
+    ...(rejectedArchivePaths === undefined ? {} : { rejectedArchivePaths }),
     permittedActions: actions.filter((action): action is RecoveryAction =>
       ACTIONS.includes(action as RecoveryAction),
     ),

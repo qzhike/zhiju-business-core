@@ -29,6 +29,8 @@ const experienceLibraries = {
     'tailwind-merge',
     'react-markdown',
     'remark-gfm',
+    'rehype-raw',
+    'rehype-sanitize',
     '@types/react',
     '@types/react-dom',
     'vite',
@@ -90,6 +92,15 @@ export function evaluateImport({ importerKind, specifier, importerPath }) {
       const packageName = specifier.startsWith('@')
         ? specifier.split('/').slice(0, 2).join('/')
         : specifier.split('/')[0];
+      if (
+        importerKind === 'app:workspace-web' &&
+        importerPath &&
+        ['rehype-raw', 'rehype-sanitize'].includes(packageName) &&
+        relative(repositoryRoot, importerPath).split(sep).join('/') !==
+          'apps/workspace-web/src/review/ArtifactMarkdown.tsx'
+      ) {
+        violations.push('HTML parsing dependencies are restricted to the local artifact reader');
+      }
       const safeBffBuiltin =
         importerKind === 'app:workspace-bff' &&
         ['node:crypto', 'node:http', 'node:https', 'node:url'].includes(specifier);

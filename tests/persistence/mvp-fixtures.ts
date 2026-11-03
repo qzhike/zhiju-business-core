@@ -245,6 +245,15 @@ export async function applyMvpMigration(adminUrl: string): Promise<void> {
       'utf8',
     );
     await client.query(sql);
+    await client.query(
+      await readFile(
+        join(
+          import.meta.dirname,
+          '../../modules/document-delivery/migrations/V0002__nested_archive_rejection.sql',
+        ),
+        'utf8',
+      ),
+    );
     await client.query(`GRANT mvp_runtime TO ${MVP_TEST_LOGIN} WITH INHERIT FALSE, SET TRUE`);
   } finally {
     await client.end();

@@ -6,6 +6,8 @@
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
+2026-11-03 用户已决定取消嵌套 RAR 处理，上传含内层压缩文件时整包拒绝。新上传策略已按第 8 节在本地实现；`@1` 结果保留历史含义，现有实例迁移与部署尚未执行。
+
 ## 1. 范围、身份与基础类型
 
 `DocumentDelivery` 是新 MVP composition 的唯一业务 Owner。项目只是文档交付项目；客户名称为项目描述，不创建旧 Enterprise/Fact/QMS/Preparation 对象。单部署显式绑定一个员工 OIDC `(issuer, subject)`，没有公开注册、账号转换、成员邀请或授权管理操作。
@@ -54,7 +56,7 @@ Core 前缀 `/api/mvp/v1`，BFF 前缀 `/bff/mvp/v1`，下表使用相对路径�
 | `mvp.get_project` GET `/projects/{projectId}` | 无 | `{project:ProjectView}`；含 version、lastBatchNo、activeBatchId?、`analysis:{status:'UNAVAILABLE',reasonCode:'ANALYSIS_NOT_CONNECTED'}` |
 | `mvp.create_input_batch` PUT `/projects/{projectId}/batches/{batchId}` | `{expectedProjectVersion, originalName,declaredBytes,zipSha256,note?}` | `{batch:BatchView}`；201 初次 / 200 重放；初始 status=AWAITING_UPLOAD，attempt/generation=1，policy 固定；无文件 bytes 时不能说已收到 |
 | `mvp.list_input_batches` GET `/projects/{projectId}/batches` | `limit?:1..50` 默认20，`cursor?` | `{items:BatchSummary[],nextCursor?}`，包含失败/受限/未知批次，不隐藏无 manifest 的批次 |
-| `mvp.get_input_batch` GET `/projects/{projectId}/batches/{batchId}` | `attemptLimit?:1..50` 默认20，`attemptCursor?` | `{batch:BatchView, attempts:AttemptSummary[],nextAttemptCursor?,manifest?:ManifestSummary,permittedActions:Action[]}`；纯读取与必要 inspect，不创建尝试、不续 worker |
+| `mvp.get_input_batch` GET `/projects/{projectId}/batches/{batchId}` | `attemptLimit?:1..50` 默认20，`attemptCursor?` | `{batch:BatchView, attempts:AttemptSummary[],nextAttemptCursor?,manifest?:ManifestSummary,permittedActions:Action[],rejectedArchivePaths?:string[]}`；纯读取与必要 inspect，不创建尝试、不续 worker |
 | `mvp.get_input_entries` GET `/projects/{projectId}/batches/{batchId}/entries` | `manifestId,limit?:1..100` 默认50，`cursor?` | `{manifest:ManifestSummary,entries:Entry[],nextCursor?}`；manifest 缺失返回409 `MANIFEST_NOT_READY`，不能把空列表冒充完整清单 |
 | `mvp.get_request` GET `/requests/{requestId}` | 无 | `{requestId,projectId,operation,targetId,payloadHash,receipt}`；授权后读本人的原命令结果；404/503 不证明旧请求未执行，UI 不能换 key 重建 |
 | `mvp.recover_input_batch` POST `/projects/{projectId}/batches/{batchId}/recovery` | `{expectedBatchVersion,action:'RECONCILE'|'RETRY_UPLOAD'|'CONTINUE_EXTRACTION'|'ABANDON'}` | `{batch:BatchView,recoveryRequestId}`；恢复命令先原子提交 Request/receipt 与新尝试的 PREPARED 状态（仅需新执行时），或 ABANDONED 与活动占用释放；其后执行有限恢复；原输入/sha 不可改；动作资格在写入时重新核验 |
@@ -82,7 +84,7 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 | RECEIVED | 全部普通文件条目 ACCEPTED，manifest 已封存；解除项目活动占用 |
 | PARTIAL | manifest 已封存，含 UNSUPPORTED/CORRUPT/READ_LIMITED；可为0 accepted，清楚显示无可处理源；解除活动占用，后续可补资料 |
 | FAILED | 已确定原 attempt 终止，技术失败且有明确恢复方式；不冒充内容拒绝；恢复时保留失败 event |
-| REJECTED | 原包安全/完整性/全局资源预算拒绝，不能产生业务 manifest；解除活动占用；改内容必须显式新批次，不以 retry 改原 bytes |
+| REJECTED | 原包安全/完整性/全局资源预算或嵌套压缩文件策略拒绝，不能产生业务 manifest；解除活动占用；改内容必须显式新批次，不以 retry 改原 bytes |
 | ABANDONED | 用户显式放弃尚未接纳且已证明无活跃写者的批次；保留原意图/错误与隔离对象，解除活动占用；不是取消运行中进程或删除历史 |
 | UNKNOWN | 存储、数据库提交或原进程结果未定；锁定项目活动占用，只能 RECONCILE；时间/网络断开不能转成 FAILED |
 
@@ -109,9 +111,9 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 
 ## 5. ZIP、DOCX 与 XLSX 接收 policy
 
-MVP policy 标识 `mvp.zip-input@1`，固定于批次创建时；后续 policy 变化不修改旧 receipt/manifest。旧 D14 policy 原值与格式集不变。首版沿现有预算，不提高：原 ZIP 100 MiB、累计展开500 MiB、单 entry 50 MiB、累计 entry 1000、压缩比100、path UTF-8 240 bytes/16层、120秒处理时间、512 MiB工作内存。累计数/字节包含外层与 DOCX/XLSX 内层，使用流式计数；不得只看 header 或分别重置预算。实施时对正式来源测量，超出则明确拒绝/限读并回到 design review，不能临时放宽或宣称300+规模通过。
+当前 MVP policy 标识 `mvp.zip-input@2`，固定于批次创建时；旧 `@1` 保持历史语义；后续 policy 变化不修改旧 receipt/manifest。旧 D14 policy 原值与格式集不变。首版沿现有预算，不提高：原 ZIP 100 MiB、累计展开500 MiB、单 entry 50 MiB、累计 entry 1000、压缩比100、path UTF-8 240 bytes/16层、120秒处理时间、512 MiB工作内存。累计数/字节包含外层与 DOCX/XLSX 内层，使用流式计数；不得只看 header 或分别重置预算。实施时对正式来源测量，超出则明确拒绝/限读并回到 design review，不能临时放宽或宣称300+规模通过。
 
-- 外层：校验 ZIP 目录/CRC/实际长度、重复或冲突 normalized path、绝对路径/`..`/反斜杠路径歧义、symlink/设备、加密及递归 ZIP；全包安全或完整性失败为 REJECTED。目录项保留目录关系，不假装文档文件；普通文件每个ordinal保留一条结果。额外普通 ZIP 条目为 UNSUPPORTED，不递归提取。
+- 外层：校验 ZIP 目录/CRC/实际长度、重复或冲突 normalized path、绝对路径/`..`/反斜杠路径歧义、symlink/设备、加密及递归 ZIP；全包安全或完整性失败为 REJECTED。目录项保留目录关系，不假装文档文件；普通文件每个ordinal保留一条结果。内层压缩文件按第 8 节整批拒绝，不递归提取；旧 `@1` 的逐项 UNSUPPORTED 结果保持历史语义。
 - Markdown：严格 UTF-8 解码；数据字节只保存、不执行。渲染安全沿现有安全 Markdown 边界，B1 不新增正文预览/解析业务能力。非法编码为 CORRUPT。
 - DOCX：复用已批准的 namespace-aware XML/OOXML 校验，包括 ContentTypes、根关系及主文档；坏包逐项 CORRUPT。无 DTD/外部实体，无伪根/重复展开属性/未绑定前缀；注释、CDATA、PI 不提供结构证明。
 - XLSX：只接收非宏 `.xlsx` OOXML ZIP。ContentTypes 必须声明 SpreadsheetML workbook，根 officeDocument relationship 指向唯一存在的 workbook；workbook 的 sheet 声明和其 relationship 必须唯一、内部、解析到确实存在的 worksheet，禁止缺失/重复关系、目标路径逃逸及用扩展名替代实际 media 检查。workbook/relationship/worksheet 及被引用的 styles/sharedStrings（如存在）均按同一安全 XML 规则验证；不需要存在 sharedStrings 才接受 inline string。空工作表合法，空值、0、公式与 cached value 都按原字节保留，不重新计算或承诺读取完整业务内容。
@@ -130,3 +132,15 @@ MVP policy 标识 `mvp.zip-input@1`，固定于批次创建时；后续 policy �
 ## 7. 设计与验收出口
 
 验收唯一见 [MVP01 Test](../module-tests/Module-Test-MVP01-DocumentDelivery.md)。B1 已按获批设计实现并进入 `batch/mvp-b1-document-delivery`；当前收口包含独立本机实例验收及缺陷修复，尚未完成 main 交付。初始化按实例取得环境授权；既有 A/B 的 DB/store 未迁移。正式来源人工验收、批次最终审查/full、main 合入授权及合入后 main full 分别保留门禁。技术批准绑定 [SD-B1-01–07](../mvp/b1-design.md#2-已批准的-spec-delta)，不由本文件的字段完整性推定批准。
+
+## 8. 上传拒绝嵌套压缩文件
+
+状态：`PRODUCT AND TECHNICAL DESIGN APPROVED 2026-11-03 / IMPLEMENTED LOCALLY`。取舍及范围见 [设计提案](../decisions/mvp-nested-archive-rejection.md)；本节不重写既有 `@1` 的历史行为。
+
+- 新批次固定 policy `mvp.zip-input@2`；成功 manifest 固定相同 policy 与 `mvp.input-extractor@2`。预算和普通文档支持集沿用第 5 节。外层 ZIP 安全、完整性及全局预算失败优先按原规则拒绝，不以不可信路径构造说明。路径长度预算同时检查原始 UTF-8 名称与 NFC 规范路径；任一超限沿既有 ZIP_UNSAFE 整包拒绝，不截断或改写名称后保存拒绝详情。
+- 外层安全扫描发现任意内层压缩文件时，在成员对象接纳和 manifest 封存前拒绝整个批次；`batch.status=REJECTED`，`reasonCodes` 包含新值 `NESTED_ARCHIVE_NOT_ALLOWED`，当次 EXTRACT 尝试结束为 FAILED，保留原 Request/Attempt。零 ACCEPTED_ENTRY / 零 manifest，不把正常文件先写成部分接纳结果。
+- `mvp.get_input_batch` 的成功 result 增加可选 `rejectedArchivePaths: string[]`，只在该批次因嵌套压缩文件拒绝时返回，按外层目录 ordinal 排序。每项是安全扫描后的原始包内路径，不是宿主路径、内容链接或 SourceRef。数组非空，受既有条目数和路径字节预算限制；不转义后存储、不当 HTML 执行。其他批次省略字段，不用空数组冒充扫描成功。
+- 拒绝路径作为 owning batch 的持久事实，与该次 REJECTED、错误原因、活动占用释放在同一事务保存；读取使用现有 owner/project 权限检查，拒绝详情不放入通用日志。响应丢失后查询原批次/请求，刷新及重启读回相同事实，不重新发起提取。
+- 初始、补充批次同样检查。压缩文件名大小写和常见实际签名均覆盖；带 ZIP 签名的 `.docx/.xlsx` 必须先识别 OOXML 容器结构，扩展名本身不构成豁免依据。没有 OOXML 包级结构依据的改名 ZIP 按 `NESTED_ARCHIVE_NOT_ALLOWED` 整包拒绝，不能仅返回 INVALID_DOCX/XLSX 后部分接纳。正常 OOXML 文档不误拒；有 OOXML 容器结构依据但内部文档损坏、含活动内容或外链的条目继续按原 CORRUPT / UNSUPPORTED / READ_LIMITED 规则处理，结构身份识别不替代完整校验。累计预算不放宽。内层压缩文件不递归展开，不产生成员清单。
+- 拒绝批次不可通过 retry 更换字节；用户移除内层压缩文件并重新打包后创建新批次。旧批次、原包隔离对象及失败历史保留，不自动删除。
+- 数据库新增迁移允许 `@1/@2` 并保存拒绝路径，不改旧迁移或历史 receipt/manifest。旧 `@1` 已完成/终态结果照常只读；未完成旧批次不自动按新规则续跑。必须先证明原写者结束，再由用户显式放弃后重新上传；UNKNOWN/活动写者仍先核对，不以 policy 不同绕过结束证明或清除项目占用。旧 policy 的 RECONCILE 在持有批次事务锁并证明所有旧写者结束后，仅收敛为 FAILED / RECOVERY_REQUIRED，保留项目占用；之后显式 ABANDON 才释放占用，不恢复 STAGED 或授予继续提取。实现须同步其允许动作与服务端写入校验。

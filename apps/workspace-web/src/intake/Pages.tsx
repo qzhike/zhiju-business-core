@@ -370,8 +370,8 @@ export function InputBatches({
         <h2>资料批次与目录</h2>
         <p className="muted">接收状态不代表读取完成、分析成功或阶段完成。</p>
         <p className="muted">
-          客户原件与正式模板只读；批次与成员身份保留，补充批次不会覆盖首轮目录。嵌套 RAR
-          成员未解包时明确保留读取限制。
+          客户原件与正式模板只读；批次与成员身份保留，补充批次不会覆盖首轮目录。上传包内不能包含
+          RAR、ZIP、7z 等压缩文件，请先解压并移除。
         </p>
       </div>
       {formatRules && (
@@ -579,7 +579,7 @@ function ProjectIntake({
               <h2>把客户现有体系文件放进一个 ZIP</h2>
               <p>
                 DOCX / Markdown / XLSX 文件请放在 ZIP 内；旧 XLS 请先转换为 XLSX，PDF
-                暂不支持，宏不执行。嵌套 RAR 只列出成员目录时，成员仍保持读取受限。
+                暂不支持，宏不执行。内层压缩文件会导致整批拒绝，请先解压并移除。
               </p>
               <Label>
                 选择 ZIP 文件

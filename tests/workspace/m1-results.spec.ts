@@ -74,14 +74,14 @@ test('results overview keeps complete inventory and file feedback across detail 
   await openReading(page, '处理结果（阅读）');
   await expect(page).toHaveURL(/\/results(?:\?|$)/u);
   await expect(page.getByRole('heading', { name: '处理结果' })).toBeVisible();
-  await expect(page.locator('.results-inventory-head p')).toContainText('项目上传文件 12');
-  await expect(page.locator('.results-inventory-head p')).toContainText('容器 1');
+  await expect(page.locator('.results-inventory-head p')).toContainText('项目上传文件 10');
+  await expect(page.locator('[data-kind="CONTAINER"], [data-kind="MEMBER"]')).toHaveCount(0);
   await expect(page.locator('.results-inventory-head p')).toContainText('预期/计划 4');
   await expect(page.locator('.results-inventory-head p')).toContainText('计划新增 2');
-  await expect(page.locator('.results-table tbody tr')).toHaveCount(19);
+  await expect(page.locator('.results-table tbody tr')).toHaveCount(16);
   await expect(page.locator('.results-table th', { hasText: '人工定稿' })).toBeVisible();
   await expect(page.locator('.results-table')).toContainText('未定稿');
-  await expect(page.locator('.results-table')).toContainText('历史记录/变更历史（嵌套 RAR）');
+  await expect(page.locator('.results-table')).not.toContainText('嵌套 RAR');
   await expect(page.locator('.results-table')).toContainText('损坏');
   await expect(
     page.locator('.results-table tr[data-kind="NEW"]', { hasText: '外来文件管理规定' }),

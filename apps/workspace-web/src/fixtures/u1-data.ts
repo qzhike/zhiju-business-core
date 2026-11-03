@@ -23,11 +23,6 @@ export const u1FormatRules: readonly InputFormatRule[] = [
   { format: 'XLSX', disposition: 'SUPPORTED', note: '读取工作簿内容；本轮客户样本未包含该格式。' },
   { format: 'XLS', disposition: 'CONVERT', note: '旧 XLS 需员工先转换为 XLSX 再上传。' },
   { format: 'PDF', disposition: 'UNSUPPORTED', note: '暂不支持；不会静默转成其他格式。' },
-  {
-    format: 'RAR',
-    disposition: 'UNSUPPORTED',
-    note: '容器内成员不静默跳过；目录可列出，但解包与正文读取仍受限。',
-  },
   { format: '宏', disposition: 'UNSUPPORTED', note: '不执行宏。' },
 ];
 
@@ -89,30 +84,6 @@ const firstEntries: InputBatch['entries'] = [
     note: '表格正文可提取；版面未核验。',
   },
   {
-    id: 'C08',
-    path: '历史记录/变更历史（嵌套 RAR）',
-    format: 'RAR',
-    bytes: 58211,
-    state: 'LIMITED',
-    note: '容器目录可列出 2 份成员；成员未解包读取，不能因容器已列出视为已读。',
-  },
-  {
-    id: 'C08-R1',
-    path: '历史记录/变更记录 2024（RAR 内 DOCX）',
-    format: 'DOCX',
-    bytes: 28010,
-    state: 'LIMITED',
-    note: '嵌套 RAR 成员未解包；未读取正文或版式。',
-  },
-  {
-    id: 'C08-R2',
-    path: '历史记录/变更台账 2024（RAR 内 DOCX）',
-    format: 'DOCX',
-    bytes: 24011,
-    state: 'LIMITED',
-    note: '嵌套 RAR 成员未解包；未读取表格内容。',
-  },
-  {
     id: 'C09',
     path: '记录表单/变更编号说明.md',
     format: 'MARKDOWN',
@@ -142,11 +113,10 @@ export const u1InitialBatch: InputBatch = {
     { id: 'U1-Q1', title: '四层文件结构与编号迁移', state: '待客户确认' },
     { id: 'U1-Q2', title: 'C04/C05/C07 的保留方式', state: '待客户确认' },
     { id: 'U1-READ', title: '原件图形与版式读取限制', state: '读取受限' },
-    { id: 'U1-RAR', title: '嵌套 RAR 成员未解包读取', state: '读取受限' },
   ],
   limitations: [
     '包结构与正文可提取，不等于语义、批注/修订或版式已完整读取。',
-    '本轮客户文件包含 DOCX、Markdown 与嵌套 RAR；RAR 成员未解包读取，Markdown 只读取文本。',
+    '本轮资料包含 DOCX 与 Markdown；上传前应移除内层压缩文件，Markdown 只读取文本。',
     'C10 损坏条目保留失败原因，不能因其他文件成功而视为全包已读。',
   ],
   nextAction: '核对目录与读取限制，然后查看分析并记录客户答复或补充说明。',
@@ -175,7 +145,7 @@ export const u1SupplementBatch: InputBatch = {
   answerIds: ['A1', 'A1'],
   limitations: [
     '补充批次包含一份 Markdown 说明与文字答复；不覆盖首轮目录或成员身份。',
-    '新增说明不改变 RAR 成员未读取、C10 失败或原件版式未核验的限制。',
+    '新增说明不改变 C10 失败或原件版式未核验的限制。',
   ],
   nextAction: '查看据此形成的第 2 版分析，再核对修改范围。',
 };
@@ -207,7 +177,7 @@ export const u1ReportOne: AnalysisReport = {
   summary:
     '客户已有质量手册、变更控制程序和五份关联表单；正式模板的四层文件结构、三层分流与记录编号存在适用缺口，另有两项表单映射待确认。',
   limitations: [
-    '仅依据 C01–C09 的可读正文提取结果；C08 嵌套 RAR 成员未解包，C10 损坏未读取，批注、修订、图形和版式未核验。',
+    '仅依据 C01–C07 与 C09 的可读正文提取结果；C10 损坏未读取，批注、修订、图形和版式未核验。',
     'T01–T06 是正式模板的只读快照；模板条款不是客户事实，适用性逐项说明。',
     '本报告是页面演练的合成展示，不是 Runner 执行结果、业务审核或服务器接纳。',
   ],
@@ -308,22 +278,10 @@ export const u1ReportOne: AnalysisReport = {
       id: 'U-READ-LIMIT',
       category: 'READ_LIMIT',
       statement:
-        'C01–C07 只完成正文提取；C08 嵌套 RAR 的成员未解包，C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
-      sourceIds: [
-        'C01',
-        'C02',
-        'C03',
-        'C04',
-        'C05',
-        'C06',
-        'C07',
-        'C08',
-        'C08-R1',
-        'C08-R2',
-        'C10',
-      ],
+        'C01–C07 只完成正文提取；C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
+      sourceIds: ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07', 'C10'],
       templateIds: [],
-      limitation: '需要人工核对原件版式与嵌套成员；本轮不声称完整读取。',
+      limitation: '需要人工核对原件版式；本轮不声称完整读取。',
     },
   ],
   templates: [
@@ -423,19 +381,18 @@ export const u1ReportOne: AnalysisReport = {
     },
     {
       id: 'U1-READ',
-      title: '原件图形、版式与嵌套 RAR 读取受限',
+      title: '原件图形与版式读取受限',
       kind: 'UNREADABLE_MATERIAL',
       audience: 'CUSTOMER',
-      reason:
-        'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C08 嵌套 RAR 的成员未解包，C10 损坏。',
-      question: '是否补充可读的组织关系说明或嵌套成员，或接受本轮仅基于可读正文的演练？',
+      reason: 'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C10 损坏。',
+      question: '是否补充可读的组织关系说明，或接受本轮仅基于可读正文的演练？',
       affectedPlannedFileIds: ['F-MANUAL'],
       protectedFactIds: [],
-      evidenceIds: ['E-C01-STRUCT', 'E-C08-RAR'],
+      evidenceIds: ['E-C01-STRUCT', 'E-C10-FAILED'],
       customerRequest: {
         key: 'REQ-U1-READ',
         title: '原件读取限制说明',
-        text: '本轮只读取了可读正文；嵌套 RAR 成员与损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
+        text: '本轮只读取了可读正文；损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
       },
     },
   ],
@@ -662,13 +619,6 @@ export const u1ReportOne: AnalysisReport = {
       note: 'T03 规定外来文件检索、更新触发和变更控制凭证编号回填。',
     },
     {
-      id: 'E-C08-RAR',
-      sourceId: 'C08',
-      representation: 'CONTAINER_INDEX_ONLY',
-      locator: { kind: 'ARCHIVE', value: '嵌套 RAR 成员目录' },
-      note: '只列出容器内 2 份成员；未解包、未读取正文，不能视为已完整读取。',
-    },
-    {
       id: 'E-C10-FAILED',
       sourceId: 'C10',
       representation: 'FAILED',
@@ -797,7 +747,7 @@ export const u1ReportTwo: AnalysisReport = {
     '客户确认四层结构、编号迁移和内部表单保留；据此补充外来文件制度和实施记录；变更通知单仍待下一步确认。读取限制仍在，候选尚未生成。',
   limitations: [
     '第 2 版依据补充批次的文字答复与一份 Markdown 说明；它们不覆盖首轮目录或成员身份。',
-    'C08 嵌套 RAR 成员仍未解包，C10 损坏未读取；DOCX 图形、批注、修订和版式仍未核验。',
+    'C10 损坏未读取；DOCX 图形、批注、修订和版式仍未核验。',
     '本报告仍是页面演练的合成展示，不是 Runner 执行或业务批准。',
   ],
   narrative: `## 本轮变化
@@ -850,40 +800,27 @@ C01 的图形、批注、修订和版式仍未读取；本轮不据此断言组�
       id: 'U-READ-LIMIT',
       category: 'READ_LIMIT',
       statement:
-        'C01–C07 只完成正文提取；C08 嵌套 RAR 的成员未解包，C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
-      sourceIds: [
-        'C01',
-        'C02',
-        'C03',
-        'C04',
-        'C05',
-        'C06',
-        'C07',
-        'C08',
-        'C08-R1',
-        'C08-R2',
-        'C10',
-      ],
+        'C01–C07 只完成正文提取；C10 损坏未读取；图形、批注、修订、页眉页脚和版式没有核验。',
+      sourceIds: ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07', 'C10'],
       templateIds: [],
-      limitation: '需要人工核对原件版式与嵌套成员；本轮不声称完整读取。',
+      limitation: '需要人工核对原件版式；本轮不声称完整读取。',
     },
   ],
   attentionItems: [
     {
       id: 'U1-READ',
-      title: '原件图形、版式与嵌套 RAR 读取受限',
+      title: '原件图形与版式读取受限',
       kind: 'UNREADABLE_MATERIAL',
       audience: 'CUSTOMER',
-      reason:
-        'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C08 嵌套 RAR 的成员未解包，C10 损坏。',
-      question: '是否补充可读的组织关系说明或嵌套成员，或接受本轮仅基于可读正文的演练？',
+      reason: 'DOCX 正文可提取，但组织图、流程图、批注和修订没有可靠读取；C10 损坏。',
+      question: '是否补充可读的组织关系说明，或接受本轮仅基于可读正文的演练？',
       affectedPlannedFileIds: ['F-MANUAL'],
       protectedFactIds: [],
-      evidenceIds: ['E-C01-STRUCT', 'E-C08-RAR'],
+      evidenceIds: ['E-C01-STRUCT', 'E-C10-FAILED'],
       customerRequest: {
         key: 'REQ-U1-READ',
         title: '原件读取限制说明',
-        text: '本轮只读取了可读正文；嵌套 RAR 成员与损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
+        text: '本轮只读取了可读正文；损坏文件未读取。如组织图、流程图或历史记录会影响判断，请补充可读版本或文字说明。',
       },
     },
     {
