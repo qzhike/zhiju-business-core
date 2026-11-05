@@ -38,6 +38,10 @@ const SPREADSHEET_WORKBOOK_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml';
 const WORD_MAIN_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+const WORD_SETTINGS_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+const TEMPLATE_TYPES = RELATIONSHIP_NAMESPACES.map((namespace) => `${namespace}/attachedTemplate`);
+const SETTINGS_TYPES = RELATIONSHIP_NAMESPACES.map((namespace) => `${namespace}/settings`);
 
 const ACTIVE_PATH =
   /(?:^|\/)(?:vbaProject(?:Project)?\.bin|activeX|embeddings|oleObject[^/]*)(?:\/|$)|\.bin$/iu;
@@ -62,7 +66,7 @@ function guardLimit(error: unknown): never {
 
 function nestedContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[] | undefined {
   try {
-    return parseZipContainer(bytes, budget);
+    return parseZipContainer(bytes, budget, 'OFFICE');
   } catch (error) {
     if (isLimit(error)) guardLimit(error);
     return undefined;
@@ -119,6 +123,7 @@ interface Relationship {
   readonly type: string;
   readonly target: string;
   readonly external: boolean;
+  readonly targetMode?: string;
 }
 
 function parseRelationships(
@@ -134,12 +139,28 @@ function parseRelationships(
       budget,
       { roots: [{ local: 'Relationships', namespaces: [RELATIONSHIPS_NAMESPACE] }] },
       (tag) => {
-        if (tag.depth !== 1 || tag.local !== 'Relationship') return;
+        if (tag.depth === 0) return;
+        if (
+          tag.depth !== 1 ||
+          tag.local !== 'Relationship' ||
+          tag.uri !== RELATIONSHIPS_NAMESPACE
+        ) {
+          invalid = true;
+          return;
+        }
         const id = qualified(tag, 'Id');
         const type = qualified(tag, 'Type');
         const target = qualified(tag, 'Target');
         const targetMode = qualified(tag, 'TargetMode');
-        if (id === undefined || type === undefined || target === undefined) {
+        if (
+          id === undefined ||
+          type === undefined ||
+          target === undefined ||
+          id.length === 0 ||
+          type.length === 0 ||
+          target.length === 0 ||
+          (targetMode !== undefined && targetMode !== 'Internal' && targetMode !== 'External')
+        ) {
           invalid = true;
           return;
         }
@@ -150,6 +171,7 @@ function parseRelationships(
           type,
           target,
           external: targetMode !== undefined && targetMode !== 'Internal',
+          ...(targetMode === undefined ? {} : { targetMode }),
         });
       },
     );
@@ -191,17 +213,20 @@ function directoryOf(path: string): string {
 interface RelationshipScan {
   readonly external: boolean;
   readonly valid: boolean;
+  readonly parts: ReadonlyMap<string, readonly Relationship[]>;
 }
 
 function scanAllRelationships(entries: readonly ZipEntry[], budget: ScanBudget): RelationshipScan {
   let external = false;
+  const parts = new Map<string, readonly Relationship[]>();
   for (const entry of entries) {
-    if (!entry.normalizedPath.endsWith('.rels')) continue;
+    if (!entry.normalizedPath.toLowerCase().endsWith('.rels')) continue;
     const parsed = parseRelationships(entry.bytes, budget);
-    if (parsed === undefined) return { external, valid: false };
+    if (parsed === undefined) return { external, valid: false, parts };
+    parts.set(entry.normalizedPath, parsed.relationships);
     if (parsed.external) external = true;
   }
-  return { external, valid: true };
+  return { external, valid: true, parts };
 }
 
 function hasActiveContent(
@@ -216,13 +241,70 @@ function hasActiveContent(
 }
 
 function relationshipId(tag: XmlTag): string | undefined {
-  const attribute = tag.attributes['r:id'];
+  const attributes = Object.values(tag.attributes).filter(
+    (attribute) =>
+      attribute.local === 'id' &&
+      (RELATIONSHIP_NAMESPACES as readonly string[]).includes(attribute.uri),
+  );
+  return attributes.length === 1 ? attributes[0]?.value : undefined;
+}
+
+/** Validate the complete settings chain without resolving the template target. */
+function staticTemplate(
+  names: ReadonlyMap<string, ZipEntry>,
+  contentTypes: ContentTypes,
+  relationships: RelationshipScan,
+  budget: ScanBudget,
+): 'NONE' | 'STATIC' | 'INVALID' {
+  const settingsPath = 'word/settings.xml';
+  const settings = names.get(settingsPath);
+  const references: XmlTag[] = [];
+  let invalid = false;
+  if (settings !== undefined) {
+    try {
+      scanXml(
+        settings.bytes,
+        budget,
+        { roots: [{ local: 'settings', namespaces: WORD_NAMESPACES }] },
+        (tag) => {
+          if (tag.local !== 'attachedTemplate') return;
+          if (tag.depth !== 1 || !(WORD_NAMESPACES as readonly string[]).includes(tag.uri))
+            invalid = true;
+          if (references.length < 2) references.push(tag);
+        },
+      );
+    } catch (error) {
+      if (isLimit(error)) guardLimit(error);
+      return 'INVALID';
+    }
+  }
+  const templates = [...relationships.parts].flatMap(([path, items]) =>
+    items.filter((item) => TEMPLATE_TYPES.includes(item.type)).map((item) => ({ path, item })),
+  );
+  if (references.length === 0 && templates.length === 0) return 'NONE';
+  const reference = references[0];
+  const template = templates[0];
+  const settingsRelations = (relationships.parts.get('word/_rels/document.xml.rels') ?? []).filter(
+    (item) => SETTINGS_TYPES.includes(item.type),
+  );
+  const settingsRelation = settingsRelations[0];
   if (
-    attribute === undefined ||
-    !(RELATIONSHIP_NAMESPACES as readonly string[]).includes(attribute.uri)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- invalid is set by the XML callback.
+    invalid ||
+    references.length !== 1 ||
+    reference === undefined ||
+    templates.length !== 1 ||
+    template?.path !== 'word/_rels/settings.xml.rels' ||
+    relationshipId(reference) !== template.item.id ||
+    (contentTypes.overrides.get(`/${settingsPath}`) ?? contentTypes.defaults.get('xml')) !==
+      WORD_SETTINGS_TYPE ||
+    settingsRelations.length !== 1 ||
+    settingsRelation === undefined ||
+    settingsRelation.external ||
+    resolvePartTarget('word', settingsRelation.target) !== settingsPath
   )
-    return undefined;
-  return attribute.value;
+    return 'INVALID';
+  return template.item.targetMode === 'External' ? 'STATIC' : 'NONE';
 }
 
 function docx(entries: readonly ZipEntry[], budget: ScanBudget): ClassifiedEntry {
@@ -263,9 +345,25 @@ function docx(entries: readonly ZipEntry[], budget: ScanBudget): ClassifiedEntry
   }
   const relationships = scanAllRelationships(entries, budget);
   if (!relationships.valid) return corruptFormat('INVALID_DOCX');
-  if (relationships.external)
-    return classify('READ_LIMITED', ['EXTERNAL_REFERENCE_REQUIRES_REVIEW']);
-  return { status: 'ACCEPTED', reasonCodes: [], mediaType: MEDIA_TYPES.docx };
+  const template = staticTemplate(names, contentTypes, relationships, budget);
+  if (template === 'INVALID') return corruptFormat('INVALID_DOCX');
+  const otherExternal = [...relationships.parts].some(([path, items]) =>
+    items.some(
+      (item) =>
+        item.external &&
+        !(
+          template === 'STATIC' &&
+          path === 'word/_rels/settings.xml.rels' &&
+          TEMPLATE_TYPES.includes(item.type)
+        ),
+    ),
+  );
+  if (otherExternal) return classify('READ_LIMITED', ['EXTERNAL_REFERENCE_REQUIRES_REVIEW']);
+  return {
+    status: 'ACCEPTED',
+    reasonCodes: template === 'STATIC' ? ['EXTERNAL_TEMPLATE_NOT_LOADED'] : [],
+    mediaType: MEDIA_TYPES.docx,
+  };
 }
 
 function validateSpreadsheetPart(entry: ZipEntry, budget: ScanBudget, root: string): boolean {
@@ -428,6 +526,17 @@ export function classifyEntry(
   bytes: Buffer,
   budget: ScanBudget,
 ): ClassifiedEntry {
+  const basename = originalName.split('/').at(-1) ?? '';
+  if (
+    bytes.length >= 8 &&
+    ((basename.startsWith('._') &&
+      bytes.readUInt32BE(0) === 0x00051607 &&
+      bytes.readUInt32BE(4) === 0x00020000) ||
+      (basename === '.DS_Store' &&
+        bytes.readUInt32BE(0) === 1 &&
+        bytes.subarray(4, 8).equals(Buffer.from('Bud1'))))
+  )
+    return classify('UNSUPPORTED', ['SYSTEM_METADATA_NOT_DOCUMENT']);
   if (/\.md$/iu.test(originalName)) {
     try {
       utf8.decode(bytes);

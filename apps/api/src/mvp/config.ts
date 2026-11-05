@@ -7,7 +7,8 @@ import type { AccessTokenTrustConfig } from '../workspace/access-token.js';
 /**
  * Closed MVP Core configuration. A missing or invalid value is a startup
  * rejection; the process never listens with a partially invented identity,
- * database, store or trust binding.
+ * database, store or trust binding. Optional preview dependencies fail closed
+ * for preview requests without making existing custody unavailable.
  */
 export const MVP_TRUST_CONFIG_ENV = 'ZHIJU_MVP_TRUST_CONFIG';
 
@@ -32,6 +33,7 @@ export interface MvpCoreConfig {
   readonly host: string;
   readonly port: number;
   readonly incarnation: string;
+  readonly preview: { readonly runnerRoot?: string; readonly python?: string };
 }
 
 export class MvpStartupError extends Error {
@@ -213,5 +215,13 @@ export function loadMvpCoreConfig(env: NodeJS.ProcessEnv = process.env): MvpCore
     host: env.ZHIJU_MVP_CORE_HOST ?? '127.0.0.1',
     port,
     incarnation: `${hostname()}:${process.pid}:${Date.now()}`,
+    preview: {
+      ...(env.ZHIJU_MVP_PREVIEW_RUNNER_ROOT === undefined
+        ? {}
+        : { runnerRoot: env.ZHIJU_MVP_PREVIEW_RUNNER_ROOT }),
+      ...(env.ZHIJU_MVP_PREVIEW_PYTHON === undefined
+        ? {}
+        : { python: env.ZHIJU_MVP_PREVIEW_PYTHON }),
+    },
   };
 }

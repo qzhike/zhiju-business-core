@@ -14,6 +14,7 @@ import { flockSync } from 'fs-ext';
  * upgrades must stop the old instance before starting the new binary.
  */
 export interface ExclusiveLock {
+  readonly descriptor: number;
   release(): Promise<void>;
 }
 
@@ -92,6 +93,7 @@ export async function acquireExclusiveLock(path: string): Promise<ExclusiveLock 
         held = true;
         let releasing: Promise<void> | undefined;
         return {
+          descriptor: file.fd,
           release() {
             releasing ??= (async () => {
               await new Promise<void>((resolve, reject) => {

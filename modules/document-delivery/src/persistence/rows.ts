@@ -1,3 +1,4 @@
+import { parseLimitViolation } from '../domain/limit-violation.js';
 import { fail } from '../domain/errors.js';
 import { manifestHash, manifestSummary } from '../domain/manifest.js';
 import { PROJECT_ANALYSIS_UNAVAILABLE } from '../domain/types.js';
@@ -113,6 +114,9 @@ export function projectView(project: ProjectRecord): ProjectView {
 }
 
 export function batchRecord(row: Row): BatchRecord {
+  const limitViolation =
+    row.limit_violation == null ? undefined : parseLimitViolation(row.limit_violation);
+  if (row.limit_violation != null && limitViolation === undefined) fail('DEPENDENCY_UNAVAILABLE');
   const note = nullableStringColumn(row, 'note');
   const manifestId = nullableStringColumn(row, 'manifest_id');
   const originalZipSource = sourceRefFromJson(row.original_zip_source);
@@ -141,6 +145,7 @@ export function batchRecord(row: Row): BatchRecord {
     ...(manifestId === undefined ? {} : { manifestId }),
     ...(originalZipSource === undefined ? {} : { originalZipSource }),
     ...(rejectedArchivePaths === undefined ? {} : { rejectedArchivePaths }),
+    ...(limitViolation === undefined ? {} : { limitViolation }),
   };
 }
 

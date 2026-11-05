@@ -11,15 +11,26 @@ import { newUuidV7 } from '@zhiju/shared-kernel';
 import { FakeOidcProvider } from '../../apps/workspace-bff/src/testing/fake-oidc.js';
 import {
   applyMvpMigration,
+  appleDoubleBytes,
   createMvpDatabase,
   docxBytes,
   markdownBytes,
   provisionMvp,
   textBytes,
+  templateDocxBytes,
   xlsxBytes,
   zipBytes,
   type MvpFixture,
 } from './mvp-fixtures.js';
+
+async function selectBatch(page: Page, number: number) {
+  const picker = page.getByRole('combobox', { name: '资料批次' });
+  const value = await picker
+    .getByRole('option', { name: new RegExp(`第 ${number} 批`) })
+    .getAttribute('value');
+  if (value === null) throw new Error('Batch option missing');
+  await picker.selectOption(value);
+}
 
 const adminUrl = process.env.ZJU_PERSISTENCE_DATABASE_URL;
 const gateEnabled = adminUrl !== undefined;
@@ -263,6 +274,12 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
       ZHIJU_MVP_TRUST_CONFIG: rawTrust,
       ZHIJU_MVP_CORE_HOST: '127.0.0.1',
       ZHIJU_MVP_CORE_PORT: String(corePort),
+      ZHIJU_MVP_PREVIEW_RUNNER_ROOT: resolve(repositoryRoot, 'tests/fixtures/document-preview'),
+      ZHIJU_MVP_PREVIEW_PYTHON: execFileSync(
+        'python3',
+        ['-I', '-S', '-c', 'import sys;print(sys.executable)'],
+        { encoding: 'utf8' },
+      ).trim(),
     };
     core = await startChild({
       name: 'mvp-core',
@@ -321,10 +338,13 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     const packageBytes = zipBytes([
       { name: 'readme.md', bytes: markdownBytes('# 浏览器资料') },
       { name: 'empty.md', bytes: Buffer.alloc(0) },
-      { name: 'spec.docx', bytes: docxBytes() },
+      { name: 'spec.docx', bytes: templateDocxBytes() },
+      { name: '__MACOSX/._spec.docx', bytes: appleDoubleBytes() },
       { name: 'sheet.xlsx', bytes: xlsxBytes() },
       { name: 'paper.pdf', bytes: textBytes('%PDF-1.7') },
     ]);
+    if (await page.getByRole('button', { name: '上传新批次', exact: true }).isVisible())
+      await page.getByRole('button', { name: '上传新批次', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: 'browser-materials.zip',
       mimeType: 'application/zip',
@@ -337,8 +357,10 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('heading', { name: /部分接收/ })).toBeVisible({
       timeout: 45_000,
     });
-    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible();
-    await expect(page.getByText(/可分析来源 4 项/)).toBeVisible();
+    await expect(page.getByText(/已封存清单：共 6 项/)).toBeVisible();
+    await expect(page.getByText(/已接收来源 4 项/)).toBeVisible();
+    await expect(page.getByText(/外部模板未读取。/)).toBeVisible();
+    await expect(page.getByText(/系统附属文件，不参与业务文档处理/)).toBeVisible();
     await expect(page.getByText('readme.md')).toBeVisible();
     await expect(page.getByText('empty.md')).toBeVisible();
     await expect(page.getByText('sheet.xlsx')).toBeVisible();
@@ -359,9 +381,94 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     const path = await download.path();
     vitestExpect(readFileSync(path).equals(packageBytes)).toBe(true);
 
+    const templateDownloadPromise = page.waitForEvent('download');
+    await page
+      .getByRole('row')
+      .filter({ has: page.getByText('spec.docx', { exact: true }) })
+      .getByRole('button', { name: '下载', exact: true })
+      .click();
+    vitestExpect(readFileSync(await (await templateDownloadPromise).path())).toEqual(
+      templateDocxBytes(),
+    );
+
+    let sourcePreviewUrl = '';
+    for (const width of [1440, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page
+        .getByRole('row')
+        .filter({ has: page.getByText('spec.docx', { exact: true }) })
+        .getByRole('button', { name: '查看内容' })
+        .click();
+      await expect(page.getByRole('heading', { name: 'spec.docx', exact: true })).toBeVisible();
+      await expect(page.getByLabel('读取限制')).toContainText('外部模板未读取');
+      await expect(page.getByRole('heading', { name: /段落提取/ })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /已提取的文本修订/ })).toBeVisible();
+      const scrollWidth: unknown = await page.evaluate('document.documentElement.scrollWidth');
+      vitestExpect(typeof scrollWidth === 'number' && scrollWidth <= width + 1).toBe(true);
+      sourcePreviewUrl = page.url();
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'spec.docx', exact: true })).toBeVisible();
+      const original = page.waitForEvent('download');
+      await page.getByRole('button', { name: '下载原件', exact: true }).click();
+      vitestExpect(readFileSync(await (await original).path())).toEqual(templateDocxBytes());
+      await page.getByRole('button', { name: '← 返回文件列表' }).click();
+      await expect(page.getByText(/已封存清单：共 6 项/)).toBeVisible();
+      await page
+        .getByRole('row', { name: /readme\.md/ })
+        .getByRole('button', { name: '查看内容' })
+        .click();
+      await expect(page.getByRole('heading', { name: '浏览器资料', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: '原始 Markdown', exact: true }).click();
+      await expect(page.getByLabel('原始 Markdown 正文')).toHaveText(
+        markdownBytes('# 浏览器资料').toString(),
+      );
+      await page.getByRole('button', { name: '← 返回文件列表' }).click();
+      await page
+        .getByRole('row', { name: /sheet\.xlsx/ })
+        .getByRole('button', { name: '查看内容' })
+        .click();
+      await expect(page.getByLabel('读取限制')).toContainText('此格式暂未提供提取视图');
+      await page.getByRole('button', { name: '← 返回文件列表' }).click();
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await page.getByRole('button', { name: '检查整批资料', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: '整批资料读取检查', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: '检查进度', exact: true })
+        .getByText('检查结束', { exact: true }),
+    ).toBeVisible({ timeout: 60_000 });
+    await page.reload();
+    await expect(page.getByText('检查结束', { exact: true })).toBeVisible();
+    for (const width of [1440, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.getByRole('cell', { name: /^spec\.docx 第 3 项$/ })).toBeVisible();
+      vitestExpect(
+        await page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),
+      ).toBe(true);
+    }
+    await page.getByLabel('结果筛选').selectOption('LIMITED');
+    await expect(page.getByText(/共 1 项 · 列表版本/)).toBeVisible();
+    await page.getByRole('button', { name: '查看当前提取内容' }).click();
+    await expect(page.getByRole('heading', { name: 'spec.docx', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '← 返回文件列表' }).click();
+    await expect(page.getByLabel('结果筛选')).toHaveValue('LIMITED');
+    await page.reload();
+    await expect(page.getByLabel('结果筛选')).toHaveValue('LIMITED');
+    await expect(page.getByText(/共 1 项 · 列表版本/)).toBeVisible();
+    const savedReadCheckUrl = page.url();
+    await page.getByRole('button', { name: '← 返回当前批次' }).click();
+    await expect(page.getByText(/检查记录 · 1 次/)).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+
     const supplementBytes = zipBytes([
       { name: 'supplement.md', bytes: markdownBytes('# 补充资料') },
     ]);
+    if (await page.getByRole('button', { name: '上传新批次', exact: true }).isVisible())
+      await page.getByRole('button', { name: '上传新批次', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: 'supplement.zip',
       mimeType: 'application/zip',
@@ -403,6 +510,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
       }
       await route.continue();
     });
+    if (await page.getByRole('button', { name: '上传新批次', exact: true }).isVisible())
+      await page.getByRole('button', { name: '上传新批次', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: 'recovered.zip',
       mimeType: 'application/zip',
@@ -430,11 +539,11 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole('button', { name: /第 1 批/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /第 2 批/ })).toBeVisible();
-    await page.getByRole('button', { name: /第 1 批/ }).click();
-    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: /第 2 批/ }).click();
+    await expect(page.getByRole('option', { name: /第 1 批/ })).toHaveCount(1);
+    await expect(page.getByRole('option', { name: /第 2 批/ })).toHaveCount(1);
+    await selectBatch(page, 1);
+    await expect(page.getByText(/已封存清单：共 6 项/)).toBeVisible({ timeout: 30_000 });
+    await selectBatch(page, 2);
     await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
 
     await core?.stop().catch(() => undefined);
@@ -448,12 +557,18 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible({
       timeout: 30_000,
     });
-    await page.getByRole('button', { name: /第 1 批/ }).click();
-    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: /第 2 批/ }).click();
+    await selectBatch(page, 1);
+    await expect(page.getByText(/已封存清单：共 6 项/)).toBeVisible({ timeout: 30_000 });
+    await selectBatch(page, 2);
     await expect(page.getByText(/已封存清单：共 1 项/)).toBeVisible({ timeout: 30_000 });
+    await page.goto(savedReadCheckUrl);
+    await expect(page.getByText('检查结束', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('结果筛选')).toHaveValue('LIMITED');
+    await expect(page.getByText(/共 1 项 · 列表版本/)).toBeVisible();
     // A BFF restart loses only its in-memory session. Keep Core, PostgreSQL,
     // Web and the file store running, then authenticate again to the same data.
+    await page.goto(sourcePreviewUrl);
+    await expect(page.getByRole('heading', { name: 'spec.docx', exact: true })).toBeVisible();
     await bff?.stop();
     bff = await startChild({
       name: 'mvp-bff-restart',
@@ -465,12 +580,21 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('heading', { name: '需要重新登录' })).toBeVisible();
     await expect(page.getByText('UI_SESSION_EXPIRED', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: '使用企业账号登录' }).click();
-    await page.waitForURL(`${webOrigin}${project}`, { timeout: 30_000 });
+    await page.waitForURL(sourcePreviewUrl, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'spec.docx', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '← 返回文件列表' }).click();
+    vitestExpect(new URL(page.url()).pathname).toBe(project);
     await expect(page.getByRole('heading', { name: '浏览器托管项目' })).toBeVisible();
     for (const number of [1, 2, 3])
-      await expect(page.getByRole('button', { name: new RegExp(`第 ${number} 批`) })).toBeVisible();
-    await page.getByRole('button', { name: /第 1 批/ }).click();
-    await expect(page.getByText(/已封存清单：共 5 项/)).toBeVisible();
+      await expect(page.getByRole('option', { name: new RegExp(`第 ${number} 批`) })).toHaveCount(
+        1,
+      );
+    await selectBatch(page, 1);
+    await expect(page.getByText(/已封存清单：共 6 项/)).toBeVisible();
+    await page.goto(savedReadCheckUrl);
+    await expect(page.getByText('检查结束', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('结果筛选')).toHaveValue('LIMITED');
+    await page.getByRole('button', { name: '← 返回当前批次' }).click();
     const restoredDownloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: '下载原包' }).click();
     const restoredDownload = await restoredDownloadPromise;
@@ -492,6 +616,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await page.getByRole('button', { name: '创建项目' }).click();
     await expect(page.getByRole('heading', { name: '嵌套检查项目' })).toBeVisible();
     await expect(page.getByText(/发现内层压缩文件时整批拒绝/)).toBeVisible();
+    if (await page.getByRole('button', { name: '上传新批次', exact: true }).isVisible())
+      await page.getByRole('button', { name: '上传新批次', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: 'nested.zip',
       mimeType: 'application/zip',
@@ -514,7 +640,7 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(paths.locator('img')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '下载原包' })).toHaveCount(0);
     await page.reload();
-    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await selectBatch(page, 1);
     await expect(paths.getByRole('listitem')).toHaveCount(2);
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.screenshot({
@@ -524,6 +650,8 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     vitestExpect(
       await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),
     ).toBe(true);
+    if (await page.getByRole('button', { name: '上传新批次', exact: true }).isVisible())
+      await page.getByRole('button', { name: '上传新批次', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: 'corrected.zip',
       mimeType: 'application/zip',
@@ -535,7 +663,7 @@ describe.skipIf(!gateEnabled)('MVP01 built browser custody journey', () => {
     await expect(page.getByRole('button', { name: '登记并上传' })).toBeEnabled();
     await page.getByRole('button', { name: '登记并上传' }).click();
     await expect(page.getByText(/已封存清单：共 2 项/)).toBeVisible({ timeout: 45_000 });
-    await page.getByRole('button', { name: /第 1 批/ }).click();
+    await selectBatch(page, 1);
     await expect(paths.getByRole('listitem')).toHaveCount(2);
     await expect(page.getByRole('button', { name: '下载原包' })).toHaveCount(0);
   }, 90_000);

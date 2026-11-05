@@ -1,8 +1,11 @@
+import { limitViolationText } from './limits.js';
+import { entryReasonText, entryStatusLabel } from './entry-text.js';
 import { Alert } from '../components/ui/alert.js';
 import { Card } from '../components/ui/card.js';
 import { Button } from '../components/ui/button.js';
 import { Label } from '../components/ui/label.js';
 import { Input } from '../components/ui/input.js';
+import { NativeSelect } from '../components/ui/native-select.js';
 import {
   Table,
   TableHeader,
@@ -13,7 +16,12 @@ import {
 } from '../components/ui/table.js';
 import { Textarea } from '../components/ui/textarea.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { SourcePreview } from './SourcePreview.js';
+import { ReadCheckLaunch } from './ReadCheckLaunch.js';
+import { BatchReadCheckPage } from './BatchReadCheckPage.js';
+import { EntryPagination } from './EntryPagination.js';
+import { previewId } from './preview-model.js';
 
 import {
   CustodyFailure,
@@ -426,14 +434,16 @@ function EntryRows({
   batchId,
   entries,
   onDownload,
+  onPreview,
 }: {
   readonly projectId: string;
   readonly batchId: string;
   readonly entries: readonly CustodyEntry[];
   readonly onDownload: (path: string, name: string) => void;
+  readonly onPreview: (sourceId: string) => void;
 }) {
   return (
-    <Table className="custody-entries">
+    <Table className="custody-entries" aria-label="资料条目清单">
       <TableHeader>
         <TableRow>
           <TableHead>#</TableHead>
@@ -441,36 +451,61 @@ function EntryRows({
           <TableHead>状态</TableHead>
           <TableHead>大小</TableHead>
           <TableHead>说明</TableHead>
-          <TableHead>来源</TableHead>
+          <TableHead>操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {entries.map((entry) => (
           <TableRow key={entry.entryId}>
-            <TableCell>{entry.ordinal}</TableCell>
-            <TableCell>
+            <TableCell data-label="序号">{entry.ordinal}</TableCell>
+            <TableCell data-label="路径">
               <span title={entry.normalizedPath}>{entry.normalizedPath}</span>
             </TableCell>
-            <TableCell>{entry.status}</TableCell>
-            <TableCell>{entry.byteLength === undefined ? '—' : bytes(entry.byteLength)}</TableCell>
-            <TableCell>
-              {entry.reasonCodes.length === 0 ? '—' : entry.reasonCodes.join('、')}
+            <TableCell data-label="状态">{entryStatusLabel(entry.status)}</TableCell>
+            <TableCell data-label="大小">
+              {entry.byteLength === undefined ? '—' : bytes(entry.byteLength)}
             </TableCell>
-            <TableCell>
+            <TableCell data-label="说明">
+              {entry.reasonCodes.length === 0 ? (
+                '—'
+              ) : (
+                <ul className="custody-entry-reasons">
+                  {entry.reasonCodes.map((code) => (
+                    <li key={code}>
+                      <span>{entryReasonText(code)}</span>
+                      <small className="mono muted">{code}</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TableCell>
+            <TableCell data-label="操作">
               {entry.sourceId === undefined ? (
                 '无可用来源'
               ) : (
-                <Button
-                  className="link"
-                  onClick={() => {
-                    onDownload(
-                      `/bff/mvp/v1/projects/${projectId}/batches/${batchId}/sources/${entry.sourceId}/content`,
-                      entry.originalName,
-                    );
-                  }}
-                >
-                  下载
-                </Button>
+                <div className="custody-source-actions">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="custody-preview-button"
+                    onClick={() => {
+                      if (entry.sourceId !== undefined) onPreview(entry.sourceId);
+                    }}
+                  >
+                    查看内容
+                  </Button>
+                  <Button
+                    className="link"
+                    onClick={() => {
+                      onDownload(
+                        `/bff/mvp/v1/projects/${projectId}/batches/${batchId}/sources/${entry.sourceId}/content`,
+                        entry.originalName,
+                      );
+                    }}
+                  >
+                    下载
+                  </Button>
+                </div>
               )}
             </TableCell>
           </TableRow>
@@ -482,6 +517,23 @@ function EntryRows({
 
 export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageProps) {
   const { projectId = '' } = useParams();
+  const [parameters, setParameters] = useSearchParams();
+  const previewBatch = parameters.get('batch');
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [entryPageSize, setEntryPageSize] = useState(20);
+  const [entryPageIndex, setEntryPageIndex] = useState(0);
+  const entryPages = useRef<readonly CustodyEntryPage[]>([]);
+  const paging = useRef(false);
+  const listHeading = useRef<HTMLHeadingElement>(null);
+  const [batchAttempt, setBatchAttempt] = useState(0);
+  const detailGeneration = useRef(0);
+  const currentBatch = useRef(previewBatch);
+  currentBatch.current = previewBatch;
+  const previewManifest = parameters.get('manifest');
+  const previewSource = parameters.get('source');
   const { session, error: sessionError } = useSession(onSessionFailure);
   const [project, setProject] = useState<CustodyProject | null>(null);
   const [batches, setBatches] = useState<readonly CustodyBatch[]>([]);
@@ -509,18 +561,57 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
 
   const refreshDetail = useCallback(
     async (batchId: string) => {
+      const generation = currentBatch.current === batchId ? ++detailGeneration.current : -1;
       const detail = await getBatch(projectId, batchId);
-      setSelected(detail);
-      if (detail.manifest !== null) {
-        const page = await getEntries(projectId, batchId, detail.manifest.manifestId);
+      const page =
+        detail.manifest === null
+          ? null
+          : await getEntries(
+              projectId,
+              batchId,
+              detail.manifest.manifestId,
+              undefined,
+              undefined,
+              entryPageSize,
+            );
+      if (generation === detailGeneration.current && currentBatch.current === batchId) {
+        setSelected(detail);
         setEntriesPage(page);
-      } else {
-        setEntriesPage(null);
+        entryPages.current = page === null ? [] : [page];
+        setEntryPageIndex(0);
       }
       return detail;
     },
-    [projectId],
+    [projectId, entryPageSize],
   );
+
+  useEffect(() => {
+    if (session === null || !previewId(previewBatch)) return;
+    let live = true;
+    setSelected(null);
+    setEntriesPage(null);
+    setError(null);
+    setBatchLoading(true);
+    setPageLoading(false);
+    setPageError(null);
+    entryPages.current = [];
+    paging.current = false;
+    setEntryPageIndex(0);
+    void refreshDetail(previewBatch)
+      .catch((reason: unknown) => {
+        if (!live) return;
+        if (reason instanceof CustodyFailure && (reason.status === 401 || reason.status === 403))
+          onSessionFailure();
+        setError(failureText(reason));
+      })
+      .finally(() => {
+        if (live) setBatchLoading(false);
+      });
+    return () => {
+      live = false;
+      detailGeneration.current += 1;
+    };
+  }, [previewBatch, session, refreshDetail, onSessionFailure, batchAttempt]);
 
   useEffect(() => {
     if (session === null || projectId.length === 0) return;
@@ -531,6 +622,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
         if (!live) return;
         setProject(loadedProject);
         setBatches(page.items);
+        setUploadOpen(page.items.length === 0);
       })
       .catch((reason: unknown) => {
         if (!live) return;
@@ -544,6 +636,12 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
       live = false;
     };
   }, [onSessionFailure, projectId, session]);
+
+  useEffect(() => {
+    if (parameters.has('batch')) return;
+    const latest = [...batches].sort((a, b) => b.batchNo - a.batchNo)[0];
+    if (latest !== undefined) setParameters({ batch: latest.batchId }, { replace: true });
+  }, [batches, parameters, setParameters]);
 
   useEffect(() => {
     if (session === null || markerRef.current === null) return;
@@ -657,6 +755,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
       clearPendingIntent(requestId);
       markerRef.current = null;
       setIntent(null);
+      setParameters({ batch: batch.batchId });
       await refreshBatches();
       await refreshDetail(batch.batchId);
       const attempt = batch.currentAttempt;
@@ -706,6 +805,7 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
     refreshBatches,
     refreshDetail,
     session,
+    setParameters,
   ]);
 
   const runRecovery = useCallback(
@@ -752,6 +852,62 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
     }
   }, []);
 
+  const changeEntryPage = async (page: number) => {
+    if (selected === null || entriesPage === null || paging.current) return;
+    const count = Math.max(1, Math.ceil(entriesPage.manifest.totalEntries / entryPageSize));
+    const index = page - 1;
+    if (index < 0 || index >= count || index === entryPageIndex) return;
+    const batchId = selected.batch.batchId;
+    const manifestId = entriesPage.manifest.manifestId;
+    const generation = detailGeneration.current;
+    const current = () =>
+      currentBatch.current === batchId && detailGeneration.current === generation;
+    paging.current = true;
+    setPageLoading(true);
+    setPageError(null);
+    try {
+      const pages = [...entryPages.current];
+      while (pages.length <= index) {
+        const cursor = pages.at(-1)?.next;
+        if (cursor === undefined) throw new CustodyFailure('UI_CLIENT_STATE_INVALID', 200, false);
+        const next = await getEntries(
+          projectId,
+          batchId,
+          manifestId,
+          cursor,
+          undefined,
+          entryPageSize,
+        );
+        if (!current()) return;
+        if (
+          next.manifest.manifestId !== manifestId ||
+          next.manifest.batchId !== batchId ||
+          next.manifest.totalEntries !== entriesPage.manifest.totalEntries
+        ) {
+          throw new CustodyFailure('UI_CLIENT_STATE_INVALID', 200, false);
+        }
+        pages.push(next);
+        entryPages.current = pages;
+      }
+      if (!current()) return;
+      const next = pages[index];
+      if (next === undefined) throw new CustodyFailure('UI_CLIENT_STATE_INVALID', 200, false);
+      setEntriesPage(next);
+      setEntryPageIndex(index);
+      listHeading.current?.focus({ preventScroll: true });
+      listHeading.current?.scrollIntoView({ block: 'start' });
+    } catch (reason) {
+      if (!current()) return;
+      if (reason instanceof CustodyFailure && reason.status === 401) onSessionFailure();
+      setPageError(`${failureText(reason)} 当前仍显示第 ${entryPageIndex + 1} 页，请重试翻页。`);
+    } finally {
+      if (current()) {
+        paging.current = false;
+        setPageLoading(false);
+      }
+    }
+  };
+
   const manifest = selected?.manifest ?? null;
   const limited = useMemo(
     () =>
@@ -760,6 +916,41 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
         : entriesPage.entries.filter((entry) => entry.status !== 'ACCEPTED'),
     [entriesPage],
   );
+
+  const checkId = parameters.get('check');
+  if (previewId(previewBatch) && previewId(checkId)) {
+    return (
+      <BatchReadCheckPage
+        key={`${previewBatch}:${checkId}`}
+        projectId={projectId}
+        batchId={previewBatch}
+        checkId={checkId}
+        onSessionFailure={onSessionFailure}
+        onDownload={(path, name) => void download(path, name)}
+        downloadError={error}
+      />
+    );
+  }
+  if (previewId(previewBatch) && previewId(previewManifest) && previewId(previewSource)) {
+    return (
+      <SourcePreview
+        key={`${previewBatch}:${previewManifest}:${previewSource}`}
+        identity={{
+          projectId,
+          batchId: previewBatch,
+          manifestId: previewManifest,
+          sourceId: previewSource,
+        }}
+        {...(selected?.batch.batchId === previewBatch ? { batchNo: selected.batch.batchNo } : {})}
+        onBack={() => {
+          setParameters({ batch: previewBatch });
+        }}
+        onDownload={(path, name) => void download(path, name)}
+        onSessionFailure={onSessionFailure}
+        downloadError={error}
+      />
+    );
+  }
 
   return (
     <section className="custody">
@@ -775,12 +966,10 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
             </p>
           )}
         </div>
-        <Card asChild>
-          <div className="panel analysis-note">
-            <strong>分析未接入</strong>
-            <span>资料已接收只证明托管，不表示文件已读懂或已分析。</span>
-          </div>
-        </Card>
+        <div className="analysis-note custody-analysis-note">
+          <strong>分析未接入</strong>
+          <span>可核对已接收内容；业务分析尚未开始。</span>
+        </div>
       </header>
       {sessionError !== null && (
         <Alert asChild variant="warning">
@@ -815,121 +1004,137 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
           }}
         />
       )}
-      <div className="custody-grid">
-        <Card asChild>
-          <section className="panel" aria-labelledby="new-batch-title">
-            <h2 id="new-batch-title">新增资料批次</h2>
-            <p className="muted">
-              ZIP 可包含 DOCX、Markdown 与 XLSX，支持普通文件夹。请先解压并移除包内的 RAR、ZIP、7z
-              等压缩文件；发现内层压缩文件时整批拒绝。 补充批次追加在旧清单旁，不覆盖此前批次。
-            </p>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitBatch();
-              }}
-            >
-              <Label>
-                选择 ZIP
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
-                />
-              </Label>
-              {file !== null && (
-                <p className="muted">
-                  {file.name} · {bytes(file.size)}
-                  {fileDigest === null ? '' : ` · SHA-256 ${fileDigest.slice(0, 16)}…`}
-                </p>
-              )}
-              <Label>
-                说明（可选）
-                <Textarea
-                  value={note}
-                  onChange={(event) => {
-                    setNote(event.target.value);
-                  }}
-                  maxLength={4096}
-                  rows={3}
-                />
-              </Label>
-              <Button
-                variant="default"
-                type="submit"
-                disabled={
-                  file === null || fileDigest === null || project === null || busy.length > 0
-                }
-              >
-                登记并上传
-              </Button>
-            </form>
-          </section>
-        </Card>
-        <Card asChild>
-          <section className="panel" aria-labelledby="batches-title">
-            <h2 id="batches-title">批次</h2>
-            {batches.length === 0 ? (
-              <p className="muted">尚无批次。</p>
-            ) : (
-              <ul className="custody-batches">
-                {batches.map((batch) => (
-                  <li
-                    key={batch.batchId}
-                    className={selected?.batch.batchId === batch.batchId ? 'active' : ''}
-                  >
-                    <Button className="link" onClick={() => void refreshDetail(batch.batchId)}>
-                      第 {batch.batchNo} 批 · {batch.originalName}
-                    </Button>
-                    <span className="muted">
-                      {statusLabel(batch.status)} · {bytes(batch.declaredBytes)} · v{batch.version}
-                    </span>
-                    {batch.reasonCodes.length > 0 && (
-                      <span className="error small">
-                        {batch.reasonCodes
-                          .map((reason) =>
-                            reason === 'NESTED_ARCHIVE_NOT_ALLOWED'
-                              ? '包含嵌套压缩文件，请整理后重新上传'
-                              : reason,
-                          )
-                          .join('、')}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </Card>
+      <div className="custody-toolbar">
+        <div className="custody-batch-picker">
+          <Label htmlFor="custody-batch">资料批次</Label>
+          <NativeSelect
+            id="custody-batch"
+            value={previewBatch ?? ''}
+            disabled={batches.length === 0}
+            onChange={(event) => {
+              setParameters({ batch: event.target.value });
+            }}
+          >
+            {batches.length === 0 && <option value="">尚无批次</option>}
+            {[...batches]
+              .sort((a, b) => b.batchNo - a.batchNo)
+              .map((batch) => (
+                <option key={batch.batchId} value={batch.batchId}>
+                  第 {batch.batchNo} 批 · {batch.originalName} · {statusLabel(batch.status)}
+                </option>
+              ))}
+          </NativeSelect>
+        </div>
+        <Button
+          variant={uploadOpen ? 'outline' : 'default'}
+          aria-expanded={uploadOpen}
+          aria-controls="custody-upload"
+          onClick={() => {
+            setUploadOpen(!uploadOpen);
+          }}
+        >
+          {uploadOpen ? '收起上传' : '上传新批次'}
+        </Button>
       </div>
+      <section
+        id="custody-upload"
+        className="custody-upload"
+        aria-labelledby="new-batch-title"
+        hidden={!uploadOpen}
+      >
+        <h2 id="new-batch-title">新增资料批次</h2>
+        <p className="muted">
+          ZIP 可包含 DOCX、Markdown 与 XLSX，支持普通文件夹。请先解压并移除包内的 RAR、ZIP、7z
+          等压缩文件；发现内层压缩文件时整批拒绝。 补充批次追加在旧清单旁，不覆盖此前批次。
+        </p>
+        <p className="muted small">
+          ZIP 外层文件与目录最多 1000 条；每份 Office 内部最多 1000 条，全包 Office 内部累计最多
+          20000 条。其他大小与安全检查仍适用。
+        </p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitBatch();
+          }}
+        >
+          <Label>
+            选择 ZIP
+            <Input
+              type="file"
+              accept=".zip,application/zip"
+              onChange={(event) => void chooseFile(event.target.files?.[0] ?? null)}
+            />
+          </Label>
+          {file !== null && (
+            <p className="muted">
+              {file.name} · {bytes(file.size)}
+              {fileDigest === null ? '' : ` · SHA-256 ${fileDigest.slice(0, 16)}…`}
+            </p>
+          )}
+          <Label>
+            说明（可选）
+            <Textarea
+              value={note}
+              onChange={(event) => {
+                setNote(event.target.value);
+              }}
+              maxLength={4096}
+              rows={3}
+            />
+          </Label>
+          <Button
+            variant="default"
+            type="submit"
+            disabled={file === null || fileDigest === null || project === null || busy.length > 0}
+          >
+            登记并上传
+          </Button>
+        </form>
+      </section>
+      {batchLoading && <p role="status">正在加载批次文件…</p>}
+      {!batchLoading && selected === null && previewId(previewBatch) && error !== null && (
+        <Button
+          onClick={() => {
+            setBatchAttempt((value) => value + 1);
+          }}
+        >
+          重新加载批次
+        </Button>
+      )}
       {selected !== null && (
         <Card asChild>
           <section className="panel" aria-labelledby="batch-detail-title">
             <h2 id="batch-detail-title">
               批次 {selected.batch.batchNo} · {statusLabel(selected.batch.status)}
             </h2>
-            <dl className="custody-facts">
-              <dt>原请求</dt>
-              <dd>{selected.batch.originalRequestId ?? '—'}</dd>
-              <dt>原始包</dt>
-              <dd>
-                {selected.batch.originalName} · {bytes(selected.batch.declaredBytes)}
-              </dd>
-              <dt>SHA-256</dt>
-              <dd className="mono">{selected.batch.zipSha256}</dd>
-              <dt>当前尝试</dt>
-              <dd>
-                {selected.batch.currentAttempt === undefined
-                  ? '无'
-                  : `${selected.batch.currentAttempt.kind} #${selected.batch.currentAttempt.number} · generation ${selected.batch.currentAttempt.generation} · ${selected.batch.currentAttempt.status}`}
-              </dd>
-              {selected.batch.note !== undefined && (
-                <>
-                  <dt>说明</dt>
-                  <dd>{selected.batch.note}</dd>
-                </>
+            <p className="custody-batch-name">
+              {selected.batch.originalName} · {bytes(selected.batch.declaredBytes)}
+            </p>
+            {manifest === null &&
+              selected.batch.reasonCodes.some(
+                (code) => !['ZIP_LIMIT_EXCEEDED', 'NESTED_ARCHIVE_NOT_ALLOWED'].includes(code),
+              ) && (
+                <p className="warning">
+                  本批次尚无可查看的文件清单。请核对下方允许的恢复动作和批次技术详情。
+                </p>
               )}
-            </dl>
+            {selected.batch.reasonCodes.includes('ZIP_LIMIT_EXCEEDED') && (
+              <Alert variant="warning" role="region" aria-label="资料包扫描限制">
+                <h3>资料包超过扫描限制</h3>
+                {selected.limitViolation === undefined ? (
+                  <p>此历史批次未记录具体超限项。请以新批次重新上传，使用当前规则检查。</p>
+                ) : (
+                  <>
+                    <p>{limitViolationText(selected.limitViolation)}</p>
+                    {selected.limitViolation.documentPath !== undefined && (
+                      <p className="mono">文件位置：{selected.limitViolation.documentPath}</p>
+                    )}
+                    <p>请整理文档或将资料拆分为较小的包，再通过“新增资料批次”重新上传。</p>
+                  </>
+                )}
+                <p className="muted">错误代码：ZIP_LIMIT_EXCEEDED</p>
+              </Alert>
+            )}
             {selected.batch.reasonCodes.includes('NESTED_ARCHIVE_NOT_ALLOWED') && (
               <Alert variant="warning">
                 <h3>请移除内层压缩文件后重新上传</h3>
@@ -948,7 +1153,9 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
                 <p>整理后的 ZIP 请通过“新增资料批次”上传，本次拒绝记录会保留。</p>
               </Alert>
             )}
-            {selected.batch.policyVersion === 'mvp.zip-input@1' &&
+            {['mvp.zip-input@1', 'mvp.zip-input@2', 'mvp.zip-input@3'].includes(
+              selected.batch.policyVersion ?? '',
+            ) &&
               selected.permittedActions.length > 0 && (
                 <p className="warning">
                   此批次使用旧版资料检查规则，不能继续上传或提取。请按允许的动作核对原尝试是否结束，再放弃该批次，整理资料后重新上传。
@@ -957,24 +1164,34 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
             {manifest !== null && (
               <>
                 <p>
-                  已封存清单：共 {manifest.totalEntries} 项，可分析来源 {manifest.acceptedEntries}{' '}
+                  已封存清单：共 {manifest.totalEntries} 项，已接收来源 {manifest.acceptedEntries}{' '}
                   项， 受限/不支持 {manifest.limitedEntries} 项。
                 </p>
+                <p className="muted">条目数包含系统附属文件；已接收不代表全文已读取或分析完成。</p>
                 {manifest.acceptedEntries === 0 && (
-                  <p className="warning">该安全包没有任何可分析来源；不能显示为可分析资料。</p>
+                  <p className="warning">该资料包没有已接收的文档来源，请先核对并处理受限条目。</p>
                 )}
-                <p className="mono small">{manifest.manifestHash}</p>
-                <Button
-                  className="link"
-                  onClick={() =>
-                    void download(
-                      `/bff/mvp/v1/projects/${projectId}/batches/${selected.batch.batchId}/sources/${manifest.originalZip.sourceId}/content`,
-                      'original.zip',
-                    )
-                  }
-                >
-                  下载原包
-                </Button>
+                <div className="read-check-actions">
+                  <ReadCheckLaunch
+                    key={selected.batch.batchId}
+                    projectId={projectId}
+                    batchId={selected.batch.batchId}
+                    manifestId={manifest.manifestId}
+                    csrfToken={csrfToken}
+                    onSessionFailure={onSessionFailure}
+                  />
+                  <Button
+                    className="link"
+                    onClick={() =>
+                      void download(
+                        `/bff/mvp/v1/projects/${projectId}/batches/${selected.batch.batchId}/sources/${manifest.originalZip.sourceId}/content`,
+                        'original.zip',
+                      )
+                    }
+                  >
+                    下载原包
+                  </Button>
+                </div>
               </>
             )}
             {selected.permittedActions.length > 0 && (
@@ -995,52 +1212,103 @@ export function CustodyProjectPage({ csrfToken, onSessionFailure }: CustodyPageP
                 ))}
               </div>
             )}
-            <h3>尝试历史</h3>
-            <ol className="custody-attempts">
-              {selected.attempts.map((attempt) => (
-                <li key={attempt.attemptId}>
-                  {attempt.kind} #{attempt.number} · generation {attempt.generation} ·{' '}
-                  {attempt.status}
-                  {attempt.endedAt === undefined ? '' : ` · 结束于 ${attempt.endedAt}`}
-                </li>
-              ))}
-            </ol>
             {entriesPage !== null && (
               <>
-                <h3>条目清单</h3>
+                <div className="custody-list-heading">
+                  <h3 ref={listHeading} tabIndex={-1}>
+                    条目清单
+                  </h3>
+                  <span className="muted" role="status">
+                    第 {entriesPage.entries.length === 0 ? 0 : entryPageIndex * entryPageSize + 1}–
+                    {entryPageIndex * entryPageSize + entriesPage.entries.length} 项，共{' '}
+                    {entriesPage.manifest.totalEntries} 项
+                  </span>
+                </div>
+                <p className="muted">点击“查看内容”核对已接收文档，或下载原件对照。</p>
                 {limited.length > 0 && (
-                  <p className="muted">
-                    受限/不支持条目仍保留在清单中，原因：{' '}
-                    {[...new Set(limited.flatMap((entry) => entry.reasonCodes))].join('、')}
-                  </p>
+                  <p className="muted">受限/不支持条目仍保留在清单中，请查看各条目的说明。</p>
                 )}
                 <EntryRows
                   projectId={projectId}
                   batchId={selected.batch.batchId}
                   entries={entriesPage.entries}
                   onDownload={(path, name) => void download(path, name)}
+                  onPreview={(sourceId) => {
+                    detailGeneration.current += 1;
+                    paging.current = false;
+                    setPageLoading(false);
+                    setPageError(null);
+                    setParameters({
+                      batch: selected.batch.batchId,
+                      manifest: entriesPage.manifest.manifestId,
+                      source: sourceId,
+                    });
+                  }}
                 />
-                {entriesPage.next !== undefined && (
-                  <Button
-                    onClick={() =>
-                      void getEntries(
-                        projectId,
-                        selected.batch.batchId,
-                        entriesPage.manifest.manifestId,
-                        entriesPage.next,
-                      ).then((page) => {
-                        setEntriesPage({
-                          ...page,
-                          entries: [...entriesPage.entries, ...page.entries],
-                        });
-                      })
-                    }
-                  >
-                    加载更多条目
-                  </Button>
+                {pageError !== null && (
+                  <Alert variant="warning">
+                    <p role="alert">{pageError}</p>
+                  </Alert>
                 )}
+                {pageLoading && (
+                  <p role="status" className="muted">
+                    正在加载分页…
+                  </p>
+                )}
+                <EntryPagination
+                  page={entryPageIndex + 1}
+                  pageCount={Math.max(
+                    1,
+                    Math.ceil(entriesPage.manifest.totalEntries / entryPageSize),
+                  )}
+                  pageSize={entryPageSize}
+                  loading={pageLoading}
+                  onPage={(page) => {
+                    void changeEntryPage(page);
+                  }}
+                  onPageSize={setEntryPageSize}
+                />
               </>
             )}
+            <details key={selected.batch.batchId} className="custody-technical">
+              <summary>批次技术详情</summary>
+              {selected.batch.reasonCodes.length > 0 && (
+                <p className="mono">批次原因码：{selected.batch.reasonCodes.join('、')}</p>
+              )}
+              <dl className="custody-facts">
+                <dt>原请求</dt>
+                <dd>{selected.batch.originalRequestId ?? '—'}</dd>
+                <dt>原始包</dt>
+                <dd>
+                  {selected.batch.originalName} · {bytes(selected.batch.declaredBytes)}
+                </dd>
+                <dt>SHA-256</dt>
+                <dd className="mono">{selected.batch.zipSha256}</dd>
+                <dt>当前尝试</dt>
+                <dd>
+                  {selected.batch.currentAttempt === undefined
+                    ? '无'
+                    : `${selected.batch.currentAttempt.kind} #${selected.batch.currentAttempt.number} · generation ${selected.batch.currentAttempt.generation} · ${selected.batch.currentAttempt.status}`}
+                </dd>
+                {selected.batch.note !== undefined && (
+                  <>
+                    <dt>说明</dt>
+                    <dd>{selected.batch.note}</dd>
+                  </>
+                )}
+              </dl>
+              {manifest !== null && <p className="mono small">清单摘要：{manifest.manifestHash}</p>}
+              <h3>尝试历史</h3>
+              <ol className="custody-attempts">
+                {selected.attempts.map((attempt) => (
+                  <li key={attempt.attemptId}>
+                    {attempt.kind} #{attempt.number} · generation {attempt.generation} ·{' '}
+                    {attempt.status}
+                    {attempt.endedAt === undefined ? '' : ` · 结束于 ${attempt.endedAt}`}
+                  </li>
+                ))}
+              </ol>
+            </details>
           </section>
         </Card>
       )}

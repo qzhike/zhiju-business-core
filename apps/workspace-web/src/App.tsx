@@ -301,7 +301,7 @@ function FixtureApp() {
       <a className="skip" href="#main">
         跳到主要内容
       </a>
-      <header>
+      <header className="app-header">
         <Link className="brand" to="/workbench">
           <b aria-hidden="true">制</b>
           <strong>制巨</strong>

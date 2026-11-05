@@ -155,6 +155,131 @@ describe('MVP custody UI model', () => {
     ).toBeNull();
   });
 
+  it.each(['mvp.zip-input@3', 'mvp.zip-input@4'])(
+    'requires precise %s details while preserving old rejection history',
+    (policyVersion) => {
+      const batch = {
+        batchId: 'batch',
+        projectId: 'project',
+        batchNo: 1,
+        kind: 'INITIAL',
+        originalName: 'input.zip',
+        declaredBytes: 10,
+        zipSha256: 'a'.repeat(64),
+        status: 'REJECTED',
+        version: 5,
+        createdAt: '2026-11-04T00:00:00.000Z',
+        policyVersion,
+        reasonCodes: ['ZIP_LIMIT_EXCEEDED'],
+      };
+      const detail = { batch, attempts: [], permittedActions: [] };
+      const limitViolation = {
+        metric: 'OFFICE_ENTRIES',
+        actual: 20001,
+        limit: 20000,
+        documentPath: '资料/<file>.docx',
+      };
+      expect(parseBatchDetail(detail)).toBeNull();
+      expect(parseBatchDetail({ ...detail, limitViolation })?.limitViolation).toEqual(
+        limitViolation,
+      );
+      for (const invalid of [
+        null,
+        {},
+        { ...limitViolation, limit: 1000 },
+        { ...limitViolation, extra: true },
+      ])
+        expect(parseBatchDetail({ ...detail, limitViolation: invalid })).toBeNull();
+      for (const policyVersion of ['mvp.zip-input@1', 'mvp.zip-input@2']) {
+        const historical = { ...detail, batch: { ...batch, policyVersion } };
+        expect(parseBatchDetail(historical)?.limitViolation).toBeUndefined();
+        expect(parseBatchDetail({ ...historical, limitViolation })).toBeNull();
+      }
+      expect(
+        parseBatchDetail({ ...detail, batch: { ...batch, status: 'FAILED' }, limitViolation }),
+      ).toBeNull();
+      expect(
+        parseBatchDetail({
+          ...detail,
+          batch: { ...batch, manifestId: 'manifest' },
+          limitViolation,
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it('preserves accepted template explanations and rejects mismatched explanation/source states', () => {
+    const mediaType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const originalZip = {
+      sourceId: 'original',
+      sha256: 'a'.repeat(64),
+      byteLength: 100,
+      mediaType: 'application/zip',
+    };
+    const manifest = {
+      manifestId: 'manifest',
+      manifestHash: 'b'.repeat(64),
+      batchId: 'batch',
+      originalZip,
+      totalEntries: 2,
+      acceptedEntries: 1,
+      limitedEntries: 1,
+      createdAt: '2026-11-04T00:00:00.000Z',
+    };
+    const template = {
+      entryId: 'document',
+      ordinal: 0,
+      originalName: 'manual.docx',
+      normalizedPath: 'manual.docx',
+      status: 'ACCEPTED',
+      reasonCodes: ['EXTERNAL_TEMPLATE_NOT_LOADED'],
+      mediaType,
+      byteLength: 20,
+      sha256: 'c'.repeat(64),
+      sourceRef: {
+        projectId: 'project',
+        batchId: 'batch',
+        sourceId: 'source',
+        kind: 'ACCEPTED_ENTRY',
+        mediaType,
+        byteLength: 20,
+        sha256: 'c'.repeat(64),
+      },
+    };
+    const metadata = {
+      entryId: 'metadata',
+      ordinal: 1,
+      originalName: '._manual.docx',
+      normalizedPath: '._manual.docx',
+      status: 'UNSUPPORTED',
+      reasonCodes: ['SYSTEM_METADATA_NOT_DOCUMENT'],
+    };
+    expect(parseEntryPage({ manifest, entries: [template, metadata] })?.entries).toMatchObject([
+      { status: 'ACCEPTED', reasonCodes: ['EXTERNAL_TEMPLATE_NOT_LOADED'], sourceId: 'source' },
+      { status: 'UNSUPPORTED', reasonCodes: ['SYSTEM_METADATA_NOT_DOCUMENT'] },
+    ]);
+    for (const entry of [
+      { ...template, sourceRef: undefined },
+      { ...template, status: 'READ_LIMITED' },
+      { ...template, mediaType: 'application/zip' },
+      { ...template, sourceRef: { ...template.sourceRef, kind: 'ORIGINAL_ZIP' } },
+      { ...template, sourceRef: { ...template.sourceRef, sha256: 'd'.repeat(64) } },
+      {
+        ...template,
+        reasonCodes: ['EXTERNAL_TEMPLATE_NOT_LOADED', 'EXTERNAL_REFERENCE_REQUIRES_REVIEW'],
+      },
+      { ...metadata, status: 'ACCEPTED' },
+      { ...metadata, sourceRef: template.sourceRef },
+    ])
+      expect(parseEntryPage({ manifest, entries: [entry] })).toBeNull();
+    expect(
+      parseEntryPage({
+        manifest,
+        entries: [{ ...metadata, reasonCodes: ['INVALID_DOCX'], status: 'CORRUPT' }],
+      })?.entries[0],
+    ).toMatchObject({ reasonCodes: ['INVALID_DOCX'], status: 'CORRUPT' });
+  });
+
   it('fingerprints re-entered intent fields stably', async () => {
     const left = await stableFingerprint({ title: 't', customerName: 'c' });
     const right = await stableFingerprint({ customerName: 'c', title: 't' });

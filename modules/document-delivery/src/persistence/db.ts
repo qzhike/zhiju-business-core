@@ -68,23 +68,73 @@ export class MvpDatabase {
     await this.#pool.end();
   }
 
+  /** Cancellation retires the connection, so a timed-out transaction cannot commit later. */
+  async #acquire(signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    const client = await new Promise<PoolClient>((resolve, reject) => {
+      const cancel = () => {
+        reject(new DOMException('Database operation cancelled', 'AbortError'));
+      };
+      signal?.addEventListener('abort', cancel, { once: true });
+      void this.#pool.connect().then(
+        (connection) => {
+          signal?.removeEventListener('abort', cancel);
+          if (signal?.aborted) {
+            connection.release();
+            cancel();
+          } else resolve(connection);
+        },
+        (error: unknown) => {
+          signal?.removeEventListener('abort', cancel);
+          reject(error instanceof Error ? error : new MvpError('DEPENDENCY_UNAVAILABLE'));
+        },
+      );
+    });
+    let released = false;
+    const cancel = () => {
+      signal?.removeEventListener('abort', cancel);
+      if (!released) {
+        released = true;
+        client.release(true);
+      }
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
+    return {
+      client,
+      release: () => {
+        signal?.removeEventListener('abort', cancel);
+        if (!released) {
+          released = true;
+          client.release();
+        }
+      },
+    };
+  }
+
   /**
    * Run a read that does not yet have an owner context under the runtime role.
    * The login role never inherits table or function privileges directly.
    */
 
-  async #readRuntime<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
-    let client: PoolClient;
+  async #readRuntime<T>(
+    operation: (client: PoolClient) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    let connection: { client: PoolClient; release: () => void };
     try {
-      client = await this.#pool.connect();
+      connection = await this.#acquire(signal);
     } catch (error) {
       if (isDependencyFailure(error)) fail('DEPENDENCY_UNAVAILABLE');
       throw error;
     }
+    const { client } = connection;
     try {
+      signal?.throwIfAborted();
       await client.query('BEGIN');
       await client.query('SET LOCAL ROLE mvp_runtime');
       const result = await operation(client);
+      signal?.throwIfAborted();
       await client.query('COMMIT');
       return result;
     } catch (error) {
@@ -92,7 +142,7 @@ export class MvpDatabase {
       if (isDependencyFailure(error)) fail('DEPENDENCY_UNAVAILABLE');
       throw error;
     } finally {
-      client.release();
+      connection.release();
     }
   }
 
@@ -132,6 +182,7 @@ export class MvpDatabase {
 
   async currentBinding(
     ownerId: string,
+    signal?: AbortSignal,
   ): Promise<{ enabled: boolean; authEpoch: number } | undefined> {
     return this.#readRuntime(async (client) => {
       const result = await client.query(
@@ -141,7 +192,33 @@ export class MvpDatabase {
       const row = result.rows[0];
       if (row === undefined) return undefined;
       return { enabled: row.enabled === true, authEpoch: Number(row.auth_epoch) };
-    });
+    }, signal);
+  }
+
+  async pendingReadChecks(signal?: AbortSignal): Promise<
+    readonly {
+      ownerId: string;
+      projectId: string;
+      batchId: string;
+      checkId: string;
+      status: string;
+      authEpoch: number;
+    }[]
+  > {
+    return this.#readRuntime(
+      async (client) =>
+        (await client.query('SELECT * FROM document_delivery.pending_read_checks()')).rows.map(
+          (row) => ({
+            ownerId: String(row.owner_id),
+            projectId: String(row.project_id),
+            batchId: String(row.batch_id),
+            checkId: String(row.check_id),
+            status: String(row.status),
+            authEpoch: Number(row.authorized_auth_epoch),
+          }),
+        ),
+      signal,
+    );
   }
 
   async pendingExtractions(): Promise<
@@ -179,21 +256,25 @@ export class MvpDatabase {
     ownerId: string,
     projectId: string | undefined,
     operation: (client: PoolClient) => Promise<T>,
+    signal?: AbortSignal,
   ): Promise<T> {
-    let client: PoolClient;
+    let connection: { client: PoolClient; release: () => void };
     try {
-      client = await this.#pool.connect();
+      connection = await this.#acquire(signal);
     } catch (error) {
       if (isDependencyFailure(error)) fail('DEPENDENCY_UNAVAILABLE');
       throw error;
     }
+    const { client } = connection;
     try {
+      signal?.throwIfAborted();
       await client.query('BEGIN');
       await client.query('SET LOCAL ROLE mvp_runtime');
       await client.query("SELECT set_config('mvp.owner_id', $1, true)", [ownerId]);
       await client.query("SELECT set_config('mvp.project_id', $1, true)", [projectId ?? '']);
       await client.query("SET LOCAL statement_timeout = '20000ms'");
       const result = await operation(client);
+      signal?.throwIfAborted();
       await client.query('COMMIT');
       return result;
     } catch (error) {
@@ -202,7 +283,7 @@ export class MvpDatabase {
       if (isDependencyFailure(error)) fail('DEPENDENCY_UNAVAILABLE');
       throw error;
     } finally {
-      client.release();
+      connection.release();
     }
   }
 }

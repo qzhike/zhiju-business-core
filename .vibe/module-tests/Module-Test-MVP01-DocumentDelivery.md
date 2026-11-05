@@ -14,7 +14,7 @@
 | B1-02 | Persistence/HTTP：同 key 同 project/body 重复、同 key 改值/换project但沿用batch target、同 target 换 key；提交响应丢失 | 一个 Project 与固定 receipt；同意图返回原结果；冲突409无新增；原请求可授权回读；数据库未知不回空成功 | `AUTOMATED`：持久化与 HTTP 幂等/冲突/回读通过；构建浏览器在服务端已提交但成功响应丢失后保留原请求标记，并按同一键恢复原批次 |
 | B1-03 | Unit/Persistence/Browser：合法 DOCX/MD/XLSX 同包、目录、两个同名异目录文件 | 原 ZIP/accepted 条目的真实 bytes/sha/长度匹配；所有 entry 保持 ordinal与路径；manifest和计数完整，不以结构接受宣称语义读懂 | `AUTOMATED`（Unit/Persistence/Browser）：三格式、目录剔除、路径/ordinal、字节/hash/长度与内置浏览器读回通过 |
 | B1-04 | Persistence/Browser：首次失败、首次成功、补充批次、同名/同 bytes 新显式批次、同请求 replay | batchNo串行唯一；后续批次保留原件与旧manifest；重放不新增；前批失败仍可见；补充不自动改分析/范围/阶段依据 | `AUTOMATED`（Persistence/Browser）：补充批次、连续 batchNo、旧 manifest 不变、replay 通过；构建浏览器完成第 2 批补充并在刷新后分别读回两批 |
-| B1-05 | Safety：穿越/绝对/重复规范路径、symlink、加密、CRC/目录损坏、ZIP bomb、nested累计预算 | 不写任意宿主路径；外包安全失败零业务 source/manifest；预算累加不重置；不提高限制换绿灯；安全有限包逐项说明问题 | `PARTIAL AUTOMATED`：穿越/绝对/反斜杠/重复规范路径/CRC/截断已有单测；新增 symlink、加密标志、真实高压缩比 deflate 及跨嵌套 OOXML 累计条目预算反例已执行；不据此声称达到所有容量/时间/内存边界 |
+| B1-05 | Safety：穿越/绝对/重复规范路径、symlink、加密、CRC/目录损坏、ZIP bomb、按 policy 的外层/Office预算 | 不写任意宿主路径；外包安全失败零业务 source/manifest；预算按已批准 policy 累加不重置；不临时提高限制换绿灯；安全有限包逐项说明问题 | `PARTIAL AUTOMATED`：穿越/绝对/反斜杠/重复规范路径/CRC/截断已有单测；新增 symlink、加密标志、真实高压缩比 deflate 及跨嵌套 OOXML 累计条目预算反例已执行；不据此声称达到所有容量/时间/内存边界 |
 | B1-06 | OOXML：合法 XLSX inline/sharedStrings、空sheet/0/公式；缺workbook/sheet、重复rels、伪namespace、DTD/XXE、活动内容、外链 | 合法字节不改写；不计算公式、不联网；结构坏为CORRUPT，宏/嵌入活动内容UNSUPPORTED，外链READ_LIMITED；无伪造accepted引用；DOCX原防护回归 | `PARTIAL AUTOMATED`：合法 XLSX/DOCX、宏、坏 XLSX、外链已有单测；新增 sharedStrings/inlineStr/空 sheet/零值/公式原字节保留、缺 workbook/sheet、重复 rels ID、伪 namespace、DTD/XXE 拒绝均已执行；独立审查发现并修复被引用 styles/sharedStrings 非默认路径漏检，新增默认/非默认路径合法保留与缺 part、DTD、伪根/namespace、错误 media、逃逸及重复关系反例，并覆盖 Default ContentType 和外链保持 READ_LIMITED |
 | B1-07 | Unit/Browser：XLS/PDF/未知格式、坏UTF-8、全包0 accepted | 不支持/损坏/受限条目不消失；安全包PARTIAL和真实分母；0 accepted明确无可分析资料；转换通过新批次，不替换旧条目 | `PARTIAL AUTOMATED`：XLS/PDF、坏 UTF-8、0 accepted 与真实分母已有证据；构建浏览器与本机合成包的受限条目展示已运行；隔离 B1 的 0 accepted 专项浏览器检查确认两项受限条目不消失、无条目下载入口、明确无可分析来源且原包字节可回读 |
 | B1-08 | Concurrency/Persistence：双击、并发建batch、并发上传、重复/迟到generation、跨项目ref | 每项目一个活动批次，连续唯一batchNo；原attempt独占流，重复无覆盖；完整归属组合验证及RLS拒绝跨项目/owner；晚finish不更新新generation | `PARTIAL AUTOMATED`：并发 claim 只有一个成功、迟到旧 generation 完成被拒绝、跨 owner 读取拒绝已运行；隔离 B1 实际双击创建/上传仅发出一次对应请求并各生成一个项目/批次；本机锁回归覆盖同进程不同 fd、真实 SIGKILL 后多个进程竞争及 stale socket 恢复交错，确认同时最多一个持有者；完整并发上传流矩阵仍未运行 |
@@ -45,3 +45,45 @@
 - 执行证据进入对应 Issue/PR，注明完整代码 SHA、配置/输入匿名快照、目标与结果、剩余限制；不在此追加逐轮运行日志。私有内容、路径、截图、凭据不进入公开证据。
 
 独立实现审查和必要人类技术审查覆盖最终修订；有 PR 时关闭前保留 `.vibe/reviews/pr-<number>/Review.md`。设计批准本身不授权真实环境初始化或迁移；执行按具体实例授权，不能扩展到旧 A/B。
+
+## @3 资源预算与超限说明（已本地实现，证据绑定验证候选）
+
+| ID | 场景 | 断言 |
+| --- | --- | --- |
+| ZB-01 | 外层 1000/1001、Office 单份 1000/1001、累计 20000/20001 | 等值允许、越界整包拒绝；Office 与外层分开，跨文档/失败不重置 |
+| ZB-02 | 超过旧合并上限的正常 DOCX/XLSX 组合 | 新预算内完成扫描，格式与内容检查保留 |
+| ZB-03 | 字节、倍率、内存、耗时及 XML 各超限出口 | 有界闭合详情，正确计量依据、数值、上限；预算保护不变 |
+| ZB-04 | 伪造目录声明 1001 而实际仅 1 条、伪造展开/倍率 | 可提前拒绝；页面明确目录声明，不冒充完整读取；无未验证路径 |
+| ZB-05 | 拒绝事务、回滚、隔离、重启与同请求查询 | 状态/详情/占用原子提交；零业务来源/manifest；重启结果不变 |
+| ZB-06 | V0003 fresh/旧库升级/no-op、旧 @1/@2 历史和活动写者 | 旧迁移/历史不改，活动写者证明与显式放弃不绕过，新批次使用 @3 |
+| ZB-07 | 生产 Web 中文提示、历史无详情、恶意路径、窄屏 | 服务端事实驱动，未知/非法详情拒绝，文本安全，无布局溢出 |
+| ZB-08 | 两个真实原包本机只读扫描 | 记录新策略实际结果与逐项限制，不自动重传、不冒充持久化/人工内容验收 |
+
+独立关键用例清单保留原有名称与接受集，新增五项：旧 @1/@2 拒绝升级、新 @3 超限持久读回、新超限事务回滚、旧 @2 活动批次恢复边界、直接 HTTP 超限与原回执重放。`tools/persistence/critical-cases.json` 与上述用例共同审查；不放宽缺失、跳过或未登记用例的门禁。
+
+实现验证通过 `full`（含持久化）；本节场景描述不等于已执行证据。
+
+## @4 接收兼容性验收（已批准实现）
+
+唯一设计依据为 [SD-IC-01–04](../decisions/mvp-document-intake-compatibility.md)，以下场景由 `mvp-intake-compatibility.test.ts`、`mvp-document-delivery.test.ts`、`mvp-built-browser.test.ts`、`custody-intake.spec.ts` 及展示模型测试共同覆盖；IC-06 使用 Git 忽略的受控样本只读复测。执行结果绑定具体候选随交付提供，不继承旧 @3 的通过结论。
+
+| ID | 覆盖与成功条件 |
+| --- | --- |
+| IC-01 | 合成 method 8 四组压缩选项覆盖外层/DOCX/XLSX、descriptor/UTF-8 组合；method 0 误用、未知方法/位、加密、header 不一致、CRC/路径/预算反例仍拒绝，原件 hash 不变 |
+| IC-02 | AppleDouble/DS_Store 名称和签名共同匹配才归附属项；每项 ordinal/摘要/计数保留，无 SourceRef；普通隐藏文件、伪装及嵌套压缩不得绕过 |
+| IC-03 | DOCX 模板 settings 的完整 ContentType/主关系/namespace/唯一关系/直接子元素精确 id 匹配；Strict/Transitional 和不同前缀支持；缺失/重复/DTD/错引用及 namespace 拒绝，其他外链/宏/嵌入/XLSX 保持受限（包括 `.rels` / `.RELS` / 混合大小写扩展名的页眉关系），零目标网络/文件访问 |
+| IC-04 | 真实隔离数据库原子保存接收说明与来源，分页/下载/hash/归属与重启后事实一致；V4 fresh/升级/no-op，V1–V3 不改；旧 @1–@3 历史与活动尝试恢复不升级，@3/@4 超限与 @2–@4 嵌套拒绝约束一致 |
+| IC-05 | 生产构建桌面/320px 文件行完整显示已接收说明、附属条目和真正限制，中文下一步与技术码并存；无漏项或错误总数，安全文本、分页/刷新/来源和分析不可用状态保持 |
+| IC-06 | 隔离只读扫描真实原包，摘要前后相同；逐项变化符合规则，嵌入对象等残余问题不隐藏；扫描器证据不冒充真实上传、正文读取、Runner 或人工内容验收 |
+
+配置化出口为 `vibe verify full --json`，保留独立关键持久化用例登记与既有接受集，新增 @4 说明/来源持久化及旧 @3 迁移恢复反例。实际实例部署和客户重新上传另行授权；本节不记录尚未完成的人工验收为通过。
+
+
+## 已接收资料只读内容核对（2026-11-04）
+
+验收矩阵为[设计 SP-01–07](../decisions/mvp-source-content-preview.md#5-可验证出口)，实现配置目标为 full。对应：SP-01 合成 DOCX/Markdown 内容与换行；SP-02 HTTP/真实持久来源的 owner/project/batch/manifest/source 与期间失权；SP-03 支持集、模板/图片/空内容及四类文本修订限制；SP-04 全部辅助 XML 与输出 schema/XSS/外部资源；SP-05 调用前输出放大、执行期文件/内存/管道/临时配额、超时取消/并发/依赖漂移；SP-06 built-browser 1440/320、返回分页、刷新重登/迟到响应及原件不变；SP-07 真实 90 来源的只读覆盖记录。配置化自动化与实际私有来源、人工内容验收分别留证，不把未执行项写成 PASS。合成固定 reader 快照仅作测试 fixture，不成为生产替代读取器。
+
+
+## 整批资料读取检查增量（2026-11-04）
+
+实施与结果按 [BR-01–06](../decisions/mvp-batch-read-check.md#5-可验证出口)。合成自动化由 `mvp-read-checks.test.ts`、`mvp-source-preview.test.ts`、`mvp-built-browser.test.ts` 及相应 UI 用例覆盖；当前候选的完整验证与审查证据在交付时绑定，真实客户整包与人工内容验收保持 NOT RUN。必须覆盖：混合/零accepted清单计数守恒、真实固定reader输出与原说明；当前owner/epoch/manifest隔离；同键重放异载荷及跨请求并发；数据库结果/版本原子提交和终态不可变；有签名的旧版本分页409与筛选/容量作用域拒绝；忙碌共享槽、总时限（含 claim/next/commit 的真实数据库锁等待和 COMMIT 前取消回滚）、依赖漂移、撤权、原件损坏；提交失联读回、RUNNING→UNKNOWN→再次启动收敛、进程树继承锁/fencing、保留卷重启与新任务保留旧结果。正文不能进入结果表、日志或普通API。真实PostgreSQL与built-browser不能由mock替代；全量真实内容人工验收单列。

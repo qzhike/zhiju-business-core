@@ -45,7 +45,15 @@
     "refuses to advance execution under a changed authorization epoch",
     "rejects nested archives in initial and supplement batches and persists their paths across restart",
     "rolls back nested rejection paths, status and active-slot release together",
-    "blocks old-policy execution and requires ended writers, reconciliation and explicit abandonment"
+    "blocks old-policy execution and requires ended writers, reconciliation and explicit abandonment",
+    "upgrades @1/@2 rejection records without changing old facts or receipts",
+    "persists an exact budget refusal across restart, isolates reads and admits a new @4 batch",
+    "rolls back limit rejection details, status and active-slot release together",
+    "blocks mvp.zip-input@2 execution and requires ended writers, reconciliation and explicit abandonment",
+    "upgrades @3 refusal details through V0004 without changing historical facts",
+    "seals @4 template explanations and metadata with exact sources across pagination and restart",
+    "rolls back entry acceptance when an entry row write fails and preserves prior custody with a template explanation",
+    "blocks mvp.zip-input@3 execution and requires ended writers, reconciliation and explicit abandonment"
   ],
   "tests/persistence/mvp-http.test.ts": [
     "excludes another Core before startup recovery and releases ownership after shutdown",
@@ -53,9 +61,19 @@
     "creates, replays and rejects changed idempotent project intents",
     "rejects unknown queries, duplicate JSON keys and missing idempotency keys",
     "uploads a three-format package, extracts it and serves exact original bytes",
-    "rejects nested archives through direct HTTP and replays the original creation receipt"
+    "rejects nested archives through direct HTTP and replays the original creation receipt",
+    "rejects over-budget input through direct HTTP and replays the original creation receipt"
   ],
   "tests/persistence/mvp-postgres-restart.test.ts": [
     "reads the same accepted manifest after a real PostgreSQL stop-start"
+  ],
+  "tests/persistence/mvp-read-checks.test.ts": [
+    "persists exact mixed-manifest metadata through the real reader and idempotent service entry",
+    "binds concurrent requests, immutable results and mutable-filter cursors to one exact check version",
+    "keeps UNKNOWN occupied until inherited reader ownership ends and reconciles it on a later startup",
+    "reads back a committed result after response loss and never stores a BUSY outcome",
+    "stops revoked original authorization and preserves completed results under a new login epoch",
+    "explains zero accepted entries and stops task-wide dependency and time failures without fabricating file results",
+    "cancels database waits and rolls back results at the task deadline without late completion"
   ]
 }

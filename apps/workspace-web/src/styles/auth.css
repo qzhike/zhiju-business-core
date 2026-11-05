@@ -1,0 +1,45 @@
+.auth-main {
+  max-width: none;
+}
+.auth-panel {
+  width: 100%;
+  max-width: 480px;
+  margin: 48px auto;
+  padding: 32px;
+}
+.auth-panel .auth-eyebrow {
+  margin: 0 0 12px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.auth-panel h1 {
+  font-size: 24px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.auth-panel .auth-description {
+  margin: 12px 0 0;
+  color: var(--muted-foreground);
+}
+.auth-panel .auth-message {
+  margin-top: 24px;
+}
+.auth-panel .auth-action {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 28px;
+  white-space: normal;
+}
+.auth-panel .auth-help {
+  margin: 20px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .auth-panel {
+    margin: 24px auto;
+    padding: 24px 20px;
+  }
+}

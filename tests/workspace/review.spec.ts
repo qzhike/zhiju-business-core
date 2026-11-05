@@ -515,7 +515,7 @@ test('production build excludes the review workspace fixture and cannot fall bac
     expect(bytes).not.toContain('多处修改示例');
   }
   await page.goto(workspace);
-  await expect(page.getByRole('alert')).toContainText('登录与公开业务服务尚未接入');
+  await expect(page.getByRole('alert')).toContainText('暂时无法连接工作空间服务');
   await expect(page.locator('.review-controls')).toHaveCount(0);
   await expect(page.locator('.markdown-review')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /提交并修改/ })).toHaveCount(0);

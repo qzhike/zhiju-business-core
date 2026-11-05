@@ -1,16 +1,18 @@
 /**
  * The fixed MVP01 input policy. The current version is written onto every batch
  * at creation, so a later policy cannot retroactively change an old receipt or
- * manifest. Limits are the already-approved D14 cumulative budgets; B1 does not
- * raise them.
+ * manifest. Office part counts have separate approved budgets; byte, time and memory
+ * limits remain shared across the complete scan.
  */
 
-export const MVP_INPUT_POLICY_VERSION = 'mvp.zip-input@2';
-export const MVP_EXTRACTOR_VERSION = 'mvp.input-extractor@2';
+export const MVP_INPUT_POLICY_VERSION = 'mvp.zip-input@4';
+export const MVP_EXTRACTOR_VERSION = 'mvp.input-extractor@4';
 
 export const MVP_INPUT_LIMITS = Object.freeze({
   zipBytes: 104857600,
   entries: 1000,
+  officeDocumentEntries: 1000,
+  officeEntries: 20000,
   totalExpandedBytes: 524288000,
   entryBytes: 52428800,
   expansionRatio: 100,

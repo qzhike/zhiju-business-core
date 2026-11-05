@@ -6,7 +6,7 @@
 
 本文件拥有新精简应用的 B1 字段、状态和操作语义；[B1 设计](../mvp/b1-design.md)拥有取舍，模块所有权由 02、持久化映射由 07 拥有。旧七模块 API/Schema 的约束不被追溯更改。B2–B5 未在此注册或实现。
 
-2026-11-03 用户已决定取消嵌套 RAR 处理，上传含内层压缩文件时整包拒绝。新上传策略已按第 8 节在本地实现；`@1` 结果保留历史含义，现有实例迁移与部署尚未执行。
+2026-11-03 用户已决定取消嵌套 RAR 处理，上传含内层压缩文件时整包拒绝。指定测试实例已按单独升级授权运行第 10 节的 `@4` 接收兼容性及 V0004；客户新批次已实际接收，人工内容验收仍待执行。旧结果保留历史含义。
 
 ## 1. 范围、身份与基础类型
 
@@ -111,13 +111,13 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 
 ## 5. ZIP、DOCX 与 XLSX 接收 policy
 
-当前 MVP policy 标识 `mvp.zip-input@2`，固定于批次创建时；旧 `@1` 保持历史语义；后续 policy 变化不修改旧 receipt/manifest。旧 D14 policy 原值与格式集不变。首版沿现有预算，不提高：原 ZIP 100 MiB、累计展开500 MiB、单 entry 50 MiB、累计 entry 1000、压缩比100、path UTF-8 240 bytes/16层、120秒处理时间、512 MiB工作内存。累计数/字节包含外层与 DOCX/XLSX 内层，使用流式计数；不得只看 header 或分别重置预算。实施时对正式来源测量，超出则明确拒绝/限读并回到 design review，不能临时放宽或宣称300+规模通过。
+新批次使用 `mvp.zip-input@4`，在创建时固定；新 manifest 固定同一 policy 与 `mvp.input-extractor@4`。旧 `@1/@2/@3` receipt/manifest/拒绝结果保持历史含义，不回填或重扫。`@4` 的接收兼容性见第 10 节，预算沿用用户于 2026-11-04 批准的[预算增量](../decisions/mvp-zip-resource-budgets.md)：外层 ZIP 文件与目录最多 1000 条，单份 Office 内部条目最多 1000 条，全部 Office 内部条目共享 20000 条；目录和格式校验失败的已计量条目仍消耗预算，不返还、不逐文件重置。原 ZIP 100 MiB、累计展开 500 MiB、单 entry 50 MiB、展开倍率 100、path UTF-8 240 bytes / 16 层、120 秒、512 MiB 工作内存保持原值。展开字节、内存、耗时仍覆盖外层及 Office 整次扫描，CRC/真实长度仍须校验。旧 D14 policy 不改变，不以新额度宣称任意 1000 份文档或正式容量验收通过。
 
 - 外层：校验 ZIP 目录/CRC/实际长度、重复或冲突 normalized path、绝对路径/`..`/反斜杠路径歧义、symlink/设备、加密及递归 ZIP；全包安全或完整性失败为 REJECTED。目录项保留目录关系，不假装文档文件；普通文件每个ordinal保留一条结果。内层压缩文件按第 8 节整批拒绝，不递归提取；旧 `@1` 的逐项 UNSUPPORTED 结果保持历史语义。
 - Markdown：严格 UTF-8 解码；数据字节只保存、不执行。渲染安全沿现有安全 Markdown 边界，B1 不新增正文预览/解析业务能力。非法编码为 CORRUPT。
 - DOCX：复用已批准的 namespace-aware XML/OOXML 校验，包括 ContentTypes、根关系及主文档；坏包逐项 CORRUPT。无 DTD/外部实体，无伪根/重复展开属性/未绑定前缀；注释、CDATA、PI 不提供结构证明。
 - XLSX：只接收非宏 `.xlsx` OOXML ZIP。ContentTypes 必须声明 SpreadsheetML workbook，根 officeDocument relationship 指向唯一存在的 workbook；workbook 的 sheet 声明和其 relationship 必须唯一、内部、解析到确实存在的 worksheet，禁止缺失/重复关系、目标路径逃逸及用扩展名替代实际 media 检查。workbook/relationship/worksheet 及被引用的 styles/sharedStrings（如存在）均按同一安全 XML 规则验证；不需要存在 sharedStrings 才接受 inline string。空工作表合法，空值、0、公式与 cached value 都按原字节保留，不重新计算或承诺读取完整业务内容。
-- 任一 Office 条目发现 macro-enabled ContentType、VBA、ActiveX/OLE 嵌入活动内容时为 UNSUPPORTED（`ACTIVE_CONTENT_NOT_SUPPORTED`），即使文件名伪装 docx/xlsx；不剥离后冒充干净原件。外部 relationship/链接不访问，保留原件隔离并标记 READ_LIMITED（`EXTERNAL_REFERENCE_REQUIRES_REVIEW`），不提供 ACCEPTED SourceRef 给后续 Runner。普通公式文本不执行，不以出现公式本身拒绝 XLSX。
+- 任一 Office 条目发现 macro-enabled ContentType、VBA、ActiveX/OLE 嵌入活动内容时为 UNSUPPORTED（`ACTIVE_CONTENT_NOT_SUPPORTED`），即使文件名伪装 docx/xlsx；不剥离后冒充干净原件。外部 relationship/链接不访问；仅 `@4` 的精确 DOCX 模板例外按第 10 节静态接收，其余保留原件隔离并标记 READ_LIMITED（`EXTERNAL_REFERENCE_REQUIRES_REVIEW`），不提供 ACCEPTED SourceRef 给后续 Runner。普通公式文本不执行，不以出现公式本身拒绝 XLSX。
 - XLS/PDF/未知类型逐项 UNSUPPORTED；零可支持条目的安全包可以 PARTIAL 托管并展示完整限制，但 `acceptedEntries=0`，不能显示可分析。用户转换或修正内容通过新补充批次进入。
 - 宏/外链/恶意 XML、结构/CRC 故障均应保持可解释限制。达到全包累计预算拒绝整个包；单文件结构故障不抹去其他通过条目，但只有全包安全已确认才允许提交 PARTIAL。
 
@@ -137,10 +137,64 @@ Attempt status 闭集为 `PREPARED|RUNNING|SUCCEEDED|FAILED|UNKNOWN|ABANDONED`�
 
 状态：`PRODUCT AND TECHNICAL DESIGN APPROVED 2026-11-03 / IMPLEMENTED LOCALLY`。取舍及范围见 [设计提案](../decisions/mvp-nested-archive-rejection.md)；本节不重写既有 `@1` 的历史行为。
 
-- 新批次固定 policy `mvp.zip-input@2`；成功 manifest 固定相同 policy 与 `mvp.input-extractor@2`。预算和普通文档支持集沿用第 5 节。外层 ZIP 安全、完整性及全局预算失败优先按原规则拒绝，不以不可信路径构造说明。路径长度预算同时检查原始 UTF-8 名称与 NFC 规范路径；任一超限沿既有 ZIP_UNSAFE 整包拒绝，不截断或改写名称后保存拒绝详情。
+- 本节最初引入 policy `mvp.zip-input@2` / `mvp.input-extractor@2`；新 `@3` 继续执行同一嵌套拒绝规则，预算按第 5、9 节。外层 ZIP 安全、完整性及全局预算失败优先按原规则拒绝，不以不可信路径构造说明。路径长度预算同时检查原始 UTF-8 名称与 NFC 规范路径；任一超限沿既有 ZIP_UNSAFE 整包拒绝，不截断或改写名称后保存拒绝详情。
 - 外层安全扫描发现任意内层压缩文件时，在成员对象接纳和 manifest 封存前拒绝整个批次；`batch.status=REJECTED`，`reasonCodes` 包含新值 `NESTED_ARCHIVE_NOT_ALLOWED`，当次 EXTRACT 尝试结束为 FAILED，保留原 Request/Attempt。零 ACCEPTED_ENTRY / 零 manifest，不把正常文件先写成部分接纳结果。
 - `mvp.get_input_batch` 的成功 result 增加可选 `rejectedArchivePaths: string[]`，只在该批次因嵌套压缩文件拒绝时返回，按外层目录 ordinal 排序。每项是安全扫描后的原始包内路径，不是宿主路径、内容链接或 SourceRef。数组非空，受既有条目数和路径字节预算限制；不转义后存储、不当 HTML 执行。其他批次省略字段，不用空数组冒充扫描成功。
 - 拒绝路径作为 owning batch 的持久事实，与该次 REJECTED、错误原因、活动占用释放在同一事务保存；读取使用现有 owner/project 权限检查，拒绝详情不放入通用日志。响应丢失后查询原批次/请求，刷新及重启读回相同事实，不重新发起提取。
-- 初始、补充批次同样检查。压缩文件名大小写和常见实际签名均覆盖；带 ZIP 签名的 `.docx/.xlsx` 必须先识别 OOXML 容器结构，扩展名本身不构成豁免依据。没有 OOXML 包级结构依据的改名 ZIP 按 `NESTED_ARCHIVE_NOT_ALLOWED` 整包拒绝，不能仅返回 INVALID_DOCX/XLSX 后部分接纳。正常 OOXML 文档不误拒；有 OOXML 容器结构依据但内部文档损坏、含活动内容或外链的条目继续按原 CORRUPT / UNSUPPORTED / READ_LIMITED 规则处理，结构身份识别不替代完整校验。累计预算不放宽。内层压缩文件不递归展开，不产生成员清单。
+- 初始、补充批次同样检查。压缩文件名大小写和常见实际签名均覆盖；带 ZIP 签名的 `.docx/.xlsx` 必须先识别 OOXML 容器结构，扩展名本身不构成豁免依据。没有 OOXML 包级结构依据的改名 ZIP 按 `NESTED_ARCHIVE_NOT_ALLOWED` 整包拒绝，不能仅返回 INVALID_DOCX/XLSX 后部分接纳。正常 OOXML 文档不误拒；有 OOXML 容器结构依据但内部文档损坏、含活动内容或外链的条目继续按原 CORRUPT / UNSUPPORTED / READ_LIMITED 规则处理，结构身份识别不替代完整校验。资源预算按批次的明确 policy 执行。内层压缩文件不递归展开，不产生成员清单。
 - 拒绝批次不可通过 retry 更换字节；用户移除内层压缩文件并重新打包后创建新批次。旧批次、原包隔离对象及失败历史保留，不自动删除。
 - 数据库新增迁移允许 `@1/@2` 并保存拒绝路径，不改旧迁移或历史 receipt/manifest。旧 `@1` 已完成/终态结果照常只读；未完成旧批次不自动按新规则续跑。必须先证明原写者结束，再由用户显式放弃后重新上传；UNKNOWN/活动写者仍先核对，不以 policy 不同绕过结束证明或清除项目占用。旧 policy 的 RECONCILE 在持有批次事务锁并证明所有旧写者结束后，仅收敛为 FAILED / RECOVERY_REQUIRED，保留项目占用；之后显式 ABANDON 才释放占用，不恢复 STAGED 或授予继续提取。实现须同步其允许动作与服务端写入校验。
+
+## 9. 分离资源预算与持久超限详情
+
+用户已批准 @3 技术设计，具体数值见第 5 节。只对新 MVP 生效；任何未结束的 @1/@2 批次仍须证明原写者结束、RECONCILE 收敛、显式 ABANDON 后新建批次，不允许按 @3 自动续跑。旧已结束结果不修改。
+
+`mvp.get_input_batch` data 新增可选闭对象 `limitViolation`。仅 @3、REJECTED、reasonCodes 包含 ZIP_LIMIT_EXCEEDED 且无 manifest 时允许并必须提供；其他原因省略，旧 @1/@2 缺省，不用 null。两种形状：
+
+- `{metric, actual, limit, documentPath?}`：metric 为 ZIP_BYTES / OUTER_ENTRIES / OFFICE_DOCUMENT_ENTRIES / OFFICE_ENTRIES / ENTRY_BYTES / EXPANDED_BYTES / MEMORY_BYTES / PROCESSING_TIME_MS；actual、limit 为非负安全整数，actual > limit，limit 精确匹配该 policy。
+- `{metric:'EXPANSION_RATIO', expandedBytes, compressedBytes, limit:100, documentPath?}`：两个字节值为非负安全整数；compressedBytes 为 0 时 expandedBytes 必须正，否则 expandedBytes / compressedBytes > 100。禁止其他字段、Infinity、NaN、null 或非法数值。
+
+ZIP_BYTES 计量实际输入 Buffer 长度；三个 ENTRIES 计量 ZIP 结束目录声明数（OFFICE_ENTRIES 为已经遇到的 Office 声明数之和）；ENTRY_BYTES、EXPANDED_BYTES 计量目录声明展开大小及其累计值，EXPANSION_RATIO 计量目录声明的字节对；MEMORY_BYTES 计量已有工作内存公式（含预留），PROCESSING_TIME_MS 计量已运行时间。目录声明可能在 CRC/真实长度核验前触发拒绝，UI 不得把它称为已完整读取数量或实际解压结果；不为展示继续解包。
+
+可选 documentPath 仅来自已经通过外层安全/完整性解析的原始 Office 路径，非空、UTF-8 最多 240 bytes，保留原文本且按安全路径规则检查。外层失败没有该字段，内层部件、宿主路径、原文与栈不返回。保留第一个超限事实，actual 为该计量依据下的当时值，不是全包完成统计。
+
+详情与该次失败尝试、REJECTED、错误原因及活动占用释放同一事务落库，零 ACCEPTED_ENTRY、零 manifest；owner/project 授权不变，详情不进入通用日志/事件。刷新、重启、原批次查询返回相同详情。旧记录仅有代码时明确“此历史批次未记录具体超限项”，不得倒推新阈值、虚填 0 或宣称重新接纳。
+
+持久映射为新增 V0003 / nullable JSONB limit_violation；数据库检查闭合形状、精确限额、状态/policy/原因/manifest 关系。旧迁移不修改，嵌套拒绝路径约束允许 @2/@3。读模型及 UI 同步验证可选字段，历史兼容只读。实施出口见 ZB-01–08；实际实例升级及重新上传另行取证。
+
+## 10. @4 真实文档接收兼容性（已批准）
+
+用户于 2026-11-04 批准[SD-IC-01–04](../decisions/mvp-document-intake-compatibility.md)，在保留第 5、8、9 节安全边界和原字节的前提下实施：
+
+1. 外层和 Office ZIP 仅支持 method 0/8；method 8 允许 bit 1/2 压缩选项与原 bit 3/11，method 0 不允许 bit 1/2。加密、未知位/方法、local/central 不一致、CRC/长度/路径/资源失败仍拒绝，不改写压缩标志或原件。
+2. 路径 basename 为 `._*` 且 magic/version 为 AppleDouble v2，或 basename 为 `.DS_Store` 且签名匹配，分类为 `UNSUPPORTED` + `SYSTEM_METADATA_NOT_DOCUMENT`。只识别名称与签名共同匹配的附属文件，不忽略整个 `__MACOSX` 目录或隐藏文件。外层安全、预算及嵌套压缩检查先执行；保留每个条目的身份、路径、ordinal、摘要与计数，无 SourceRef。
+3. 唯一静态模板例外只用于非宏 DOCX：原结构与活动内容校验通过，所有外部关系均为 `word/_rels/settings.xml.rels` 中唯一的完整 Transitional/Strict attachedTemplate 类型、正确关系 namespace、精确 `TargetMode=External`。`word/settings.xml` 的 ContentType 和主文档到 settings 的唯一内部关系必须一致；安全 XML 的 WordprocessingML settings 根下唯一直接 attachedTemplate 子元素，使用关系 namespace 的 `id` 精确引用。缺失、重复、错 namespace 或结构不一致为 CORRUPT；其他有效外部引用仍 READ_LIMITED。不可仅凭名称、URI 后缀或固定前缀 `r` 判断。
+4. 模板例外为 `ACCEPTED` + `EXTERNAL_TEMPLATE_NOT_LOADED`，保留实际原 bytes/hash/SourceRef。`ACCEPTED.reasonCodes` 可有此接收说明，不表示读取了模板或全文。无文件/网络目标访问、Office 调用、引用删除或重压缩。混合其他外链、宏、OLE/嵌入对象不享受例外，XLSX 外链规则不变。后续 Runner 接入须保留说明并证明不会解析外部目标；当前分析仍 UNAVAILABLE。
+5. V0004 允许 @1–@4，嵌套拒绝路径约束适用于 @2–@4，第 9 节强制 limitViolation 约束适用于 @3/@4；额度和对象形状不变，V0001–V0003 checksum 不变。旧活动 @1/@2/@3 批次不得按新 policy 自动继续；沿既有写者结束证明、核对、显式放弃和新批次上传规则恢复。旧完成历史不重写。
+6. 清单继续逐项分页，计数含附属文件；ACCEPTED 带说明不算受限，元数据仍算受限，批次可为 PARTIAL。页面在全部文件行显示模板说明，附属项和活动内容提供准确中文解释；历史不从名称反推新分类。静态接纳不等同于全文读取、分析或完整业务验收。
+
+
+## 11. 已接收资料只读内容核对（2026-11-04 已批准）
+
+依据 [SD-SP-01–04](../decisions/mvp-source-content-preview.md)，新增 `mvp.get_source_preview` GET `/projects/{projectId}/batches/{batchId}/sources/{sourceId}/preview?manifestId={manifestId}`。完整当前归属、sealed manifest 与 ACCEPTED_ENTRY 校验前不得读 bytes；原 ZIP 不适用。读取前和返回前核对 enabled/authEpoch，HTTP 返回前复核 token/session。复用原件完整性检查；响应 no-store，不写库、不改变原件/清单或业务读取状态。
+
+闭响应：`{sourceRef,manifestId,fileName,profileId:'mvp.source-preview@1',status,limitations,sections?}`。fileName 为已验证来源的原文件名；status 为 AVAILABLE/LIMITED/UNSUPPORTED/UNAVAILABLE。limitations 为闭原因码数组：`EXTERNAL_TEMPLATE_NOT_LOADED, EXTRACTED_VIEW_ONLY, TABLE_TEXT_REPEATED, NUMBERING_NOT_RENDERED, TEXT_REVISIONS_ONLY, MEDIA_NOT_INTERPRETED, INCOMPLETE_EXTRACTION, FORMAT_NOT_SUPPORTED, NESTED_TABLE_NOT_SUPPORTED, EMPTY_CONTENT, UNSAFE_CONTENT, RESOURCE_LIMIT, TIMEOUT, BUSY, DEPENDENCY_UNAVAILABLE, INVALID_READER_OUTPUT, CANCELLED`。AVAILABLE/LIMITED 必须有非空实际内容，其他状态没有 sections。身份/权限/完整性沿用既有错误；本次预览失败以 UNAVAILABLE 和原因码返回，可显式重试，不能降格为成功空白。
+
+sections 为以下闭联合：Markdown `{format:'MARKDOWN',source}`（严格解码原 bytes，保留 CRLF/CR/LF）；DOCX `{format:'DOCX',paragraphs,tables,headersFooters,comments,revisions,fields}`。paragraphs 项 `{position,text,style?}`；tables 项 `{position,rows}`，每行 `{cells}`，cell `{text,column,colSpan,rowSpan}`；headersFooters 项 `{part,text}`；comments 项 `{id,text,paragraphs:number[]}`；revisions 项 `{kind:'ins'|'del'|'moveFrom'|'moveTo',id,text}`；fields 项 `{part,text}`。数组/字符串、表格行列与跨度必须有界验证；不透传任意 Runner JSON、外部模板地址、编号定义或宿主路径。DOCX 至少 LIMITED；修订只包含已提取文本类型，无原位/格式修订完整性承诺。XLSX、Strict DOCX、嵌套表格 UNSUPPORTED。
+
+固定代码快照、预先放大预算、独立进程与执行期保护、原始产物/管道/temp 预算、取消/超时及重启清理按 SD-SP-02/03 的精确数值实施。配置 `ZHIJU_MVP_PREVIEW_RUNNER_ROOT` 与 `ZHIJU_MVP_PREVIEW_PYTHON` 仅服务端提供绝对路径，缺失/漂移仅使预览不可用；不影响已有托管启动。临时目录属于已验证 store 的本实例 preview 子目录，其他实例/原件不清理。未来 profile 改动不得沿用旧阅读覆盖证据。
+
+
+## 12. 整批资料读取检查（2026-11-04 已批准）
+
+[SD-BR-01–04](../decisions/mvp-batch-read-check.md) 已获用户批准。以下只拥有技术读取检查，不发布分析、候选或业务 READ；原批次、manifest、来源和接收说明不变。
+
+操作为 create/list/get/list entries：POST `/projects/{projectId}/batches/{batchId}/read-checks` body `{manifestId}`，Idempotency-Key 必填，返回 `{check:ReadCheckView}` + receipt（首次202、重放200）；GET 同路径 `limit=20(1..50),cursor?` 返回 `{items:ReadCheckView[],nextCursor?}`；GET `.../read-checks/{checkId}` 返回 `{check}`；GET `.../{checkId}/entries` 接受 `limit=20(1..100),cursor?,filter=ALL,resultVersion?`，返回 `{check,filter,total,entries:ReadCheckEntry[],nextCursor?}`。未知/重复字段拒绝。resultVersion 为正安全整数；有 cursor 时必须同时提供其 resultVersion。cursor 的签名作用域绑定 owner/epoch/project/batch/checkId/filter/limit/resultVersion，ordinal 为分页位置。先验证签名和作用域，再比较版本；版本失配409 READ_CHECK_RESULTS_CHANGED，跨作用域仍 CURSOR_INVALID。首次列表的行、分类总数和版本来自同一数据库观察；历史任务列表使用创建高水位，不混入后续新任务。
+
+ReadCheckView 为 `{checkId,projectId,batchId,manifestId,manifestHash,profileId,profileHash,status,resultVersion,totalEntries,counts,createdAt,startedAt?,endedAt?,reasonCodes}`。counts 闭对象为 `{available,limited,unsupported,failed,notEligible,pending}`，和恒等于 totalEntries；全部非 pending 即完成检查，COMPLETED 允许包含失败或限制。状态闭集 QUEUED/RUNNING/COMPLETED/INTERRUPTED/FAILED/UNKNOWN。终态不可改；UNKNOWN 不是终态且保留项目占用。profileId 使用固定 `mvp.batch-read-check@1`，profileHash 绑定当前 preview profile、三份 reader 摘要、全部单份预算、60分钟总时限和16KiB元数据上限；漂移不自动升级旧任务。
+
+ReadCheckEntry 为 `{entry:ManifestEntry,result?:ReadCheckResult}`。无 result 表示尚未检查；原 entry 完整保留。result 为 `{entryId,ordinal,status,profileId,checkedAt,limitations,resultHash?,counts?}`，status=AVAILABLE/LIMITED/UNSUPPORTED/FAILED/NOT_ELIGIBLE。limitations 只允许当前 PreviewReason 与批次检查闭集（STORAGE_INTEGRITY_ERROR、AUTHORIZATION_CHANGED、CHECK_TIME_LIMIT、CHECK_INTERRUPTED）；NOT_ELIGIBLE 的接收原因从 entry.reasonCodes 读取。取得内容才有 resultHash/counts；hash 为 `sha256CanonicalJson({profileId,sourceRef,manifestId,status,limitations,sections})`，不含易变时间。counts 闭对象 `{paragraphs,tables,comments,revisions,headersFooters,characters}`，均为非负安全整数；Markdown 只计 characters，DOCX 按提取结构计数，不宣称原件版式/业务已理解。结果存储不得包含 sections、原始异常或客户正文；单份 result JSON ≤16KiB。正常预览仍按需计算，不能称为报告的历史正文。
+
+同键幂等将 payload 固定到路径 batchId 和 manifestId；创建 Request 和任务同事务，原授权 owner/epoch 不因重放改变。每项目仅一个 QUEUED/RUNNING/UNKNOWN，冲突409 READ_CHECK_ACTIVE 并附闭 `details:{checkId,batchId}`，仅当前授权项目可见。任务不存在/越界404，未封存或 manifest 不匹配409 READ_CHECK_NOT_READY。读写都核对当前 binding；worker 开始及每次结果提交前锁定并核对原授权。每项结果插入、resultVersion递增、可能COMPLETED及状态事件同事务；结果append-only，与任务/原entry/manifest强绑定。当前授权改变停止旧任务，不用新epoch续跑；恢复可记录已证实的中断事实，不接纳新读取结果。
+
+实例调度串行、逐项释放内存，复用预览解析槽。BUSY等待不产生文件失败，60分钟含槽位等待。单文件失败继续；共同依赖、原件完整性、授权、数据库或总时限停止任务。提交失联先按 entryId/原代次/结果摘要核对已提交事实；无法证明则保持UNKNOWN，不重复解析。QUEUED原授权有效才启动；启动扫描RUNNING和UNKNOWN，持有同一稳定锁并确认旧解析进程树结束后核对持久结果、推进fencing并收敛终态/INTERRUPTED，释放占用；否则保留UNKNOWN。新检查使用新request/checkId，旧任务与结果保留，不自动续跑。继承的内核锁描述符必须贯穿受控worker和Python，只有全部进程释放后才准新读取/恢复；IPC断开终止旧worker/Python，禁止用PID或时间推断树已结束。

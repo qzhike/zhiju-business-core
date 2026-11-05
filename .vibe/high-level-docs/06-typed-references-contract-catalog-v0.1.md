@@ -1658,3 +1658,8 @@ project.PreparingProjectCreated@1.0
 project.capture_preparation_source@2.0
 project.get_preparation_source@2.0
 ```
+
+
+## MVP01 批次技术读取检查操作（2026-11-04）
+
+独立 MVP HTTP 增量，不改变旧Registry/260项接口兼容基线；字段及路由归 [MVP01 §12](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#12-整批资料读取检查2026-11-04-已批准)，Owner均为DocumentDelivery：`mvp.create_batch_read_check` COMMAND v1；`mvp.list_batch_read_checks`、`mvp.get_batch_read_check`、`mvp.list_batch_read_check_entries` QUERY v1。不注册Runner命令或业务完成事件。

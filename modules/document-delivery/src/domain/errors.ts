@@ -6,6 +6,9 @@
  */
 
 export const MVP_ERROR = {
+  READ_CHECK_ACTIVE: 'READ_CHECK_ACTIVE',
+  READ_CHECK_NOT_READY: 'READ_CHECK_NOT_READY',
+  READ_CHECK_RESULTS_CHANGED: 'READ_CHECK_RESULTS_CHANGED',
   INVALID_REQUEST: 'INVALID_REQUEST',
   AUTHENTICATION_REQUIRED: 'AUTHENTICATION_REQUIRED',
   INSTANCE_ACCESS_DENIED: 'INSTANCE_ACCESS_DENIED',
@@ -29,6 +32,9 @@ export const MVP_ERROR = {
 export type MvpErrorCode = (typeof MVP_ERROR)[keyof typeof MVP_ERROR];
 
 const STATUS: Readonly<Record<MvpErrorCode, number>> = Object.freeze({
+  READ_CHECK_ACTIVE: 409,
+  READ_CHECK_NOT_READY: 409,
+  READ_CHECK_RESULTS_CHANGED: 409,
   INVALID_REQUEST: 400,
   AUTHENTICATION_REQUIRED: 401,
   INSTANCE_ACCESS_DENIED: 403,
@@ -50,6 +56,9 @@ const STATUS: Readonly<Record<MvpErrorCode, number>> = Object.freeze({
 });
 
 const MESSAGE: Readonly<Record<MvpErrorCode, string>> = Object.freeze({
+  READ_CHECK_ACTIVE: '项目已有正在进行或待核对的读取检查。',
+  READ_CHECK_NOT_READY: '请先选择该批次已封存的完整清单。',
+  READ_CHECK_RESULTS_CHANGED: '检查结果已更新，请重新加载第一页。',
   INVALID_REQUEST: '请求格式无效。',
   AUTHENTICATION_REQUIRED: '需要重新登录。',
   INSTANCE_ACCESS_DENIED: '当前身份未获实例准入。',
@@ -71,6 +80,9 @@ const MESSAGE: Readonly<Record<MvpErrorCode, string>> = Object.freeze({
 });
 
 const RETRYABLE: Readonly<Record<MvpErrorCode, boolean>> = Object.freeze({
+  READ_CHECK_ACTIVE: false,
+  READ_CHECK_NOT_READY: false,
+  READ_CHECK_RESULTS_CHANGED: false,
   INVALID_REQUEST: false,
   AUTHENTICATION_REQUIRED: true,
   INSTANCE_ACCESS_DENIED: false,
@@ -94,7 +106,10 @@ const RETRYABLE: Readonly<Record<MvpErrorCode, boolean>> = Object.freeze({
 export class MvpError extends Error {
   readonly code: MvpErrorCode;
 
-  constructor(code: MvpErrorCode) {
+  constructor(
+    code: MvpErrorCode,
+    readonly details?: { readonly checkId: string; readonly batchId: string },
+  ) {
     super(code);
     this.name = 'MvpError';
     this.code = code;

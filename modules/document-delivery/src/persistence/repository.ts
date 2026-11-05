@@ -1,9 +1,10 @@
+import { parseLimitViolation, type LimitViolation } from '../domain/limit-violation.js';
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- node-postgres types every row as any; each raw row here is immediately narrowed by the closed row mappers, and no wire value is rendered directly. */
 import type { PoolClient } from 'pg';
 import { newUuidV7 } from '@zhiju/shared-kernel';
 
 import { createCursorCodec, type CursorCodec, type CursorScope } from '../domain/cursor.js';
-import { fail } from '../domain/errors.js';
+import { fail, type MvpErrorCode } from '../domain/errors.js';
 import { manifestHash, assertManifestEntries } from '../domain/manifest.js';
 import { MVP_INPUT_POLICY_VERSION } from '../domain/policy.js';
 import type {
@@ -45,7 +46,7 @@ import {
 const PROJECT_COLUMNS =
   'owner_id, project_id, customer_name, title, created_at, version, last_batch_no, active_batch_id';
 const BATCH_COLUMNS =
-  'owner_id, project_id, batch_id, batch_no, kind, original_name, declared_bytes, zip_sha256, note, policy_version, status, generation, version, original_request_id, created_at, manifest_id, reason_codes, original_zip_source, observed_at, rejected_archive_paths';
+  'owner_id, project_id, batch_id, batch_no, kind, original_name, declared_bytes, zip_sha256, note, policy_version, status, generation, version, original_request_id, created_at, manifest_id, reason_codes, original_zip_source, observed_at, rejected_archive_paths, limit_violation';
 const ATTEMPT_COLUMNS =
   'owner_id, project_id, batch_id, attempt_id, kind, number, generation, status, process_incarnation, fencing_token, started_at, ended_at, reason_codes, staged_object_receipts, authorization_request_id, authorized_owner_id, authorized_auth_epoch, original_input_sha256';
 const REQUEST_COLUMNS =
@@ -91,6 +92,8 @@ export interface RecoveryInput {
 }
 
 export interface StoredSourceLookup {
+  readonly manifestId: string;
+  readonly reasonCodes: readonly string[];
   readonly sourceRef: SourceRef;
   readonly objectKey: string;
   /** Safe display name only; never used to construct a host path. */
@@ -496,6 +499,7 @@ export class MvpRepository {
           : {}),
         ...(manifest === undefined ? {} : { manifest }),
         permittedActions: permittedActions(batch, allAttempts),
+        ...(batch.limitViolation === undefined ? {} : { limitViolation: batch.limitViolation }),
         ...(batch.rejectedArchivePaths === undefined
           ? {}
           : { rejectedArchivePaths: batch.rejectedArchivePaths }),
@@ -599,54 +603,102 @@ export class MvpRepository {
     projectId: string,
     batchId: string,
     sourceId: string,
+    preview?: { readonly manifestId: string; readonly authEpoch: number },
+    signal?: AbortSignal,
   ): Promise<StoredSourceLookup> {
-    return this.#db.transaction(ownerId, projectId, async (client) => {
-      const batchRow = (
-        await client.query(
-          `SELECT status, manifest_id, original_zip_source, original_object_key
+    return this.#db.transaction(
+      ownerId,
+      projectId,
+      async (client) => {
+        if (preview !== undefined)
+          await this.#assertCurrentBinding(
+            client,
+            ownerId,
+            preview.authEpoch,
+            'INSTANCE_ACCESS_DENIED',
+          );
+        const batchRow = (
+          await client.query(
+            `SELECT status, manifest_id, original_zip_source, original_object_key
            FROM document_delivery.input_batches
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3`,
-          [ownerId, projectId, batchId],
-        )
-      ).rows[0];
-      if (batchRow === undefined) fail('RESOURCE_NOT_FOUND');
-      const manifestId = nullableStringColumn(batchRow as Record<string, unknown>, 'manifest_id');
-      const status = stringColumn(batchRow as Record<string, unknown>, 'status');
-      if (manifestId === undefined || !['RECEIVED', 'PARTIAL'].includes(status))
-        fail('RESOURCE_NOT_FOUND');
-      const manifestRow = (
-        await client.query(
-          `SELECT payload, manifest_hash, manifest_id, total_entries
+            [ownerId, projectId, batchId],
+          )
+        ).rows[0];
+        if (batchRow === undefined) fail('RESOURCE_NOT_FOUND');
+        const manifestId = nullableStringColumn(batchRow as Record<string, unknown>, 'manifest_id');
+        const status = stringColumn(batchRow as Record<string, unknown>, 'status');
+        if (manifestId === undefined || !['RECEIVED', 'PARTIAL'].includes(status))
+          fail('RESOURCE_NOT_FOUND');
+        const manifestRow = (
+          await client.query(
+            `SELECT payload, manifest_hash, manifest_id, total_entries
            FROM document_delivery.input_manifests
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND manifest_id = $4`,
-          [ownerId, projectId, batchId, manifestId],
-        )
-      ).rows[0];
-      if (manifestRow === undefined) fail('RESOURCE_NOT_FOUND');
-      const manifest = manifestRecord(manifestRow as Record<string, unknown>);
-      if (manifest.manifestId !== manifestId) fail('RESOURCE_NOT_FOUND');
-      const original = manifest.originalZip;
-      if (original.sourceId === sourceId) {
-        const objectKey = stringColumn(batchRow as Record<string, unknown>, 'original_object_key');
-        return { sourceRef: original, objectKey, fileName: 'original.zip' };
-      }
-      const entryRow = (
-        await client.query(
-          `SELECT * FROM document_delivery.source_entries
+            [ownerId, projectId, batchId, manifestId],
+          )
+        ).rows[0];
+        if (manifestRow === undefined) fail('RESOURCE_NOT_FOUND');
+        const manifest = manifestRecord(manifestRow as Record<string, unknown>);
+        if (manifest.manifestId !== manifestId) fail('RESOURCE_NOT_FOUND');
+        if (preview !== undefined && preview.manifestId !== manifestId) fail('RESOURCE_NOT_FOUND');
+        const original = manifest.originalZip;
+        if (original.sourceId === sourceId) {
+          if (preview !== undefined) fail('RESOURCE_NOT_FOUND');
+          const objectKey = stringColumn(
+            batchRow as Record<string, unknown>,
+            'original_object_key',
+          );
+          return {
+            sourceRef: original,
+            objectKey,
+            fileName: 'original.zip',
+            manifestId,
+            reasonCodes: [],
+          };
+        }
+        const entryRow = (
+          await client.query(
+            `SELECT * FROM document_delivery.source_entries
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3 AND source_id = $4
              AND manifest_id = $5`,
-          [ownerId, projectId, batchId, sourceId, manifestId],
-        )
-      ).rows[0];
-      if (entryRow === undefined) fail('RESOURCE_NOT_FOUND');
-      const entry = entryRecord(entryRow as Record<string, unknown>);
-      if (entry.sourceRef === undefined) fail('RESOURCE_NOT_FOUND');
-      return {
-        sourceRef: entry.sourceRef,
-        objectKey: stringColumn(entryRow as Record<string, unknown>, 'object_key'),
-        fileName: entry.originalName,
-      };
-    });
+            [ownerId, projectId, batchId, sourceId, manifestId],
+          )
+        ).rows[0];
+        if (entryRow === undefined) fail('RESOURCE_NOT_FOUND');
+        const entry = entryRecord(entryRow as Record<string, unknown>);
+        if (entry.sourceRef === undefined) fail('RESOURCE_NOT_FOUND');
+        if (preview !== undefined) {
+          const sealed = manifest.entries.find((item) => item.entryId === entry.entryId);
+          if (
+            entry.status !== 'ACCEPTED' ||
+            entry.sourceRef.kind !== 'ACCEPTED_ENTRY' ||
+            sealed?.sourceRef === undefined ||
+            (
+              [
+                'projectId',
+                'batchId',
+                'sourceId',
+                'kind',
+                'sha256',
+                'byteLength',
+                'mediaType',
+              ] as const
+            ).some((key) => sealed.sourceRef?.[key] !== entry.sourceRef?.[key]) ||
+            JSON.stringify(sealed.reasonCodes) !== JSON.stringify(entry.reasonCodes)
+          )
+            fail('STORAGE_INTEGRITY_ERROR');
+        }
+        return {
+          manifestId,
+          reasonCodes: entry.reasonCodes,
+          sourceRef: entry.sourceRef,
+          objectKey: stringColumn(entryRow as Record<string, unknown>, 'object_key'),
+          fileName: entry.originalName,
+        };
+      },
+      signal,
+    );
   }
 
   // ------------------------------------------------------------------ writes
@@ -701,15 +753,16 @@ export class MvpRepository {
     client: PoolClient,
     ownerId: string,
     authEpoch: number,
+    error: MvpErrorCode = 'RECOVERY_NOT_ALLOWED',
   ): Promise<void> {
     const result = await client.query(
       'SELECT enabled, auth_epoch FROM document_delivery.current_binding($1)',
       [ownerId],
     );
     const row: Record<string, unknown> | undefined = result.rows[0];
-    if (row === undefined) fail('RECOVERY_NOT_ALLOWED');
-    if (row.enabled !== true) fail('RECOVERY_NOT_ALLOWED');
-    if (Number(row.auth_epoch) !== authEpoch) fail('RECOVERY_NOT_ALLOWED');
+    if (row === undefined) fail(error);
+    if (row.enabled !== true) fail(error);
+    if (Number(row.auth_epoch) !== authEpoch) fail(error);
   }
 
   /**
@@ -1472,7 +1525,10 @@ export class MvpRepository {
     rejected: boolean,
     reasons: readonly string[],
     rejectedArchivePaths?: readonly string[],
+    limitViolation?: LimitViolation,
   ): Promise<BatchRecord> {
+    if (limitViolation !== undefined && parseLimitViolation(limitViolation) === undefined)
+      fail('INVALID_REQUEST');
     return this.#db.transaction(ownerId, projectId, async (client) => {
       await this.#lockBatch(client, ownerId, projectId, batchId);
       const at = this.#now().toISOString();
@@ -1487,7 +1543,7 @@ export class MvpRepository {
         await client.query(
           `UPDATE document_delivery.input_batches
            SET status = $4, version = version + 1, reason_codes = $5::jsonb, observed_at = $6,
-               rejected_archive_paths = $7::jsonb
+               rejected_archive_paths = $7::jsonb, limit_violation = $8::jsonb
            WHERE owner_id = $1 AND project_id = $2 AND batch_id = $3
            RETURNING ${BATCH_COLUMNS}`,
           [
@@ -1498,6 +1554,7 @@ export class MvpRepository {
             JSON.stringify(reasons),
             at,
             rejectedArchivePaths === undefined ? null : JSON.stringify(rejectedArchivePaths),
+            limitViolation === undefined ? null : JSON.stringify(limitViolation),
           ],
         )
       ).rows[0];

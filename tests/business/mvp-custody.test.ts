@@ -352,7 +352,7 @@ describe('MVP01 custody safety', () => {
     );
   });
 
-  it('charges nested OOXML entries against the one outer-package budget', () => {
+  it('separates Office parts from the outer-package count', () => {
     const docx = docxBytes();
     expect(scanInputPackage(zipBytes([{ name: 'one.docx', bytes: docx }])).entries[0]?.status).toBe(
       'ACCEPTED',
@@ -360,7 +360,7 @@ describe('MVP01 custody safety', () => {
     const many = zipBytes(
       Array.from({ length: 334 }, (_, index) => ({ name: `${index}.docx`, bytes: docx })),
     );
-    expect(codeOf(() => scanInputPackage(many))).toBe('ZIP_LIMIT_EXCEEDED');
+    expect(scanInputPackage(many).entries.every((entry) => entry.status === 'ACCEPTED')).toBe(true);
   });
 
   it('preserves XLSX shared strings, inline strings, empty sheets, zero and formulas without evaluation', () => {

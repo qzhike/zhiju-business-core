@@ -1,3 +1,4 @@
+import { parseLimitViolation, type LimitViolation } from './limits.js';
 import { asArray, asNonEmptyString, asNumber, asRecord } from '../trusted/values.js';
 
 export type BatchStatus =
@@ -96,6 +97,7 @@ export interface CustodyManifest {
 }
 
 export interface CustodyBatchDetail {
+  readonly limitViolation?: LimitViolation;
   readonly rejectedArchivePaths?: readonly string[];
   readonly batch: CustodyBatch;
   readonly attempts: readonly CustodyAttempt[];
@@ -368,6 +370,24 @@ export function parseEntry(value: unknown): CustodyEntry | null {
     sourceId === null
   )
     return null;
+  if (
+    (reasonCodes.includes('SYSTEM_METADATA_NOT_DOCUMENT') &&
+      (status !== 'UNSUPPORTED' || source !== null || reasonCodes.length !== 1)) ||
+    (reasonCodes.includes('EXTERNAL_TEMPLATE_NOT_LOADED') &&
+      (status !== 'ACCEPTED' ||
+        sourceId === undefined ||
+        reasonCodes.length !== 1 ||
+        mediaType !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        source?.kind !== 'ACCEPTED_ENTRY' ||
+        source.mediaType !== mediaType ||
+        sha256 === undefined ||
+        source.sha256 !== sha256 ||
+        byteLength === undefined ||
+        source.byteLength !== byteLength ||
+        asNonEmptyString(source.projectId) === null ||
+        asNonEmptyString(source.batchId) === null))
+  )
+    return null;
   return {
     entryId,
     ordinal,
@@ -391,6 +411,18 @@ export function parseBatchDetail(value: unknown): CustodyBatchDetail | null {
   const actions = asArray(item.permittedActions);
   if (batch === null || attemptsArray === null || actions === null) return null;
   if (item.manifest !== undefined && manifest === null) return null;
+  const limitViolation =
+    item.limitViolation === undefined ? undefined : parseLimitViolation(item.limitViolation);
+  const expectedLimit =
+    ['mvp.zip-input@3', 'mvp.zip-input@4'].includes(batch.policyVersion ?? '') &&
+    batch.status === 'REJECTED' &&
+    batch.reasonCodes.includes('ZIP_LIMIT_EXCEEDED');
+  if (
+    expectedLimit !== (limitViolation !== undefined) ||
+    (item.limitViolation !== undefined && limitViolation === undefined) ||
+    (limitViolation !== undefined && (manifest !== null || batch.manifestId !== null))
+  )
+    return null;
   const rejectedArchivePaths =
     item.rejectedArchivePaths === undefined ? undefined : stringArray(item.rejectedArchivePaths);
   const nestedRejection =
@@ -413,6 +445,7 @@ export function parseBatchDetail(value: unknown): CustodyBatchDetail | null {
     attempts: attempts.filter((attempt) => attempt !== null),
     manifest,
     ...(rejectedArchivePaths === undefined ? {} : { rejectedArchivePaths }),
+    ...(limitViolation === undefined ? {} : { limitViolation }),
     permittedActions: actions.filter((action): action is RecoveryAction =>
       ACTIONS.includes(action as RecoveryAction),
     ),

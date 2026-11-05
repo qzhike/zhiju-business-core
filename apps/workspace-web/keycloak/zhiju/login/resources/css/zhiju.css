@@ -1,0 +1,206 @@
+/* Match workspace theme.css while retaining Keycloak's native form and scripts. */
+:root {
+  color-scheme: light;
+  --zhiju-ink: #243247;
+  --zhiju-muted: #526176;
+  --zhiju-blue: #1d4ed8;
+  --zhiju-border: #dfe6ef;
+  --zhiju-input: #b9c6d8;
+  --pf-v5-global--FontFamily--text:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --pf-v5-global--FontFamily--heading: var(--pf-v5-global--FontFamily--text);
+  --pf-v5-global--FontSize--md: 14px;
+  --pf-v5-global--Color--100: var(--zhiju-ink);
+  --pf-v5-global--Color--200: var(--zhiju-muted);
+  --pf-v5-global--primary-color--100: var(--zhiju-blue);
+  --pf-v5-global--primary-color--200: #1e40af;
+  --pf-v5-global--link--Color: var(--zhiju-blue);
+}
+html.login-pf,
+.login-pf body#keycloak-bg {
+  min-height: 100%;
+  height: auto;
+  background: #fff;
+  color: var(--zhiju-ink);
+  font: 14px/1.65 var(--pf-v5-global--FontFamily--text);
+}
+#keycloak-bg .pf-v5-c-login,
+#keycloak-bg .pf-v5-c-login__container {
+  display: block;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  min-height: 100dvh;
+}
+#kc-header {
+  min-height: 70px;
+  margin: 0;
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--zhiju-border);
+}
+#kc-header-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  color: var(--zhiju-ink) !important;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.65;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+}
+#kc-header-wrapper::before {
+  content: '制';
+  width: 33px;
+  height: 33px;
+  border-radius: 10px;
+  background: var(--zhiju-blue);
+  color: #fff;
+  font-size: 22px;
+  line-height: 33px;
+  text-align: center;
+}
+#kc-header-wrapper::after {
+  content: '质量体系工作空间';
+  margin-left: 17px;
+  color: var(--zhiju-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+html[lang^='en'] #kc-header-wrapper::after {
+  content: 'Quality management workspace';
+}
+#keycloak-bg .pf-v5-c-login__main {
+  width: calc(100% - 64px);
+  max-width: 480px;
+  margin: 80px auto;
+  border: 1px solid var(--zhiju-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+#keycloak-bg .pf-v5-c-login__main-header {
+  padding: 32px 32px 24px;
+  border-top: 0;
+  gap: 12px;
+}
+#kc-page-title {
+  color: var(--zhiju-ink);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+#keycloak-bg .pf-v5-c-login__main-body {
+  padding: 0 32px 32px;
+}
+#keycloak-bg .pf-v5-c-login__main-footer:empty {
+  display: none;
+}
+#keycloak-bg .pf-v5-c-login__main-footer,
+#keycloak-bg .pf-v5-c-login__main-footer-band {
+  border-radius: 0 0 14px 14px;
+}
+#keycloak-bg .pf-v5-c-form {
+  gap: 22px;
+}
+#keycloak-bg .pf-v5-c-form__label {
+  color: var(--zhiju-ink);
+  font-size: 14px;
+}
+#keycloak-bg .pf-v5-c-form-control {
+  min-height: 44px;
+  border: 1px solid var(--zhiju-input);
+  border-radius: 8px;
+  background: #fff;
+}
+#keycloak-bg .pf-v5-c-form-control::before,
+#keycloak-bg .pf-v5-c-form-control::after,
+#keycloak-bg .pf-v5-c-input-group::after,
+#keycloak-bg .pf-v5-c-button::after {
+  border: 0;
+}
+#keycloak-bg .pf-v5-c-form-control:focus-within {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+#keycloak-bg .pf-v5-c-form-control.pf-m-error {
+  border-color: #b42332;
+}
+#keycloak-bg .pf-v5-c-form-control > input {
+  padding: 10px 12px;
+  color: var(--zhiju-ink);
+  font: inherit;
+}
+#keycloak-bg .pf-v5-c-form-control > input:focus {
+  outline: none;
+  box-shadow: none;
+}
+#keycloak-bg .pf-v5-c-form-control > select {
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+}
+#keycloak-bg .pf-v5-c-input-group {
+  gap: 8px;
+}
+#keycloak-bg .pf-v5-c-button {
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: normal;
+}
+#keycloak-bg .pf-v5-c-button.pf-m-primary {
+  background: var(--zhiju-blue);
+  color: #fff;
+}
+#keycloak-bg .pf-v5-c-button.pf-m-primary:hover {
+  background: #1e40af;
+}
+#keycloak-bg .pf-v5-c-button.pf-m-primary:disabled {
+  background: #526176;
+  cursor: wait;
+}
+#keycloak-bg .pf-v5-c-button.pf-m-control {
+  min-width: 44px;
+  border: 1px solid var(--zhiju-input);
+  background: #fff;
+  color: var(--zhiju-muted);
+}
+#keycloak-bg .pf-v5-c-button.pf-m-control:hover {
+  background: #eff6ff;
+}
+#keycloak-bg :is(button, a, select):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+#keycloak-bg .kc-feedback-text {
+  color: #b42332;
+}
+@media (max-width: 640px) {
+  #kc-header {
+    min-height: 60px;
+    padding: 8px 14px;
+  }
+  #kc-header-wrapper::after {
+    display: none;
+  }
+  #keycloak-bg .pf-v5-c-login__main {
+    width: calc(100% - 28px);
+    margin: 44px auto;
+  }
+  #keycloak-bg .pf-v5-c-login__main-header {
+    padding: 24px 20px 20px;
+  }
+  #keycloak-bg .pf-v5-c-login__main-body {
+    padding: 0 20px 24px;
+  }
+}

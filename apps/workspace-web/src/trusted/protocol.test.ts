@@ -364,6 +364,15 @@ describe('session probe and safe entry', () => {
     const exactLink = `/projects/${'a'.repeat(36)}/artifacts/${'b'.repeat(36)}/revisions/${'c'.repeat(36)}?binding=${'x'.repeat(2000)}`;
     expect(safeReturnTo(exactLink)).toBe(exactLink);
     expect(safeReturnTo(`${exactLink}&redirect=https://evil.invalid`)).toBe('/workbench');
+    const sourceId = '0199a000-0000-7000-8000-000000000001';
+    const previewLink = `/custody/projects/${sourceId}?batch=${sourceId}&manifest=${sourceId}&source=${sourceId}`;
+    expect(safeReturnTo(previewLink)).toBe(previewLink);
+    expect(signInHref(previewLink)).toBe(
+      `/bff/auth/login?returnTo=${encodeURIComponent(previewLink)}`,
+    );
+    for (const suffix of ['&source=other', '&redirect=https://evil.invalid', '#fragment', '%0a'])
+      expect(safeReturnTo(`${previewLink}${suffix}`)).toBe('/workbench');
+    expect(safeReturnTo(previewLink.replace('manifest=', 'unknown='))).toBe('/workbench');
     expect(signInHref('/workbench')).toBe('/bff/auth/login?returnTo=%2Fworkbench');
     expect(signInHref('https://evil.invalid')).toBe('/bff/auth/login?returnTo=%2Fworkbench');
   });

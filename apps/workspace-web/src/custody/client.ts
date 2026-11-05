@@ -19,6 +19,7 @@ import {
   type RecoveryAction,
 } from './model.js';
 import { asNonEmptyString, asRecord } from '../trusted/values.js';
+import { parseSourcePreview, type SourcePreview, type PreviewIdentity } from './preview-model.js';
 
 const BASE = '/bff/mvp/v1';
 
@@ -27,7 +28,12 @@ export class CustodyFailure extends Error {
   readonly status: number;
   readonly retryable: boolean;
 
-  constructor(code: string, status: number, retryable: boolean) {
+  constructor(
+    code: string,
+    status: number,
+    retryable: boolean,
+    readonly details?: { checkId: string; batchId: string },
+  ) {
     super(code);
     this.name = 'CustodyFailure';
     this.code = code;
@@ -58,10 +64,19 @@ async function readEnvelope(response: Response): Promise<{ data: unknown; receip
   const error = asRecord(record.error);
   const code = error === null ? null : asNonEmptyString(error.code);
   const retryable = error === null ? false : error.retryable === true;
-  throw new CustodyFailure(code ?? 'UI_CLIENT_STATE_INVALID', response.status, retryable);
+  const details = asRecord(error?.details);
+  const active =
+    code === 'READ_CHECK_ACTIVE' &&
+    typeof details?.checkId === 'string' &&
+    typeof details.batchId === 'string' &&
+    /^[0-9a-f-]{36}$/u.test(details.checkId) &&
+    /^[0-9a-f-]{36}$/u.test(details.batchId)
+      ? { checkId: details.checkId, batchId: details.batchId }
+      : undefined;
+  throw new CustodyFailure(code ?? 'UI_CLIENT_STATE_INVALID', response.status, retryable, active);
 }
 
-async function request(
+export async function request(
   path: string,
   init: RequestInit,
 ): Promise<{ data: unknown; receipt?: unknown }> {
@@ -207,8 +222,9 @@ export async function getEntries(
   manifestId: string,
   cursor?: string,
   signal?: AbortSignal,
+  limit = 50,
 ): Promise<CustodyEntryPage> {
-  const query = new URLSearchParams({ manifestId });
+  const query = new URLSearchParams({ manifestId, limit: String(limit) });
   if (cursor !== undefined) query.set('cursor', cursor);
   const result = await request(
     pathFor(
@@ -232,6 +248,21 @@ export async function getRequest(
   const view = parseRequestView(result.data);
   if (view === null) throw new CustodyFailure('UI_CLIENT_STATE_INVALID', 200, false);
   return view;
+}
+
+export async function getSourcePreview(
+  identity: PreviewIdentity,
+  signal: AbortSignal,
+): Promise<SourcePreview> {
+  const result = await request(
+    pathFor(
+      `/projects/${encodeURIComponent(identity.projectId)}/batches/${encodeURIComponent(identity.batchId)}/sources/${encodeURIComponent(identity.sourceId)}/preview?manifestId=${encodeURIComponent(identity.manifestId)}`,
+    ),
+    { method: 'GET', signal },
+  );
+  const value = parseSourcePreview(result.data, identity);
+  if (value === null) throw new CustodyFailure('UI_CLIENT_STATE_INVALID', 200, false);
+  return value;
 }
 
 export async function recover(input: {

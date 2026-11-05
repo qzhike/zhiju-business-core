@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { Client } from 'pg';
 import { symlink, unlink } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import fastify, { type FastifyInstance } from '../../apps/api/node_modules/fastify/fastify.js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { newUuidV7 } from '@zhiju/shared-kernel';
 import { openMvpFileStore, attemptLockPath } from '../../modules/document-delivery/src/index.js';
@@ -111,6 +113,12 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
       ZHIJU_MVP_CURSOR_KEY: '44'.repeat(32),
       ZHIJU_MVP_TRUST_CONFIG: rawTrust,
       ZHIJU_MVP_CORE_PORT: '3399',
+      ZHIJU_MVP_PREVIEW_RUNNER_ROOT: resolve('tests/fixtures/document-preview'),
+      ZHIJU_MVP_PREVIEW_PYTHON: execFileSync(
+        'python3',
+        ['-I', '-S', '-c', 'import sys;print(sys.executable)'],
+        { encoding: 'utf8' },
+      ).trim(),
     };
     runtime = await createMvpCoreRuntime(runtimeEnv);
     server = fastify({ logger: false });
@@ -298,71 +306,87 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
     expect(missingKey.status).toBe(400);
   });
 
-  it('rejects nested archives through direct HTTP and replays the original creation receipt', async () => {
-    const projectId = newUuidV7();
-    await json(`/projects/${projectId}`, {
-      method: 'PUT',
-      headers: { 'idempotency-key': newUuidV7() },
-      body: JSON.stringify({ customerName: '客户', title: '嵌套拒绝' }),
-    });
-    const batchId = newUuidV7();
-    const key = newUuidV7();
-    const bytes = zipBytes([
-      { name: 'normal.md', bytes: markdownBytes() },
-      { name: '内层/<file>.zip', bytes: zipBytes([]) },
-    ]);
-    const input = {
-      method: 'PUT',
-      headers: { 'idempotency-key': key },
-      body: JSON.stringify({
-        expectedProjectVersion: 1,
-        originalName: 'nested.zip',
-        declaredBytes: bytes.length,
-        zipSha256: sha256(bytes),
-      }),
-    };
-    const created = await json(`/projects/${projectId}/batches/${batchId}`, input);
-    expect(created.status).toBe(201);
-    const batch = (created.body.data as Record<string, unknown>).batch as Record<string, unknown>;
-    const attempt = batch.currentAttempt as Record<string, unknown>;
-    const uploaded = await fetch(
-      `${origin}/api/mvp/v1/projects/${projectId}/batches/${batchId}/zip`,
-      {
+  it.each([
+    ['nested archives', 'nested'],
+    ['over-budget input', 'limit'],
+  ] as const)(
+    'rejects %s through direct HTTP and replays the original creation receipt',
+    async (_label, kind) => {
+      const projectId = newUuidV7();
+      await json(`/projects/${projectId}`, {
         method: 'PUT',
-        headers: headers({
-          'content-type': 'application/zip',
-          'content-length': String(bytes.length),
-          'x-mvp-upload-attempt': String(attempt.attemptId),
-          'x-mvp-upload-generation': String(attempt.generation),
+        headers: { 'idempotency-key': newUuidV7() },
+        body: JSON.stringify({ customerName: '客户', title: '嵌套拒绝' }),
+      });
+      const batchId = newUuidV7();
+      const key = newUuidV7();
+      const bytes = zipBytes([
+        { name: 'normal.md', bytes: markdownBytes() },
+        { name: '内层/<file>.zip', bytes: zipBytes([]) },
+      ]);
+      if (kind === 'limit') {
+        bytes.writeUInt16LE(1001, bytes.length - 14);
+        bytes.writeUInt16LE(1001, bytes.length - 12);
+      }
+      const input = {
+        method: 'PUT',
+        headers: { 'idempotency-key': key },
+        body: JSON.stringify({
+          expectedProjectVersion: 1,
+          originalName: 'nested.zip',
+          declaredBytes: bytes.length,
+          zipSha256: sha256(bytes),
         }),
-        body: bytes,
-      },
-    );
-    expect(uploaded.status).toBe(202);
-    if (runtime === undefined) throw new Error('runtime missing');
-    await runtime.service.whenIdle();
-    const detail = await json(`/projects/${projectId}/batches/${batchId}`);
-    expect(detail.status).toBe(200);
-    expect(detail.body.data).toMatchObject({
-      batch: { status: 'REJECTED', reasonCodes: ['NESTED_ARCHIVE_NOT_ALLOWED'] },
-      rejectedArchivePaths: ['内层/<file>.zip'],
-      permittedActions: [],
-    });
-    expect((detail.body.data as Record<string, unknown>).manifest).toBeUndefined();
-    const replay = await json(`/projects/${projectId}/batches/${batchId}`, input);
-    expect(replay.status).toBe(200);
-    expect(replay.body.receipt).toEqual(created.body.receipt);
-    expect((await json(`/projects/${projectId}/batches/${batchId}`)).body.data).toEqual(
-      detail.body.data,
-    );
-    const entries = await json(
-      `/projects/${projectId}/batches/${batchId}/entries?manifestId=${newUuidV7()}`,
-    );
-    expect(entries.status).toBe(409);
-    const wrongProject = await json(`/projects/${newUuidV7()}/batches/${batchId}`);
-    expect(wrongProject.status).toBe(404);
-    expect(wrongProject.body.data).toBeUndefined();
-  });
+      };
+      const created = await json(`/projects/${projectId}/batches/${batchId}`, input);
+      expect(created.status).toBe(201);
+      const batch = (created.body.data as Record<string, unknown>).batch as Record<string, unknown>;
+      const attempt = batch.currentAttempt as Record<string, unknown>;
+      const uploaded = await fetch(
+        `${origin}/api/mvp/v1/projects/${projectId}/batches/${batchId}/zip`,
+        {
+          method: 'PUT',
+          headers: headers({
+            'content-type': 'application/zip',
+            'content-length': String(bytes.length),
+            'x-mvp-upload-attempt': String(attempt.attemptId),
+            'x-mvp-upload-generation': String(attempt.generation),
+          }),
+          body: bytes,
+        },
+      );
+      expect(uploaded.status).toBe(202);
+      if (runtime === undefined) throw new Error('runtime missing');
+      await runtime.service.whenIdle();
+      const detail = await json(`/projects/${projectId}/batches/${batchId}`);
+      expect(detail.status).toBe(200);
+      expect(detail.body.data).toMatchObject({
+        batch: {
+          status: 'REJECTED',
+          policyVersion: 'mvp.zip-input@4',
+          reasonCodes: [kind === 'nested' ? 'NESTED_ARCHIVE_NOT_ALLOWED' : 'ZIP_LIMIT_EXCEEDED'],
+        },
+        ...(kind === 'nested'
+          ? { rejectedArchivePaths: ['内层/<file>.zip'] }
+          : { limitViolation: { metric: 'OUTER_ENTRIES', actual: 1001, limit: 1000 } }),
+        permittedActions: [],
+      });
+      expect((detail.body.data as Record<string, unknown>).manifest).toBeUndefined();
+      const replay = await json(`/projects/${projectId}/batches/${batchId}`, input);
+      expect(replay.status).toBe(200);
+      expect(replay.body.receipt).toEqual(created.body.receipt);
+      expect((await json(`/projects/${projectId}/batches/${batchId}`)).body.data).toEqual(
+        detail.body.data,
+      );
+      const entries = await json(
+        `/projects/${projectId}/batches/${batchId}/entries?manifestId=${newUuidV7()}`,
+      );
+      expect(entries.status).toBe(409);
+      const wrongProject = await json(`/projects/${newUuidV7()}/batches/${batchId}`);
+      expect(wrongProject.status).toBe(404);
+      expect(wrongProject.body.data).toBeUndefined();
+    },
+  );
 
   it('uploads a three-format package, extracts it and serves exact original bytes', async () => {
     const projectId = newUuidV7();
@@ -434,6 +458,84 @@ describe.skipIf(!gateEnabled)('MVP01 Core HTTP custody', () => {
     const projectsAt51 = await json('/projects?limit=51');
     expect(projectsAt51.status).toBe(400);
     const originalZip = manifest.originalZip as Record<string, unknown>;
+    const entryRows = (entriesAt100.body.data as { entries: Record<string, unknown>[] }).entries;
+    const markdown = entryRows.find((entry) => entry.originalName === 'readme.md');
+    const markdownRef = markdown?.sourceRef as Record<string, unknown>;
+    const previewPath = `/projects/${projectId}/batches/${batchId}/sources/${String(markdownRef.sourceId)}/preview`;
+    const preview = await json(`${previewPath}?manifestId=${manifestId}`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.data).toMatchObject({
+      sourceRef: markdownRef,
+      manifestId,
+      status: 'AVAILABLE',
+      sections: { format: 'MARKDOWN', source: markdownBytes().toString() },
+    });
+    expect((await json(`${previewPath}?manifestId=${newUuidV7()}`)).status).toBe(404);
+    expect(
+      (await json(`${previewPath}?manifestId=${manifestId}&manifestId=${manifestId}`)).status,
+    ).toBe(400);
+    expect((await json(`${previewPath}?manifestId=${manifestId}&path=/etc/passwd`)).status).toBe(
+      400,
+    );
+    expect((await json(previewPath)).status).toBe(400);
+    expect(
+      (await json(`${previewPath.replace(projectId, newUuidV7())}?manifestId=${manifestId}`))
+        .status,
+    ).toBe(404);
+    expect(
+      (await json(`${previewPath.replace(batchId, newUuidV7())}?manifestId=${manifestId}`)).status,
+    ).toBe(404);
+    expect(
+      (
+        await json(
+          `/projects/${projectId}/batches/${batchId}/sources/${String(originalZip.sourceId)}/preview?manifestId=${manifestId}`,
+        )
+      ).status,
+    ).toBe(404);
+    await expect(
+      runtime.service.getSourcePreview(
+        { ownerId: newUuidV7(), authEpoch: 1, displayName: 'other' },
+        projectId,
+        batchId,
+        String(markdownRef.sourceId),
+        manifestId,
+      ),
+    ).rejects.toMatchObject({ code: 'INSTANCE_ACCESS_DENIED' });
+    // Revoke while the controlled store read is suspended: no result may escape.
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const originalRead = runtime.store.readVerified.bind(runtime.store);
+    const spy = vi.spyOn(runtime.store, 'readVerified').mockImplementationOnce(async (...args) => {
+      entered.resolve(undefined);
+      await release.promise;
+      return originalRead(...args);
+    });
+    const pending = json(`${previewPath}?manifestId=${manifestId}`);
+    await entered.promise;
+    const adminConnection = new URL(fixture.adminUrl);
+    adminConnection.pathname = '/zhiju_mvp_test';
+    const admin = new Client({ connectionString: adminConnection.toString() });
+    await admin.connect();
+    try {
+      await admin.query('SET ROLE mvp_ddl');
+      await admin.query(
+        'UPDATE document_delivery.operator_binding SET enabled=false, auth_epoch=auth_epoch+1 WHERE owner_id=$1',
+        [fixture.ownerId],
+      );
+      release.resolve(undefined);
+      const revoked = await pending;
+      expect(revoked.status).toBe(403);
+      expect(revoked.body.data).toBeUndefined();
+    } finally {
+      release.resolve(undefined);
+      spy.mockRestore();
+      await admin.query(
+        'UPDATE document_delivery.operator_binding SET enabled=true, auth_epoch=auth_epoch+1 WHERE owner_id=$1',
+        [fixture.ownerId],
+      );
+      await admin.end();
+    }
+    expect((await json(`${previewPath}?manifestId=${manifestId}`)).status).toBe(200);
     const source = await fetch(
       `${origin}/api/mvp/v1/projects/${projectId}/batches/${batchId}/sources/${String(originalZip.sourceId)}/content`,
       { headers: headers() },

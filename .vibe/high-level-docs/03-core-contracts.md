@@ -1278,3 +1278,13 @@ Hash分域：原source/suggestion/JSON/Markdown/sidecar/report/render输出=实�
 ## 模板驱动 PreparationContext 增量（2026-10-18）
 
 [校正决定](../decisions/template-driven-preparation.md)的模板 Source 使用显式 `PreparationContext@1.1` 分支，绑定 EP source@2.0、analysisBasisRef/Hash/publication、实际来源与公司指令、精确模板、当前授权/有效期及执行锁。旧 ProjectContext/PreparationContext 字段不填空、不借别的 Ref 类型替代。Context Hash 和 WorkOrderContract@1.1 的 preparation 分支包含完整新绑定；旧 ACTIVE/synthetic 消费者拒绝该分支，不能通用忽略未知字段。TE 的实际 registration/readiness/freeze 和各层验收尚未实现。
+
+
+## MVP 源文件只读提取视图（2026-11-04）
+
+`mvp.get_source_preview` 属于 MVP01 查询，闭响应和权限唯一由 [MVP01 §11](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#11-已接收资料只读内容核对2026-11-04-已批准) 拥有。绑定 sealed manifest 与完整 ACCEPTED_ENTRY SourceRef；不是 AgentResult、READ 证明、分析输入授权或候选。固定 collector 只提供有界技术提取；Core 独立验证代码/输入/输出，保存原接收说明。无新增持久化 schema 或旧 Contract 互换。
+
+
+## MVP 批次技术读取检查（2026-11-04）
+
+已批准 [SD-BR-01–04](../decisions/mvp-batch-read-check.md) 引入精确manifest/profile绑定的检查任务及不可变逐项元数据；唯一字段与恢复语义归 [MVP01 §12](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#12-整批资料读取检查2026-11-04-已批准)。结果摘要不是持久正文、业务READ、AgentResult或后续分析输入授权；不互换旧四类Core Contract。原SourceRef和manifest保持不变。

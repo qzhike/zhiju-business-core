@@ -2,6 +2,7 @@
 import { inflateRawSync } from 'node:zlib';
 
 import { MVP_INPUT_LIMITS } from '../domain/policy.js';
+import { SCAN_LIMITS, type ScanMetric, type LimitViolation } from '../domain/limit-violation.js';
 
 /**
  * Strict ordinary ZIP container parser for MVP01. It never touches the
@@ -14,15 +15,24 @@ export type ZipFailure = 'ZIP_UNSAFE' | 'ZIP_CORRUPT' | 'ZIP_LIMIT_EXCEEDED';
 export class ZipSafetyError extends Error {
   readonly code: ZipFailure;
 
-  constructor(code: ZipFailure) {
+  readonly limitViolation?: LimitViolation;
+
+  constructor(code: 'ZIP_LIMIT_EXCEEDED', detail: LimitViolation);
+  constructor(code: Exclude<ZipFailure, 'ZIP_LIMIT_EXCEEDED'>);
+  constructor(code: ZipFailure, detail?: LimitViolation) {
     super(code);
     this.name = 'ZipSafetyError';
     this.code = code;
+    if (detail !== undefined) this.limitViolation = detail;
   }
 }
 
 export interface ScanBudget {
-  entries: number;
+  /** Optional stricter limits for a bounded consumer; admission limits cannot be raised. */
+  limits?: Partial<Record<ScanMetric, number>>;
+  outerEntries: number;
+  officeEntries: number;
+  documentPath?: string;
   expanded: number;
   retained: number;
   transientReserve: number;
@@ -38,9 +48,10 @@ export interface ZipEntry {
 }
 
 export function createScanBudget(originalBytes: number): ScanBudget {
-  if (originalBytes > MVP_INPUT_LIMITS.zipBytes) fail('ZIP_LIMIT_EXCEEDED');
+  checkScanLimit('ZIP_BYTES', originalBytes);
   return {
-    entries: 0,
+    outerEntries: 0,
+    officeEntries: 0,
     expanded: 0,
     retained: originalBytes,
     transientReserve: 2 * Math.max(originalBytes, MVP_INPUT_LIMITS.entryBytes),
@@ -48,7 +59,7 @@ export function createScanBudget(originalBytes: number): ScanBudget {
   };
 }
 
-function fail(code: ZipFailure): never {
+function fail(code: Exclude<ZipFailure, 'ZIP_LIMIT_EXCEEDED'>): never {
   throw new ZipSafetyError(code);
 }
 
@@ -61,10 +72,28 @@ function text(bytes: Uint8Array): string {
   }
 }
 
-function checkMemory(budget: ScanBudget, extra = 0): void {
+export function checkScanLimit(metric: ScanMetric, actual: number, budget?: ScanBudget): void {
+  const limit = Math.min(SCAN_LIMITS[metric], budget?.limits?.[metric] ?? SCAN_LIMITS[metric]);
+  if (actual > limit)
+    throw new ZipSafetyError('ZIP_LIMIT_EXCEEDED', {
+      metric,
+      actual,
+      limit,
+      ...(budget?.documentPath === undefined ? {} : { documentPath: budget.documentPath }),
+    });
+}
+
+export function checkScanMemory(budget: ScanBudget, extra = 0): void {
   // Reserve 128 MiB for the scanner runtime plus two maximum-size buffers.
-  if (budget.retained + 134217728 + budget.transientReserve + extra > MVP_INPUT_LIMITS.memoryBytes)
-    fail('ZIP_LIMIT_EXCEEDED');
+  checkScanLimit(
+    'MEMORY_BYTES',
+    budget.retained + 134217728 + budget.transientReserve + extra,
+    budget,
+  );
+}
+
+export function checkScanTime(budget: ScanBudget): void {
+  checkScanLimit('PROCESSING_TIME_MS', Date.now() - budget.started, budget);
 }
 
 const crcTable = new Uint32Array(256);
@@ -95,8 +124,12 @@ interface CentralEntry {
 }
 
 /** Parse one complete ZIP archive and return every ordinary file entry. */
-export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[] {
-  if (bytes.length > MVP_INPUT_LIMITS.zipBytes) fail('ZIP_LIMIT_EXCEEDED');
+export function parseZipContainer(
+  bytes: Buffer,
+  budget: ScanBudget,
+  kind: 'OUTER' | 'OFFICE' = 'OUTER',
+): ZipEntry[] {
+  checkScanLimit('ZIP_BYTES', bytes.length, budget);
   if (bytes.length < 22) fail('ZIP_CORRUPT');
   let end = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
@@ -121,15 +154,21 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
     directoryStart + directorySize !== end
   )
     fail('ZIP_UNSAFE');
-  budget.entries += count;
-  if (budget.entries > MVP_INPUT_LIMITS.entries) fail('ZIP_LIMIT_EXCEEDED');
+  if (kind === 'OUTER') {
+    budget.outerEntries += count;
+    checkScanLimit('OUTER_ENTRIES', budget.outerEntries, budget);
+  } else {
+    budget.officeEntries += count;
+    checkScanLimit('OFFICE_DOCUMENT_ENTRIES', count, budget);
+    checkScanLimit('OFFICE_ENTRIES', budget.officeEntries, budget);
+  }
 
   let cursor = directoryStart;
   const paths = new Set<string>();
   const intervals: { start: number; end: number }[] = [];
   const central: CentralEntry[] = [];
   for (let ordinal = 0; ordinal < count; ordinal++) {
-    if (Date.now() - budget.started > MVP_INPUT_LIMITS.wallClockMs) fail('ZIP_LIMIT_EXCEEDED');
+    checkScanTime(budget);
     if (cursor + 46 > end || bytes.readUInt32LE(cursor) !== 0x02014b50) fail('ZIP_CORRUPT');
     const madeBy = bytes.readUInt16LE(cursor + 4);
     const flags = bytes.readUInt16LE(cursor + 8);
@@ -146,7 +185,7 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
     if (
       cursor + 46 + nameLength + extraLength + commentLength > end ||
       disk !== 0 ||
-      (flags & ~0x0808) !== 0 ||
+      (flags & ~(method === 8 ? 0x080e : 0x0808)) !== 0 ||
       ![0, 8].includes(method) ||
       [compressed, expanded, local].includes(0xffffffff)
     )
@@ -171,15 +210,20 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
     const directory = originalName.endsWith('/');
     if (madeBy >>> 8 === 3 && unixType !== 0 && unixType !== (directory ? 0x4000 : 0x8000))
       fail('ZIP_UNSAFE');
-    if (
-      expanded > MVP_INPUT_LIMITS.entryBytes ||
-      (compressed === 0 ? expanded !== 0 : expanded / compressed > MVP_INPUT_LIMITS.expansionRatio)
-    )
-      fail('ZIP_LIMIT_EXCEEDED');
+    checkScanLimit('ENTRY_BYTES', expanded, budget);
+    if (expanded > compressed * MVP_INPUT_LIMITS.expansionRatio) {
+      throw new ZipSafetyError('ZIP_LIMIT_EXCEEDED', {
+        metric: 'EXPANSION_RATIO',
+        expandedBytes: expanded,
+        compressedBytes: compressed,
+        limit: 100,
+        ...(budget.documentPath === undefined ? {} : { documentPath: budget.documentPath }),
+      });
+    }
     budget.expanded += expanded;
     budget.retained += expanded;
-    checkMemory(budget);
-    if (budget.expanded > MVP_INPUT_LIMITS.totalExpandedBytes) fail('ZIP_LIMIT_EXCEEDED');
+    checkScanMemory(budget);
+    checkScanLimit('EXPANDED_BYTES', budget.expanded, budget);
     if (
       local + 30 > directoryStart ||
       bytes.readUInt32LE(local) !== 0x04034b50 ||
@@ -266,7 +310,7 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
 
   const entries: ZipEntry[] = [];
   for (const entry of central) {
-    if (Date.now() - budget.started > MVP_INPUT_LIMITS.wallClockMs) fail('ZIP_LIMIT_EXCEEDED');
+    checkScanTime(budget);
     const nameLength = entry.nameBytes.length;
     const localExtra = bytes.readUInt16LE(entry.local + 28);
     const start = entry.local + 30 + nameLength + localExtra;
@@ -285,7 +329,7 @@ export function parseZipContainer(bytes: Buffer, budget: ScanBudget): ZipEntry[]
     } catch {
       fail('ZIP_CORRUPT');
     }
-    checkMemory(budget, content.length);
+    checkScanMemory(budget, content.length);
     if (
       content.length !== entry.expanded ||
       zipCrc32(content) !== entry.crc ||

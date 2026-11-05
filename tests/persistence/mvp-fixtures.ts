@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deflateRawSync } from 'node:zlib';
 import { Client } from 'pg';
 
 import { newUuidV7 } from '@zhiju/shared-kernel';
@@ -34,6 +35,9 @@ export interface ZipFixtureEntry {
   readonly name: string;
   readonly bytes: Buffer;
   readonly directory?: boolean;
+  readonly method?: 0 | 8;
+  readonly flags?: number;
+  readonly descriptorSignature?: boolean;
 }
 
 /** Minimal deterministic ZIP writer used only by tests. */
@@ -44,30 +48,45 @@ export function zipBytes(entries: readonly ZipFixtureEntry[]): Buffer {
   for (const entry of entries) {
     const name = Buffer.from(entry.name, 'utf8');
     const bytes = entry.directory === true ? Buffer.alloc(0) : entry.bytes;
+    const method = entry.method ?? 0;
+    const flags = entry.flags ?? 0;
+    const compressed = method === 8 ? deflateRawSync(bytes) : bytes;
     const crc = crc32(bytes);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0, 6);
-    local.writeUInt16LE(0, 8);
-    local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(bytes.length, 18);
-    local.writeUInt32LE(bytes.length, 22);
+    local.writeUInt16LE(flags, 6);
+    local.writeUInt16LE(method, 8);
+    if ((flags & 8) === 0) {
+      local.writeUInt32LE(crc, 14);
+      local.writeUInt32LE(compressed.length, 18);
+      local.writeUInt32LE(bytes.length, 22);
+    }
     local.writeUInt16LE(name.length, 26);
-    locals.push(local, name, bytes);
+    const descriptor = Buffer.alloc(
+      (flags & 8) === 0 ? 0 : entry.descriptorSignature === false ? 12 : 16,
+    );
+    if (descriptor.length > 0) {
+      const start = descriptor.length === 16 ? 4 : 0;
+      if (start === 4) descriptor.writeUInt32LE(0x08074b50, 0);
+      descriptor.writeUInt32LE(crc, start);
+      descriptor.writeUInt32LE(compressed.length, start + 4);
+      descriptor.writeUInt32LE(bytes.length, start + 8);
+    }
+    locals.push(local, name, compressed, descriptor);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(0, 8);
-    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(flags, 8);
+    central.writeUInt16LE(method, 10);
     central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(bytes.length, 20);
+    central.writeUInt32LE(compressed.length, 20);
     central.writeUInt32LE(bytes.length, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt32LE(offset, 42);
     centrals.push(central, name);
-    offset += local.length + name.length + bytes.length;
+    offset += local.length + name.length + compressed.length + descriptor.length;
   }
   const directory = Buffer.concat(centrals);
   const end = Buffer.alloc(22);
@@ -103,7 +122,7 @@ function relationships(items: readonly { id: string; type: string; target: strin
   );
 }
 
-export function docxBytes(): Buffer {
+export function docxBytes(extraParts = 0): Buffer {
   return zipBytes([
     {
       name: '[Content_Types].xml',
@@ -127,7 +146,76 @@ export function docxBytes(): Buffer {
         'utf8',
       ),
     },
+    ...Array.from({ length: extraParts }, (_, i) => ({
+      name: `extra/${i}.txt`,
+      bytes: Buffer.alloc(0),
+    })),
   ]);
+}
+
+/** Public synthetic Word package with an explicit, never fetched template reference. */
+export function templateDocxEntries(
+  options: { strict?: boolean; prefix?: string; target?: string } = {},
+): ZipFixtureEntry[] {
+  const word = options.strict === true ? 'http://purl.oclc.org/ooxml/wordprocessingml/main' : WORD;
+  const rel =
+    options.strict === true ? 'http://purl.oclc.org/ooxml/officeDocument/relationships' : REL;
+  const prefix = options.prefix ?? 'r';
+  const target = options.target ?? 'https://template.invalid/never-read.dotx';
+  return [
+    {
+      name: '[Content_Types].xml',
+      bytes: contentTypes([
+        {
+          part: '/word/document.xml',
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        },
+        {
+          part: '/word/settings.xml',
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml',
+        },
+      ]),
+    },
+    {
+      name: '_rels/.rels',
+      bytes: relationships([
+        { id: 'document', type: `${rel}/officeDocument`, target: 'word/document.xml' },
+      ]),
+    },
+    {
+      name: 'word/document.xml',
+      bytes: Buffer.from(
+        `<w:document xmlns:w="${word}"><w:body><w:p><w:r><w:t>Static document text</w:t></w:r></w:p></w:body></w:document>`,
+      ),
+    },
+    {
+      name: 'word/_rels/document.xml.rels',
+      bytes: relationships([{ id: 'settings', type: `${rel}/settings`, target: 'settings.xml' }]),
+    },
+    {
+      name: 'word/settings.xml',
+      bytes: Buffer.from(
+        `<w:settings xmlns:w="${word}" xmlns:${prefix}="${rel}"><w:attachedTemplate ${prefix}:id="template"/></w:settings>`,
+      ),
+    },
+    {
+      name: 'word/_rels/settings.xml.rels',
+      bytes: Buffer.from(
+        `<Relationships xmlns="${RELATIONSHIPS}"><Relationship Id="template" Type="${rel}/attachedTemplate" Target="${target}" TargetMode="External"/></Relationships>`,
+      ),
+    },
+  ];
+}
+
+export function templateDocxBytes(): Buffer {
+  return zipBytes(templateDocxEntries());
+}
+
+export function appleDoubleBytes(): Buffer {
+  const bytes = Buffer.alloc(26);
+  bytes.writeUInt32BE(0x00051607, 0);
+  bytes.writeUInt32BE(0x00020000, 4);
+  return bytes;
 }
 
 export function macroDocxBytes(): Buffer {
@@ -231,7 +319,11 @@ export async function createMvpDatabase(adminUrl: string): Promise<Client> {
   return admin;
 }
 
-export async function applyMvpMigration(adminUrl: string): Promise<void> {
+export async function applyMvpMigration(
+  adminUrl: string,
+  beforeResourceBudgets?: (client: Client) => Promise<void>,
+  beforeIntakeCompatibility?: (client: Client) => Promise<void>,
+): Promise<void> {
   const url = new URL(adminUrl);
   url.pathname = `/${MVP_TEST_DATABASE}`;
   const client = new Client({ connectionString: url.toString() });
@@ -250,6 +342,35 @@ export async function applyMvpMigration(adminUrl: string): Promise<void> {
         join(
           import.meta.dirname,
           '../../modules/document-delivery/migrations/V0002__nested_archive_rejection.sql',
+        ),
+        'utf8',
+      ),
+    );
+    await beforeResourceBudgets?.(client);
+    await client.query(
+      await readFile(
+        join(
+          import.meta.dirname,
+          '../../modules/document-delivery/migrations/V0003__zip_resource_budgets.sql',
+        ),
+        'utf8',
+      ),
+    );
+    await beforeIntakeCompatibility?.(client);
+    await client.query(
+      await readFile(
+        join(
+          import.meta.dirname,
+          '../../modules/document-delivery/migrations/V0004__document_intake_compatibility.sql',
+        ),
+        'utf8',
+      ),
+    );
+    await client.query(
+      await readFile(
+        join(
+          import.meta.dirname,
+          '../../modules/document-delivery/migrations/V0005__batch_read_checks.sql',
         ),
         'utf8',
       ),

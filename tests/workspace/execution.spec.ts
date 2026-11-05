@@ -249,7 +249,7 @@ test('production execution route excludes event fixtures and cannot invent ready
     expect(bytes).not.toContain('DEMO-LIST-');
   }
   await page.goto(first);
-  await expect(page.getByRole('alert')).toContainText('登录与公开业务服务尚未接入');
+  await expect(page.getByRole('alert')).toContainText('暂时无法连接工作空间服务');
   await expect(page.getByRole('button', { name: '重新处理本文件' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /检查文件 ·/ })).toHaveCount(0);
   await expect(page.locator('.execution-controls')).toHaveCount(0);

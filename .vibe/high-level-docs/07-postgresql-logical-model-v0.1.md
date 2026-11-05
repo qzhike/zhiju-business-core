@@ -38,6 +38,11 @@
 
 2026-11-03 已批准增量：新增 `V0002__nested_archive_rejection.sql`，允许 `input_batches.policy_version` 保留 `mvp.zip-input@1` 并接收新批次 `@2`；旧 migration、原输入、receipt 与 manifest 不改写。新增 nullable JSONB `rejected_archive_paths`，只允许在嵌套压缩文件导致的 REJECTED 批次保存非空有界字符串数组。拒绝路径、批次状态、错误原因和活动占用释放同事务写入，沿用 owner/project 权限及终态不可变约束；不写入通用事件正文。实际实例升级与部署另行授权。
 
+2026-11-04 已批准资源预算增量：新增 V0003，允许 @1/@2/@3，新增 nullable JSONB limit_violation；闭对象校验固定 metric、限额、非负安全整数/倍率字节对、可选安全 Office 路径和 @3/REJECTED/ZIP_LIMIT_EXCEEDED/无 manifest 的关系。新 @3 超限拒绝必须有详情，旧记录不回填。嵌套拒绝路径约束扩展到 @2/@3。详情、失败尝试、拒绝状态与活动占用释放同事务，沿用 owner/project 隔离，不改旧 migration、receipt、manifest 或原包。字段权威归 MVP01 Spec §9。
+
+2026-11-04 已批准接收兼容性增量：新增 V0004 允许 @1–@4，嵌套拒绝路径扩展到 @2–@4，强制 limit_violation 规则扩展到 @3/@4；额度、字段形状及 V0001–V0003 不变。不新增业务表或回填历史。`source_entries` 与 manifest 的既有 reason_codes 保存 `SYSTEM_METADATA_NOT_DOCUMENT`（UNSUPPORTED，无 source）或 `EXTERNAL_TEMPLATE_NOT_LOADED`（ACCEPTED，带 source）；后者作为精确原字节来源的不可变接收说明与 manifest 一起原子封存。旧活动批次沿 policy 不匹配的恢复约束，不自动升级执行。语义权威归 MVP01 Spec §10。
+
+
 原ZIP的持久对象记录由 input_batches 的 sealed `original_zip_source` 字段持有，包含 sourceId/sha/length/media/object receipt；manifest 原样引用并核对，不使用尚可变化的staging位置。只有manifest封存事务可将其从技术staging提升为业务来源。所有源、entry、manifest、attempt和request使用复合外键核对相同owner/project/batch，不允许仅凭全局UUID建立跨项目关联。attempt引用的authorization只读，原Request重放不更新epoch；新恢复Request可授权新attempt，不能覆盖原授权历史。Hash保留算法和域版本；完整payload为唯一源，提升字段受CHECK/应用双重校验。
 
 运行角色 `mvp_runtime` 非superuser、非BYPASSRLS、非schema/table owner；迁移/初始化角色独立且不进入应用连接。所有业务表ENABLE/FORCE RLS，以事务内SET LOCAL的owner_id为第一层；project内访问同时绑定已核验project_id。项目目录的专用只读路径只按owner扫描projects，不借目录权限读取所有来源。连接池归还前结束事务，缺上下文fail closed；worker从已提交意图和当前binding取得受限上下文，不能从请求参数选择任意owner。request查找可先通过owner+requestId的有限索引取得其projectId，再绑定project上下文读完整receipt；不得从该索引暴露payload。operator_binding/installation只暴露有限只读解析，运行角色无维护写权。
@@ -2599,3 +2604,8 @@ Owner 之间只经 exact TypedReference 与当前授权 Port；数据库连接�
 [校正决定](../decisions/template-driven-preparation.md)新增 EP-owned immutable basis version、publication 和 withdrawal 事实；版本按 basisId+versionId 及 basisCode+basisVersion 唯一，publication 对应完整 payloadHash、实际 Actor/Decision/Receipt 和生效时间。撤回/明确取代追加事实，原 bytes/Hash 不改；单后继、无环、时间边界在 owning transaction 校验。Platform 当前许可与部署授权独立验证，FORCE RLS 保持，不授予普通 Project 会话全平台读权。
 
 新 Source/Context/Report 在各自 owning 存储绑定完整 basis identity/Hash；原 preparation request、source 与旧 company_rule_publication 行不回填、不换类型。旧 source@1.0 与新 source@2.0 由保存的 profile/原操作版本精确区分，不能由当前部署选择反推历史。append-only、原键/hash/Receipt、跨 Root 分步恢复与原调用 UNKNOWN 继续适用。`V7023__preparation_analysis_basis.sql` 已增加三类不可变基准事实及 publication/version、单后继唯一约束；基准发布/读取/撤回与预设原回执恢复由实际 PostgreSQL 回归覆盖。Context/Report 存储与整链仍待实现。
+
+
+## MVP01 批次读取检查持久化（2026-11-04）
+
+[SD-BR-01–03](../decisions/mvp-batch-read-check.md) 由新增V0005实现于独立document_delivery，不改旧迁移或来源：read_checks保存固定输入/profile/原请求授权、状态/代次/incarnation/resultVersion；read_check_results保存每entry唯一不可变闭集结果元数据；read_check_events保存状态变化。所有表owner/project/batch/checkId强绑定，结果另绑定原entry，强制RLS且无公开删除权限。项目活动QUEUED/RUNNING/UNKNOWN部分唯一索引；Request与任务原子创建、结果与版本/终态原子提交。终态任务不可修改，已提交result/event禁止覆盖；触发器验证状态转换、固定身份及原Request授权，runtime不得直接选择其他owner数据。受控security-definer启动查询仅暴露活动任务身份与原epoch，授权锁函数锁定当前binding以闭合撤权竞态；不得输出正文/凭据。字段唯一由MVP01 §12拥有；无新增正文存储或数据回填。

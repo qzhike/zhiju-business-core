@@ -99,7 +99,7 @@ test('production excludes the local Runner reader', async ({ page, request }) =>
     const source = await readFile(join('apps/workspace-web/dist/assets', asset), 'utf8');
     for (const marker of [
       'Runner 产物核对',
-      '合并属性超出阅读范围',
+      '选择一个 handoff 目录',
       '交接包清单长度不一致',
       '原始 Markdown 物理行对照',
       '本地结果会话不可用',

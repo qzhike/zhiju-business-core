@@ -8,7 +8,7 @@ const startup = `${project}/startup/DEMO-STARTUP-REPORT-01`;
 
 test('production refuses business actions even with development switches', async ({ page }) => {
   await page.goto('/workbench');
-  await expect(page.getByRole('alert')).toContainText('登录与公开业务服务尚未接入');
+  await expect(page.getByRole('alert')).toContainText('暂时无法连接工作空间服务');
   await expect(page.getByRole('button', { name: '确认信息与范围并开始' })).toHaveCount(0);
   await expect(page.getByRole('note')).toHaveCount(0);
   const response = await page.request.post('/bff/fixture/execute', {

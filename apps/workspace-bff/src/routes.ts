@@ -65,7 +65,7 @@ export interface BffRouterContext {
 const MVP_PREFIX = '/bff/mvp/v1';
 
 export interface MvpRouteMatch {
-  readonly kind: 'read' | 'write' | 'upload' | 'download';
+  readonly kind: 'read' | 'write' | 'upload' | 'download' | 'preview';
   readonly corePath: string;
   readonly query: readonly string[];
 }
@@ -121,6 +121,10 @@ export function matchMvpRoute(path: string, method: string): MvpRouteMatch | 'ME
     segments[2] === 'batches' &&
     idSegment(segments[3])
   ) {
+    if (segments[4] === 'read-checks') {
+      if (method === 'POST') return { kind: 'write', corePath, query: [] };
+      return method === 'GET' ? { kind: 'read', corePath, query: ['limit', 'cursor'] } : 'METHOD';
+    }
     if (segments[4] === 'entries')
       return method === 'GET'
         ? { kind: 'read', corePath, query: ['manifestId', 'limit', 'cursor'] }
@@ -132,6 +136,23 @@ export function matchMvpRoute(path: string, method: string): MvpRouteMatch | 'ME
     return undefined;
   }
   if (
+    (segments.length === 6 || (segments.length === 7 && segments[6] === 'entries')) &&
+    segments[0] === 'projects' &&
+    idSegment(segments[1]) &&
+    segments[2] === 'batches' &&
+    idSegment(segments[3]) &&
+    segments[4] === 'read-checks' &&
+    idSegment(segments[5])
+  ) {
+    return method === 'GET'
+      ? {
+          kind: 'read',
+          corePath,
+          query: segments.length === 6 ? [] : ['limit', 'cursor', 'filter', 'resultVersion'],
+        }
+      : 'METHOD';
+  }
+  if (
     segments.length === 7 &&
     segments[0] === 'projects' &&
     idSegment(segments[1]) &&
@@ -139,9 +160,13 @@ export function matchMvpRoute(path: string, method: string): MvpRouteMatch | 'ME
     idSegment(segments[3]) &&
     segments[4] === 'sources' &&
     idSegment(segments[5]) &&
-    segments[6] === 'content'
-  )
-    return method === 'GET' ? { kind: 'download', corePath, query: [] } : 'METHOD';
+    (segments[6] === 'content' || segments[6] === 'preview')
+  ) {
+    if (method !== 'GET') return 'METHOD';
+    return segments[6] === 'preview'
+      ? { kind: 'preview', corePath, query: ['manifestId'] }
+      : { kind: 'download', corePath, query: [] };
+  }
   return undefined;
 }
 
@@ -1208,7 +1233,7 @@ export function createRequestHandler(
           ? JSON_CONTENT_TYPE
           : undefined;
     const guarded =
-      route.kind === 'read' || route.kind === 'download'
+      route.kind === 'read' || route.kind === 'download' || route.kind === 'preview'
         ? guardRead(request, reply)
         : guardProtected(request, reply, expectedContentType);
     if ('handled' in guarded) return true;
@@ -1240,7 +1265,90 @@ export function createRequestHandler(
     if (route.kind === 'upload')
       return handleMvpUpload(request, reply, route, fresh, mvp.coreBaseUrl);
     if (route.kind === 'download') return handleMvpSource(reply, route, fresh, mvp.coreBaseUrl);
+    if (route.kind === 'preview')
+      return handleMvpPreview(request, reply, route, rawQuery, fresh, mvp.coreBaseUrl);
     return handleMvpJson(request, reply, route, rawQuery, fresh, mvp.coreBaseUrl);
+  }
+
+  async function handleMvpPreview(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    route: MvpRouteMatch,
+    rawQuery: string,
+    fresh: SessionRecord,
+    coreBaseUrl: string,
+  ): Promise<boolean> {
+    const parameters = new URLSearchParams(rawQuery);
+    if (
+      !isUuidV7(parameters.get('manifestId') ?? '') ||
+      request.headers.range !== undefined ||
+      request.headers['transfer-encoding'] !== undefined ||
+      (request.headers['content-length'] !== undefined && request.headers['content-length'] !== '0')
+    )
+      return sendSafeError(
+        reply,
+        400,
+        UI_ERROR.CLIENT_STATE_INVALID,
+        'Preview request rejected.',
+        false,
+      );
+    const abort = new AbortController();
+    const disconnected = () => {
+      if (!reply.raw.writableEnded) abort.abort();
+    };
+    reply.raw.once('close', disconnected);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = await context.fetchImpl(
+        `${trimTrailingSlash(coreBaseUrl)}${route.corePath}?${rawQuery}`,
+        {
+          method: 'GET',
+          redirect: 'error',
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(35000)]),
+          headers: {
+            accept: 'application/json',
+            authorization: `Bearer ${fresh.accessToken}`,
+            'x-workspace-session-binding': fresh.sessionBinding,
+            'x-workspace-trust-config-hash': loaded.configHash,
+          },
+        },
+      );
+      if (
+        !response.headers.get('content-type')?.startsWith('application/json') ||
+        response.body === null
+      )
+        throw new Error('preview response rejected');
+      reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const next = await reader.read();
+        if (next.done) break;
+        total += next.value.length;
+        if (total > CORE_RESPONSE_LIMIT + 4096) throw new Error('preview response limit');
+        chunks.push(next.value);
+      }
+      if (!sessions.isCurrent(fresh))
+        return sendSafeError(reply, 401, UI_ERROR.REAUTH_REQUIRED, 'Sign-in required.', true);
+      reply
+        .status(response.status)
+        .header('cache-control', 'no-store')
+        .header('content-type', 'application/json; charset=utf-8')
+        .send(Buffer.concat(chunks));
+      return true;
+    } catch {
+      return sendSafeError(
+        reply,
+        503,
+        CORE_ERROR.DEPENDENCY_UNAVAILABLE,
+        'Preview unavailable.',
+        true,
+      );
+    } finally {
+      reply.raw.off('close', disconnected);
+      await reader?.cancel().catch(() => undefined);
+      abort.abort();
+    }
   }
 
   async function handleMvpJson(

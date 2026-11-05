@@ -1,3 +1,5 @@
+import type { LimitViolation } from './limit-violation.js';
+
 /**
  * MVP01 DocumentDelivery wire and persisted facts.
  *
@@ -63,6 +65,8 @@ export const REASON_CODES = [
   'INVALID_XLSX',
   'ACTIVE_CONTENT_NOT_SUPPORTED',
   'EXTERNAL_REFERENCE_REQUIRES_REVIEW',
+  'SYSTEM_METADATA_NOT_DOCUMENT',
+  'EXTERNAL_TEMPLATE_NOT_LOADED',
   'ZIP_UNSAFE',
   'ZIP_CORRUPT',
   'ZIP_LIMIT_EXCEEDED',
@@ -149,6 +153,7 @@ export interface ProjectRecord {
 }
 
 export interface BatchRecord {
+  readonly limitViolation?: LimitViolation;
   readonly rejectedArchivePaths?: readonly string[];
   readonly batchId: string;
   readonly ownerId: string;
@@ -306,6 +311,7 @@ export interface Page<T> {
 }
 
 export interface BatchDetail {
+  readonly limitViolation?: LimitViolation;
   readonly rejectedArchivePaths?: readonly string[];
   readonly batch: BatchView;
   readonly attempts: readonly AttemptSummary[];

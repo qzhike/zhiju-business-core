@@ -1,9 +1,9 @@
 import { SaxesParser } from 'saxes';
 
-import { MVP_INPUT_LIMITS } from '../domain/policy.js';
-import { ZipSafetyError, type ScanBudget } from './zip.js';
+import { ZipSafetyError, checkScanMemory, checkScanTime, type ScanBudget } from './zip.js';
 
 export interface XmlAttribute {
+  readonly local: string;
   readonly uri: string;
   readonly value: string;
 }
@@ -37,17 +37,14 @@ export function scanXml(
   budget: ScanBudget,
   expectation: XmlExpectation,
   onTag: (tag: XmlTag) => void,
+  observer?: { readonly text?: (text: string) => void; readonly close?: () => void },
 ): void {
   // Reserve decoded UTF-16 plus parser token buffers before decoding any XML.
   const xmlBuffers = 4 * bytes.length;
   let metadata = 0;
   const frames: number[] = [];
   const checkMemory = (): void => {
-    if (
-      budget.retained + 134217728 + budget.transientReserve + xmlBuffers + metadata >
-      MVP_INPUT_LIMITS.memoryBytes
-    )
-      throw new ZipSafetyError('ZIP_LIMIT_EXCEEDED');
+    checkScanMemory(budget, xmlBuffers + metadata);
   };
   checkMemory();
   let value: string;
@@ -60,6 +57,10 @@ export function scanXml(
   let depth = 0;
   parser.on('doctype', corrupt);
   parser.on('error', corrupt);
+  if (observer?.text !== undefined) {
+    parser.on('text', observer.text);
+    parser.on('cdata', observer.text);
+  }
   parser.on('opentagstart', (tag) => {
     const size = 4096 + 8 * tag.name.length;
     frames.push(size);
@@ -94,12 +95,12 @@ export function scanXml(
     depth++;
   });
   parser.on('closetag', () => {
+    observer?.close?.();
     depth--;
     metadata -= frames.pop() ?? 0;
   });
   for (let cursor = 0; cursor < value.length; cursor += 16384) {
-    if (Date.now() - budget.started > MVP_INPUT_LIMITS.wallClockMs)
-      throw new ZipSafetyError('ZIP_LIMIT_EXCEEDED');
+    checkScanTime(budget);
     parser.write(value.slice(cursor, cursor + 16384));
   }
   parser.close();

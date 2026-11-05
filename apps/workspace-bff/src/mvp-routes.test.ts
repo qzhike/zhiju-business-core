@@ -41,6 +41,24 @@ describe('MVP BFF route allowlist', () => {
         'GET',
       ),
     ).toMatchObject({ kind: 'download' });
+    const preview = `/bff/mvp/v1/projects/${PROJECT}/batches/${BATCH}/sources/${SOURCE}/preview`;
+    expect(matchMvpRoute(preview, 'GET')).toMatchObject({ kind: 'preview', query: ['manifestId'] });
+    expect(matchMvpRoute(preview, 'POST')).toBe('METHOD');
+    const checks = `/bff/mvp/v1/projects/${PROJECT}/batches/${BATCH}/read-checks`;
+    expect(matchMvpRoute(checks, 'POST')).toMatchObject({ kind: 'write', query: [] });
+    expect(matchMvpRoute(checks, 'GET')).toMatchObject({
+      kind: 'read',
+      query: ['limit', 'cursor'],
+    });
+    expect(matchMvpRoute(`${checks}/${REQUEST}`, 'GET')).toMatchObject({ kind: 'read', query: [] });
+    expect(matchMvpRoute(`${checks}/${REQUEST}/entries`, 'GET')).toMatchObject({
+      kind: 'read',
+      query: ['limit', 'cursor', 'filter', 'resultVersion'],
+    });
+    expect(matchMvpRoute(`${checks}/${REQUEST}`, 'POST')).toBe('METHOD');
+    expect(matchMvpRoute(`${checks}/${REQUEST}/cancel`, 'POST')).toBeUndefined();
+
+    expect(matchMvpRoute(`${preview}/arbitrary`, 'GET')).toBeUndefined();
     expect(matchMvpRoute(`/bff/mvp/v1/requests/${REQUEST}`, 'GET')).toMatchObject({
       kind: 'read',
     });

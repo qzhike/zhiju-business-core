@@ -8,7 +8,7 @@ import { Button, buttonVariants } from './components/ui/button.js';
 // selection -> per-project EP/TE boards. The explicit development fixture mode
 // lives in `App.tsx` and is never reachable from this module.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { CustodyProjectPage, CustodyProjectsPage } from './custody/Page.js';
 import { DeliveryPage } from './delivery/Page.js';
@@ -160,50 +160,49 @@ export function TrustedApp() {
       <a className="skip" href="#main">
         跳到主要内容
       </a>
-      <header>
+      <header className="app-header">
         <Link className="brand" to="/workbench">
           <b aria-hidden="true">制</b>
           <strong>制巨</strong>
           <span>质量体系工作空间</span>
         </Link>
+        {live && (
+          <nav className="app-nav" aria-label="主要导航">
+            <Link
+              aria-current={location.pathname === '/workbench' ? 'page' : undefined}
+              to="/workbench"
+            >
+              我的工作台
+            </Link>
+            <Link
+              aria-current={location.pathname.startsWith('/custody') ? 'page' : undefined}
+              to="/custody"
+            >
+              项目与资料
+            </Link>
+            <Link
+              aria-current={location.pathname === '/projects/new' ? 'page' : undefined}
+              to="/projects/new"
+            >
+              新建项目
+            </Link>
+          </nav>
+        )}
         {logoutPending ? (
-          <span className="muted">正在退出登录…</span>
+          <span className="muted app-session">正在退出登录…</span>
         ) : principal === null ? (
-          <span className="muted">尚未登录</span>
+          <span className="muted app-session">
+            {probe.state === 'DENIED' ? '访问受限' : '尚未登录'}
+          </span>
         ) : (
-          <span className="muted">
+          <span className="muted app-session">
             {principal.displayName ?? principal.principalId} · 已登录
             <Button onClick={logout}>退出登录</Button>
           </span>
         )}
       </header>
       <div className="shell">
-        <nav className="sidebar" aria-label="主要导航">
-          <Link
-            aria-current={location.pathname === '/workbench' ? 'page' : undefined}
-            to="/workbench"
-          >
-            我的工作台
-          </Link>
-          <Link
-            aria-current={location.pathname.startsWith('/custody') ? 'page' : undefined}
-            to="/custody"
-          >
-            项目与资料
-          </Link>
-          <Link
-            aria-current={location.pathname === '/projects/new' ? 'page' : undefined}
-            to="/projects/new"
-          >
-            新建项目
-          </Link>
-          <div className="nav-note">
-            项目与看板
-            <br />
-            由公开服务独立授权
-          </div>
-        </nav>
-        <main id="main" ref={heading}>
+        <main id="main" ref={heading} className={live ? undefined : 'auth-main'}>
           <ContentBoundary>
             {session.phase === 'LOADING' ? (
               <LoadingPanel />
@@ -407,22 +406,33 @@ export function TrustedApp() {
 
 function LoadingPanel() {
   return (
-    <Card asChild>
-      <section className="panel" role="status">
-        <h1 tabIndex={-1}>正在加载工作空间</h1>
-        <p>正在确认当前会话与授权范围…</p>
-      </section>
-    </Card>
+    <AuthPanel title="正在加载工作空间">
+      <p className="auth-description" role="status">
+        正在确认登录状态，请稍候…
+      </p>
+    </AuthPanel>
   );
 }
 
 function LogoutPanel() {
   return (
-    <Card asChild>
-      <section className="panel" role="status">
-        <h1 tabIndex={-1}>正在退出登录</h1>
-        <p>已清除本标签页的会话身份与受保护内容，正在等待服务端完成退出与撤销…</p>
-        <p className="muted">退出完成前不会显示任何项目、看板或会话摘要</p>
+    <AuthPanel title="正在退出登录">
+      <p className="auth-description" role="status">
+        正在安全退出，请稍候…
+      </p>
+    </AuthPanel>
+  );
+}
+
+function AuthPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card asChild className="auth-panel">
+      <section aria-labelledby="auth-title">
+        <p className="auth-eyebrow">企业账号登录</p>
+        <h1 id="auth-title" tabIndex={-1}>
+          {title}
+        </h1>
+        {children}
       </section>
     </Card>
   );
@@ -441,52 +451,41 @@ function AccessGate({
 }) {
   if (probe.state === 'DENIED') {
     return (
-      <Card asChild>
-        <Alert asChild variant="warning">
-          <section className="panel error" role="alert">
-            <h1 tabIndex={-1}>没有可访问的工作空间</h1>
-            <p>当前身份已认证但没有可用的企业关联，不能进入任何一个 Project。</p>
-            <p className="muted">ACCESS_DENIED · 如需授权请联系管理员，本页不会重复尝试登录。</p>
-          </section>
+      <AuthPanel title="没有可访问的工作空间">
+        <Alert role="alert" variant="warning" className="auth-message">
+          账号已登录，但尚未获得工作空间访问权限。请联系管理员开通权限。
         </Alert>
-      </Card>
+      </AuthPanel>
     );
   }
   if (probe.state === 'UNAVAILABLE') {
     return (
-      <Card asChild>
-        <Alert asChild variant="warning">
-          <section className="panel error" role="alert">
-            <h1 tabIndex={-1}>工作空间暂不可用</h1>
-            <p>登录与公开业务服务尚未接入，暂不能执行业务操作。请联系管理员确认配置。</p>
-            <p className="muted">{probe.code}</p>
-            <Button onClick={onRetry}>重试加载</Button>
-          </section>
+      <AuthPanel title="工作空间暂不可用">
+        <Alert role="alert" variant="warning" className="auth-message">
+          暂时无法连接工作空间服务，请重试。如仍无法访问，请联系管理员。
         </Alert>
-      </Card>
+        <Button className="auth-action" onClick={onRetry}>
+          重试加载
+        </Button>
+      </AuthPanel>
     );
   }
   const expired = probe.state === 'SESSION_EXPIRED';
   return (
-    <Card asChild>
-      <Alert asChild variant="warning">
-        <section className="panel error" role="alert">
-          <h1 tabIndex={-1}>
-            {callbackFailed ? '登录未完成' : expired ? '需要重新登录' : '需要登录'}
-          </h1>
-          <p>
-            登录与公开业务服务尚未接入当前浏览器会话。
-            {expired ? '会话已过期，请重新登录后继续。' : '请使用企业账号登录后继续。'}
-          </p>
-          {callbackFailed && <p>本次登录未完成，未建立任何会话；请重新发起登录。</p>}
-          <p>
-            <a className={buttonVariants({ variant: 'default' })} href={signInHref(returnTo)}>
-              使用企业账号登录
-            </a>
-          </p>
-          <p className="muted">{expired ? 'UI_SESSION_EXPIRED' : 'UI_REAUTH_REQUIRED'}</p>
-        </section>
-      </Alert>
-    </Card>
+    <AuthPanel title={callbackFailed ? '登录未完成' : expired ? '需要重新登录' : '登录工作空间'}>
+      <p className="auth-description">登录后，继续处理项目资料与文件审阅。</p>
+      {(callbackFailed || expired) && (
+        <Alert role="alert" variant="warning" className="auth-message">
+          {callbackFailed ? '本次登录未完成，请重新登录。' : '会话已过期，请重新登录后继续。'}
+        </Alert>
+      )}
+      <a
+        className={buttonVariants({ variant: 'default', className: 'auth-action' })}
+        href={signInHref(returnTo)}
+      >
+        使用企业账号登录
+      </a>
+      <p className="auth-help">账号或权限问题，请联系管理员。</p>
+    </AuthPanel>
   );
 }

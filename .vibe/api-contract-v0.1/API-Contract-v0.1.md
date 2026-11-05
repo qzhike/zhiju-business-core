@@ -20,6 +20,8 @@
 - Browser只持BFF opaque cookie+CSRF；token只在BFF内存。BFF转发原始access token、服务端session binding和固定trust hash；Core独立验证及实例owner解析。拒绝actor/owner/授权override headers。读写均核对当前会话/Host/可信peer，同源敏感读取，写及流上传额外Origin/CSRF；登出/失权清DOM/cache并忽略旧session迟到结果。
 - 上传不用旧D14 ticket，采用当前认证+精确batch/attempt/generation+声明bytes/hash+独占claim；这些header本身不是权限。Content-Length必需且匹配声明，拒绝Range/Content-Encoding及multipart替换；流总时限5分钟、无数据30秒，沿已有bounded-stream取消/背压语义。超时只描述观察，恢复仍需原写者结束证明。
 - 2026-11-03 已批准的嵌套压缩文件策略增量：新 batch 使用 `mvp.zip-input@2`，成功 manifest 的提取器为 `mvp.input-extractor@2`；旧 `@1` 历史原样读取。`mvp.get_input_batch` 的 data 可附加 `rejectedArchivePaths: string[]`，仅在 `REJECTED` 且原因为 `NESTED_ARCHIVE_NOT_ALLOWED` 时返回，路径非空、按外层 ordinal 排序，最多 1000 项且每项最多 240 UTF-8 bytes；客户端按不可信文本处理。该可选读取字段不改变旧写入 payload、receipt、操作名或 HTTP 路由；缺省表示不适用，不表示扫描通过。精确规则归 MVP01 Spec §8。
+- 2026-11-04 已批准资源预算增量：新批次 policy/extractor 为 `@3`，旧 `@1/@2` 保留历史。`mvp.get_input_batch` data 可选 `limitViolation` 仅用于 @3 的 ZIP_LIMIT_EXCEEDED / REJECTED，字段、计量依据与历史缺省规则归 MVP01 Spec §9。此附加读取事实与拒绝事务持久提交；不改变请求、操作名、路由、原 receipt 或授权。
+- 2026-11-04 已批准接收兼容性增量：新批次 policy/extractor 为 `@4`，旧 @1–@3 历史不变。注册 `SYSTEM_METADATA_NOT_DOCUMENT`（UNSUPPORTED，无 SourceRef）与 `EXTERNAL_TEMPLATE_NOT_LOADED`（ACCEPTED 的静态模板接收说明，带原字节 SourceRef）；后者不是业务读取完成或失败原因，消费者须保留说明，不能解析外部目标。Entry 状态、manifest schema、SourceRef、接口与写入形状不变。第 9 节 limitViolation 强制规则同时适用于 @3/@4，嵌套拒绝路径适用于 @2–@4。精确规则归 MVP01 Spec §10。
 - API shape/version改变通过显式新version与兼容说明；B1没有任意extensions字段。实施须为每个有限route提供request/result/error schema和负例，并验证Web/BFF/Core同一契约；本设计不把描述当成已注册代码。
 
 本文把高层业务 Contract 落到可生成 Schema、Fixture、SDK 和 Handler 骨架的字段级 API，但不绑定传输协议。
@@ -716,3 +718,13 @@ Command受理成功不推RUNNING或候选，request数据disposition与stepFacts
 ZIP 只有 `PUT /bff/customer-intakes/{intakeId}/zip` → `/api/customer-intakes/{intakeId}/zip`，`Content-Type: application/zip` 与 `X-Intake-Upload-Token`，当前 session/CSRF/Origin 仍必需。无额外 Enterprise/Project/generation header；owner 从原 intake 导出。拒 Range、Content-Encoding、长度不一致与超过 100 MiB；支持无 Content-Length 的有界流。票据五分钟固定、同原命令重放不续期。上传断连/未知结果须原 ID 查询，不能创建替代上传或回删已托管事实。预设/Policy/公司规则缺失、当前撤权和分析能力不可用分别保留原 owning 状态，不伪造成功空值。
 
 生产 `ZHIJU_PREPARATION_CONFIG` 是闭集 JSON：`grantAdministrators`、独立 `companyRuleGrantAdministrators`、`administratorPolicySnapshotRef`、`servicePrincipalId`、`enterpriseCapabilities={select,create}`、有限 `capabilityCodes`、`selection={preparationPresetRef,preparationPresetHash,publicationRef}`、不可变 `policies`、`s3={endpoint,bucket,region}`、`ticket={activeKeyId}`、`companySources`。后者每项为 `{sha256,objectKey,locators:[{locator,offset,byteLength}]}`，显式绑定经批准公司来源实际字节与唯一切片；S3 精确读取后核实际 hash，EP 再核生产 pins、当前发布与切片唯一性，不能使用测试来源或未发布默认。密钥独立由 `ZHIJU_PREPARATION_TICKET_KEYS`（keyId→base64 AES-256）、`ZHIJU_PREPARATION_CURSOR_KEY`、`ZHIJU_PREPARATION_S3_ACCESS_KEY_ID`、`ZHIJU_PREPARATION_S3_SECRET_ACCESS_KEY` 与可选 `ZHIJU_PREPARATION_S3_SESSION_TOKEN` 提供，不属于 Browser JSON。IG 数据库可用显式 `ZHIJU_WORKSPACE_INTEGRATION_DATABASE_URL`，否则沿已有 Workspace 共享数据库连接配置，事务仍由 owning Role/RLS 隔离。配置不发布预设/Grant，不绕过当前 Human/SERVICE 授权；缺配置能力不可用，格式错误只报无秘密启动错误。
+
+
+### MVP v1 已接收来源只读内容
+
+新增 GET `/api/mvp/v1/projects/{projectId}/batches/{batchId}/sources/{sourceId}/preview?manifestId={manifestId}`，BFF 仅以 `/bff/mvp/v1` 对应有限路由转发；只接受必填 manifestId，不接受重复/未知 query、Range 或 body。字段与语义见 [MVP01 §11](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#11-已接收资料只读内容核对2026-11-04-已批准)。沿用 ok/data/observedAt envelope、当前鉴权与 no-store；预览响应数据最多 8 MiB，BFF 有界读取 envelope（另留 4096 bytes envelope 余量）。读取总时限 30s，BFF 专用上游时限 35s，浏览器取消向 Core 传播；其他 API 原时限/上限不变。
+
+
+### MVP v1 整批资料读取检查
+
+四项有限API与闭字段归 [MVP01 §12](../module-specs/Module-Spec-MVP01-DocumentDelivery.md#12-整批资料读取检查2026-11-04-已批准)，复用当前envelope、OIDC/BFF/CSRF及no-store。新增409错误READ_CHECK_ACTIVE（仅此错误可带闭details:{checkId,batchId}）、READ_CHECK_NOT_READY、READ_CHECK_RESULTS_CHANGED。READ_CHECK_ACTIVE引导读取已有活动检查；RESULTS_CHANGED保留筛选/容量重新打开第一页；均不允许自动产生新任务。POST payload只含manifestId，Idempotency-Key必填，202只表示已持久排队。新的list cursor绑定观察版本和筛选/容量；不改变旧清单cursor语义。

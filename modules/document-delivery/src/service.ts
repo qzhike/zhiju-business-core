@@ -1,3 +1,10 @@
+import { ReadCheckRepository } from './read-check/repository.js';
+import { ReadCheckRunner } from './read-check/runner.js';
+import {
+  READ_CHECK_FILTERS,
+  type ReadCheckFilter,
+  type ReadCheckScope,
+} from './read-check/types.js';
 import { newUuidV7, sha256CanonicalJson, type CanonicalJsonValue } from '@zhiju/shared-kernel';
 
 import { acquireExclusiveLock, type ExclusiveLock } from './custody/locks.js';
@@ -45,6 +52,9 @@ import {
 import type { MvpDatabase } from './persistence/db.js';
 import { MvpRepository } from './persistence/repository.js';
 import { batchView } from './persistence/rows.js';
+import { join } from 'node:path';
+import { SourcePreviewReader, type PreviewOptions } from './preview/reader.js';
+import type { SourcePreview } from './preview/types.js';
 import type {
   CreateBatchInput,
   CreateProjectInput,
@@ -59,6 +69,7 @@ export interface MvpServiceOptions {
   readonly cursorKey: Buffer;
   readonly incarnation: string;
   readonly now?: () => Date;
+  readonly preview?: Omit<PreviewOptions, 'temporaryRoot'>;
 }
 
 export interface SessionIdentity {
@@ -116,12 +127,38 @@ export class MvpService {
   readonly #repository: MvpRepository;
   readonly #now: () => Date;
   readonly #background = new Set<Promise<void>>();
+  readonly #preview: SourcePreviewReader;
+  readonly #readChecks: ReadCheckRepository;
+  readonly #readCheckRunner: ReadCheckRunner;
   #instanceId: string | undefined;
 
   constructor(options: MvpServiceOptions) {
     this.#db = options.database;
     this.#store = options.store;
     this.#now = options.now ?? (() => new Date());
+    this.#preview = new SourcePreviewReader({
+      ...options.preview,
+      temporaryRoot: join(options.store.root, `preview-${options.store.identity.instanceId}`),
+    });
+    this.#readChecks = new ReadCheckRepository(
+      options.database,
+      options.cursorKey,
+      options.incarnation,
+    );
+    this.#readCheckRunner = new ReadCheckRunner(
+      this.#readChecks,
+      this.#preview,
+      options.store.identity.storeIdentity,
+      (identity, scope, sourceId, manifestId, signal) =>
+        this.getSourcePreview(
+          { ...identity, displayName: '' },
+          scope.projectId,
+          scope.batchId,
+          sourceId,
+          manifestId,
+          signal,
+        ),
+    );
     this.#repository = new MvpRepository({
       database: options.database,
       cursorKey: options.cursorKey,
@@ -144,7 +181,13 @@ export class MvpService {
   }
 
   /** Wait for every extraction this process started; used by shutdown and tests. */
+  async stopReadChecks(): Promise<void> {
+    await this.#readCheckRunner.close();
+  }
+
   async whenIdle(): Promise<void> {
+    await this.#readCheckRunner.whenIdle();
+    await this.#preview.close();
     while (this.#background.size > 0) await Promise.all([...this.#background]);
   }
 
@@ -159,6 +202,8 @@ export class MvpService {
     )
       throw new Error('MVP_INSTALLATION_MISMATCH');
     this.#instanceId = installation.instanceId;
+    await this.#preview.initialize();
+    await this.#readCheckRunner.startup();
   }
 
   session(identity: SessionIdentity): SessionView {
@@ -360,6 +405,105 @@ export class MvpService {
       throw error;
     }
     return { ...lookup, bytes };
+  }
+
+  async createReadCheck(
+    identity: SessionIdentity,
+    input: { projectId: string; batchId: string; requestId: string; payload: unknown },
+  ) {
+    const body = closedObject(input.payload, ['manifestId']);
+    const outcome = await this.#readChecks.create(
+      identity,
+      uuidV7(input.projectId),
+      uuidV7(input.batchId),
+      uuidV7(body.manifestId),
+      uuidV7(input.requestId),
+    );
+    this.#readCheckRunner.kick();
+    return outcome;
+  }
+
+  listReadChecks(
+    identity: SessionIdentity,
+    projectId: string,
+    batchId: string,
+    limit = 20,
+    cursor?: string,
+  ) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) fail('INVALID_REQUEST');
+    return this.#readChecks.list(identity, uuidV7(projectId), uuidV7(batchId), limit, cursor);
+  }
+
+  getReadCheck(identity: SessionIdentity, scope: ReadCheckScope) {
+    return this.#readChecks.get(identity, {
+      projectId: uuidV7(scope.projectId),
+      batchId: uuidV7(scope.batchId),
+      checkId: uuidV7(scope.checkId),
+    });
+  }
+
+  listReadCheckEntries(
+    identity: SessionIdentity,
+    scope: ReadCheckScope,
+    input: { limit?: number; cursor?: string; filter?: string; resultVersion?: number } = {},
+  ) {
+    const limit = input.limit ?? 20,
+      filter = input.filter ?? 'ALL';
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      !READ_CHECK_FILTERS.includes(filter as ReadCheckFilter) ||
+      (input.resultVersion !== undefined &&
+        (!Number.isSafeInteger(input.resultVersion) || input.resultVersion < 1))
+    )
+      fail('INVALID_REQUEST');
+    return this.#readChecks.entries(
+      identity,
+      {
+        projectId: uuidV7(scope.projectId),
+        batchId: uuidV7(scope.batchId),
+        checkId: uuidV7(scope.checkId),
+      },
+      filter as ReadCheckFilter,
+      limit,
+      input.cursor,
+      input.resultVersion,
+    );
+  }
+
+  async getSourcePreview(
+    identity: SessionIdentity,
+    projectId: string,
+    batchId: string,
+    sourceId: string,
+    manifestId: string,
+    signal?: AbortSignal,
+  ): Promise<SourcePreview> {
+    const source = await this.#repository.storedSource(
+      identity.ownerId,
+      uuidV7(projectId),
+      uuidV7(batchId),
+      uuidV7(sourceId),
+      { manifestId: uuidV7(manifestId), authEpoch: identity.authEpoch },
+      signal,
+    );
+    const result = await this.#preview.read(
+      source,
+      async () => {
+        try {
+          return await this.#store.readVerified(source.objectKey, source.sourceRef);
+        } catch (error) {
+          if (error instanceof StoreIntegrityError) fail('STORAGE_INTEGRITY_ERROR');
+          throw error;
+        }
+      },
+      signal,
+    );
+    const current = await this.#db.currentBinding(identity.ownerId, signal);
+    if (!current?.enabled || current.authEpoch !== identity.authEpoch)
+      fail('INSTANCE_ACCESS_DENIED');
+    return result;
   }
 
   async recover(
@@ -814,7 +958,16 @@ export class MvpService {
       }
       if (error instanceof ZipSafetyError) {
         await this.#repository
-          .failExtraction(ownerId, projectId, batchId, attemptId, true, [error.code])
+          .failExtraction(
+            ownerId,
+            projectId,
+            batchId,
+            attemptId,
+            true,
+            [error.code],
+            undefined,
+            error.limitViolation,
+          )
           .catch(() => undefined);
         return;
       }

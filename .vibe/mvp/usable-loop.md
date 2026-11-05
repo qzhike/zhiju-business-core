@@ -1,8 +1,8 @@
 # MVP 可用闭环
 
-日期：2026-11-03
+日期：2026-11-04
 
-状态：`PRODUCT SCOPE UPDATED / NESTED ARCHIVE POLICY IMPLEMENTED LOCALLY / MVP-V1 RELEASE ACCEPTANCE NOT RUN`
+状态：`PRODUCT SCOPE UPDATED / NESTED ARCHIVE POLICY DEPLOYED TO DESIGNATED TEST INSTANCE / MVP-V1 RELEASE ACCEPTANCE NOT RUN`
 
 本文是本次 MVP 的业务范围与可用闭环基准。依据为用户更新的 [MVP PRD确定版](</Users/galendai/Local/my-knowledge-base-v2/03_Projects/zhiju-business-core/mvp/MVP_PRD确定版.md>)及 2026-10-26 的 UI 优先与 bopu 完整输入验收决定。PRD 原文件由用户维护，本文承接已确认的仓库内产品约束，不修改外部 PRD。
 
@@ -22,12 +22,12 @@
 | Runner 开发 | 不属于 `zhiju-business-core` 开发范围；用户独立维护其 `AGENTS.md`、Skills、必要工具及正式模板 |
 | Runner 独立性 | 脱离 Core，用户仍能通过独立 CLI 执行业务；本版只接通选定的一个 Harness，不同时适配所有工具 |
 | 模板与验证 | 真实业务验收使用 Runner 内正式模板；UI 可用明确标注的 mock data 验证交互，不能替代真实内容验收 |
-| 现有数据 | 无必须迁移的真实业务数据，无必须兼容的外部接口消费者 |
+| 现有数据 | 已有真实托管批次、封存来源与原件必须保留；不能继续以早期“无真实业务数据”为清理依据。只读内容核对增量不新增数据库迁移 |
 | 发布基线 | 完整处理用户整理并确认的不含嵌套压缩文件的 bopu 输入文档集合，交付完整 Markdown 包；重新固定整理后 ZIP 的摘要和清单，不沿用旧包统计冒充新基线；小样本不能代替全量验收 |
 
 更新后的 PRD 指定正式 Runner 目录为 `/Users/galendai/repo/qzhike/zhiju-doc-artifacts`，其中 `template/` 是正式模板所在目录。目录身份已确认不等于调用协议、全部输入读取或完整执行已验证。Core 不修改该目录，也不建立另一套模板上传、编辑、发布体系。
 
-2026-11-03 用户明确取消嵌套 RAR 功能及其验收要求，改为上传时拒绝嵌套压缩文件。此产品决定覆盖此前包含两个 RAR 内文档的要求；用户可自行解压需要保留的文档后重新打包。技术方案见 [上传拒绝嵌套压缩文件](../decisions/mvp-nested-archive-rejection.md)，已在本地实现，现有实例尚未迁移或发布；原包和历史证据不删除或改写。
+2026-11-03 用户明确取消嵌套 RAR 功能及其验收要求，改为上传时拒绝嵌套压缩文件。此产品决定覆盖此前包含两个 RAR 内文档的要求；用户可自行解压需要保留的文档后重新打包。技术方案见 [上传拒绝嵌套压缩文件](../decisions/mvp-nested-archive-rejection.md)，已按独立授权升级指定测试实例，当前运行 @4 / V0004；原包和历史证据不删除或改写，升级不等于完整业务验收。
 
 ## 2. 客户制度与模板的使用原则
 

@@ -96,7 +96,12 @@ function sendSuccess(reply: FastifyReply, status: number, data: unknown, receipt
     });
 }
 
-function sendError(reply: FastifyReply, code: MvpErrorCode, requestId?: string): void {
+function sendError(
+  reply: FastifyReply,
+  code: MvpErrorCode,
+  requestId?: string,
+  details?: { checkId: string; batchId: string },
+): void {
   reply
     .status(mvpErrorStatus(code))
     .header('content-type', 'application/json; charset=utf-8')
@@ -107,6 +112,7 @@ function sendError(reply: FastifyReply, code: MvpErrorCode, requestId?: string):
         message: mvpErrorMessage(code),
         ...(requestId === undefined ? {} : { requestId }),
         retryable: mvpErrorRetryable(code),
+        ...(code === 'READ_CHECK_ACTIVE' && details !== undefined ? { details } : {}),
       },
       observedAt: observedAt(),
     });
@@ -174,7 +180,7 @@ export function registerMvpTransport(server: FastifyInstance, runtime: MvpCoreRu
 
   server.setErrorHandler((error, request, reply) => {
     if (error instanceof MvpError) {
-      sendError(reply, error.code, safeRequestId(request));
+      sendError(reply, error.code, safeRequestId(request), error.details);
       return;
     }
     if (error instanceof StrictJsonError) {
@@ -293,6 +299,69 @@ export function registerMvpTransport(server: FastifyInstance, runtime: MvpCoreRu
     sendSuccess(reply, 200, page);
   });
 
+  const checksPath = '/api/mvp/v1/projects/:projectId/batches/:batchId/read-checks';
+  server.post(checksPath, async (request, reply) => {
+    const identity = await authenticate(runtime, request);
+    queryParameters(request, []);
+    const outcome = await runtime.service.createReadCheck(identity, {
+      projectId: pathId(request, 'projectId'),
+      batchId: pathId(request, 'batchId'),
+      requestId: idempotencyKey(request),
+      payload: bodyRecord(request),
+    });
+    sendSuccess(reply, outcome.replayed ? 200 : 202, outcome.data, outcome.receipt);
+  });
+  server.get(checksPath, async (request, reply) => {
+    const identity = await authenticate(runtime, request),
+      query = queryParameters(request, ['limit', 'cursor']);
+    sendSuccess(
+      reply,
+      200,
+      await runtime.service.listReadChecks(
+        identity,
+        pathId(request, 'projectId'),
+        pathId(request, 'batchId'),
+        limitParameter(query, 'limit', 20),
+        cursorParameter(query, 'cursor'),
+      ),
+    );
+  });
+  server.get(`${checksPath}/:checkId`, async (request, reply) => {
+    const identity = await authenticate(runtime, request);
+    queryParameters(request, []);
+    sendSuccess(reply, 200, {
+      check: await runtime.service.getReadCheck(identity, {
+        projectId: pathId(request, 'projectId'),
+        batchId: pathId(request, 'batchId'),
+        checkId: pathId(request, 'checkId'),
+      }),
+    });
+  });
+  server.get(`${checksPath}/:checkId/entries`, async (request, reply) => {
+    const identity = await authenticate(runtime, request),
+      query = queryParameters(request, ['limit', 'cursor', 'filter', 'resultVersion']);
+    const rawVersion = query.get('resultVersion');
+    if (rawVersion !== null && !/^[1-9][0-9]{0,15}$/u.test(rawVersion)) fail('INVALID_REQUEST');
+    sendSuccess(
+      reply,
+      200,
+      await runtime.service.listReadCheckEntries(
+        identity,
+        {
+          projectId: pathId(request, 'projectId'),
+          batchId: pathId(request, 'batchId'),
+          checkId: pathId(request, 'checkId'),
+        },
+        {
+          limit: limitParameter(query, 'limit', 20, 100),
+          ...(query.has('cursor') ? { cursor: cursorParameter(query, 'cursor') ?? '' } : {}),
+          ...(query.has('filter') ? { filter: query.get('filter') ?? '' } : {}),
+          ...(rawVersion === null ? {} : { resultVersion: Number(rawVersion) }),
+        },
+      ),
+    );
+  });
+
   server.get('/api/mvp/v1/requests/:requestId', async (request, reply) => {
     const identity = await authenticate(runtime, request);
     queryParameters(request, []);
@@ -349,6 +418,48 @@ export function registerMvpTransport(server: FastifyInstance, runtime: MvpCoreRu
         chunks: byteChunks(body),
       });
       sendSuccess(reply, 202, { batch: result.batch });
+    },
+  );
+
+  server.get(
+    '/api/mvp/v1/projects/:projectId/batches/:batchId/sources/:sourceId/preview',
+    async (request, reply) => {
+      const disconnected = new AbortController();
+      const cancel = () => {
+        if (!reply.raw.writableEnded) disconnected.abort();
+      };
+      reply.raw.once('close', cancel);
+      const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(30000)]);
+      try {
+        const identity = await authenticate(runtime, request);
+        const query = queryParameters(request, ['manifestId']);
+        const manifestId = query.get('manifestId');
+        if (
+          manifestId === null ||
+          !isUuidV7(manifestId) ||
+          header(request, 'range') !== undefined ||
+          request.body !== undefined ||
+          header(request, 'transfer-encoding') !== undefined ||
+          (header(request, 'content-length') !== undefined &&
+            header(request, 'content-length') !== '0')
+        )
+          fail('INVALID_REQUEST');
+        const result = await runtime.service.getSourcePreview(
+          identity,
+          pathId(request, 'projectId'),
+          pathId(request, 'batchId'),
+          pathId(request, 'sourceId'),
+          manifestId,
+          signal,
+        );
+        const fresh = await authenticate(runtime, request);
+        if (fresh.ownerId !== identity.ownerId || fresh.authEpoch !== identity.authEpoch)
+          fail('INSTANCE_ACCESS_DENIED');
+        reply.header('cache-control', 'no-store');
+        sendSuccess(reply, 200, result);
+      } finally {
+        reply.raw.off('close', cancel);
+      }
     },
   );
 

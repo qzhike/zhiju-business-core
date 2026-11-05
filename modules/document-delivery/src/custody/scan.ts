@@ -39,6 +39,7 @@ export function scanInputPackage(bytes: Buffer): ScannedPackage {
     }
     const metadata = entryMetadata(entry.bytes);
     let classified;
+    if (/\.(?:docx|xlsx)$/iu.test(entry.originalName)) budget.documentPath = entry.originalName;
     try {
       classified = classifyEntry(entry.originalName, entry.bytes, budget);
     } catch (error) {
@@ -51,6 +52,8 @@ export function scanInputPackage(bytes: Buffer): ScannedPackage {
         status: 'CORRUPT' as const,
         reasonCodes: ['EXTRACTION_FAILED'] as const satisfies readonly ReasonCode[],
       };
+    } finally {
+      delete budget.documentPath;
     }
     entries.push({
       ordinal: entry.ordinal,

@@ -75,6 +75,7 @@ export async function createMvpCoreRuntime(
     store,
     cursorKey: config.cursorKey,
     incarnation: config.incarnation,
+    preview: config.preview,
   });
   try {
     await service.startup();
@@ -127,6 +128,7 @@ export async function createMvpCoreRuntime(
       // The transport closes its entry point before calling runtime.close().
       // Keep ownership until all scheduled writers and database work finish.
       closing ??= (async () => {
+        await service.stopReadChecks();
         await service.whenIdle();
         await database.close();
         await instanceLock.release();
